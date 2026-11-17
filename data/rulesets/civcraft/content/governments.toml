@@ -31,7 +31,7 @@ cost_per_excess_unit_gold = 1
 [[governments]]
 government = "monarchy"
 name = "Monarchy"
-required_technology = "Monarchy"
+required_technology = "TECH_Monarchy"
 flags = ["ShieldToGold"]
 civil_war_chance = 70
 empire_size_base = 14
@@ -44,7 +44,7 @@ cost_per_excess_unit_gold = 1
 [[governments]]
 government = "communism"
 name = "Communism"
-required_technology = "Communism"
+required_technology = "TECH_Communism"
 flags = []
 civil_war_chance = 50
 empire_size_base = 28
@@ -57,7 +57,7 @@ cost_per_excess_unit_gold = 1
 [[governments]]
 government = "republic"
 name = "Republic"
-required_technology = "The Republic"
+required_technology = "TECH_The_Republic"
 flags = []
 civil_war_chance = 40
 empire_size_base = 16
@@ -70,7 +70,7 @@ cost_per_excess_unit_gold = 2
 [[governments]]
 government = "democracy"
 name = "Democracy"
-required_technology = "Democracy"
+required_technology = "TECH_Democracy"
 flags = ["ShieldToGold"]
 civil_war_chance = 30
 empire_size_base = 32
@@ -83,7 +83,7 @@ cost_per_excess_unit_gold = 1
 [[governments]]
 government = "fascism"
 name = "Fascism"
-required_technology = "Fascism"
+required_technology = "TECH_Fascism"
 flags = []
 civil_war_chance = 60
 empire_size_base = 20
@@ -96,7 +96,7 @@ cost_per_excess_unit_gold = 1
 [[governments]]
 government = "feudalism"
 name = "Feudalism"
-required_technology = "Feudalism"
+required_technology = "TECH_Feudalism"
 flags = []
 civil_war_chance = 20
 empire_size_base = 14

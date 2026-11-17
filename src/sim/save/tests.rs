@@ -61,6 +61,26 @@ fn loads_v27_campaign_and_rewrites_it_in_the_current_format() {
 }
 
 #[test]
+fn published_v28_campaign_keeps_its_exact_wire_layout() {
+    // Written with e6de9e1 after creating a city and refreshing map knowledge.
+    let path = Path::new(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/fixtures/civcraft_v28_campaign.save"
+    ));
+    let bytes = fs::read(path).unwrap();
+    assert!(bytes.starts_with(HEADER));
+    let mut game = Simulation::load_campaign(path).unwrap();
+    assert_eq!(game.world_seed, 42);
+    assert!(game.city_at(5, 6).is_some());
+    assert!(game.units.iter().any(|unit| (unit.x, unit.y) == (6, 6)));
+    assert!(game.remembered_tile(HUMAN, 5, 6).is_some());
+    assert_eq!(game.encode_campaign().unwrap(), bytes[HEADER.len()..]);
+    let turn = game.turn;
+    game.simulate_turn();
+    assert_eq!(game.turn, turn + 1);
+}
+
+#[test]
 fn large_explored_campaigns_save_reload_and_advance() {
     for dimension in [256, 512] {
         let wrap = MapWrap::with_dimensions(dimension, dimension).unwrap();

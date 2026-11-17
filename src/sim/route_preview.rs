@@ -172,6 +172,28 @@ mod tests {
     }
 
     #[test]
+    fn unreachable_goto_preserves_active_work_and_valid_goto_can_queue_with_no_moves() {
+        let (mut sim, id) = fixture(UnitKind::Worker);
+        let (x, y) = offset_native_by_map(10, 24, 1, 0);
+        sim.tile_mut(x, y).terrain = Terrain::Ocean;
+        assert!(sim.apply(Command::Work(id, WorkKind::Road)));
+        let progress = sim.units[0].work_left;
+        assert!(progress > 0);
+        assert!(sim.preview_goto(id, x, y).is_none());
+
+        assert!(!sim.apply(Command::GoTo(id, x, y)));
+        assert_eq!(sim.units[0].work_kind, Some(WorkKind::Road));
+        assert_eq!(sim.units[0].work_left, progress);
+        assert!(!sim.unit_goto_tiles.contains_key(&id));
+
+        sim.tile_mut(x, y).terrain = Terrain::Grassland;
+        sim.units[0].moves_left = 0;
+        assert!(sim.apply(Command::GoTo(id, x, y)));
+        assert_eq!(sim.unit_goto_tiles.get(&id), Some(&(x, y)));
+        assert_eq!(sim.units[0].work_kind, None);
+    }
+
+    #[test]
     fn river_road_and_rail_previews_match_actual_goto_movement() {
         for (river, road, rail, remaining) in [
             (true, false, false, 0),

@@ -94,12 +94,7 @@ impl Government {
     }
 
     pub(crate) fn requirement(self) -> Option<Tech> {
-        let name = self.rule_name()?;
-        let technology = crate::rules::native::governments()
-            .get(name)
-            .map(|government| government.required_technology.as_str())
-            .filter(|name| !name.is_empty())?;
-        Tech::all().find(|tech| tech.name().eq_ignore_ascii_case(technology))
+        self.native_record()?.technology
     }
 
     fn native_record(self) -> Option<&'static crate::rules::native::NativeGovernment> {

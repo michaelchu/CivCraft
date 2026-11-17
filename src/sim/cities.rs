@@ -68,30 +68,36 @@ impl Simulation {
         unreachable!()
     }
 
-    pub(super) fn found_city(&mut self, unit_id: u32) -> bool {
-        let Some(index) = self.unit_index_by_id(unit_id) else {
-            return false;
-        };
-        let unit = self.units[index].clone();
+    // Settling eligibility belongs to the simulation so UI and AI see the
+    // same restrictions as the command.
+    pub(super) fn founding_blocker(&self, unit: &Unit) -> Option<&'static str> {
         if unit.moves_left <= 0 {
-            return false; // Civ2Civ3 Found City requires MinMoveFrags 1.
+            return Some("The settler has no movement remaining.");
         }
         if self
             .tile(unit.x, unit.y)
             .owner
             .is_some_and(|owner| owner != unit.owner && !self.at_war(owner, unit.owner))
         {
-            if unit.owner == HUMAN {
-                self.add_event("A treaty prevents settling on that tile.");
-            }
-            return false;
+            return Some("A treaty prevents settling on that tile.");
         }
         if !unit.kind.stats().can_found
             || unit.transport.is_some()
             || !self.can_found_at(unit.x, unit.y)
         {
+            return Some("A city must be on land and at least 3 tiles from another city.");
+        }
+        None
+    }
+
+    pub(super) fn found_city(&mut self, unit_id: u32) -> bool {
+        let Some(index) = self.unit_index_by_id(unit_id) else {
+            return false;
+        };
+        let unit = self.units[index].clone();
+        if let Some(reason) = self.founding_blocker(&unit) {
             if unit.owner == HUMAN {
-                self.add_event("A city must be on land and at least 3 tiles from another city.");
+                self.add_event(reason);
             }
             return false;
         }

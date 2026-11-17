@@ -179,19 +179,7 @@ impl Simulation {
             AutoPrecisionBombard(id, x, y) => self.start_repeated_precision_bombard(id, x, y),
             AirSuperiority(id) => self.start_air_superiority(id),
             CancelOrder(id) => self.cancel_unit_order(id),
-            GoTo(id, x, y) => {
-                if !(0..self.map_wrap.width()).contains(&x)
-                    || !(0..self.map_wrap.height()).contains(&y)
-                {
-                    return false;
-                }
-                if let Some(index) = self.unit_index_by_id(id) {
-                    self.units[index].order = None;
-                    self.units[index].clear_work();
-                }
-                self.unit_goto_tiles.remove(&id);
-                self.player_goto(id, x, y)
-            }
+            GoTo(id, x, y) => self.issue_player_goto(id, x, y),
             Connect(id, x, y) => self.start_connect_order(id, x, y),
             Patrol(id, x, y) => self.start_patrol_order(id, x, y),
             FoundCity(id) => self.found_city(id),

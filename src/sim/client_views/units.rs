@@ -162,7 +162,7 @@ impl Simulation {
             can_connect: unit.kind.stats().can_work && unit.order.is_none(),
             can_patrol: unit.kind.is_military() && unit.order.is_none(),
             found_city: (stats.can_found && unit.transport.is_none())
-                .then(|| self.can_found_at(unit.x, unit.y)),
+                .then(|| self.founding_blocker(unit).is_none()),
             road_action,
             road_work,
             irrigation_action,

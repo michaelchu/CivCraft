@@ -36,11 +36,11 @@ pub(crate) struct ObservedCity {
 
 #[derive(Clone, Default, serde::Serialize, serde::Deserialize)]
 pub(super) struct ObservedMap {
-    revision: u64,
-    tiles: BTreeMap<(usize, usize), (u64, Tile)>,
-    cities: BTreeMap<(usize, u32), (u64, ObservedCity)>,
+    pub(super) revision: u64,
+    pub(super) tiles: BTreeMap<(usize, usize), (u64, Tile)>,
+    pub(super) cities: BTreeMap<(usize, u32), (u64, ObservedCity)>,
     #[serde(skip)]
-    human_city_owners: BTreeMap<(i32, i32), usize>,
+    pub(super) human_city_owners: BTreeMap<(i32, i32), usize>,
 }
 
 impl Simulation {
@@ -213,26 +213,6 @@ impl Simulation {
         let recipients: Vec<_> = (0..self.players.len())
             .map(|owner| self.vision_recipients(owner))
             .collect();
-        let _profile = profiler.scope("visibility.refresh.knowledge_sharing");
-        let sharing: Vec<_> = recipients
-            .iter()
-            .enumerate()
-            .filter(|(_, targets)| targets.len() > 1)
-            .collect();
-        if !sharing.is_empty() {
-            for tile in &mut self.tiles {
-                let known = tile.known_by;
-                for &(owner, targets) in &sharing {
-                    if known[owner] {
-                        for &target in targets {
-                            tile.known_by[target] = true;
-                        }
-                    }
-                }
-                tile.seen |= tile.known_by[HUMAN];
-            }
-        }
-        drop(_profile);
         let mut observations = vec![None; self.tiles.len()];
         let mut render_seen = vec![vec![false; self.tiles.len()]; self.players.len()];
         let _profile = profiler.scope("visibility.refresh.revealers");
@@ -692,26 +672,14 @@ impl Simulation {
     }
 
     pub(super) fn share_render_memory(&mut self) {
-        // Sharing transfers historical knowledge as well as current sight.
-        let shares: Vec<_> = (0..self.players.len())
-            .flat_map(|giver| {
-                self.vision_recipients(giver)
-                    .into_iter()
-                    .filter(move |receiver| *receiver != giver)
-                    .map(move |receiver| (giver, receiver))
-            })
-            .collect();
-        for (giver, receiver) in shares {
-            self.transfer_render_map(giver, receiver, TreatyMap::World);
-        }
         // Map-reveal effects can grant knowledge without direct sight. Capture
-        // those newly known tiles once; shared historical snapshots take priority.
+        // snapshots for direct reveals before moving any private knowledge.
+        let revealers: Vec<_> = (0..self.players.len())
+            .filter(|&owner| owner != BARBARIANS && self.reveals_map(owner))
+            .collect();
         for (index, tile) in self.tiles.iter().enumerate() {
-            for owner in 0..self.players.len() {
-                if owner == BARBARIANS
-                    || !tile.known_by[owner]
-                    || self.observed_map.tiles.contains_key(&(owner, index))
-                {
+            for &owner in &revealers {
+                if self.observed_map.tiles.contains_key(&(owner, index)) {
                     continue;
                 }
                 let mut snapshot = tile.clone();
@@ -723,54 +691,80 @@ impl Simulation {
                     .insert((owner, index), (self.observed_map.revision, snapshot));
             }
         }
+        // Sharing transfers historical knowledge as well as current sight.
+        let shares: Vec<_> = (0..self.players.len())
+            .flat_map(|giver| {
+                self.vision_recipients(giver)
+                    .into_iter()
+                    .filter(move |receiver| *receiver != giver)
+                    .map(move |receiver| (giver, receiver))
+            })
+            .collect();
+        for (giver, receiver) in shares {
+            self.transfer_map_observations(giver, receiver, TreatyMap::World, |_| true);
+        }
     }
 
-    pub(super) fn transfer_render_map(&mut self, giver: usize, receiver: usize, map: TreatyMap) {
+    pub(super) fn transfer_map_observations(
+        &mut self,
+        giver: usize,
+        receiver: usize,
+        map: TreatyMap,
+        include: impl Fn(usize) -> bool,
+    ) {
+        if giver == receiver || receiver == BARBARIANS {
+            return;
+        }
         let tiles: Vec<_> = self
             .observed_map
             .tiles
-            .iter()
-            .filter(|((owner, _), (_, tile))| {
-                *owner == giver && (map != TreatyMap::Sea || tile.terrain.is_water())
+            .range((giver, 0)..=(giver, usize::MAX))
+            .filter(|((_, index), (revision, _))| {
+                let tile = &self.tiles[*index];
+                include(*index)
+                    && tile.known_by[giver]
+                    && (map != TreatyMap::Sea || tile.terrain.is_water())
+                    && !(receiver == HUMAN && tile.visible)
+                    && self
+                        .observed_map
+                        .tiles
+                        .get(&(receiver, *index))
+                        .is_none_or(|old| !tile.known_by[receiver] || old.0 < *revision)
             })
             .map(|((_, index), entry)| (*index, entry.clone()))
             .collect();
+
+        let donor_cities: BTreeMap<_, _> = self
+            .observed_map
+            .cities
+            .range((giver, 0)..=(giver, u32::MAX))
+            .map(|(_, (_, observed))| {
+                let city = &observed.city;
+                (self.map_wrap.index(city.x, city.y), city.owner)
+            })
+            .collect();
         let mut transferred = std::collections::BTreeSet::new();
         for (index, entry) in tiles {
-            if receiver == HUMAN && self.tiles[index].visible {
-                continue;
+            let mut route = movement::RouteTile::from(&entry.1);
+            route.city_owner = donor_cities.get(&index).copied();
+            let observation = MapObservation {
+                route,
+                owner: entry.1.owner,
+                ocean: route.is_water(),
+            };
+            let tile = &mut self.tiles[index];
+            tile.known_by[receiver] = true;
+            if receiver == HUMAN {
+                tile.seen = true;
+                tile.last_seen_owner = observation.owner;
+            } else {
+                self.ai_map_memory.insert((receiver, index), observation);
             }
-            if self
-                .observed_map
-                .tiles
-                .get(&(receiver, index))
-                .is_none_or(|old| old.0 < entry.0)
-            {
-                // Rendering and movement must consume the same dated private
-                // tile. Never reconstruct the recipient's route from live terrain.
-                let mut route = movement::RouteTile::from(&entry.1);
-                route.city_owner = self
-                    .observed_map
-                    .cities
-                    .iter()
-                    .find(|((viewer, _), (_, observed))| {
-                        *viewer == giver
-                            && self.map_wrap.index(observed.city.x, observed.city.y) == index
-                    })
-                    .map(|(_, (_, observed))| observed.city.owner);
-                let observation = MapObservation {
-                    route,
-                    owner: entry.1.owner,
-                    ocean: entry.1.terrain.is_water(),
-                };
-                if receiver == HUMAN {
-                    self.tiles[index].last_seen_owner = observation.owner;
-                } else if receiver != BARBARIANS {
-                    self.ai_map_memory.insert((receiver, index), observation);
-                }
-                self.observed_map.tiles.insert((receiver, index), entry);
-                transferred.insert(index);
-            }
+            self.observed_map.tiles.insert((receiver, index), entry);
+            transferred.insert(index);
+        }
+        if transferred.is_empty() {
+            return;
         }
         // A newer observation of an empty tile must also clear a stale city.
         self.observed_map.cities.retain(|(viewer, _), (_, city)| {

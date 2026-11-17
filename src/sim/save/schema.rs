@@ -3,6 +3,8 @@ use super::super::*;
 use serde::{Deserialize, Serialize};
 use std::{borrow::Cow, collections::BTreeMap};
 
+mod records;
+
 type PairMemory<T> = BTreeMap<(usize, usize), T>;
 
 // Field order is part of the 0x26, 0x27 and 0x28 wire formats. Make a
@@ -13,8 +15,20 @@ struct SavedCore<'a> {
     map_seed: u32,
     civilization_count: usize,
     map_wrap: MapWrap,
+    #[serde(
+        serialize_with = "records::sequence::serialize",
+        deserialize_with = "records::sequence::deserialize_cow"
+    )]
     tiles: Cow<'a, [Tile]>,
+    #[serde(
+        serialize_with = "records::sequence::serialize",
+        deserialize_with = "records::sequence::deserialize_cow"
+    )]
     units: Cow<'a, [Unit]>,
+    #[serde(
+        serialize_with = "records::sequence::serialize",
+        deserialize_with = "records::sequence::deserialize_cow"
+    )]
     cities: Cow<'a, [City]>,
     trade_routes: Cow<'a, [trade_routes::TradeRoute]>,
     completed_wonders: Cow<'a, [Building]>,
@@ -25,6 +39,10 @@ struct SavedCore<'a> {
     diplomacy: Cow<'a, BTreeMap<(usize, usize), diplomacy::Relation>>,
     apollo_completed: bool,
     global_advances: Cow<'a, [Tech]>,
+    #[serde(
+        serialize_with = "records::sequence::serialize",
+        deserialize_with = "records::sequence::deserialize_cow"
+    )]
     players: Cow<'a, [Player]>,
     government_adoptions: [i32; 11],
     turn: i32,
@@ -42,6 +60,10 @@ struct SavedCore<'a> {
 struct SavedAi<'a> {
     ai_purchase_reserve: Cow<'a, BTreeMap<usize, i32>>,
     city_founders: Cow<'a, BTreeMap<u32, usize>>,
+    #[serde(
+        serialize_with = "records::map::serialize",
+        deserialize_with = "records::map::deserialize_cow"
+    )]
     ai_map_memory: Cow<'a, AiMapMemory>,
     ai_war_plans: Cow<'a, PairMemory<diplomacy::WarPlan>>,
     ai_space_warnings: Cow<'a, PairMemory<i32>>,
@@ -64,6 +86,7 @@ struct SavedWorld<'a> {
     list_order: list_order::ListOrder,
     native_random: Option<FreecivRng>,
     cargo_order: BTreeMap<u32, Vec<u32>>,
+    #[serde(with = "records::observation")]
     observed_map: Cow<'a, observed_map::ObservedMap>,
 }
 
@@ -77,6 +100,7 @@ pub(super) struct SavedCampaign<'a> {
 #[derive(Deserialize)]
 pub(super) struct LegacyCampaign<'a> {
     core: SavedCore<'a>,
+    #[serde(deserialize_with = "records::sequence::deserialize")]
     route_memory: Vec<Option<movement::RouteTile>>,
     ai: SavedAi<'a>,
     world: SavedWorld<'a>,

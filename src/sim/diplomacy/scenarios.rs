@@ -324,6 +324,11 @@ impl Simulation {
             tile.visible = false;
             tile.seen = false;
         }
+        let mut observed = vec![vec![false; self.tiles.len()]; self.players.len()];
+        for (x, y) in [land, sea] {
+            observed[1][self.map_wrap.index(x, y)] = true;
+        }
+        self.remember_render_map(&observed);
         self.create_city(HUMAN, 3, 3);
         // Meet away from the map probes so contact reveals none of the test tiles.
         self.tile_mut(22, 10).terrain = Terrain::Grassland;
@@ -378,6 +383,9 @@ impl Simulation {
         tile.known_by[1] = true;
         tile.known_by[HUMAN] = false;
         tile.seen = false;
+        let mut observed = vec![vec![false; self.tiles.len()]; self.players.len()];
+        observed[1][self.map_wrap.index(point.0, point.1)] = true;
+        self.remember_render_map(&observed);
         let key = (HUMAN, 1);
         self.diplomacy.entry(key).or_default().pact = Pact::War;
         self.players[HUMAN].known.clear();

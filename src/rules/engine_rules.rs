@@ -24,6 +24,9 @@ mod identifiers;
 mod loader;
 #[path = "engine_rules/settlement_ai.rs"]
 mod settlement_ai;
+#[path = "engine_rules/terrain.rs"]
+mod terrain;
+pub(crate) use terrain::{RoadYields, TerrainYields};
 #[path = "engine_rules/trade_routes.rs"]
 mod trade_routes;
 #[path = "engine_rules/veterancy.rs"]
@@ -902,6 +905,7 @@ impl std::error::Error for LoadError {}
 impl RulesetData {
     /// Load the generic engine layer from the CivCraft campaign package.
     /// Native content catalogs construct independently, without import bindings.
+    #[cfg(test)]
     pub(crate) fn load_civcraft(data_root: &Path) -> Result<Self, LoadError> {
         let engine_dir = data_root.join("civcraft/engine");
         Self::load_from_directory(data_root, &engine_dir, "civcraft")
@@ -911,8 +915,7 @@ impl RulesetData {
     pub(crate) fn campaign_default() -> &'static Self {
         static RULESET: OnceLock<RulesetData> = OnceLock::new();
         RULESET.get_or_init(|| {
-            let data_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data/rulesets");
-            Self::load_civcraft(&data_root)
+            Self::load_bundled_campaign()
                 .unwrap_or_else(|error| panic!("failed to load campaign ruleset: {error}"))
         })
     }
@@ -1839,11 +1842,11 @@ impl RulesetData {
                     )));
                 }
 
-                let requirements = (!source.required_technology.trim().is_empty())
-                    .then(|| Requirement {
+                let requirements = source.technology
+                    .map(|tech| Requirement {
                         kind: RequirementKind::Tech,
                         name: RequirementValue::String(source.required_technology.clone()),
-                        resolved: None,
+                        resolved: Some(ResolvedRequirementValue::Tech(tech)),
                         range: RequirementRange::Player,
                         present: true,
                         survives: false,
@@ -3257,7 +3260,7 @@ mod government_catalog_tests {
         assert_eq!(monarchy.requirements[0].kind, RequirementKind::Tech);
         assert_eq!(
             monarchy.requirements[0].name,
-            RequirementValue::String("Monarchy".to_owned())
+            RequirementValue::String("TECH_Monarchy".to_owned())
         );
         assert_eq!(monarchy.requirements[0].range, RequirementRange::Player);
         assert_eq!(

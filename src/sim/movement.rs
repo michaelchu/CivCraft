@@ -1259,23 +1259,50 @@ impl Simulation {
         true
     }
 
+    pub(super) fn issue_player_goto(&mut self, id: u32, x: i32, y: i32) -> bool {
+        if !(0..self.map_wrap.width()).contains(&x) || !(0..self.map_wrap.height()).contains(&y) {
+            return false;
+        }
+        let Some(index) = self.unit_index_by_id(id) else {
+            return false;
+        };
+        let unit = &self.units[index];
+        let path = self.plan_route(unit, x, y, true);
+        if path.is_empty() && (unit.x, unit.y) != (x, y) {
+            return false;
+        }
+        self.units[index].order = None;
+        self.units[index].clear_work();
+        self.follow_player_goto(id, (x, y), path);
+        true
+    }
+
     pub(super) fn player_goto(&mut self, id: u32, x: i32, y: i32) -> bool {
         let Some(unit) = self.unit_by_id(id) else {
             return false;
         };
         let path = self.plan_route(unit, x, y, true);
-        if path.is_empty() {
-            let at_destination = (unit.x, unit.y) == (x, y);
-            if at_destination {
-                self.unit_goto_tiles.remove(&id);
-            }
-            return at_destination;
+        if path.is_empty() && (unit.x, unit.y) != (x, y) {
+            return false;
         }
-        self.unit_goto_tiles.insert(id, (x, y));
+        self.follow_player_goto(id, (x, y), path)
+    }
+
+    fn follow_player_goto(
+        &mut self,
+        id: u32,
+        destination: (i32, i32),
+        path: Vec<(i32, i32)>,
+    ) -> bool {
+        if path.is_empty() {
+            self.unit_goto_tiles.remove(&id);
+            return true;
+        }
+        self.unit_goto_tiles.insert(id, destination);
         let moved = self.follow_civ3_path(id, path);
         if self
             .unit_by_id(id)
-            .is_some_and(|unit| (unit.x, unit.y) == (x, y))
+            .is_some_and(|unit| (unit.x, unit.y) == destination)
         {
             self.unit_goto_tiles.remove(&id);
         }

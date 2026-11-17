@@ -689,6 +689,28 @@ mod tests {
     }
 
     #[test]
+    fn found_city_button_and_command_share_movement_and_treaty_checks() {
+        let mut sim = Simulation::new(crate::mapgen::generate(42));
+        sim.units.clear();
+        sim.tile_mut(20, 24).terrain = Terrain::Grassland;
+        let id = sim.spawn_unit(HUMAN, UnitKind::Settler, 20, 24);
+        let moves = sim.units[0].moves_left;
+        sim.units[0].moves_left = 0;
+        assert_eq!(sim.unit_action_view(id).unwrap().found_city, Some(false));
+        assert!(!sim.apply(Command::FoundCity(id)));
+
+        sim.units[0].moves_left = moves;
+        sim.sign_pact(HUMAN, 1, Pact::Peace);
+        sim.tile_mut(20, 24).owner = Some(1);
+        assert_eq!(sim.unit_action_view(id).unwrap().found_city, Some(false));
+        assert!(!sim.apply(Command::FoundCity(id)));
+
+        sim.tile_mut(20, 24).owner = None;
+        assert_eq!(sim.unit_action_view(id).unwrap().found_city, Some(true));
+        assert!(sim.apply(Command::FoundCity(id)));
+    }
+
+    #[test]
     fn city_map_labels_keep_last_seen_yields_until_the_tile_is_visible() {
         let mut sim = Simulation::new(crate::mapgen::generate(42));
         sim.create_city(HUMAN, 20, 24);

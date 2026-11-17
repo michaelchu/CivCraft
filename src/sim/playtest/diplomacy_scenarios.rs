@@ -10,7 +10,7 @@ impl Simulation {
         self.spawn_unit(1, UnitKind::Galley, x, y);
         self.refresh_visibility();
         self.units.clear();
-        self.tile_mut(x, y).terrain = Terrain::Grassland;
+        self.tile_mut(x, y).terrain = Terrain::Ocean;
         self.refresh_visibility();
         self.tile_mut(x, y).seen = false;
         self.tile_mut(x, y).known_by[HUMAN] = false;
@@ -19,7 +19,7 @@ impl Simulation {
             && !self.tile(x, y).visible
             && self
                 .observed_route_tile(x, y)
-                .is_some_and(|tile| tile.is_water())
+                .is_some_and(|tile| tile.terrain == Terrain::Sea)
     }
 
     pub(crate) fn diplomacy_playtest_tick(&mut self, turns: i32) {

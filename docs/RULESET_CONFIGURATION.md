@@ -2,18 +2,18 @@
 
 The native ruleset preserves campaign gameplay and saved identities while
 separating editable gameplay from internal compatibility data. Runtime and
-build-time BIQ metadata dependencies have been removed. Bundled catalogs are
-embedded at build time;
-editing them requires rebuilding the application. Live reload and a mod loader
+build-time BIQ metadata dependencies have been removed. The engine ruleset and
+native catalogs are embedded at build time. Editing either layer requires
+rebuilding the application. Live reload and a mod loader
 are outside this migration.
 
 ## Ownership
 
 | Owner | Contents |
 | --- | --- |
-| `data/rulesets/civcraft/content/` | Gameplay values, unit/building definitions, economy, terrain, governments, AI priorities, and village reward weights |
+| `data/rulesets/civcraft/content/` | Gameplay values, unit/building definitions, economy, governments, AI priorities, and village reward weights |
 | `src/rules/technologies.rs` | Technology identities, research costs, prerequisites, eras, capabilities, display metadata, and stable serialized indices |
-| `data/rulesets/civcraft/engine/` | Generic effects, action enablers, and remaining engine settings, using the engine's existing ruleset format |
+| `data/rulesets/civcraft/engine/` | Generic effects, action enablers, terrain and road rules, and remaining engine settings, using the engine's existing ruleset format |
 | `src/rules/compatibility.rs` | Stable building save identities and the existing obsolescence selection policy |
 | Rust simulation modules | Formulas, rule interpretation, state execution, validation, and turn processing |
 | `data/presentation/` | Animation pacing, independent of gameplay rules |
@@ -72,6 +72,17 @@ Building IDs resolve through internal serialized indices; author record order
 does not change save identities. Renumbering or extending the fixed runtime
 catalog needs an explicit Rust/save
 compatibility change; changing normal rule values does not.
+
+## Terrain and governments
+
+`engine/terrain.ruleset` owns terrain and road yields, movement, worker
+activity times, and climate transitions. Civ III terrain and resource identities
+and artwork mappings stay in their existing Rust adapters. The native economy
+catalog retains campaign resource yield overrides.
+
+Government prerequisites in `content/governments.toml` use stable technology IDs.
+An empty prerequisite allows availability without research. An unknown ID
+fails catalog loading.
 
 ## Supported states
 

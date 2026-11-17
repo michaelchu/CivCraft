@@ -151,6 +151,8 @@ pub(crate) struct NativeGovernment {
     pub(crate) name: String,
     #[serde(default)]
     pub(crate) required_technology: String,
+    #[serde(skip)]
+    pub(crate) technology: Option<super::Tech>,
     #[serde(default)]
     pub(crate) preferred_government: Option<String>,
     #[serde(default)]
@@ -196,8 +198,6 @@ pub(crate) struct EconomyCatalog {
     pub(crate) city: NativeCityEconomy,
     #[serde(default)]
     pub(crate) resources: Vec<NativeResource>,
-    #[serde(default)]
-    pub(crate) roads: Vec<NativeRoad>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -206,21 +206,6 @@ pub(crate) struct NativeResource {
     pub(crate) food: i32,
     pub(crate) shield: i32,
     pub(crate) trade: i32,
-}
-
-#[derive(Debug, Deserialize)]
-pub(crate) struct NativeRoad {
-    pub(crate) id: String,
-    pub(crate) move_cost: i32,
-    pub(crate) food_incr: i32,
-    pub(crate) shield_incr: i32,
-    pub(crate) trade_incr: i32,
-    pub(crate) food_incr_const: i32,
-    pub(crate) shield_incr_const: i32,
-    pub(crate) trade_incr_const: i32,
-    pub(crate) food_bonus: i32,
-    pub(crate) shield_bonus: i32,
-    pub(crate) trade_bonus: i32,
 }
 
 #[derive(Debug, Deserialize)]
@@ -237,47 +222,6 @@ pub(crate) struct NativeCityEconomy {
     pub(crate) full_trade_size: i32,
     pub(crate) gold_upkeep_style: String,
     pub(crate) celebrate_size_limit: i32,
-}
-
-#[derive(Debug, Deserialize)]
-pub(crate) struct TerrainCatalog {
-    pub(crate) schema_version: u32,
-    pub(crate) source: String,
-    pub(crate) parameters: NativeTerrainParameters,
-    pub(crate) terrains: Vec<NativeTerrain>,
-}
-
-#[derive(Debug, Deserialize)]
-pub(crate) struct NativeTerrainParameters {
-    pub(crate) ocean_reclaim_requirement: i32,
-    pub(crate) land_channel_requirement: i32,
-    pub(crate) thaw_requirement: i32,
-    pub(crate) freeze_requirement: i32,
-    pub(crate) lake_max_size: i32,
-    pub(crate) min_start_native_area: i32,
-}
-
-#[derive(Debug, Deserialize)]
-pub(crate) struct NativeTerrain {
-    pub(crate) id: String,
-    pub(crate) rule_name: String,
-    pub(crate) name: String,
-    pub(crate) class: String,
-    pub(crate) food: i32,
-    pub(crate) shield: i32,
-    pub(crate) trade: i32,
-    pub(crate) road_food_incr_pct: i32,
-    pub(crate) road_shield_incr_pct: i32,
-    pub(crate) road_trade_incr_pct: i32,
-    pub(crate) irrigation_food_incr: i32,
-    pub(crate) mining_shield_incr: i32,
-    pub(crate) property_ocean_depth: i32,
-    pub(crate) property_frozen: i32,
-    pub(crate) warmer_wetter_result: String,
-    pub(crate) warmer_drier_result: String,
-    pub(crate) cooler_wetter_result: String,
-    pub(crate) cooler_drier_result: String,
-    pub(crate) flags: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -663,13 +607,31 @@ pub(crate) fn technologies() -> &'static TechnologyCatalog {
     super::technologies::catalog()
 }
 
+fn parse_governments(source: &str) -> Result<GovernmentCatalog, String> {
+    let mut catalog: GovernmentCatalog =
+        toml::from_str(source).map_err(|error| error.to_string())?;
+    for government in &mut catalog.governments {
+        if !government.required_technology.is_empty() {
+            let index = super::technologies::runtime_index(&government.required_technology)
+                .ok_or_else(|| {
+                    format!(
+                        "government {:?} requires unknown technology ID {:?}",
+                        government.government, government.required_technology
+                    )
+                })?;
+            government.technology = Some(super::Tech(index));
+        }
+    }
+    Ok(catalog)
+}
+
 pub(crate) fn governments() -> &'static GovernmentCatalog {
     static CATALOG: OnceLock<GovernmentCatalog> = OnceLock::new();
     CATALOG.get_or_init(|| {
-        let catalog = toml::from_str::<GovernmentCatalog>(include_str!(
+        let catalog = parse_governments(include_str!(
             "../../data/rulesets/civcraft/content/governments.toml"
         ))
-        .expect("native governments TOML must be valid");
+        .unwrap_or_else(|error| panic!("invalid native government catalog: {error}"));
         validate_ids(
             catalog.governments.iter().map(|g| g.government.as_str()),
             "government",
@@ -697,16 +659,6 @@ pub(crate) fn economy() -> &'static EconomyCatalog {
             "../../data/rulesets/civcraft/content/economy.toml"
         ))
         .expect("native economy TOML must be valid")
-    })
-}
-
-pub(crate) fn terrain() -> &'static TerrainCatalog {
-    static CATALOG: OnceLock<TerrainCatalog> = OnceLock::new();
-    CATALOG.get_or_init(|| {
-        toml::from_str(include_str!(
-            "../../data/rulesets/civcraft/content/terrain.toml"
-        ))
-        .expect("native terrain TOML must be valid")
     })
 }
 
@@ -748,6 +700,14 @@ pub(crate) fn experience() -> &'static ExperienceCatalog {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn government_catalog_rejects_unknown_technology_ids() {
+        let source = include_str!("../../data/rulesets/civcraft/content/governments.toml");
+        let bad = source.replace("TECH_The_Republic", "TECH_The_Republiqq");
+        let error = super::parse_governments(&bad).unwrap_err();
+        assert!(error.contains("republic") && error.contains("TECH_The_Republiqq"));
+    }
+
     use super::*;
 
     #[test]
@@ -837,20 +797,17 @@ mod tests {
         );
         assert_eq!(
             governments().get("monarchy").unwrap().required_technology,
-            "Monarchy"
+            "TECH_Monarchy"
         );
         assert_eq!(
             governments().get("republic").unwrap().required_technology,
-            "The Republic"
+            "TECH_The_Republic"
         );
         assert_eq!(governments().assimilation.len(), 8);
         assert_eq!(governments().resistance.len(), 64);
         assert_eq!(governments().military_law.len(), 8);
         assert_eq!(economy().schema_version, 1);
         assert_eq!(economy().resources.len(), 20);
-        assert_eq!(economy().roads.len(), 4);
-        assert_eq!(terrain().schema_version, 1);
-        assert_eq!(terrain().terrains.len(), 14);
         assert_eq!(settlements().schema_version, 1);
         assert_eq!(experience().schema_version, 1);
         assert_eq!(experience().levels.len(), 4);
