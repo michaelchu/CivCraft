@@ -937,9 +937,10 @@ fn ai_city_that_cannot_build_its_item_switches_to_something_buildable() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
-    // A civilization unknown to the catalog matches no unit mask, so it can
+    // A civilization ID unknown to the catalog matches no unit mask, so it can
     // build no units; with no technology few buildings are open either.
     game.players[1].name = "Atlantis".into();
+    game.players[1].civilization_id = Some("atlantis".into());
     game.players[1].ai = true;
     game.create_city(1, 20, 24);
     let id = game.cities[0].id;
@@ -965,6 +966,7 @@ fn ai_fallback_is_coinage_when_nothing_else_is_buildable() {
     game.units.clear();
     game.cities.clear();
     game.players[1].name = "Atlantis".into();
+    game.players[1].civilization_id = Some("atlantis".into());
     game.players[1].ai = true;
     game.create_city(1, 20, 24);
     let city = game.cities[0].clone();

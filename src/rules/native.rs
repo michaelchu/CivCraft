@@ -387,7 +387,6 @@ pub(crate) struct NativeCivilization {
     pub(crate) secondary_color_index: u8,
     pub(crate) city_style: u8,
     pub(crate) starting_techs: Vec<String>,
-    pub(crate) legacy_names: Vec<String>,
     pub(crate) cities: Vec<String>,
     pub(crate) culture_group_index: i32,
     pub(crate) expansionist: bool,

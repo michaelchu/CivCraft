@@ -4,7 +4,7 @@ use std::sync::OnceLock;
 
 #[derive(Clone, Copy, Debug)]
 pub(super) struct StartProfile {
-    civilization: &'static str,
+    civilization_id: &'static str,
     starting_unit_1: &'static str,
     starting_unit_1_count: usize,
     starting_unit_2: &'static str,
@@ -38,14 +38,9 @@ fn profiles() -> &'static [StartProfile] {
         let mut parsed = Vec::new();
         for civilization in &crate::rules::native::civilizations().civilizations {
             assert_eq!(civilization.starting_units.len(), 2);
-            let source_civilization = match civilization.id.as_str() {
-                "zululand" => "Zulus",
-                "maya" => "Mayans",
-                _ => civilization.noun.as_str(),
-            };
             let bonus = civilization.bonus_units.first();
             parsed.push(StartProfile {
-                civilization: leak(source_civilization),
+                civilization_id: leak(&civilization.id),
                 starting_unit_1: leak(&civilization.starting_units[0].id),
                 starting_unit_1_count: civilization.starting_units[0].count as usize,
                 starting_unit_2: leak(&civilization.starting_units[1].id),
@@ -69,27 +64,10 @@ fn leak(value: &str) -> &'static str {
     Box::leak(value.to_owned().into_boxed_str())
 }
 
-pub(super) fn get(civilization: &str) -> Option<&'static StartProfile> {
-    let civilization = crate::rules::civilizations::by_name(civilization)
-        .map_or(civilization, |civ| civ.noun.as_str());
-    let source_name = match civilization {
-        // The runtime's display labels are singular; Conquests BIQ Race names
-        // (and the profile table) use these source plural/demonym forms.
-        "Germany" => "Germans",
-        "Russia" => "Russians",
-        "America" => "Americans",
-        "France" => "French",
-        "India" => "Indians",
-        "Persia" => "Persians",
-        "Zululand" => "Zulus",
-        "England" => "English",
-        "Zulu" => "Zulus",
-        "Maya" => "Mayans",
-        name => name,
-    };
+pub(super) fn get(civilization_id: &str) -> Option<&'static StartProfile> {
     profiles()
         .iter()
-        .find(|profile| profile.civilization == source_name)
+        .find(|profile| profile.civilization_id == civilization_id)
 }
 
 #[cfg(test)]
@@ -120,19 +98,14 @@ mod tests {
     }
 
     #[test]
-    fn display_civilization_labels_resolve_to_conquests_race_names() {
-        for (display, source) in [
-            ("Germany", "Germans"),
-            ("Russia", "Russians"),
-            ("America", "Americans"),
-            ("France", "French"),
-            ("India", "Indians"),
-            ("Persia", "Persians"),
-            ("Zululand", "Zulus"),
-            ("England", "English"),
-        ] {
-            assert_eq!(get(display).unwrap().civilization, source);
+    fn every_canonical_civilization_id_has_a_start_profile() {
+        for civilization in crate::rules::civilizations::all() {
+            assert_eq!(
+                get(&civilization.id).unwrap().civilization_id,
+                civilization.id
+            );
         }
+        assert!(get("Crimson League").is_none());
     }
 
     #[test]
@@ -142,15 +115,8 @@ mod tests {
             let migrated = native
                 .civilizations
                 .iter()
-                .find(|civilization| {
-                    let name = match civilization.id.as_str() {
-                        "zululand" => "Zulus",
-                        "maya" => "Mayans",
-                        _ => civilization.noun.as_str(),
-                    };
-                    name.eq_ignore_ascii_case(profile.civilization)
-                })
-                .unwrap_or_else(|| panic!("native TOML is missing {}", profile.civilization));
+                .find(|civilization| civilization.id == profile.civilization_id)
+                .unwrap_or_else(|| panic!("native TOML is missing {}", profile.civilization_id));
             assert_eq!(migrated.expansionist, profile.expansionist);
             assert_eq!(migrated.militaristic, profile.militaristic);
             assert_eq!(
@@ -184,7 +150,7 @@ mod tests {
     fn new_campaign_starting_units_use_the_source_profiles() {
         let game = Simulation::new(crate::mapgen::generate(42));
         for owner in 0..game.civilization_count {
-            let profile = get(&game.players[owner].name).unwrap();
+            let profile = get(game.players[owner].civilization_id.as_deref().unwrap()).unwrap();
             let owner_units = game
                 .units
                 .iter()

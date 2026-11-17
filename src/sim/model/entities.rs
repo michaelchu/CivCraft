@@ -319,7 +319,6 @@ impl Player {
         self.civilization_id
             .as_deref()
             .and_then(crate::rules::civilizations::by_id)
-            .or_else(|| crate::rules::civilizations::by_name(&self.name))
             .map(|civilization| civilization.leader.clone())
             .unwrap_or_else(|| {
                 if self.name == "Barbarians" {

@@ -1,4 +1,4 @@
-//! Native civilization catalog. Names and save aliases are explicit content;
+//! Native civilization catalog. Stable IDs identify civilizations; names are display content.
 //! catalog construction does not depend on imported RACE records.
 
 use crate::rules::Tech;
@@ -7,7 +7,7 @@ use std::sync::OnceLock;
 #[derive(Debug)]
 pub(crate) struct Civilization {
     pub(crate) id: String,
-    /// Existing CivCraft display name, retained where possible for save/UI compatibility.
+    /// Display label; gameplay identity is the stable `id`.
     pub(crate) name: String,
     pub(crate) noun: String,
     #[allow(dead_code)] // Source-backed catalog metadata for future leader and UI text.
@@ -18,7 +18,6 @@ pub(crate) struct Civilization {
     pub(crate) starting_techs: [Tech; 2],
     pub(crate) primary_color_index: u8,
     pub(crate) secondary_color_index: u8,
-    pub(crate) legacy_names: Vec<String>,
     /// Raw Conquests RACE CultureGroup index; separate from culture points.
     #[allow(dead_code)] // Kept as source metadata for city-style and culture rules.
     pub(crate) culture_group_index: i32,
@@ -50,7 +49,6 @@ fn parse_catalog() -> Vec<Civilization> {
                 parse_tech(&native.starting_techs[0], index + 1),
                 parse_tech(&native.starting_techs[1], index + 1),
             ],
-            legacy_names: native.legacy_names.clone(),
             culture_group_index: native.culture_group_index,
             cities: native.cities.clone(),
         });
@@ -70,17 +68,6 @@ pub(crate) fn all() -> &'static [Civilization] {
 
 pub(crate) fn by_id(id: &str) -> Option<&'static Civilization> {
     all().iter().find(|civilization| civilization.id == id)
-}
-
-pub(crate) fn by_name(name: &str) -> Option<&'static Civilization> {
-    all().iter().find(|civilization| {
-        civilization.name.eq_ignore_ascii_case(name)
-            || civilization.noun.eq_ignore_ascii_case(name)
-            || civilization
-                .legacy_names
-                .iter()
-                .any(|legacy| legacy.eq_ignore_ascii_case(name))
-    })
 }
 
 /// Keep Rome as the human civilization and vary the AI roster by world seed.
@@ -189,7 +176,6 @@ mod tests {
             assert_eq!(migrated.secondary_color_index, source.secondary_color_index);
             assert_eq!(migrated.city_style, source.civ3_city_style);
             assert_eq!(migrated.culture_group_index, source.culture_group_index);
-            assert_eq!(migrated.legacy_names, source.legacy_names);
             assert_eq!(migrated.cities, source.cities);
             assert_eq!(
                 migrated.starting_techs,
@@ -208,12 +194,13 @@ mod tests {
     }
 
     #[test]
-    fn source_names_and_legacy_save_labels_resolve_to_the_same_civilization() {
-        assert_eq!(by_name("Germany").unwrap().id, "germany");
-        assert_eq!(by_name("Germans").unwrap().id, "germany");
-        assert_eq!(by_name("Iron Confederation").unwrap().id, "germany");
-        assert_eq!(by_name("Maya").unwrap().id, "maya");
-        assert_eq!(by_name("Mayans").unwrap().id, "maya");
+    fn stable_ids_resolve_every_civilization_and_display_names_are_not_ids() {
+        for civilization in all() {
+            assert_eq!(by_id(&civilization.id).unwrap().name, civilization.name);
+        }
+        assert!(by_id("Crimson League").is_none());
+        assert!(by_id("Iron Confederation").is_none());
+        assert!(by_id("Americans").is_none());
     }
 
     #[test]

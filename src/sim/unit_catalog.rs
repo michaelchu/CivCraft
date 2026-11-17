@@ -79,6 +79,7 @@ mod tests {
         assert!(game.unit_available(0, UnitKind::Spearman));
         assert!(!game.unit_available(0, UnitKind::Crusader));
         game.players[0].name = "Aztecs".to_owned();
+        game.players[0].civilization_id = Some("aztecs".into());
         assert!(!game.unit_available(0, UnitKind::Warrior));
         assert!(game.unit_available(0, UnitKind::JaguarWarrior));
     }

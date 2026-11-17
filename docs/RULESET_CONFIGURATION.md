@@ -129,8 +129,10 @@ must not change that gameplay policy. This table is a native compatibility
 contract, not a BIQ catalog. Existing unit and technology save identities remain
 unchanged.
 
-Civilization aliases in `legacy_names` preserve old display names and saved
-labels without source-name lookups. Frozen native technology, building, unit
+Civilizations use stable IDs for saved identity, starting profiles and unit
+availability. Display names do not control gameplay. Unit catalog race labels
+match each civilization’s canonical Civ III `noun`; prototype faction aliases
+are no longer supported. Frozen native technology, building, unit
 capability, and obsolescence fixtures check behavior independently of import
 metadata. Save tests and headless scenarios exercise the resulting simulation.
 Do not update baselines merely to make a migration pass.
