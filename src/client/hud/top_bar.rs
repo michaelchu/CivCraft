@@ -9,7 +9,21 @@ fn controls_row_rect(button_start: f32, width: f32) -> Rect {
     Rect::new(left, 0.0, (width - left).max(0.0), CONTROLS_H - 3.0)
 }
 
+/// Left edge of the floating button row: eight buttons, plus one while a
+/// spaceship status is shown, right-aligned to the HUD margin.
+pub(super) fn controls_start_x(screen_width: f32, has_spaceship: bool) -> f32 {
+    let count = 8 + usize::from(has_spaceship);
+    screen_width - HUD_MARGIN - count as f32 * 42.0 + 4.0
+}
+
 impl Game {
+    /// Whether the spaceship button is currently part of the button row.
+    pub(super) fn has_spaceship_button(&self) -> bool {
+        self.sim
+            .top_bar_view(HUMAN)
+            .is_some_and(|view| view.spaceship_status.is_some())
+    }
+
     pub(super) fn draw_top_bar(&self, actions: &mut Vec<(Rect, UiAction)>) {
         let width = screen_width();
 
@@ -20,7 +34,7 @@ impl Game {
         let button_count = 8 + usize::from(status.is_some());
         let button_width = 38.0;
         let step = button_width + 4.0;
-        let button_start = width - HUD_MARGIN - button_count as f32 * step + 4.0;
+        let button_start = controls_start_x(width, status.is_some());
 
         let in_anarchy = view.anarchy;
         let rates = if in_anarchy { [0, 0, 100] } else { view.rates };
@@ -233,6 +247,14 @@ impl Game {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn controls_start_x_ends_at_the_margin_and_a_spaceship_button_widens_the_row() {
+        let step = 42.0;
+        let plain = controls_start_x(1280.0, false);
+        assert_eq!(plain + 8.0 * step - 4.0, 1280.0 - HUD_MARGIN);
+        assert_eq!(controls_start_x(1280.0, true), plain - step);
+    }
 
     #[test]
     fn controls_row_blocks_clicks_in_gaps_and_margins_but_not_beside_it() {

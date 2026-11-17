@@ -41,7 +41,10 @@ impl Game {
 
         let action_width = screen_width() - 2.0 * (Self::corner_width() + 2.0 * HUD_MARGIN);
         self.draw_action_strip(&mut actions, action_width);
-        self.draw_messages(&mut actions, screen_width() - 2.0 * HUD_MARGIN);
+        // Messages sit in the top-left corner and stop short of the floating buttons.
+        let message_room = top_bar::controls_start_x(screen_width(), self.has_spaceship_button())
+            - 2.0 * HUD_MARGIN;
+        self.draw_messages(&mut actions, message_room);
         self.draw_top_bar(&mut actions);
         self.hud_elements_drawn += 1;
         self.hud_elements_drawn += 1;
@@ -119,7 +122,7 @@ impl Game {
             let clipped = fit_text(message, 15.0, width - 16.0);
             let rect = Rect::new(
                 HUD_MARGIN,
-                CONTROLS_H + 10.0 + (1 - i) as f32 * 21.0,
+                HUD_MARGIN + (1 - i) as f32 * 21.0,
                 measure_text(&clipped, None, 15, 1.0).width + 16.0,
                 21.0,
             );
