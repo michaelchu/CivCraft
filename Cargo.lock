@@ -129,6 +129,7 @@ dependencies = [
  "bincode",
  "image 0.25.10",
  "image-compare",
+ "lewton",
  "macroquad",
  "serde",
  "serde_json",

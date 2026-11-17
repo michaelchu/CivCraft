@@ -5,7 +5,7 @@ use crate::rules::TechEra;
 pub(crate) struct MusicPlayer;
 
 impl MusicPlayer {
-    pub(crate) fn new(_enabled: bool) -> Self {
+    pub(crate) fn new(_context: &super::AssetContext) -> Self {
         Self
     }
 

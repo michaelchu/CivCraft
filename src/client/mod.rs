@@ -15,14 +15,21 @@
 mod actions;
 #[cfg(feature = "desktop-audio")]
 mod amb;
+mod asset_error;
 mod assets;
 #[cfg(feature = "desktop-audio")]
 mod audio;
 #[cfg(not(feature = "desktop-audio"))]
 #[path = "audio_stub.rs"]
 mod audio;
+#[cfg(feature = "desktop-audio")]
+mod audio_assets;
+#[cfg(feature = "desktop-audio")]
+mod audio_codecs;
+mod media;
 mod sprite_metadata;
-pub(crate) use assets::{Assets, window_conf};
+mod unit_media;
+pub(crate) use assets::{AssetContext, Assets, window_conf};
 pub(crate) use audio::MusicPlayer;
 use sprite_metadata::player_color;
 pub(crate) use unit_sound::UnitSoundPlayer;
