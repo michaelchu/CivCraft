@@ -56,6 +56,10 @@ pub(crate) enum UnitOrigin {
         previous_owner: usize,
         previous_unit_id: u32,
     },
+    /// Created by an elite unit's victory; see `great_leader`.
+    GreatLeader {
+        winner_id: u32,
+    },
     Unobserved,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
@@ -150,6 +154,7 @@ impl Change {
                 let mut entities = vec![Unit(unit.id), Civilization(unit.owner)];
                 match origin {
                     UnitOrigin::Built { city_id } => entities.push(City(*city_id)),
+                    UnitOrigin::GreatLeader { winner_id } => entities.push(Unit(*winner_id)),
                     UnitOrigin::Transferred {
                         previous_owner,
                         previous_unit_id,
@@ -298,7 +303,9 @@ impl Ledger {
                         total.created += 1;
                         total.built += 1;
                     }
-                    UnitOrigin::Spawned => self.unit_total(unit).created += 1,
+                    UnitOrigin::Spawned | UnitOrigin::GreatLeader { .. } => {
+                        self.unit_total(unit).created += 1
+                    }
                     UnitOrigin::Transferred { .. } => self.unit_total(unit).transferred_in += 1,
                     UnitOrigin::Unobserved => {
                         self.unit_total(unit).unobserved_added += 1;

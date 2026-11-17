@@ -946,6 +946,14 @@ impl Simulation {
             attacker_veteran_chance,
             defender_veteran_chance,
         );
+        // Only a real kill can create a Great Leader, never a powerless attack.
+        if attack_power > 0 && defense_power > 0 {
+            if def_hp <= 0 {
+                self.roll_great_leader(attacker_id, &defender, true);
+            } else if att_hp <= 0 {
+                self.roll_great_leader(defender_id, &attacker, false);
+            }
+        }
 
         let attacker_name = attacker.kind.name();
         let defender_name = defender.kind.name();

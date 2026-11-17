@@ -37,7 +37,6 @@ pub(crate) use civil_war::CivilWarRulesetSettings;
 pub(crate) use combat::{
     CombatBonusKind, CombatRulesetSettings, TransportDefense, UnitCombatBonus,
 };
-#[allow(unused_imports)] // Consumed by Great Leader creation (plan Task 4).
 pub(crate) use great_leader::GreatLeaderSettings;
 pub(crate) use identifiers::{EffectKind, RequirementKind};
 #[cfg(test)]

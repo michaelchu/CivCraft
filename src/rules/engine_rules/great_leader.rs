@@ -6,7 +6,6 @@
 
 use std::sync::OnceLock;
 
-#[allow(dead_code)] // Fields are read by Great Leader creation (plan Task 4).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct GreatLeaderSettings {
     pub(crate) attack_denominator: i32,
@@ -16,7 +15,6 @@ pub(crate) struct GreatLeaderSettings {
 }
 
 impl GreatLeaderSettings {
-    #[allow(dead_code)] // Consumed by Great Leader creation (plan Task 4).
     pub(crate) fn campaign() -> &'static Self {
         static SETTINGS: OnceLock<GreatLeaderSettings> = OnceLock::new();
         SETTINGS.get_or_init(|| {
