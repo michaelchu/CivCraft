@@ -35,6 +35,27 @@ fn list(text: &str) -> Vec<String> {
         text.split(',').map(str::to_owned).collect()
     }
 }
+pub(super) fn parse_options(
+    args: &[String],
+    accepts: impl Fn(&str) -> bool,
+) -> Result<BTreeMap<&str, &str>, String> {
+    let mut values = BTreeMap::new();
+    let mut iter = args.iter();
+    while let Some(flag) = iter.next() {
+        if !accepts(flag) {
+            return Err(format!("unknown option {flag}; use --help"));
+        }
+        let value = iter
+            .next()
+            .filter(|v| !v.starts_with("--"))
+            .ok_or_else(|| format!("{flag} requires a value"))?;
+        if values.insert(flag.as_str(), value.as_str()).is_some() {
+            return Err(format!("duplicate option {flag}"));
+        }
+    }
+    Ok(values)
+}
+
 impl Config {
     pub fn parse(args: &[String]) -> Result<Self, String> {
         const FLAGS: &[&str] = &[
@@ -56,20 +77,9 @@ impl Config {
             "--load-campaign",
             "--profile-turns",
         ];
-        let mut values = BTreeMap::new();
-        let mut iter = args.iter();
-        while let Some(flag) = iter.next() {
-            if !FLAGS.contains(&flag.as_str()) && !world_setup::FLAGS.contains(&flag.as_str()) {
-                return Err(format!("unknown option {flag}; use --help"));
-            }
-            let value = iter
-                .next()
-                .filter(|v| !v.starts_with("--"))
-                .ok_or_else(|| format!("{flag} requires a value"))?;
-            if values.insert(flag.as_str(), value.as_str()).is_some() {
-                return Err(format!("duplicate option {flag}"));
-            }
-        }
+        let values = parse_options(args, |flag| {
+            FLAGS.contains(&flag) || world_setup::FLAGS.contains(&flag)
+        })?;
         let value = |key, default| *values.get(key).unwrap_or(&default);
         let positive = |key, default| -> Result<usize, String> {
             value(key, default)
@@ -184,6 +194,7 @@ impl Config {
 }
 pub(crate) const HELP: &str = "Headless AI simulator\n\
 --seed 42 --turns 30 --map-size tiny --report report.json\n\
+--engine freeciv [--freeciv-server PATH] (uses seed, turns, map size, and report options)\n\
 --analytics growth,settlement,production (or none); --list-analyzers\n\
 --growth-stall-turns 2 --settlement-check-every 10\n\
 --trace-domains all|none|cities,production,settlement,lifecycle\n\

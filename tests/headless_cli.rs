@@ -394,3 +394,13 @@ fn research_snapshots_have_compact_ids_and_survive_disabled_events() {
     );
     std::fs::remove_dir_all(directory).unwrap();
 }
+
+#[test]
+fn rejects_civcraft_only_options_in_freeciv_mode() {
+    let output = headless()
+        .args(["--scenario", "city-healing", "--engine", "freeciv"])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("unknown option --scenario"));
+}

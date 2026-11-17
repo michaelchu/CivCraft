@@ -92,6 +92,38 @@ cargo run --offline --release --bin headless_sim -- \
 The default is 30 turns; use `--turns 10` for an initial review and longer runs
 for targeted investigations. Checkpoints are published every 10 turns.
 
+To benchmark the pinned Freeciv server with the same map presets, build it
+once from the repository root. This requires Meson, Ninja, a C compiler, and
+the ICU and zlib development packages.
+
+```sh
+git submodule update --init reference/freeciv
+meson setup reference/freeciv/build-headless reference/freeciv --buildtype=release \
+  -Dclients=[] -Dfcmp=[] -Dtools=[] -Daudio=none \
+  -Dnls=false -Dfcdb=[] -Dmwand=false
+meson compile -C reference/freeciv/build-headless freeciv-server
+```
+
+Then run the 60×60, four-civilization example:
+
+```sh
+cargo run --offline --release --bin headless_sim -- \
+  --engine freeciv --seed 42 --map-size tiny --turns 200 \
+  --report /tmp/freeciv-benchmark.json
+```
+
+The Freeciv mode runs Hard AI under `civ2civ3` and disables autosaves. It opens
+a loopback listener on an ephemeral port. The JSON report records wall time,
+the stop reason, and Freeciv's server and AI CPU timings. A game can end
+before the requested turn limit if Freeciv declares a winner. This report has
+its own format for native Freeciv timings.
+
+To use an existing build, pass `--freeciv-server PATH`. If the build comes
+from a different checkout, set `FREECIV_DATA_PATH` to that checkout's
+`data` directory. Freeciv mode accepts `--seed`, `--map-size`, `--turns`,
+and `--report` with the same meanings as in the CivCraft command. It uses
+Freeciv's native terrain generation and ruleset settings.
+
 Run a registered deterministic scenario or resume a saved campaign through the
 same analytics pipeline:
 

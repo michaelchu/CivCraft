@@ -1,4 +1,5 @@
 pub(crate) mod config;
+mod freeciv;
 #[cfg(feature = "desktop")]
 mod minimap;
 mod report;
@@ -195,6 +196,9 @@ pub fn run_cli(args: &[String]) -> Result<(), String> {
     if args.iter().any(|a| a == "--list-scenarios") {
         println!("{}", scenario::names().collect::<Vec<_>>().join("\n"));
         return Ok(());
+    }
+    if args.chunks(2).any(|pair| pair[0] == "--engine") {
+        return freeciv::run(args);
     }
     run(config::Config::parse(args)?)
 }
