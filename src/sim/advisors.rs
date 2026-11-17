@@ -94,7 +94,7 @@ impl Simulation {
             .max_by(|a, b| a.want.total_cmp(&b.want))
     }
 
-    fn ai_wonder_city(&self, owner: usize) -> Option<u32> {
+    pub(in crate::sim) fn ai_wonder_city(&self, owner: usize) -> Option<u32> {
         self.trace
             .count_operation("advisor.wonder_city_searches", 1);
         let owned: Vec<_> = self
@@ -102,6 +102,14 @@ impl Simulation {
             .iter()
             .filter(|city| city.owner == owner)
             .collect();
+        // CivCraft extension: the catalog has no Help Wonder unit, so Freeciv
+        // would let a lone capital become the wonder city and divide its
+        // founder want. Leave the first cities to expansion instead.
+        let minimum =
+            crate::rules::engine_rules::SettlementAiSettings::campaign().wonder_city_min_cities;
+        if owned.len() < usize::try_from(minimum).unwrap_or(0) {
+            return None;
+        }
         // advbuilding.c keeps a productive, legal wonder already under way.
         if let Some(city) = owned.iter().find(|city| {
             self.city_forecast(city).shield_surplus() > 0

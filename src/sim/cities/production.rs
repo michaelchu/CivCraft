@@ -131,6 +131,8 @@ impl Simulation {
             self.lose_spaceship(self.cities[index].owner);
         }
         let removed = self.cities.remove(index);
+        self.trace
+            .city_destroyed(self.turn, &removed, lifecycle::CityRemoval::Upkeep, None);
         self.city_founders.remove(&removed.id);
         self.city_rapture.remove(&removed.id);
         self.rebuild_city_ownership_for_city_event(removed.id);
@@ -184,7 +186,19 @@ impl Simulation {
                 }
             }
         }
-        Production::Unit(UnitKind::Warrior)
+        self.ai_fallback_production(city)
+    }
+
+    /// Default AI target when the advisors want nothing: the (possibly
+    /// upgraded) Warrior, or Coinage when the civilization can build neither
+    /// units nor buildings so shields are not stranded on an impossible item.
+    pub(in crate::sim) fn ai_fallback_production(&self, city: &City) -> Production {
+        let warrior = self.worklist_replacement(city, Production::Unit(UnitKind::Warrior));
+        if self.can_produce(city, warrior) {
+            warrior
+        } else {
+            Production::Building(Building::COINAGE)
+        }
     }
 
     #[cfg(any(test, feature = "scenarios"))]
@@ -228,6 +242,15 @@ impl Simulation {
             let city = &self.cities[index];
             if !city.bought_production {
                 self.cities[index].production = self.worklist_replacement(city, city.production);
+            }
+            // An AI city whose current item became impossible (for example a
+            // unit its civilization cannot build) would otherwise bank shields
+            // forever; re-choose, falling back to Coinage.
+            if self.players[owner].ai
+                && !self.can_produce(&self.cities[index], self.cities[index].production)
+            {
+                let replacement = self.choose_ai_production(owner, city_id);
+                self.cities[index].production = replacement;
             }
             let before_shield_upkeep = self.cities[index].clone();
             let before_shield_forecast = self.city_forecast(&before_shield_upkeep);
@@ -293,7 +316,13 @@ impl Simulation {
                             self.remove_citizen_nationalities(index, kind.stats().pop_cost);
                         let rank = self.trained_rank(&snapshot, kind);
                         let c2c3_veteran = self.trained_c2c3_veteran(&snapshot, kind);
-                        let id = self.spawn_unit(snapshot.owner, kind, snapshot.x, snapshot.y);
+                        let id = self.spawn_unit_with_origin(
+                            snapshot.owner,
+                            kind,
+                            snapshot.x,
+                            snapshot.y,
+                            lifecycle::UnitOrigin::Built { city_id },
+                        );
                         let unit = self.units.iter_mut().find(|unit| unit.id == id).unwrap();
                         unit.nationality = nationality;
                         unit.home_city = Some(city_id);
@@ -408,6 +437,12 @@ impl Simulation {
                     self.lose_spaceship(snapshot.owner);
                 }
                 let removed = self.cities.remove(index);
+                self.trace.city_destroyed(
+                    self.turn,
+                    &removed,
+                    lifecycle::CityRemoval::Famine,
+                    None,
+                );
                 self.city_founders.remove(&removed.id);
                 self.city_rapture.remove(&removed.id);
                 self.rebuild_city_ownership_for_city_event(removed.id);

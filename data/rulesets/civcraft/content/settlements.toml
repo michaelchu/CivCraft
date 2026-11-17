@@ -19,19 +19,35 @@ shield_priority = 17
 trade_priority = 18
 research_priority_percent = 120
 no_research_priority = 1
-growth_priority = 15
-growth_potential_deemphasis = 8
+# Favor room for mature cities over the Freeciv default's small-city packing.
+growth_priority = 45
+growth_potential_deemphasis = 4
+preferred_land_tiles_per_city = 14
+expansion_cost_priority = 400
+free_expansion_cities = 3
 growth_food_threshold = 2
 perfection = 3
 good_enough = 250
 discount_period = 24
 defense_emphasis = 20
 naval_emphasis = 20
+# CivCraft extension to Freeciv's wonder city: with no Help Wonder unit a lone
+# capital would otherwise become the wonder city and spend dozens of turns on a
+# wonder instead of founding its first cities. Fewer cities than this: none.
+wonder_city_min_cities = 3
 wonder_city_pop_founder_divisor = 5
 wonder_city_other_founder_divisor = 2
 expansionist_trait_baseline = 50
 ferry_cost_divisor = 3
 ferry_tech_want = 500
+
+# Civ III Great Leader creation odds: 1 in N per eligible elite kill. Values
+# are from the community guide for patch 1.29f; Heroic Epic improves them.
+[great_leader]
+attack_denominator = 16
+attack_heroic_epic_denominator = 12
+defense_denominator = 32
+defense_heroic_epic_denominator = 24
 
 [villages]
 barbarian_onset_turn = 60

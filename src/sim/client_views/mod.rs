@@ -14,12 +14,7 @@ pub(crate) struct UnitContextView {
     pub(crate) owner_name: String,
     pub(crate) terrain_name: &'static str,
     pub(crate) status: String,
-    pub(crate) hp: i32,
-    pub(crate) max_hp: i32,
     pub(crate) moves_left: i32,
-    pub(crate) moves_allowance: i32,
-    pub(crate) attack: i32,
-    pub(crate) defense: i32,
 }
 
 /// The computed values needed by the selected city's compact context card.
@@ -53,15 +48,11 @@ pub(crate) struct TechnologyResearchView {
     pub(crate) target_cost: i32,
 }
 
-/// Display-ready status and controls for the top bar.
+/// Display-ready turn, economy and control state for the HUD.
 pub(crate) struct TopBarView {
-    pub(crate) turn: i32,
     pub(crate) year: i32,
     pub(crate) gold: i32,
     pub(crate) government_name: &'static str,
-    pub(crate) anarchy: bool,
-    pub(crate) rates: [i32; 3],
-    pub(crate) max_rate: i32,
     pub(crate) research_name: &'static str,
     pub(crate) research_points: i32,
     pub(crate) research_cost: i32,
@@ -73,6 +64,12 @@ pub(crate) struct GovernmentView {
     pub(crate) leader_line: String,
     pub(crate) status_line: String,
     pub(crate) options: Vec<GovernmentOptionView>,
+    /// Science, tax and luxury percentages as shown; anarchy forces all to luxury.
+    pub(crate) rates: [i32; 3],
+    /// The government's maximum share for any one rate.
+    pub(crate) max_rate: i32,
+    /// True during anarchy, when the rates cannot be changed.
+    pub(crate) rates_locked: bool,
     pub(crate) can_mobilize: bool,
     pub(crate) mobilization_label: &'static str,
 }
@@ -180,7 +177,7 @@ pub(crate) struct UnitCityActionView {
     pub(crate) name: String,
     pub(crate) can_airlift: bool,
     pub(crate) can_join: bool,
-    pub(crate) can_help_wonder: bool,
+    pub(crate) can_complete_production: bool,
 }
 
 /// City identity needed by the minimap, with civilization color already resolved.
@@ -462,16 +459,12 @@ mod tests {
         let view = sim.unit_context_view(unit);
         assert_eq!(view.kind, unit.kind);
         assert_eq!(view.owner, unit.owner);
-        assert_eq!(view.hp, unit.hp);
-        assert_eq!(view.max_hp, unit.max_hit_points());
         assert_eq!(view.moves_left, unit.moves_left);
-        assert_eq!(view.attack, unit.kind.stats().attack);
-        assert_eq!(view.defense, unit.kind.stats().defense);
         assert_eq!(view.terrain_name, sim.tile(unit.x, unit.y).terrain.name());
     }
 
     #[test]
-    fn selectable_units_skip_automated_sentry_and_fortified_military_units() {
+    fn selectable_units_skip_automated_sentry_and_fortifying_or_fortified_units() {
         let mut sim = Simulation::new(crate::mapgen::generate(42));
         for unit in &mut sim.units {
             if unit.owner == HUMAN {
@@ -500,6 +493,13 @@ mod tests {
             .unwrap()
             .state = UnitState::Fortified;
 
+        let fortifying_worker = sim.spawn_unit(HUMAN, UnitKind::Worker, 15, 20);
+        sim.units
+            .iter_mut()
+            .find(|unit| unit.id == fortifying_worker)
+            .unwrap()
+            .state = UnitState::Fortifying;
+
         let worker = sim.spawn_unit(HUMAN, UnitKind::Worker, 13, 20);
 
         let ordinary_military = sim.spawn_unit(HUMAN, UnitKind::Warrior, 14, 20);
@@ -513,6 +513,7 @@ mod tests {
         assert!(!selectable.contains(&automated));
         assert!(!selectable.contains(&sentry));
         assert!(!selectable.contains(&fortified_military));
+        assert!(!selectable.contains(&fortifying_worker));
         assert!(selectable.contains(&worker));
         assert!(selectable.contains(&ordinary_military));
     }
@@ -574,15 +575,66 @@ mod tests {
     }
 
     #[test]
+    fn settlers_found_and_explore_while_workers_keep_terrain_work() {
+        let mut sim = Simulation::new(crate::mapgen::generate(42));
+        sim.units.clear();
+        sim.cities.clear();
+        for tile in &mut sim.tiles {
+            tile.terrain = Terrain::Grassland;
+            tile.visible = true;
+        }
+        let settler = sim.spawn_unit(HUMAN, UnitKind::Settler, 12, 24);
+        let worker = sim.spawn_unit(HUMAN, UnitKind::Worker, 14, 24);
+
+        let view = sim.unit_action_view(settler).unwrap();
+        assert!(view.found_city.is_some());
+        assert!(view.automate && !view.worker, "Settlers explore, not work");
+        assert!(view.road_action.is_none());
+        assert!(view.irrigation_action.is_none());
+        assert!(view.mine_action.is_none());
+        assert!(view.terrain_work.is_empty());
+
+        let view = sim.unit_action_view(worker).unwrap();
+        assert!(view.found_city.is_none());
+        assert!(view.worker);
+        assert!(view.road_action.is_some());
+        assert!(view.irrigation_action.is_some());
+        assert!(view.mine_action.is_some());
+
+        // Exploring never founds a city.
+        sim.units
+            .iter_mut()
+            .find(|u| u.id == settler)
+            .unwrap()
+            .automated = true;
+        sim.run_automated_unit(settler);
+        assert!(sim.cities.is_empty());
+    }
+
+    #[test]
+    fn government_projection_carries_rates_cap_and_lock() {
+        let mut sim = Simulation::new(crate::mapgen::generate(42));
+        let player = &sim.players[HUMAN];
+        let max = player.government.max_rate();
+        let view = sim.government_view(HUMAN).unwrap();
+        assert_eq!(view.rates, player.rates);
+        assert_eq!(view.max_rate, max);
+        assert!(!view.rates_locked);
+
+        sim.players[HUMAN].government = Government::during_revolution();
+        let view = sim.government_view(HUMAN).unwrap();
+        assert_eq!(view.rates, [0, 0, 100]);
+        assert!(view.rates_locked);
+    }
+
+    #[test]
     fn top_bar_projection_contains_display_values_and_control_state() {
         let sim = Simulation::new(crate::mapgen::generate(42));
         let player = &sim.players[HUMAN];
         let view = sim.top_bar_view(HUMAN).unwrap();
-        assert_eq!(view.turn, sim.turn);
         assert_eq!(view.year, sim.year);
         assert_eq!(view.gold, player.gold);
         assert_eq!(view.government_name, player.government.name());
-        assert_eq!(view.rates, player.rates);
         assert_eq!(view.research_name, player.researching.name());
         assert_eq!(view.research_points, player.research);
         assert_eq!(
@@ -592,6 +644,49 @@ mod tests {
         assert_eq!(view.spaceship_status, sim.spaceship_status(HUMAN));
         assert_eq!(view.can_launch_spaceship, sim.can_launch_spaceship(HUMAN));
         assert!(sim.top_bar_view(usize::MAX).is_none());
+    }
+
+    #[test]
+    fn leader_action_view_offers_complete_production_only_where_legal() {
+        let mut game = Simulation::new(crate::test_support::seeded_map());
+        game.units.clear();
+        game.cities.clear();
+        game.players[HUMAN].known = Tech::all().collect();
+        game.create_city(HUMAN, 20, 24);
+        let city = game.cities[0].id;
+        let leader = game.spawn_unit(HUMAN, UnitKind::Leader, 20, 24);
+        game.refresh_visibility();
+        let offered = |game: &Simulation| {
+            game.unit_action_view(leader)
+                .unwrap()
+                .cities
+                .iter()
+                .any(|entry| entry.id == city && entry.can_complete_production)
+        };
+
+        game.cities[0].production = Production::Building(Building::PYRAMIDS);
+        game.cities[0].shields = 0;
+        assert!(offered(&game), "a wonder in the Leader's own city");
+
+        game.cities[0].production = Production::Building(Building::COINAGE);
+        assert!(!offered(&game), "Coinage is never offered");
+
+        game.cities[0].production = Production::Unit(UnitKind::Warrior);
+        assert!(!offered(&game), "units are never offered");
+
+        game.cities[0].production = Production::Building(Building::PYRAMIDS);
+        game.tile_mut(20, 24).visible = false;
+        assert!(!offered(&game), "a city hidden by fog is not offered");
+        game.tile_mut(20, 24).visible = true;
+
+        assert!(game.apply(Command::CompleteProduction {
+            unit_id: leader,
+            city_id: city,
+        }));
+        assert!(
+            game.unit_action_view(leader).is_none(),
+            "the Leader is used up"
+        );
     }
 
     #[test]

@@ -140,6 +140,25 @@ impl Simulation {
             ai: true,
         };
         self.players.push(rebel_player);
+        for tech in self.players[rebel]
+            .known
+            .iter()
+            .copied()
+            .filter(|t| t.is_civ3_advance())
+            .chain(std::iter::repeat_n(
+                Tech::FUTURE,
+                self.players[rebel].future_techs.max(0) as usize,
+            ))
+        {
+            self.trace.technology_changed(
+                self.turn,
+                rebel,
+                tech,
+                research_observation::TechnologyAction::Acquired,
+                research_observation::TechnologySource::CivilWar,
+                Some(owner),
+            );
+        }
         // daiplayer.c:dai_player_copy copies retained advisor wants during
         // player splits; they are nevertheless transient across save/load.
         let wants = self
@@ -158,6 +177,12 @@ impl Simulation {
             if remaining >= candidates.len() - position
                 || (remaining > 0 && self.rand_below(2) == 1)
             {
+                self.trace.city_transferred(
+                    self.turn,
+                    &self.cities[index],
+                    rebel,
+                    lifecycle::TransferReason::CivilWar,
+                );
                 self.cities[index].transfer_citizens(rebel);
                 self.list_order.city(&self.cities[index]);
                 defectors.push(index);
@@ -166,6 +191,7 @@ impl Simulation {
         }
         let capital = defectors[self.rand_below(defectors.len() as i32) as usize];
         self.cities[capital].buildings.push(Building::PALACE);
+        let leaders = self.leaders_of(owner);
         let unit_ids: Vec<_> = self
             .player_units_ordered(owner)
             .map(|unit| unit.id)
@@ -185,12 +211,25 @@ impl Simulation {
                 if unit.home_city.is_some() && (city.owner != owner || rebel_home) {
                     unit.home_city = Some(city.id);
                 }
+                self.trace.unit_transferred(
+                    self.turn,
+                    unit,
+                    city.owner,
+                    lifecycle::TransferReason::CivilWar,
+                );
                 unit.owner = city.owner;
             } else if rebel_home {
+                self.trace.unit_transferred(
+                    self.turn,
+                    unit,
+                    rebel,
+                    lifecycle::TransferReason::CivilWar,
+                );
                 unit.owner = rebel;
             }
             self.list_order.unit(unit);
         }
+        self.remove_leaders_that_changed_owner(&leaders);
         self.resolve_split_stacks(owner, rebel);
         self.rebuild_city_ownership();
         self.refresh_visibility();
@@ -271,7 +310,7 @@ impl Simulation {
                 }
                 self.move_cargo(id, x, y);
             } else {
-                self.remove_units_with_cargo(vec![id]);
+                self.remove_units_with_cargo_because(vec![id], lifecycle::UnitRemoval::CivilWar);
             }
         }
     }

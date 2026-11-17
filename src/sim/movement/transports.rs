@@ -241,7 +241,16 @@ impl Simulation {
         }
     }
 
-    pub(in crate::sim) fn remove_units_with_cargo(&mut self, mut losses: Vec<u32>) {
+    pub(in crate::sim) fn remove_units_with_cargo(&mut self, losses: Vec<u32>) {
+        self.remove_units_with_cargo_because(losses, lifecycle::UnitRemoval::Destroyed);
+    }
+
+    pub(in crate::sim) fn remove_units_with_cargo_because(
+        &mut self,
+        mut losses: Vec<u32>,
+        reason: lifecycle::UnitRemoval,
+    ) {
+        let root_count = losses.len();
         let mut index = 0;
         while let Some(&lost) = losses.get(index) {
             let mut cargo: Vec<_> = self
@@ -257,6 +266,17 @@ impl Simulation {
                 }
             }
             index += 1;
+        }
+        for unit in self.units.iter().filter(|unit| losses.contains(&unit.id)) {
+            self.trace.unit_removed(
+                self.turn,
+                unit,
+                if losses[..root_count].contains(&unit.id) {
+                    reason
+                } else {
+                    lifecycle::UnitRemoval::CargoLost
+                },
+            );
         }
         self.units.retain(|unit| !losses.contains(&unit.id));
         for lost in losses {

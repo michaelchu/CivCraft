@@ -1,6 +1,6 @@
 //! CivCraft's ruleset-backed tuning for the Freeciv settler advisor.
 //!
-//! These are ported Freeciv AI algorithm values, not Civ III gameplay rules.
+//! These include ported Freeciv AI values and explicit CivCraft balance tuning.
 //! They live in the selected CivCraft ruleset so scenario or balance variants
 //! can tune them without editing the algorithm.
 
@@ -15,12 +15,16 @@ pub(crate) struct SettlementAiSettings {
     pub(crate) no_research_priority: i32,
     pub(crate) growth_priority: i32,
     pub(crate) growth_potential_deemphasis: i32,
+    pub(crate) preferred_land_tiles_per_city: i32,
+    pub(crate) expansion_cost_priority: i32,
+    pub(crate) free_expansion_cities: i32,
     pub(crate) growth_food_threshold: i32,
     pub(crate) perfection: i32,
     pub(crate) good_enough: i32,
     pub(crate) discount_period: i32,
     pub(crate) defense_emphasis: i32,
     pub(crate) naval_emphasis: i32,
+    pub(crate) wonder_city_min_cities: i32,
     pub(crate) wonder_city_pop_founder_divisor: i32,
     pub(crate) wonder_city_other_founder_divisor: i32,
     pub(crate) expansionist_trait_baseline: i32,
@@ -34,7 +38,11 @@ impl SettlementAiSettings {
         SETTINGS.get_or_init(|| {
             let native = &crate::rules::native::settlements().ai;
             assert!(native.growth_potential_deemphasis > 0);
+            assert!(native.preferred_land_tiles_per_city > 0);
+            assert!(native.expansion_cost_priority >= 0);
+            assert!(native.free_expansion_cities >= 0);
             assert!(native.discount_period > 0);
+            assert!(native.wonder_city_min_cities >= 0);
             assert!(native.wonder_city_pop_founder_divisor > 0);
             assert!(native.wonder_city_other_founder_divisor > 0);
             assert!(native.expansionist_trait_baseline > 0);
@@ -47,12 +55,16 @@ impl SettlementAiSettings {
                 no_research_priority: native.no_research_priority,
                 growth_priority: native.growth_priority,
                 growth_potential_deemphasis: native.growth_potential_deemphasis,
+                preferred_land_tiles_per_city: native.preferred_land_tiles_per_city,
+                expansion_cost_priority: native.expansion_cost_priority,
+                free_expansion_cities: native.free_expansion_cities,
                 growth_food_threshold: native.growth_food_threshold,
                 perfection: native.perfection,
                 good_enough: native.good_enough,
                 discount_period: native.discount_period,
                 defense_emphasis: native.defense_emphasis,
                 naval_emphasis: native.naval_emphasis,
+                wonder_city_min_cities: native.wonder_city_min_cities,
                 wonder_city_pop_founder_divisor: native.wonder_city_pop_founder_divisor,
                 wonder_city_other_founder_divisor: native.wonder_city_other_founder_divisor,
                 expansionist_trait_baseline: native.expansionist_trait_baseline,

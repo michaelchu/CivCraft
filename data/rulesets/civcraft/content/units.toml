@@ -33,7 +33,7 @@ worker_strength = 0.0
 air_defense = 0
 icon_index = 0
 civilopedia_entry = "PRTO_Settler"
-capabilities = ["Fortify", "Embark", "FoundCity", "JoinCity", "Worker"]
+capabilities = ["Fortify", "Embark", "FoundCity", "JoinCity"]
 ai_roles = ["Settle"]
 domain = "Land"
 

@@ -1901,10 +1901,10 @@ impl Civ3 {
                     )
             };
             let elapsed_cycles = progress.clamp(0.0, 1.0) * event_duration / cycle_duration;
-            let cycle_progress = if action == Civ3UnitAction::StopAtLastFrame {
-                elapsed_cycles.min(1.0)
-            } else {
-                elapsed_cycles.fract()
+            let cycle_progress = match action {
+                Civ3UnitAction::StopAtLastFrame => elapsed_cycles.min(1.0),
+                Civ3UnitAction::Fortify => (progress.max(0.0) / cycle_duration).min(1.0),
+                _ => elapsed_cycles.fract(),
             };
             ((cycle_progress * art.frame_count as f32).floor() as usize)
                 .min(art.frame_count.saturating_sub(1))

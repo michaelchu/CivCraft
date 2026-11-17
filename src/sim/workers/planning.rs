@@ -40,6 +40,13 @@ type WorkerActivityTiles = Vec<bool>;
 type CachedWorkerProjection = Option<Option<(Tile, i32)>>;
 type WorkerActivityProjections = [CachedWorkerProjection; ACTIVITIES.len()];
 type WorkerProjectionCache = BTreeMap<(usize, usize, usize), WorkerActivityProjections>;
+type RoadRailProjectionCache = BTreeMap<(usize, usize, usize), Option<(Tile, i32)>>;
+
+pub(super) struct RoadBonusCache {
+    roads: WorkerActivityTiles,
+    railroads: WorkerActivityTiles,
+    values: Vec<[Option<f32>; 2]>,
+}
 
 fn freeciv_square_road_connector_bonus(
     real_road: &[bool; ROAD_BONUS_OFFSETS.len()],
@@ -148,6 +155,8 @@ pub(in crate::sim) struct WorkMap {
     // type, tile, and activity. This cache is phase-local and is invalidated
     // when a founder creates a city during the worker phase.
     projections: WorkerProjectionCache,
+    road_rail_projections: RoadRailProjectionCache,
+    pub(super) road_bonuses: Option<RoadBonusCache>,
     safety_owner: Option<usize>,
     safety: Vec<Option<bool>>,
 }
@@ -155,6 +164,30 @@ pub(in crate::sim) struct WorkMap {
 impl WorkMap {
     pub(super) fn clear_projections(&mut self) {
         self.projections.clear();
+        self.road_rail_projections.clear();
+        self.road_bonuses = None;
+    }
+
+    pub(super) fn prepare_road_bonuses(
+        &mut self,
+        roads: &WorkerActivityTiles,
+        railroads: &WorkerActivityTiles,
+    ) {
+        // infracache.c deliberately leaves road bonuses dynamic because
+        // workers can start building connectors during the same phase.
+        // Reuse them only while that activity map is unchanged. Terrain
+        // changes from founding a city call clear_projections as well.
+        if self
+            .road_bonuses
+            .as_ref()
+            .is_none_or(|cache| cache.roads != *roads || cache.railroads != *railroads)
+        {
+            self.road_bonuses = Some(RoadBonusCache {
+                roads: roads.clone(),
+                railroads: railroads.clone(),
+                values: vec![[None; 2]; roads.len()],
+            });
+        }
     }
 }
 
@@ -454,6 +487,63 @@ impl Simulation {
         value
     }
 
+    fn cached_worker_road_rail_projection(
+        &self,
+        projections: &mut RoadRailProjectionCache,
+        actor: &Unit,
+        road: Tile,
+        road_time: i32,
+    ) -> Option<(Tile, i32)> {
+        let key = (
+            actor.owner,
+            actor.kind as usize,
+            self.map_wrap.index(actor.x, actor.y),
+        );
+        if let Some(result) = projections.get(&key) {
+            self.trace.count_operation("worker.road_rail_cache_hits", 1);
+            return result.clone();
+        }
+        self.trace
+            .count_operation("worker.road_rail_cache_misses", 1);
+        let result = self
+            .work_action_available_for_unit_with_tile_fail_closed(
+                actor,
+                WorkKind::Railroad,
+                (actor.x, actor.y),
+                Some(&road),
+            )
+            .then(|| {
+                let rail_time =
+                    self.work_activity_time_fail_closed(WorkKind::Railroad, road.terrain);
+                (road, road_time + rail_time)
+            });
+        projections.insert(key, result.clone());
+        result
+    }
+
+    pub(super) fn cached_worker_road_extra(
+        &self,
+        bonuses: &mut Option<RoadBonusCache>,
+        position: (i32, i32),
+        railroad: bool,
+        roads: &WorkerActivityTiles,
+        railroads: &WorkerActivityTiles,
+    ) -> f32 {
+        let index = self.map_wrap.index(position.0, position.1);
+        let slot = usize::from(railroad);
+        let cache = bonuses.as_mut().expect("road activities prepared");
+        if let Some(value) = cache.values[index][slot] {
+            self.trace
+                .count_operation("worker.road_bonus_cache_hits", 1);
+            return value;
+        }
+        self.trace
+            .count_operation("worker.road_bonus_cache_misses", 1);
+        let value = self.worker_road_extra_with_activities(position, railroad, roads, railroads);
+        cache.values[index][slot] = Some(value);
+        value
+    }
+
     #[cfg(test)]
     pub(super) fn worker_road_extra(&self, position: (i32, i32), railroad: bool) -> f32 {
         let (road_activity, railroad_activity) = self.worker_activity_tiles();
@@ -601,6 +691,12 @@ impl Simulation {
         requests: &[WorkerRequest],
         need_path: bool,
     ) -> Option<WorkerPlan> {
+        // daisettler.c:settler_run gates worker_evaluate_improvements on
+        // UTYF_WORKERS. Units without that flag cannot perform any of these
+        // actions; do not build routes and scan every city just to get None.
+        if !actor.kind.is_worker() || actor.transport.is_some() {
+            return None;
+        }
         let profiler = self.trace.profiler();
         let _profile = profiler.scope("worker.plan");
         let allowance = self.unit_move_rate(actor).max(1);
@@ -707,6 +803,8 @@ impl Simulation {
         drop(_request_profile);
         let _activity_profile = profiler.scope("worker.plan.activity_context");
         let (road_activity, railroad_activity) = self.worker_activity_tiles();
+        state.prepare_road_bonuses(&road_activity, &railroad_activity);
+        let rate = self.activity_rate(actor);
         drop(_activity_profile);
         let _scoring_profile = profiler.scope("worker.plan.candidate_scoring");
         let mut best = None;
@@ -760,13 +858,15 @@ impl Simulation {
                 };
                 let _extra_profile = profiler.scope("worker.plan.activity_extra");
                 let extra = match activity {
-                    WorkKind::Road => self.worker_road_extra_with_activities(
+                    WorkKind::Road => self.cached_worker_road_extra(
+                        &mut state.road_bonuses,
                         position,
                         false,
                         &road_activity,
                         &railroad_activity,
                     ),
-                    WorkKind::Railroad => self.worker_road_extra_with_activities(
+                    WorkKind::Railroad => self.cached_worker_road_extra(
+                        &mut state.road_bonuses,
                         position,
                         true,
                         &road_activity,
@@ -778,7 +878,6 @@ impl Simulation {
                     WorkKind::Clean(_) => 0.0,
                     _ => 0.0,
                 };
-                let rate = self.activity_rate(actor);
                 let work = (time * ACTIVITY_FACTOR + rate - 1) / rate;
                 let delay = arrival + work + i32::from(remaining == 0);
                 drop(_extra_profile);
@@ -805,18 +904,15 @@ impl Simulation {
             if !self.tile(x, y).road
                 && let Some((road, time)) =
                     self.cached_worker_projection(&mut state.projections, &at, WorkKind::Road)
-                && self.work_action_available_for_unit_with_tile_fail_closed(
+                && let Some((road, time)) = self.cached_worker_road_rail_projection(
+                    &mut state.road_rail_projections,
                     &at,
-                    WorkKind::Railroad,
-                    position,
-                    Some(&road),
+                    road,
+                    time,
                 )
             {
-                let railroad_time =
-                    self.work_activity_time_fail_closed(WorkKind::Railroad, road.terrain);
                 let new = self.cached_worker_road_then_rail_value(values, city, position, road);
-                let rate = self.activity_rate(actor);
-                let work = ((time + railroad_time) * ACTIVITY_FACTOR + rate - 1) / rate;
+                let work = (time * ACTIVITY_FACTOR + rate - 1) / rate;
                 consider_action(
                     &mut best,
                     WorkerPlan {
@@ -827,7 +923,8 @@ impl Simulation {
                         delay: arrival + work + i32::from(remaining == 0),
                         old,
                         new,
-                        extra: self.worker_road_extra_with_activities(
+                        extra: self.cached_worker_road_extra(
+                            &mut state.road_bonuses,
                             position,
                             true,
                             &road_activity,

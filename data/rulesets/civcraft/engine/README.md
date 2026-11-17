@@ -87,13 +87,11 @@ CivCraft's playable civilization roster is the Civ III catalog in
 `../content/civilizations.toml`. The selected ruleset keeps only three
 embedded special non-player nation records for barbarian and animal mechanics.
 
-CivCraft also extends `game.ruleset` with `[civcraft_settlement_ai]`. These
-values preserve the pinned Freeciv default AI settlement weights, discount,
-early-stop threshold, and wonder-city adjustment while keeping them editable
-as ruleset data. They tune the advisor algorithm; they are not Civ III gameplay
-rules. The AI reads Settler and ferry build costs and Settler upkeep from the
-selected C2C3 unit records, and reads city spacing and shieldbox from the
-selected game settings. The algorithm reference is the `reference/freeciv`
+Settlement AI tuning is defined only by the `[ai]` table in
+[`../content/settlements.toml`](../content/settlements.toml). It combines
+Freeciv-derived advisor weights with explicit CivCraft expansion-balance
+settings. Edit that TOML to change settlement AI tuning. The algorithm
+reference is the `reference/freeciv`
 checkout at `3efab1385e792dd367e955aee538bafd5ccadd05`; the selected C2C3 ruleset
 data remains the separately pinned revision recorded above.
 

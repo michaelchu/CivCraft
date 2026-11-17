@@ -135,6 +135,10 @@ impl Simulation {
                 unit.clear_work();
                 unit.moves_left = 0;
             } else {
+                if let Some(unit) = self.units.iter().find(|unit| unit.id == id) {
+                    self.trace
+                        .unit_removed(self.turn, unit, lifecycle::UnitRemoval::TerrainLoss);
+                }
                 self.units.retain(|unit| unit.id != id);
                 self.discard_unit_ai(id);
             }

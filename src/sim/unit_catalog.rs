@@ -79,6 +79,7 @@ mod tests {
         assert!(game.unit_available(0, UnitKind::Spearman));
         assert!(!game.unit_available(0, UnitKind::Crusader));
         game.players[0].name = "Aztecs".to_owned();
+        game.players[0].civilization_id = Some("aztecs".into());
         assert!(!game.unit_available(0, UnitKind::Warrior));
         assert!(game.unit_available(0, UnitKind::JaguarWarrior));
     }
@@ -122,6 +123,8 @@ mod tests {
         assert!(marine.has_marine_attack());
         assert!(UnitKind::Settler.stats().can_found);
         assert!(UnitKind::Worker.stats().can_work);
+        // Project decision: Settlers only found cities; they do not improve terrain.
+        assert!(!UnitKind::Settler.stats().can_work);
         assert_eq!(UnitKind::Transport.transport_capacity(), 6);
         assert!(UnitKind::Fighter.is_aircraft());
         assert_eq!(UnitKind::CruiseMissile.bombard_rate(), 3);

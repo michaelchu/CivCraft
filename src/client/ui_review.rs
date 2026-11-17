@@ -717,13 +717,30 @@ impl Game {
                 return Ok(true);
             }
             if phase == 8 && scene == 15 && self.selected_city.is_none() {
-                let rates = self.sim.review_state().human_rates();
-                sequence.click(self, buttons, "tax_control", |action| {
-                    matches!(action, UiAction::RaiseRate(1))
+                // The rate sliders live in the Government panel: open it, raise
+                // tax, and close it again, each through real hit testing.
+                sequence.click(self, buttons, "government_control", |action| {
+                    matches!(action, UiAction::ToggleGovernment)
                 })?;
+                sequence.check("government_panel_open", self.overlay == Overlay::Government)?;
+                let panel = self.draw_government();
+                let rates = self.sim.review_state().human_rates();
+                sequence.click(
+                    self,
+                    &panel,
+                    "tax_control",
+                    |action| matches!(action, UiAction::SetRates(new) if new[1] > rates[1]),
+                )?;
                 sequence.check(
                     "rates_changed_through_ui",
                     self.sim.review_state().human_rates() != rates,
+                )?;
+                sequence.click(self, &panel, "close_government_control", |action| {
+                    matches!(action, UiAction::ToggleGovernment)
+                })?;
+                sequence.check(
+                    "government_panel_closed",
+                    self.overlay != Overlay::Government,
                 )?;
             }
             if phase == 8 && scene == 14 && sequence.worker.is_none() {

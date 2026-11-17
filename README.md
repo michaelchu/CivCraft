@@ -114,13 +114,19 @@ for a runner that lists only `generated-ai`.
 record their version and setup checks in `run.scenario`; loaded campaigns record
 the source path. Both attach a fresh trace collector before simulation begins.
 
-Report schema 7 provides a compact summary and two streamed evidence sidecars:
+Report schema 8 provides a compact summary and two streamed evidence sidecars:
 
 - `/tmp/civcraft-simulation.json`: run configuration/status, enabled analyzers,
   metrics, coverage, findings, final totals, and a compact timeline.
 - `/tmp/civcraft-simulation.json.snapshots.jsonl`: initial state and one typed
   snapshot per completed step, including selected/required city, civilization,
-  and unit providers.
+  unit, lifecycle, and research providers. Research records known technologies,
+  current targets/progress/costs, science output/rates, and acquisitions/losses
+  by source. Technology IDs resolve through the report’s shared `technology_catalog`.
+  Lifecycle snapshots track units built, existing,
+  destroyed, consumed or disbanded, and cities conquered, transferred or destroyed.
+- `/tmp/civcraft-simulation.json.minimap.png`: one final terrain and territory minimap.
+  Map arrays and intermediate images are not stored in turn history.
 - `/tmp/civcraft-simulation.json.events.jsonl`: structured events carrying turn,
   phase, sequence, participants, and domain-owned payloads.
 

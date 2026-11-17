@@ -90,13 +90,15 @@ fn runs_a_named_scenario_and_publishes_its_checks() {
 fn failed_scenario_publishes_its_checks_and_exits_unsuccessfully() {
     let directory = report_directory("failing");
     let report = directory.join("report.json");
-    // Seed 1 reproduces a pre-existing failure in the ferry fixture.
+    // Seed 18 reproduces a pre-existing failure in the ferry fixture. Seed 1
+    // used to fail only because France could not build units (civilization
+    // masks were matched against display names), so it no longer applies.
     let output = headless()
         .args([
             "--scenario",
             "settlement-ferry",
             "--seed",
-            "1",
+            "18",
             "--turns",
             "1",
             "--report",
@@ -115,6 +117,143 @@ fn failed_scenario_publishes_its_checks_and_exits_unsuccessfully() {
         report["run"]["scenario"]["checks"][0]["name"],
         "ferry_queued"
     );
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn lifecycle_snapshots_survive_disabled_event_output() {
+    let directory = report_directory("lifecycle");
+    let report = directory.join("report.json");
+    let output = headless()
+        .args([
+            "--scenario",
+            "lifecycle-history",
+            "--turns",
+            "1",
+            "--analytics",
+            "none",
+            "--trace-domains",
+            "none",
+            "--snapshot-providers",
+            "lifecycle,units",
+            "--report",
+        ])
+        .arg(&report)
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let report = read_report(&report);
+    assert_eq!(report["version"], 8);
+    assert_eq!(report["summary"]["lifecycle"]["history_available"], true);
+    assert_eq!(report["summary"]["lifecycle"]["complete_since_start"], true);
+    let snapshots = directory.join(report["evidence"]["snapshots"]["path"].as_str().unwrap());
+    let snapshots = std::fs::read_to_string(snapshots).unwrap();
+    let snapshots: Vec<serde_json::Value> = snapshots
+        .lines()
+        .map(|line| serde_json::from_str(line).unwrap())
+        .collect();
+    assert!(
+        snapshots[0]["lifecycle"]["changes"]
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
+    assert!(
+        snapshots
+            .iter()
+            .any(|s| !s["lifecycle"]["changes"].as_array().unwrap().is_empty())
+    );
+    assert!(
+        snapshots[0]["units"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|u| u.get("home_city").is_some())
+    );
+    let events = directory.join(report["evidence"]["events"]["path"].as_str().unwrap());
+    assert!(std::fs::read(events).unwrap().is_empty());
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[cfg(feature = "desktop")]
+#[test]
+fn minimap_exports_only_one_final_image_without_map_history() {
+    let directory = report_directory("minimap with spaces");
+    let report = directory.join("review #1.json");
+    headless()
+        .args([
+            "--turns",
+            "2",
+            "--analytics",
+            "none",
+            "--trace-domains",
+            "none",
+            "--snapshot-providers",
+            "minimap",
+            "--report",
+        ])
+        .arg(&report)
+        .assert()
+        .success();
+    let output = read_report(&report);
+    let evidence = &output["evidence"]["minimap"];
+    assert!(evidence.get("frames").is_none());
+    assert!(evidence.get("viewer").is_none());
+    assert_eq!(evidence["turn"], output["run"]["final_turn"]);
+    let image = image::open(directory.join(evidence["path"].as_str().unwrap())).unwrap();
+    let snapshots = std::fs::read_to_string(
+        directory.join(output["evidence"]["snapshots"]["path"].as_str().unwrap()),
+    )
+    .unwrap();
+    let snapshots: Vec<serde_json::Value> = snapshots
+        .lines()
+        .map(|s| serde_json::from_str(s).unwrap())
+        .collect();
+    assert_eq!(snapshots.len(), 3);
+    assert!(snapshots.iter().all(|s| s.get("minimap").is_none()));
+    let width = evidence["width"].as_u64().unwrap();
+    let height = evidence["height"].as_u64().unwrap();
+    assert_eq!(
+        image.width() as u64 * height,
+        image.height() as u64 * width * 2
+    );
+    assert!(!directory.join("review #1.json.minimaps").exists());
+    assert!(!directory.join("review #1.json.minimap.html").exists());
+    assert_eq!(
+        std::fs::read_dir(&directory)
+            .unwrap()
+            .filter(|f| f
+                .as_ref()
+                .unwrap()
+                .path()
+                .extension()
+                .is_some_and(|ext| ext == "png"))
+            .count(),
+        1
+    );
+    let disabled = directory.join("disabled.json");
+    headless()
+        .args([
+            "--turns",
+            "1",
+            "--analytics",
+            "none",
+            "--trace-domains",
+            "none",
+            "--snapshot-providers",
+            "none",
+            "--report",
+        ])
+        .arg(&disabled)
+        .assert()
+        .success();
+    assert!(read_report(&disabled)["evidence"]["minimap"].is_null());
+    assert!(!directory.join("disabled.json.minimaps").exists());
+    assert!(!directory.join("disabled.json.minimap.png").exists());
     std::fs::remove_dir_all(directory).unwrap();
 }
 
@@ -165,7 +304,7 @@ fn world_options_validate_against_the_generator_and_report_the_effective_inputs(
             String::from_utf8_lossy(&run.stderr)
         );
         let report = read_report(&report);
-        assert_eq!(report["version"], 7);
+        assert_eq!(report["version"], 8);
         let config = &report["run"]["configuration"];
         assert_eq!(config["map_generator"], "opensimplex");
         assert_eq!(
@@ -183,5 +322,75 @@ fn world_options_validate_against_the_generator_and_report_the_effective_inputs(
         streams.push(std::fs::read(directory.join(file)).unwrap());
     }
     assert_ne!(streams[0], streams[1]);
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn research_snapshots_have_compact_ids_and_survive_disabled_events() {
+    let directory = report_directory("research");
+    let report = directory.join("research.json");
+    headless()
+        .args([
+            "--scenario",
+            "research-history",
+            "--turns",
+            "1",
+            "--analytics",
+            "none",
+            "--trace-domains",
+            "none",
+            "--snapshot-providers",
+            "research",
+            "--report",
+        ])
+        .arg(&report)
+        .assert()
+        .success();
+    let output = read_report(&report);
+    assert_eq!(output["summary"]["scenario_checks_passed"], 4);
+    assert!(
+        output["technology_catalog"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|t| t["id"].is_number() && t["name"].is_string())
+    );
+    assert_eq!(output["summary"]["research"]["complete_since_start"], true);
+    let stream = std::fs::read_to_string(
+        directory.join(output["evidence"]["snapshots"]["path"].as_str().unwrap()),
+    )
+    .unwrap();
+    let snapshots: Vec<serde_json::Value> = stream
+        .lines()
+        .map(|s| serde_json::from_str(s).unwrap())
+        .collect();
+    assert!(
+        snapshots[0]["research"]["changes"]
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
+    assert!(
+        snapshots
+            .iter()
+            .any(|s| !s["research"]["changes"].as_array().unwrap().is_empty())
+    );
+    for s in snapshots {
+        assert!(s.get("technology_catalog").is_none());
+        for p in s["research"]["civilizations"].as_array().unwrap() {
+            assert!(
+                p["known_technology_ids"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .all(|id| id.is_number())
+            );
+        }
+    }
+    assert!(
+        std::fs::read(directory.join(output["evidence"]["events"]["path"].as_str().unwrap()))
+            .unwrap()
+            .is_empty()
+    );
     std::fs::remove_dir_all(directory).unwrap();
 }

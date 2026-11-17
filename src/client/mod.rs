@@ -88,7 +88,8 @@ use research_tree::{NODE_SIZE, RESEARCH_AGES, ResearchTree};
 
 const TILE_W: f32 = 96.0;
 const TILE_H: f32 = 48.0;
-const TOP_H: f32 = 46.0;
+/// Height of the floating button row; the map itself fills the whole window.
+const CONTROLS_H: f32 = HUD_MARGIN + 33.0 + 5.0;
 const HUD_MARGIN: f32 = 14.0;
 const WORLD_ART_SCALE: f32 = 0.75;
 const ZOOMED_OUT: f32 = 1.0;
@@ -135,7 +136,8 @@ pub(crate) enum UiAction {
     ToggleSpaceship,
     ToggleManualAssembly,
     PlaceShipPart(ShipPart),
-    RaiseRate(usize),
+    /// Sets the science, tax and luxury split from a rate slider.
+    SetRates([i32; 3]),
     Specialist(u32, usize, i32),
     CityTiles,
     WorkCityTile(u32, i32, i32),
@@ -148,7 +150,7 @@ pub(crate) enum UiAction {
     ConnectTo(i32, i32),
     BeginPatrol,
     PatrolTo(i32, i32),
-    HelpWonder(u32),
+    CompleteProduction(u32),
     JoinCity(u32),
     Airlift(u32),
     BeginParadrop,
@@ -265,6 +267,7 @@ pub(crate) struct Game {
     unit_sound_requests: std::collections::VecDeque<unit_sound::UnitSoundRequest>,
     pending_sound_unit: Option<u32>,
     fidget_sound_cycle: Option<(u32, i64)>,
+    fortify_animation_started_at: std::collections::HashMap<u32, f64>,
     dragging: bool,
     drag_last: Vec2,
 }
@@ -334,6 +337,7 @@ impl Game {
             unit_sound_requests: Default::default(),
             pending_sound_unit: None,
             fidget_sound_cycle: None,
+            fortify_animation_started_at: Default::default(),
             dragging: false,
             drag_last: vec2(0.0, 0.0),
         }
@@ -460,7 +464,13 @@ impl Game {
         self.normalize_camera();
         let sound_unit = self.pending_sound_unit.take().or(self.selected_unit);
         let events = self.sim.take_presentation_event_views();
-        self.playback.update(events, get_time(), sound_unit);
+        let now = get_time();
+        for event in &events {
+            if let PresentationEventView::Fortify { unit, .. } = event {
+                self.fortify_animation_started_at.insert(unit.id, now);
+            }
+        }
+        self.playback.update(events, now, sound_unit);
         self.unit_sound_requests
             .extend(self.playback.take_sound_requests());
         if !self.overlay.hides_map() && self.overlay != Overlay::Intro {

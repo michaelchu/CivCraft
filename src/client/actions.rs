@@ -55,8 +55,8 @@ impl Game {
                 self.sfx_volume =
                     (i16::from(self.sfx_volume) + i16::from(delta) * 10).clamp(0, 100) as u8;
             }
-            UiAction::RaiseRate(index) => {
-                self.sim.apply(Command::RaiseRate(index));
+            UiAction::SetRates(rates) => {
+                self.sim.apply(Command::SetRates(rates));
             }
             UiAction::CityTiles => self.city_tiles = !self.city_tiles,
             UiAction::WorkCityTile(city, x, y) => {
@@ -92,9 +92,9 @@ impl Game {
                     });
                 }
             }
-            UiAction::HelpWonder(city) => {
+            UiAction::CompleteProduction(city) => {
                 if let Some(id) = self.selected_unit
-                    && self.sim.apply(Command::HelpWonder {
+                    && self.sim.apply(Command::CompleteProduction {
                         unit_id: id,
                         city_id: city,
                     })

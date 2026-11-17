@@ -900,7 +900,10 @@ impl Simulation {
             }
             total_damage += target.hp - hp;
             if hp == 0 {
-                self.remove_units_with_cargo(vec![target.id]);
+                self.remove_units_with_cargo_because(
+                    vec![target.id],
+                    lifecycle::UnitRemoval::Combat,
+                );
             } else if let Some(defender) = self.units.iter_mut().find(|unit| unit.id == target.id) {
                 defender.hp = hp;
             }
@@ -1048,7 +1051,7 @@ impl Simulation {
             if !self.units.iter().any(|unit| unit.id == id) {
                 continue;
             }
-            self.remove_units_with_cargo(vec![id]);
+            self.remove_units_with_cargo_because(vec![id], lifecycle::UnitRemoval::FuelExhausted);
             if owner == HUMAN {
                 self.add_event(format!("Your {} crashed.", kind.name()));
             }
@@ -1075,7 +1078,7 @@ impl Simulation {
             }
         }
         if hp <= 0 {
-            self.remove_units_with_cargo(vec![id]);
+            self.remove_units_with_cargo_because(vec![id], lifecycle::UnitRemoval::Attrition);
             if unit.owner == HUMAN {
                 self.add_event(format!("Your {} crashed.", unit.kind.name()));
             }

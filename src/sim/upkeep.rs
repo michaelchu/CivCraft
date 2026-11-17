@@ -225,7 +225,10 @@ impl Simulation {
                     self.cities[index].shields += shield_value;
                 }
             }
-            self.remove_units_with_cargo(vec![unit_id]);
+            self.remove_units_with_cargo_because(
+                vec![unit_id],
+                lifecycle::UnitRemoval::UpkeepDisbanded,
+            );
             if unit.owner == HUMAN {
                 let reason = match output {
                     UnitUpkeepOutput::Food => "famine",
@@ -241,7 +244,10 @@ impl Simulation {
         }
 
         if settings.wipe {
-            self.remove_units_with_cargo(vec![unit_id]);
+            self.remove_units_with_cargo_because(
+                vec![unit_id],
+                lifecycle::UnitRemoval::UpkeepDisbanded,
+            );
             if unit.owner == HUMAN {
                 let reason = match output {
                     UnitUpkeepOutput::Food => "famine",
@@ -314,6 +320,12 @@ impl Simulation {
             } else {
                 lost.push(unit.id);
             }
+        }
+        for unit in self.units.iter().filter(|unit| {
+            lost.contains(&unit.id) || unit.transport.is_some_and(|id| lost.contains(&id))
+        }) {
+            self.trace
+                .unit_removed(self.turn, unit, lifecycle::UnitRemoval::CityLost);
         }
         self.units.retain(|unit| {
             !lost.contains(&unit.id) && unit.transport.is_none_or(|id| !lost.contains(&id))

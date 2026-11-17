@@ -56,8 +56,19 @@ fn unit_animation_progress(
     action: super::super::tileset::Civ3UnitAction,
     selected: bool,
     pacing: super::super::unit_animation_pacing::FidgetPacing,
+    fortify_started_at: Option<f64>,
 ) -> (super::super::tileset::Civ3UnitAction, f32, Option<f32>) {
     use super::super::tileset::Civ3UnitAction as Action;
+
+    if action == Action::Fortify {
+        return fortify_started_at.map_or((Action::Default, 0.0, None), |started_at| {
+            (
+                Action::Fortify,
+                (get_time() - started_at).max(0.0) as f32,
+                None,
+            )
+        });
+    }
 
     if action == Action::Fidget {
         if !selected {
@@ -460,8 +471,16 @@ impl<'a> Civ3WorldPainter<'a> {
             std::collections::HashMap::new();
         for unit in units {
             let priority = |u: &RenderedUnitView| {
+                let city_tile = cities.contains_key(&(u.x, u.y));
+                // A city's selected/playback unit wins; otherwise prefer its
+                // fortified garrison over ordinary inactive units.
                 (
+                    u8::from(city_tile && Some(u.id) != game.selected_unit),
                     u8::from(!game.playback.is_active(u.id)),
+                    u8::from(
+                        city_tile
+                            && !matches!(u.state, UnitState::Fortifying | UnitState::Fortified),
+                    ),
                     unit_draw_priority(u, game.selected_unit),
                 )
             };
@@ -594,9 +613,11 @@ impl<'a> Civ3WorldPainter<'a> {
                 continue;
             }
             if let Some((unit, count)) = stacks.get(&(x, y)) {
-                // Idle city garrisons are hidden; focused units have a later
+                // Ordinary city garrisons are hidden, but fortifying units
+                // remain visible above the city. Focused units have a later
                 // foreground layer.
-                if !cities.contains_key(&(x, y))
+                if (!cities.contains_key(&(x, y))
+                    || matches!(unit.state, UnitState::Fortifying | UnitState::Fortified))
                     && Some(unit.id) != game.selected_unit
                     && !game.playback.is_active(unit.id)
                 {
@@ -605,6 +626,10 @@ impl<'a> Civ3WorldPainter<'a> {
                         action,
                         false,
                         self.assets.civ3.fidget_pacing(unit.kind),
+                        self.game
+                            .fortify_animation_started_at
+                            .get(&unit.id)
+                            .copied(),
                     );
                     game.draw_unit(assets, unit, center, *count, action, progress, duration);
                 }
@@ -632,6 +657,10 @@ impl<'a> Civ3WorldPainter<'a> {
                     action,
                     true,
                     self.assets.civ3.fidget_pacing(unit.kind),
+                    self.game
+                        .fortify_animation_started_at
+                        .get(&unit.id)
+                        .copied(),
                 );
                 game.draw_unit(assets, unit, center, *count, action, progress, duration);
             }

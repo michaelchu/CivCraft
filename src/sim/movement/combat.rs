@@ -709,7 +709,7 @@ impl Simulation {
             .map(|unit| unit.id)
             .collect();
         let before = self.units.len();
-        self.remove_units_with_cargo(losses);
+        self.remove_units_with_cargo_because(losses, lifecycle::UnitRemoval::Combat);
         self.nation_scores[winner.owner].units_killed += (before - self.units.len()) as i32;
     }
 
@@ -939,6 +939,10 @@ impl Simulation {
             d.moves_left = defender_moves_left;
         }
 
+        // Judged on the units as they entered the fight, so a promotion earned
+        // in this fight does not make the winner eligible.
+        let attacker_can_lead = self.great_leader_eligible(&attacker, &defender);
+        let defender_can_lead = self.great_leader_eligible(&defender, &attacker);
         self.promote_combat_veterans(
             attacker_id,
             defender_id,
@@ -946,6 +950,14 @@ impl Simulation {
             attacker_veteran_chance,
             defender_veteran_chance,
         );
+        // Only a real kill can create a Great Leader, never a powerless attack.
+        if attack_power > 0 && defense_power > 0 {
+            if def_hp <= 0 && attacker_can_lead {
+                self.draw_great_leader(attacker_id, true);
+            } else if att_hp <= 0 && defender_can_lead {
+                self.draw_great_leader(defender_id, false);
+            }
+        }
 
         let attacker_name = attacker.kind.name();
         let defender_name = defender.kind.name();
@@ -955,7 +967,10 @@ impl Simulation {
             self.remove_combat_losses(&defender, &attacker);
             self.apply_combat_population_loss(&attacker, nx, ny);
             if attacker.kind == UnitKind::CruiseMissile {
-                self.remove_units_with_cargo(vec![attacker_id]);
+                self.remove_units_with_cargo_because(
+                    vec![attacker_id],
+                    lifecycle::UnitRemoval::Expended,
+                );
             }
             // server/unithand.c consumes one `fc_rand(100)` roll for every
             // surviving attacker win, even when the selected chance is 0 or

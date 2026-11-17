@@ -227,6 +227,7 @@ pub(crate) struct SettlementCatalog {
     pub(crate) schema_version: u32,
     pub(crate) source: String,
     pub(crate) ai: NativeSettlementAi,
+    pub(crate) great_leader: NativeGreatLeaderRules,
     pub(crate) villages: NativeVillageRules,
     pub(crate) citizens: NativeCitizenRules,
 }
@@ -254,17 +255,29 @@ pub(crate) struct NativeSettlementAi {
     pub(crate) no_research_priority: i32,
     pub(crate) growth_priority: i32,
     pub(crate) growth_potential_deemphasis: i32,
+    pub(crate) preferred_land_tiles_per_city: i32,
+    pub(crate) expansion_cost_priority: i32,
+    pub(crate) free_expansion_cities: i32,
     pub(crate) growth_food_threshold: i32,
     pub(crate) perfection: i32,
     pub(crate) good_enough: i32,
     pub(crate) discount_period: i32,
     pub(crate) defense_emphasis: i32,
     pub(crate) naval_emphasis: i32,
+    pub(crate) wonder_city_min_cities: i32,
     pub(crate) wonder_city_pop_founder_divisor: i32,
     pub(crate) wonder_city_other_founder_divisor: i32,
     pub(crate) expansionist_trait_baseline: i32,
     pub(crate) ferry_cost_divisor: i32,
     pub(crate) ferry_tech_want: i32,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct NativeGreatLeaderRules {
+    pub(crate) attack_denominator: i32,
+    pub(crate) attack_heroic_epic_denominator: i32,
+    pub(crate) defense_denominator: i32,
+    pub(crate) defense_heroic_epic_denominator: i32,
 }
 
 #[derive(Debug, Deserialize)]
@@ -384,7 +397,6 @@ pub(crate) struct NativeCivilization {
     pub(crate) secondary_color_index: u8,
     pub(crate) city_style: u8,
     pub(crate) starting_techs: Vec<String>,
-    pub(crate) legacy_names: Vec<String>,
     pub(crate) cities: Vec<String>,
     pub(crate) culture_group_index: i32,
     pub(crate) expansionist: bool,
@@ -542,11 +554,14 @@ pub(crate) fn buildings() -> &'static BuildingCatalog {
                         "unknown resource target in {}",
                         rule.id
                     ),
-                    "River" | "Lake" | "Sea" | "Water" | "MinSize" | "OwnerCityCount" => assert!(
-                        requirement.target.is_none(),
-                        "unexpected named target in {}",
-                        rule.id
-                    ),
+                    "River" | "Lake" | "Sea" | "Water" | "MinSize" | "OwnerCityCount"
+                    | "OwnerEliteUnit" => {
+                        assert!(
+                            requirement.target.is_none(),
+                            "unexpected named target in {}",
+                            rule.id
+                        );
+                    }
                     other => panic!("unsupported building requirement {other}"),
                 }
                 assert!(

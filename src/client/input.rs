@@ -227,22 +227,21 @@ impl Game {
     }
 
     pub(super) fn viewport_rect() -> Rect {
-        Rect::new(
-            0.0,
-            TOP_H,
-            screen_width(),
-            (screen_height() - TOP_H).max(0.0),
-        )
+        Rect::new(0.0, 0.0, screen_width(), screen_height())
     }
 
     pub(super) fn context_rect(&self) -> Rect {
         let width = Self::corner_width();
         let height = if self.selected_unit_index().is_some() {
-            140.0
+            let inline = self
+                .selected_unit
+                .and_then(|id| self.sim.unit_context_view_by_id(id))
+                .is_none_or(|view| hud::unit_status_inline(&view, width));
+            hud::unit_card_height(inline)
         } else if self.selected_city_index().is_some() {
-            174.0
+            174.0 + hud::INFO_BLOCK_H + 4.0
         } else {
-            54.0
+            hud::EMPTY_CARD_H
         };
         Rect::new(
             screen_width() - HUD_MARGIN - width,
@@ -352,8 +351,13 @@ impl Game {
             || self.selected_city.is_some()
         {
             let (x, y) = mouse_position();
-            if is_mouse_button_pressed(MouseButton::Left)
+            let pressed = is_mouse_button_pressed(MouseButton::Left);
+            // Holding the button down on a rate slider keeps following the pointer.
+            let dragging_slider =
+                self.overlay == Overlay::Government && is_mouse_button_down(MouseButton::Left);
+            if (pressed || dragging_slider)
                 && let Some(action) = Self::ui_action_at(vec2(x, y), buttons)
+                && (pressed || matches!(action, UiAction::SetRates(_)))
             {
                 self.perform_action(action);
             }

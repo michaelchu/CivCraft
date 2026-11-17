@@ -924,3 +924,241 @@ fn overlapping_cities_reserve_worked_tiles_and_release_them_on_reassignment() {
     assert_eq!(game.cities[1].worked_tiles.len(), 1);
     assert!(!game.cities[0].worked_tiles.contains(&shared));
 }
+
+#[test]
+fn coinage_constant_names_the_convert_building() {
+    let data = Building::COINAGE.data();
+    assert_eq!(data.name, "Coinage");
+    assert_eq!(data.genus, Genus::Convert);
+}
+
+#[test]
+fn ai_city_that_cannot_build_its_item_switches_to_something_buildable() {
+    let mut game = Simulation::new(crate::test_support::seeded_map());
+    game.units.clear();
+    game.cities.clear();
+    // A civilization ID unknown to the catalog matches no unit mask, so it can
+    // build no units; with no technology few buildings are open either.
+    game.players[1].name = "Atlantis".into();
+    game.players[1].civilization_id = Some("atlantis".into());
+    game.players[1].ai = true;
+    game.create_city(1, 20, 24);
+    let id = game.cities[0].id;
+    assert!(!game.unit_available(1, UnitKind::Warrior));
+    game.cities[0].production = Production::Unit(UnitKind::Warrior);
+    game.cities[0].shields = 0;
+
+    game.process_player_cities(1);
+
+    let city = game.city_by_id(id).unwrap();
+    assert!(
+        game.can_produce(city, city.production),
+        "AI production must be buildable, got {:?}",
+        city.production
+    );
+    let fallback = game.choose_ai_production(1, id);
+    assert!(game.can_produce(game.city_by_id(id).unwrap(), fallback));
+}
+
+#[test]
+fn ai_fallback_is_coinage_when_nothing_else_is_buildable() {
+    let mut game = Simulation::new(crate::test_support::seeded_map());
+    game.units.clear();
+    game.cities.clear();
+    game.players[1].name = "Atlantis".into();
+    game.players[1].civilization_id = Some("atlantis".into());
+    game.players[1].ai = true;
+    game.create_city(1, 20, 24);
+    let city = game.cities[0].clone();
+    assert_eq!(
+        game.ai_fallback_production(&city),
+        Production::Building(Building::COINAGE)
+    );
+    assert!(game.can_produce(&city, Production::Building(Building::COINAGE)));
+}
+
+#[test]
+fn leader_can_never_be_produced_or_queued() {
+    for civilization in crate::rules::civilizations::all() {
+        let mut game = Simulation::new(crate::test_support::seeded_map());
+        game.units.clear();
+        game.cities.clear();
+        game.players[1].name = civilization.name.clone();
+        game.players[1].known = Tech::all().collect();
+        game.create_city(1, 20, 24);
+        let city = game.cities[0].clone();
+        assert!(
+            !game.can_produce(&city, Production::Unit(UnitKind::Leader)),
+            "{} must not be able to build a Leader",
+            civilization.name
+        );
+        let view = game.city_manager_view(city.id).unwrap();
+        let leader = view
+            .units
+            .iter()
+            .find(|unit| unit.kind == UnitKind::Leader)
+            .expect("the city screen lists every native unit");
+        assert!(
+            !leader.available,
+            "{} sees a buildable Leader",
+            civilization.name
+        );
+        assert!(
+            !leader.can_queue,
+            "{} can queue a Leader",
+            civilization.name
+        );
+    }
+}
+
+#[test]
+fn leader_is_not_capturable() {
+    assert_eq!(
+        crate::sim::action_rules::freeciv_unit_type_flag(UnitKind::Leader, "Capturable"),
+        Some(false)
+    );
+}
+
+fn leader_test_game() -> (Simulation, u32) {
+    let mut game = Simulation::new(crate::test_support::seeded_map());
+    game.units.clear();
+    game.cities.clear();
+    game.players[HUMAN].known = Tech::all().collect();
+    game.create_city(HUMAN, 20, 24);
+    let id = game.cities[0].id;
+    (game, id)
+}
+
+#[test]
+fn leader_completes_only_legal_buildings() {
+    for building in [Building::PYRAMIDS, Building::TEMPLE] {
+        let (mut game, city) = leader_test_game();
+        let leader = game.spawn_unit(HUMAN, UnitKind::Leader, 20, 24);
+        game.cities[0].production = Production::Building(building);
+        game.cities[0].shields = 0;
+        assert!(game.complete_production(leader, city), "{building:?}");
+        assert_eq!(
+            game.cities[0].shields,
+            Production::Building(building).cost()
+        );
+        assert!(game.cities[0].bought_production);
+        assert!(game.unit_by_id(leader).is_none(), "the Leader is expended");
+    }
+
+    let refused: Vec<(&str, Production)> = vec![
+        ("Coinage", Production::Building(Building::COINAGE)),
+        ("a unit", Production::Unit(UnitKind::Warrior)),
+        (
+            "a spaceship part",
+            Production::Building(
+                Building::all()
+                    .find(|b| b.data().genus == crate::rules::Genus::Special)
+                    .unwrap(),
+            ),
+        ),
+    ];
+    for (label, production) in refused {
+        let (mut game, city) = leader_test_game();
+        let leader = game.spawn_unit(HUMAN, UnitKind::Leader, 20, 24);
+        game.cities[0].production = production;
+        game.cities[0].shields = 0;
+        assert!(!game.complete_production(leader, city), "{label}");
+        assert_eq!(game.cities[0].shields, 0, "{label}");
+        assert!(game.unit_by_id(leader).is_some(), "{label}");
+    }
+
+    let (mut game, city) = leader_test_game();
+    let leader = game.spawn_unit(HUMAN, UnitKind::Leader, 20, 24);
+    game.cities[0].production = Production::Building(Building::TEMPLE);
+    game.cities[0].buildings.push(Building::TEMPLE);
+    assert!(!game.complete_production(leader, city), "already built");
+    game.cities[0].buildings.clear();
+    game.cities[0].bought_production = true;
+    assert!(!game.complete_production(leader, city), "already completed");
+
+    let (mut game, _) = leader_test_game();
+    game.create_city(1, 30, 24);
+    let foreign = game.cities[1].id;
+    let leader = game.spawn_unit(HUMAN, UnitKind::Leader, 30, 24);
+    game.cities[1].production = Production::Building(Building::TEMPLE);
+    assert!(
+        !game.complete_production(leader, foreign),
+        "another civilization's city"
+    );
+}
+
+#[test]
+fn completed_production_cannot_be_redirected() {
+    let (mut game, city) = leader_test_game();
+    let leader = game.spawn_unit(HUMAN, UnitKind::Leader, 20, 24);
+    game.cities[0].production = Production::Building(Building::TEMPLE);
+    game.cities[0].shields = 0;
+    let gold = game.players[HUMAN].gold;
+    assert!(game.complete_production(leader, city));
+    assert!(
+        !game.can_change_production(&game.cities[0], Production::Building(Building::LIBRARY)),
+        "the stock cannot move to another item"
+    );
+    game.process_player_cities(HUMAN);
+    assert!(game.players[HUMAN].gold <= gold + 50);
+}
+
+#[test]
+fn completed_item_finishes_at_turn_end() {
+    let (mut game, city) = leader_test_game();
+    let leader = game.spawn_unit(HUMAN, UnitKind::Leader, 20, 24);
+    game.cities[0].production = Production::Building(Building::TEMPLE);
+    game.cities[0].shields = 0;
+    assert!(game.complete_production(leader, city));
+    game.process_player_cities(HUMAN);
+    assert!(game.cities[0].has_building(Building::TEMPLE));
+}
+
+#[test]
+fn leader_in_a_traded_city_is_lost_not_handed_over() {
+    let (mut game, _) = leader_test_game();
+    let inside = game.spawn_unit(HUMAN, UnitKind::Leader, 20, 24);
+    game.units
+        .iter_mut()
+        .find(|u| u.id == inside)
+        .unwrap()
+        .moves_left = 3;
+    game.transfer_city_because(0, 1, lifecycle::TransferReason::Trade);
+    assert!(
+        game.units
+            .iter()
+            .all(|unit| unit.kind != UnitKind::Leader || unit.owner == HUMAN),
+        "a Leader never changes owner"
+    );
+    assert!(
+        game.unit_by_id(inside).is_none(),
+        "the Leader in the city is lost"
+    );
+
+    let (mut game, _) = leader_test_game();
+    let outside = game.spawn_unit(HUMAN, UnitKind::Leader, 40, 24);
+    game.transfer_city_because(0, 1, lifecycle::TransferReason::Trade);
+    assert_eq!(
+        game.unit_by_id(outside).map(|unit| unit.owner),
+        Some(HUMAN),
+        "a Leader outside the city is unaffected"
+    );
+}
+
+#[test]
+fn civil_war_never_hands_a_leader_to_the_rebels() {
+    let mut game = Simulation::new(crate::test_support::seeded_map());
+    game.units.clear();
+    game.cities.clear();
+    for (x, y) in [(10, 24), (20, 24), (30, 24)] {
+        game.create_city(1, x, y);
+        game.spawn_unit(1, UnitKind::Leader, x, y);
+    }
+    game.split_civil_war(1);
+    assert!(
+        game.units
+            .iter()
+            .all(|unit| unit.kind != UnitKind::Leader || unit.owner == 1),
+        "a rebel civilization must not own a Leader"
+    );
+}

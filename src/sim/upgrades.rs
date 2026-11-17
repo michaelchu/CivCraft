@@ -106,6 +106,7 @@ impl Simulation {
     ) {
         let unit = &mut self.units[index];
         let original = unit.kind;
+        self.trace.unit_upgraded(self.turn, unit, target);
         let old_max_hp = unit.max_hit_points();
         let from = original.stats();
         let to = target.stats();
@@ -144,6 +145,7 @@ mod tests {
         let id = game.upgrade_playtest_setup();
         game.units.last_mut().unwrap().c2c3_veteran = 3;
         let original = game.units.last().unwrap().clone();
+        game.start_lifecycle_observation();
         let cost = UnitKind::Legionary.stats().cost - UnitKind::Warrior.stats().cost / 2;
         let price = (2 * cost + cost * cost / 20) / 2;
         let expected_hp = (original.hp
@@ -173,6 +175,20 @@ mod tests {
         assert_eq!(unit.c2c3_veteran, 2);
         assert_eq!(unit.hp, expected_hp);
         assert_eq!(game.players[HUMAN].gold, gold - price);
+        game.reconcile_lifecycle_observation();
+        let history = game.observe_lifecycle();
+        assert!(history.complete_since_start);
+        assert!(history.changes.iter().any(|event| matches!(
+            &event.change,
+            lifecycle::Change::UnitUpgraded { unit, new_kind }
+                if unit.id == id && unit.kind == "Warrior" && new_kind == UnitKind::Legionary.name()
+        )));
+        assert!(
+            history
+                .unit_totals
+                .iter()
+                .all(|u| u.built == 0 && u.destroyed == 0)
+        );
         let field = game.spawn_unit(HUMAN, UnitKind::Warrior, 11, 20);
         assert!(!game.apply(Command::UpgradeUnit {
             unit_id: field,

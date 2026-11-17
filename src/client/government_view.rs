@@ -4,4 +4,5 @@ use super::*;
 
 mod diplomacy;
 mod government;
+mod rates;
 mod treaty_offer;

@@ -183,7 +183,7 @@ fn revolution_respects_unlocks_anarchy_and_rate_caps() {
         game.players[HUMAN].government,
         Government::during_revolution()
     );
-    assert!(!game.apply(Command::RaiseRate(1)));
+    assert!(!game.apply(Command::SetRates([30, 70, 0])));
     game.turn = finish;
     game.finish_revolutions();
     assert_eq!(game.players[HUMAN].government, Government::Monarchy);
@@ -467,4 +467,19 @@ fn retained_government_base_values_match_the_effects_used_by_gameplay() {
     assert_eq!(Government::Feudalism.max_rate(), 60);
     assert_eq!(Government::Feudalism.empire_size(), 14);
     assert_eq!(Government::Feudalism.civil_war_chance(), 20);
+}
+
+#[test]
+fn set_rates_accepts_only_valid_splits_within_the_government_cap() {
+    let mut game = Simulation::new(crate::test_support::seeded_map());
+    game.players[HUMAN].government = Government::Despotism;
+    let max = Government::Despotism.max_rate();
+    assert_eq!(max, 60);
+    assert!(game.apply(Command::SetRates([30, 60, 10])));
+    assert_eq!(game.players[HUMAN].rates, [30, 60, 10]);
+    // Each of these must leave the rates unchanged.
+    for bad in [[30, 70, 0], [30, 50, 10], [35, 55, 10], [-10, 60, 50]] {
+        assert!(!game.apply(Command::SetRates(bad)), "{bad:?}");
+        assert_eq!(game.players[HUMAN].rates, [30, 60, 10]);
+    }
 }

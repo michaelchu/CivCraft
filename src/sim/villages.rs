@@ -87,7 +87,12 @@ impl Simulation {
             }
         }
         let was_researching = self.players[owner].researching == tech;
-        self.discover(owner, tech);
+        self.discover_with_source(
+            owner,
+            tech,
+            research_observation::TechnologySource::Village,
+            None,
+        );
         if was_researching && !self.players[owner].ai {
             let free = self.players[owner].research;
             let next = self.choose_research_target(owner);
@@ -201,6 +206,14 @@ impl Simulation {
                     "The village unleashed a horde of barbarians!".into()
                 };
             }
+        }
+        for unit in self
+            .units
+            .iter()
+            .filter(|unit| (unit.x, unit.y) == (x, y) && unit.owner != BARBARIANS)
+        {
+            self.trace
+                .unit_removed(self.turn, unit, lifecycle::UnitRemoval::HutBarbarians);
         }
         self.units
             .retain(|unit| (unit.x, unit.y) != (x, y) || unit.owner == BARBARIANS);

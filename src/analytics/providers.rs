@@ -33,7 +33,36 @@ impl SnapshotProvider for Units {
         snapshot.insert(self.id(), game.observe_units());
     }
 }
+struct Research;
+impl SnapshotProvider for Research {
+    fn id(&self) -> &'static str {
+        "research"
+    }
+    fn capture(&self, game: &Simulation, snapshot: &mut Snapshot) {
+        snapshot.insert(self.id(), game.observe_research());
+    }
+}
 struct Territory;
+#[cfg(feature = "desktop")]
+struct Minimap;
+#[cfg(feature = "desktop")]
+impl SnapshotProvider for Minimap {
+    fn id(&self) -> &'static str {
+        "minimap"
+    }
+    fn capture(&self, game: &Simulation, snapshot: &mut Snapshot) {
+        snapshot.insert(self.id(), game.observe_minimap());
+    }
+}
+struct Lifecycle;
+impl SnapshotProvider for Lifecycle {
+    fn id(&self) -> &'static str {
+        "lifecycle"
+    }
+    fn capture(&self, game: &Simulation, snapshot: &mut Snapshot) {
+        snapshot.insert(self.id(), game.observe_lifecycle());
+    }
+}
 impl SnapshotProvider for Territory {
     fn id(&self) -> &'static str {
         "territory"
@@ -42,7 +71,16 @@ impl SnapshotProvider for Territory {
         snapshot.insert(self.id(), game.observe_territory());
     }
 }
-pub(crate) const IDS: &[&str] = &["cities", "civilizations", "territory", "units"];
+pub(crate) const IDS: &[&str] = &[
+    "cities",
+    "civilizations",
+    "territory",
+    "units",
+    "lifecycle",
+    "research",
+    #[cfg(feature = "desktop")]
+    "minimap",
+];
 pub(crate) fn build(ids: &BTreeSet<String>) -> Result<Vec<Box<dyn SnapshotProvider>>, String> {
     ids.iter()
         .map(|id| -> Result<Box<dyn SnapshotProvider>, String> {
@@ -51,6 +89,10 @@ pub(crate) fn build(ids: &BTreeSet<String>) -> Result<Vec<Box<dyn SnapshotProvid
                 "civilizations" => Box::new(Civilizations),
                 "units" => Box::new(Units),
                 "territory" => Box::new(Territory),
+                "lifecycle" => Box::new(Lifecycle),
+                "research" => Box::new(Research),
+                #[cfg(feature = "desktop")]
+                "minimap" => Box::new(Minimap),
                 _ => return Err(format!("unknown snapshot provider {id}")),
             })
         })

@@ -80,7 +80,7 @@
 {"legacy_runtime_index": 78, "name": "Universal Suffrage", "genus": "GreatWonder", "cost": 580, "upkeep": 0, "requirements": [{"kind": "Tech", "present": true, "value": 35}], "obsolete": [], "flags": []},
 {"legacy_runtime_index": 79, "name": "SETI Program", "genus": "GreatWonder", "cost": 700, "upkeep": 0, "requirements": [{"kind": "Tech", "present": true, "value": 16}], "obsolete": [], "flags": []},
 {"legacy_runtime_index": 80, "name": "Forbidden Palace", "genus": "SmallWonder", "cost": 300, "upkeep": 0, "requirements": [{"kind": "OwnerCityCount", "present": true, "value": 8}], "obsolete": [], "flags": []},
-{"legacy_runtime_index": 81, "name": "Heroic Epic", "genus": "SmallWonder", "cost": 200, "upkeep": 0, "requirements": [], "obsolete": [], "flags": []},
+{"legacy_runtime_index": 81, "name": "Heroic Epic", "genus": "SmallWonder", "cost": 200, "upkeep": 0, "requirements": [{"kind": "OwnerEliteUnit", "present": true}], "obsolete": [], "flags": []},
 {"legacy_runtime_index": 82, "name": "Iron Works", "genus": "SmallWonder", "cost": 300, "upkeep": 0, "requirements": [{"kind": "Resource", "present": true, "value": 1}, {"kind": "Resource", "present": true, "value": 3}], "obsolete": [], "flags": []},
 {"legacy_runtime_index": 83, "name": "Military Academy", "genus": "SmallWonder", "cost": 400, "upkeep": 0, "requirements": [{"kind": "Tech", "present": true, "value": 91}], "obsolete": [], "flags": []},
 {"legacy_runtime_index": 84, "name": "Pentagon", "genus": "SmallWonder", "cost": 400, "upkeep": 0, "requirements": [], "obsolete": [], "flags": []},

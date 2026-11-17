@@ -42,10 +42,23 @@ impl Simulation {
         x: i32,
         y: i32,
     ) -> u32 {
+        self.spawn_unit_with_origin(owner, kind, x, y, lifecycle::UnitOrigin::Spawned)
+    }
+
+    pub(in crate::sim) fn spawn_unit_with_origin(
+        &mut self,
+        owner: usize,
+        kind: UnitKind,
+        x: i32,
+        y: i32,
+        origin: lifecycle::UnitOrigin,
+    ) -> u32 {
         let id = self.next_unit_id;
         self.next_unit_id += 1;
         self.units.push(self.make_unit(id, owner, kind, x, y));
         self.list_order.unit(self.units.last().unwrap());
+        self.trace
+            .unit_created(self.turn, self.units.last().unwrap(), origin);
         if self.visibility_refresh_deferred {
             let unit = self.units.last().unwrap().clone();
             self.record_visibility_render_scope(&unit, (x, y), (x, y));
@@ -111,7 +124,7 @@ impl Simulation {
             self.add_event(format!("Disbanded {}.", unit.kind.name()));
         }
 
-        self.remove_units_with_cargo(vec![id]);
+        self.remove_units_with_cargo_because(vec![id], lifecycle::UnitRemoval::Disbanded);
         self.refresh_visibility();
         self.check_game_over();
         true

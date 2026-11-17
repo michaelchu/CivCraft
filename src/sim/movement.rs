@@ -118,8 +118,19 @@ impl Simulation {
     pub(super) fn transfer_unit(&mut self, victim: &Unit, owner: usize, home: Option<u32>) -> u32 {
         self.refresh_diplomatic_contact_at(owner, victim.x, victim.y);
         self.units.retain(|unit| unit.id != victim.id);
+        self.trace
+            .unit_removed(self.turn, victim, lifecycle::UnitRemoval::Transferred);
         self.discard_unit_ai(victim.id);
-        self.spawn_unit(owner, victim.kind, victim.x, victim.y);
+        self.spawn_unit_with_origin(
+            owner,
+            victim.kind,
+            victim.x,
+            victim.y,
+            lifecycle::UnitOrigin::Transferred {
+                previous_owner: victim.owner,
+                previous_unit_id: victim.id,
+            },
+        );
         let gained = self.units.last_mut().unwrap();
         gained.hp = victim.hp;
         gained.nationality = victim.nationality;

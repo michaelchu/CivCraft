@@ -18,7 +18,7 @@ impl Simulation {
                 name: city.name.clone(),
                 can_airlift: self.can_airlift(unit, city),
                 can_join: self.can_join_city(unit, city),
-                can_help_wonder: self.can_help_wonder(unit, city)
+                can_complete_production: self.can_complete_production(unit, city)
                     && self.tile(city.x, city.y).visible,
             })
             .collect();
@@ -216,7 +216,7 @@ impl Simulation {
                     && !self.unit_goto_tiles.contains_key(&unit.id)
                     && unit.order.is_none()
                     && unit.state != UnitState::Sentry
-                    && !(unit.kind.is_military() && unit.state == UnitState::Fortified)
+                    && !matches!(unit.state, UnitState::Fortifying | UnitState::Fortified)
             })
             .map(|unit| SelectableUnitView {
                 id: unit.id,
@@ -294,7 +294,6 @@ impl Simulation {
             status
         };
         let player = &self.players[unit.owner];
-        let stats = unit.kind.stats();
         UnitContextView {
             kind: unit.kind,
             owner: unit.owner,
@@ -303,12 +302,7 @@ impl Simulation {
             owner_name: player.name.clone(),
             terrain_name: self.tile(unit.x, unit.y).terrain.name(),
             status,
-            hp: unit.hp,
-            max_hp: unit.max_hit_points(),
             moves_left: unit.moves_left,
-            moves_allowance: self.unit_move_rate(unit),
-            attack: stats.attack,
-            defense: stats.defense,
         }
     }
 

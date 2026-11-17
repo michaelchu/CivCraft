@@ -84,6 +84,10 @@ pub(crate) struct Unit {
     pub(crate) veteran: usize,
     /// Selected Freeciv ruleset veterancy level used for campaign mechanics.
     pub(crate) c2c3_veteran: usize,
+    /// Set once this unit has produced a Great Leader; each unit does so at
+    /// most once. Saved in a trailing section of the campaign (see `save`).
+    #[serde(skip)]
+    pub(crate) created_leader: bool,
     pub(crate) fuel: u8,
     /// OpenCiv3 FLC direction row: SW, S, SE, E, NE, N, NW, W.
     pub(crate) facing: u8,
@@ -128,6 +132,7 @@ impl Unit {
             home_order: 0,
             veteran,
             c2c3_veteran: 0,
+            created_leader: false,
             fuel: kind.fuel_capacity(),
             facing: 2,
             x,
@@ -319,7 +324,6 @@ impl Player {
         self.civilization_id
             .as_deref()
             .and_then(crate::rules::civilizations::by_id)
-            .or_else(|| crate::rules::civilizations::by_name(&self.name))
             .map(|civilization| civilization.leader.clone())
             .unwrap_or_else(|| {
                 if self.name == "Barbarians" {

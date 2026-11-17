@@ -171,22 +171,21 @@ impl Simulation {
         }
     }
 
-    pub(super) fn raise_rate(&mut self, owner: usize, index: usize) -> bool {
+    /// Replaces the player's rates. Like Freeciv's rate packet, the split must
+    /// total 100 with every share a multiple of ten within the government's
+    /// maximum; revolutions lock the rates.
+    pub(super) fn set_rates(&mut self, owner: usize, rates: [i32; 3]) -> bool {
         let player = &mut self.players[owner];
-        let rates = &mut player.rates;
-        if player.government == Government::during_revolution()
-            || index >= rates.len()
-            || rates[index] >= player.government.max_rate()
-        {
-            return false;
+        let max = player.government.max_rate();
+        let valid = player.government != Government::during_revolution()
+            && rates.iter().sum::<i32>() == 100
+            && rates
+                .iter()
+                .all(|&rate| (0..=max).contains(&rate) && rate % 10 == 0);
+        if valid {
+            player.rates = rates;
         }
-        let donor = (0..rates.len())
-            .filter(|&other| other != index)
-            .max_by_key(|&other| rates[other])
-            .unwrap();
-        rates[donor] -= 10;
-        rates[index] += 10;
-        true
+        valid
     }
 
     pub(crate) fn city_trade(&self, city: &City, trade: i32) -> [i32; 3] {
