@@ -191,6 +191,7 @@ impl Simulation {
         }
         let capital = defectors[self.rand_below(defectors.len() as i32) as usize];
         self.cities[capital].buildings.push(Building::PALACE);
+        let leaders = self.leaders_of(owner);
         let unit_ids: Vec<_> = self
             .player_units_ordered(owner)
             .map(|unit| unit.id)
@@ -228,6 +229,7 @@ impl Simulation {
             }
             self.list_order.unit(unit);
         }
+        self.remove_leaders_that_changed_owner(&leaders);
         self.resolve_split_stacks(owner, rebel);
         self.rebuild_city_ownership();
         self.refresh_visibility();

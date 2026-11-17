@@ -23,6 +23,17 @@ When Freeciv is ambiguous, preserve the ambiguity or resolve it from the pinned
 Freeciv source and ruleset; do not infer gameplay behavior from Civ III manuals,
 legacy code, or community claims.
 
+### Recorded exception: Great Leaders (Civ III)
+
+Leader creation and use follow Civ III, as an explicit project-owner decision:
+an elite land unit's kill can create a Great Leader, which can then complete a
+city's current improvement or wonder. This is not a Freeciv mechanic, and the
+Leader is not a `GameLoss` unit. The design is in
+[`docs/superpowers/specs/2026-11-17-great-leader-design.md`](docs/superpowers/specs/2026-11-17-great-leader-design.md);
+the odds are community-documented for Civ III patch 1.29f and live in
+`data/rulesets/civcraft/content/settlements.toml`. Keep other mechanics on the
+Freeciv authority above.
+
 ## Comparison source checkout
 
 The Freeciv source submodule at `reference/freeciv` tracks the public upstream

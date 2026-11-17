@@ -227,6 +227,7 @@ pub(crate) struct SettlementCatalog {
     pub(crate) schema_version: u32,
     pub(crate) source: String,
     pub(crate) ai: NativeSettlementAi,
+    pub(crate) great_leader: NativeGreatLeaderRules,
     pub(crate) villages: NativeVillageRules,
     pub(crate) citizens: NativeCitizenRules,
 }
@@ -269,6 +270,14 @@ pub(crate) struct NativeSettlementAi {
     pub(crate) expansionist_trait_baseline: i32,
     pub(crate) ferry_cost_divisor: i32,
     pub(crate) ferry_tech_want: i32,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct NativeGreatLeaderRules {
+    pub(crate) attack_denominator: i32,
+    pub(crate) attack_heroic_epic_denominator: i32,
+    pub(crate) defense_denominator: i32,
+    pub(crate) defense_heroic_epic_denominator: i32,
 }
 
 #[derive(Debug, Deserialize)]
@@ -545,11 +554,14 @@ pub(crate) fn buildings() -> &'static BuildingCatalog {
                         "unknown resource target in {}",
                         rule.id
                     ),
-                    "River" | "Lake" | "Sea" | "Water" | "MinSize" | "OwnerCityCount" => assert!(
-                        requirement.target.is_none(),
-                        "unexpected named target in {}",
-                        rule.id
-                    ),
+                    "River" | "Lake" | "Sea" | "Water" | "MinSize" | "OwnerCityCount"
+                    | "OwnerEliteUnit" => {
+                        assert!(
+                            requirement.target.is_none(),
+                            "unexpected named target in {}",
+                            rule.id
+                        );
+                    }
                     other => panic!("unsupported building requirement {other}"),
                 }
                 assert!(

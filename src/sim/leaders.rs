@@ -3,6 +3,7 @@
 use super::exploration::IndexedExplorerQueue;
 use super::pf_actions::PfAction;
 use super::*;
+use crate::rules::Genus;
 
 #[cfg(test)]
 mod playtest;
@@ -13,30 +14,51 @@ struct LeaderPaths {
 }
 
 impl Simulation {
-    pub(crate) fn can_help_wonder(&self, unit: &Unit, city: &City) -> bool {
+    /// Whether a Great Leader may complete `city`'s current production: it must
+    /// be in its owner's city, and that city must be building an improvement,
+    /// small wonder or Great Wonder it can legally build. Coinage, spaceship
+    /// parts and units are excluded, and so is production already completed or
+    /// bought this turn.
+    pub(crate) fn can_complete_production(&self, unit: &Unit, city: &City) -> bool {
         unit.kind == UnitKind::Leader
             && unit.moves_left > 0
             && unit.owner == city.owner
             && (unit.x, unit.y) == (city.x, city.y)
-            && matches!(city.production, Production::Building(_))
+            && self.leader_can_complete_in(city)
+    }
+
+    /// The part of the rule that depends only on the city and its production.
+    pub(in crate::sim) fn leader_can_complete_in(&self, city: &City) -> bool {
+        !city.bought_production
+            && matches!(city.production, Production::Building(building)
+            if matches!(
+                building.data().genus,
+                Genus::Improvement | Genus::SmallWonder | Genus::GreatWonder
+            ))
+            && self.can_produce(city, city.production)
             && city.shields < city.production.cost()
     }
 
-    pub(in crate::sim) fn help_wonder(&mut self, unit_id: u32, city_id: u32) -> bool {
+    /// Sets the city's stock to the item's cost and consumes the Leader. The
+    /// production is then locked for the turn exactly as a purchase locks it,
+    /// so the stock cannot be moved to a different item.
+    pub(in crate::sim) fn complete_production(&mut self, unit_id: u32, city_id: u32) -> bool {
         let Some(unit) = self.unit_by_id(unit_id).cloned() else {
             return false;
         };
         let Some(city_index) = self
             .cities
             .iter()
-            .position(|city| city.id == city_id && self.can_help_wonder(&unit, city))
+            .position(|city| city.id == city_id && self.can_complete_production(&unit, city))
         else {
             return false;
         };
-        let city_name = self.cities[city_index].name.clone();
-        self.cities[city_index].shields = self.cities[city_index].production.cost();
+        let city = &mut self.cities[city_index];
+        city.shields = city.production.cost();
+        city.bought_production = true;
+        let city_name = city.name.clone();
         self.remove_units_with_cargo_because(vec![unit_id], lifecycle::UnitRemoval::Expended);
-        self.add_event(format!("A Leader hurried production in {city_name}."));
+        self.add_event(format!("A Leader completed production in {city_name}."));
         true
     }
 

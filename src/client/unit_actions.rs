@@ -85,10 +85,10 @@ impl Game {
                             true,
                         ));
                     }
-                    if city.can_help_wonder {
+                    if city.can_complete_production {
                         entries.push((
-                            format!("Help wonder: {}", city.name),
-                            UiAction::HelpWonder(city.id),
+                            format!("Complete production: {}", city.name),
+                            UiAction::CompleteProduction(city.id),
                             true,
                         ));
                     }
@@ -298,7 +298,7 @@ pub(super) fn unit_action_icon(action: UiAction) -> HudIcon {
         UiAction::CancelUnitOrder => HudIcon::Cross,
         UiAction::Airlift(_) => HudIcon::Plane,
         UiAction::BoardOrDeboard => HudIcon::Boat,
-        UiAction::HelpWonder(_) => HudIcon::Wonder,
+        UiAction::CompleteProduction(_) => HudIcon::Wonder,
         UiAction::Disband(None) => HudIcon::Cross,
         _ => HudIcon::More,
     }

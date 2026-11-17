@@ -326,6 +326,7 @@ impl Simulation {
         let id = self.cities[index].id;
         let center = (self.cities[index].x, self.cities[index].y);
         let first_city = !self.cities.iter().any(|city| city.owner == buyer);
+        let leaders = self.leaders_of(original);
         self.trace
             .city_transferred(self.turn, &self.cities[index], buyer, reason);
         self.cities[index].transfer_citizens(buyer);
@@ -366,6 +367,7 @@ impl Simulation {
             unit.automated = false;
             unit.clear_work();
         }
+        self.remove_leaders_that_changed_owner(&leaders);
 
         let displaced: Vec<_> = self
             .units

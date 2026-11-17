@@ -97,6 +97,36 @@ impl Simulation {
         (defended, refused, captured)
     }
 
+    /// An AI civilization with every technology cannot build a Leader, and its
+    /// Leader completes the wonder city's wonder, which finishes at turn end.
+    pub(crate) fn great_leader_playtest(&mut self) -> (bool, bool, bool) {
+        self.units.clear();
+        self.cities.clear();
+        for tile in &mut self.tiles {
+            tile.terrain = Terrain::Grassland;
+            tile.resource = None;
+            tile.river = false;
+            tile.hut = false;
+            tile.base = None;
+        }
+        self.players[1].ai = true;
+        self.players[1].known = Tech::all().collect();
+        self.create_city(1, 10, 24);
+        let city_id = self.cities[0].id;
+        let unbuildable = !self.can_produce(&self.cities[0], Production::Unit(UnitKind::Leader));
+        self.cities[0].production = Production::Building(Building::PYRAMIDS);
+        self.cities[0].shields = 0;
+        let leader_id = self.spawn_unit(1, UnitKind::Leader, 10, 24);
+        let leader = self.unit_by_id(leader_id).unwrap().clone();
+        self.run_ai_great_leader(&leader);
+        let consumed = self.unit_by_id(leader_id).is_none();
+        self.process_player_cities(1);
+        let completes = self
+            .city_by_id(city_id)
+            .is_some_and(|city| city.has_building(Building::PYRAMIDS));
+        (unbuildable, completes, consumed)
+    }
+
     pub(crate) fn city_healing_playtest(&mut self) -> bool {
         self.units.clear();
         self.cities.clear();

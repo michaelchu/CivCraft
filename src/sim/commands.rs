@@ -72,7 +72,7 @@ pub(crate) enum Command {
         city_id: Option<u32>,
     },
     NuclearStrike(u32, i32, i32),
-    HelpWonder {
+    CompleteProduction {
         unit_id: u32,
         city_id: u32,
     },
@@ -142,7 +142,7 @@ impl Simulation {
             | BoardOrDeboard(id)
             | UnloadAll(id)
             | NuclearStrike(id, ..)
-            | HelpWonder { unit_id: id, .. }
+            | CompleteProduction { unit_id: id, .. }
             | JoinCity { unit_id: id, .. }
             | Paradrop(id, ..)
             | Airlift(id, _) => Some(id),
@@ -188,7 +188,7 @@ impl Simulation {
             PlaceShipPart { part } => self.place_ship_part(part),
             Disband { unit_id, city_id } => self.disband_unit(unit_id, city_id),
             NuclearStrike(id, x, y) => self.launch_nuclear_strike(id, x, y),
-            HelpWonder { unit_id, city_id } => self.help_wonder(unit_id, city_id),
+            CompleteProduction { unit_id, city_id } => self.complete_production(unit_id, city_id),
             JoinCity { unit_id, city_id } => self.join_city(unit_id, city_id),
             Paradrop(id, x, y) => self.paradrop(id, x, y),
             Airlift(id, city) => self.airlift(id, city),

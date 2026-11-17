@@ -72,6 +72,7 @@ mod culture;
 mod disasters;
 mod ferries;
 mod fuel_paths;
+mod great_leader;
 mod illness;
 mod leaders;
 pub(crate) mod lifecycle;

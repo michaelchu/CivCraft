@@ -442,6 +442,8 @@ the unit, type, owner, location, turn and phase, with a reason or creation sourc
 Built units include the producing `origin.city_id`; `units[].home_city` is the
 current support city and may differ. Transfers that replace a unit ID link the
 previous ID. Upgrades and transfers do not count as new production or deaths.
+A Great Leader created by an elite unit's victory has `origin.source` `great_leader`
+and the winning unit's ID in `origin.winner_id`; it counts as `created`, not `built`.
 
 City records identify the city ID, name, location, population and owner before
 the action. Conquests record both owners; trade, propaganda and civil-war

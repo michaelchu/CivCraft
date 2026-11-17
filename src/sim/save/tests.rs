@@ -539,3 +539,44 @@ fn civilization_identity_and_unit_access_survive_renaming_and_save_reload() {
     assert!(loaded.unit_available(HUMAN, UnitKind::Worker));
     assert!(loaded.unit_available(HUMAN, UnitKind::Legionary));
 }
+
+#[test]
+fn created_leader_round_trips_through_save() {
+    let path = temporary_save("created-leader");
+    let mut game = Simulation::new(crate::test_support::seeded_map());
+    game.units.clear();
+    let marked = game.spawn_unit(HUMAN, UnitKind::Knight, 10, 24);
+    let unmarked = game.spawn_unit(HUMAN, UnitKind::Knight, 12, 24);
+    game.units
+        .iter_mut()
+        .find(|unit| unit.id == marked)
+        .unwrap()
+        .created_leader = true;
+    game.save_campaign(&path).unwrap();
+    let loaded = Simulation::load_campaign(&path).unwrap();
+    fs::remove_file(path).unwrap();
+    assert!(loaded.unit_by_id(marked).unwrap().created_leader);
+    assert!(!loaded.unit_by_id(unmarked).unwrap().created_leader);
+}
+
+#[test]
+fn v29_save_loads_with_no_created_leaders() {
+    let path = temporary_save("created-leader-v29");
+    let mut game = Simulation::new(crate::test_support::seeded_map());
+    game.units.clear();
+    let unit = game.spawn_unit(HUMAN, UnitKind::Knight, 10, 24);
+    let mut bytes = V29_HEADER.to_vec();
+    bytes.extend(
+        codec(MAX_PAYLOAD)
+            .serialize(&SavedCampaign::from_game(
+                &game,
+                (),
+                Cow::Borrowed(&game.observed_map.partial_sites),
+            ))
+            .unwrap(),
+    );
+    fs::write(&path, bytes).unwrap();
+    let loaded = Simulation::load_campaign(&path).unwrap();
+    fs::remove_file(path).unwrap();
+    assert!(!loaded.unit_by_id(unit).unwrap().created_leader);
+}

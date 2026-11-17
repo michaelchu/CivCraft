@@ -816,7 +816,8 @@ name = "Heroic Epic"
 genus = "SmallWonder"
 cost = 200
 upkeep = 0
-requirements = []
+# Stand-in for Civ III's "a victorious army" requirement.
+requirements = [{ kind = "OwnerEliteUnit", present = true }]
 obsolete = []
 flags = []
 id = "building_heroic_epic"

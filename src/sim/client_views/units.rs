@@ -18,7 +18,7 @@ impl Simulation {
                 name: city.name.clone(),
                 can_airlift: self.can_airlift(unit, city),
                 can_join: self.can_join_city(unit, city),
-                can_help_wonder: self.can_help_wonder(unit, city)
+                can_complete_production: self.can_complete_production(unit, city)
                     && self.tile(city.x, city.y).visible,
             })
             .collect();

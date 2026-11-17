@@ -180,7 +180,7 @@ pub(crate) struct UnitCityActionView {
     pub(crate) name: String,
     pub(crate) can_airlift: bool,
     pub(crate) can_join: bool,
-    pub(crate) can_help_wonder: bool,
+    pub(crate) can_complete_production: bool,
 }
 
 /// City identity needed by the minimap, with civilization color already resolved.

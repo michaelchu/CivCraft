@@ -273,6 +273,9 @@ struct UnitWire {
     veteran: usize,
 
     c2c3_veteran: usize,
+    // Not part of any existing wire layout; saved in a trailing section.
+    #[serde(skip)]
+    created_leader: bool,
     fuel: u8,
 
     facing: u8,
