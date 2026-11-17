@@ -21,6 +21,9 @@ mod audio;
 #[cfg(not(feature = "desktop-audio"))]
 #[path = "audio_stub.rs"]
 mod audio;
+#[cfg(feature = "desktop-audio")]
+mod audio_assets;
+mod media;
 mod sprite_metadata;
 pub(crate) use assets::{Assets, window_conf};
 pub(crate) use audio::MusicPlayer;

@@ -48,6 +48,12 @@ temperature accepts `cool`, `temperate`, or `warm`. The built-in `--tileset`
 choices are `civ3`, `conquests`, `snoopy-standard`, `snoopy-greener`, and
 `snoopy-extended`.
 
+Media lookup supports ordered scenario/package overrides and packaged-only
+operation through `CIVCRAFT_MEDIA_CONFIG`. `CIV3_HOME` is an alternative install
+variable, and `CIVCRAFT_MEDIA_TRACE=1` logs resolved file provenance. See
+[the media resolver and audio loader guide](docs/CIV3_ASSET_RETRIEVAL_RECONCILIATION.md)
+for configuration, precedence, audio catalog keys, and standalone requirements.
+
 ## Freeciv reference source
 
 The Git submodule at `reference/freeciv` tracks the public upstream

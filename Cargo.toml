@@ -23,8 +23,9 @@ serde_json = "1"
 bincode = "1.3.3"
 macroquad = { version = "0.4.14", default-features = false }
 serde = { version = "1", features = ["derive"] }
-symphonia = { version = "0.5.5", default-features = false, features = ["mp3"] }
+symphonia = { version = "0.5.5", optional = true, default-features = false, features = ["mp3"] }
 toml = "0.8"
+lewton = { version = "0.9.4", optional = true }
 image = { version = "0.25", default-features = false, features = ["png"] }
 image-compare = "0.5"
 
@@ -33,7 +34,7 @@ default = ["scenarios"]
 # Regression scenarios and their fixtures, run by `headless_sim --scenario`.
 # Tests require it.
 scenarios = []
-desktop-audio = ["macroquad/audio"]
+desktop-audio = ["macroquad/audio", "dep:symphonia", "dep:lewton"]
 
 [dev-dependencies]
 assert_cmd = "2.2"

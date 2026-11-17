@@ -1,4 +1,7 @@
 //! Civ III sheet decoding. Both map views keep the same projection and painter passes.
+use super::media::Civ3MediaResolver;
+#[cfg(all(test, feature = "desktop-audio"))]
+use super::media::resolve_case_insensitive_path;
 use super::*;
 use crate::{sim::RenderTileView, world::TerrainBase};
 use std::{
@@ -43,13 +46,14 @@ enum Ground {
 }
 use Ground::*;
 
+#[cfg(all(test, feature = "desktop-audio"))]
 pub(crate) fn locate_source_root() -> Result<PathBuf, String> {
     let root = std::env::var_os("CIVCRAFT_SOURCE_DIR")
         .map(PathBuf::from)
         .ok_or_else(|| {
             "CIVCRAFT_SOURCE_DIR is required. Set it to the Civ III install folder containing Conquests/Art/Terrain before starting CivCraft.".to_owned()
         })?;
-    if root.join("Conquests/Art/Terrain").is_dir() {
+    if resolve_case_insensitive_path(&root, "Conquests/Art/Terrain").is_some_and(|p| p.is_dir()) {
         Ok(root)
     } else {
         Err(format!(
@@ -60,11 +64,14 @@ pub(crate) fn locate_source_root() -> Result<PathBuf, String> {
 }
 
 fn locate_default_art() -> Result<PathBuf, String> {
-    locate_source_root().map(|source| source.join("Conquests/Art"))
+    Civ3MediaResolver::configured()?.resolve("Art")
 }
 
 pub(crate) fn load_source_fog_atlas() -> Result<Image, String> {
-    let path = locate_source_root()?.join("Art/Terrain/FogOfWar.pcx");
+    // Preserve the selected base-game fog atlas as an explicit policy.
+    let path = Civ3MediaResolver::configured()?
+        .base_policy()
+        .resolve("Art/Terrain/FogOfWar.pcx")?;
     let bytes = fs::read(&path).map_err(|error| format!("{}: {error}", path.display()))?;
     let mut image =
         decode_pcx(&bytes, &[254, 255]).map_err(|error| format!("{}: {error}", path.display()))?;
@@ -191,9 +198,9 @@ impl Tileset {
                     "snoopy-extended" => "Sn00pys TerrainX",
                     _ => "Sn00pys TerrainG",
                 };
-                locate_source_root().map(|source| {
-                    Self::Civ3(source.join("civ3PTW/Scenarios").join(folder).join("Art"))
-                })
+                Civ3MediaResolver::configured()?
+                    .resolve(&format!("civ3PTW/Scenarios/{folder}/Art"))
+                    .map(Self::Civ3)
             }
             _ => Err(format!(
                 "Unknown tileset '{name}'. Available: civ3, conquests, snoopy-standard, snoopy-greener, snoopy-extended"
@@ -209,9 +216,8 @@ impl Tileset {
 }
 
 struct Theme {
-    root: PathBuf,
-    source_root: Option<PathBuf>,
-    fallback_roots: Vec<PathBuf>,
+    media: Civ3MediaResolver,
+    images: Civ3MediaResolver,
     paths: HashMap<String, String>,
     transparent_indices: HashMap<String, Vec<u8>>,
     civilization_city_styles: HashMap<String, String>,
@@ -344,30 +350,44 @@ impl Theme {
                 }
             }
         }
-        let source_root = locate_source_root().ok();
-        let fallback_roots = if root.file_name().is_some_and(|name| name == "Art")
-            && root
-                .parent()
-                .and_then(Path::file_name)
-                .is_some_and(|name| name == "Conquests")
-            && root
-                .parent()
-                .and_then(Path::parent)
-                .and_then(Path::file_name)
-                .is_some_and(|name| name == "source")
-        {
-            let source = root.parent().and_then(Path::parent).unwrap();
-            vec![source.join("civ3PTW/Art"), source.join("Art")]
+        let configured = ["CIVCRAFT_SOURCE_DIR", "CIV3_HOME", "CIVCRAFT_MEDIA_CONFIG"]
+            .iter()
+            .any(|key| std::env::var_os(key).is_some());
+        let media = if configured {
+            Civ3MediaResolver::configured()?
         } else {
-            Vec::new()
+            let install = root
+                .parent()
+                .filter(|p| {
+                    p.file_name().is_some_and(|n| {
+                        n.eq_ignore_ascii_case("Conquests") || n.eq_ignore_ascii_case("civ3PTW")
+                    })
+                })
+                .and_then(Path::parent);
+            install
+                .map(Civ3MediaResolver::installation)
+                .unwrap_or_else(|| Civ3MediaResolver::new(vec![root.to_owned()]))
         };
-        if let Some(source) = &source_root {
-            load_campaign_unit_ini_paths(source, &mut paths)?;
+        let is_default = media
+            .prefixed("Art")
+            .roots()
+            .any(|p| p.canonicalize().ok() == root.canonicalize().ok());
+        let images = if is_default {
+            media.prefixed("Art")
+        } else {
+            media.prefixed("Art").with_override(root)
+        };
+        let media = if is_default {
+            media
+        } else {
+            media.with_override(root)
+        };
+        if configured {
+            load_campaign_unit_ini_paths_with_resolver(&media, &mut paths)?;
         }
         Ok(Self {
-            root: root.to_owned(),
-            source_root,
-            fallback_roots,
+            media,
+            images,
             paths,
             transparent_indices,
             civilization_city_styles,
@@ -392,32 +412,31 @@ impl Theme {
             } else {
                 &DEFAULT_PCX_TRANSPARENT_INDICES
             });
-        let mut roots = vec![self.root.as_path()];
-        if override_path.is_none() {
-            roots.extend(self.fallback_roots.iter().map(PathBuf::as_path));
+        let mut names = vec![relative.to_owned()];
+        if Path::new(relative)
+            .extension()
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("png"))
+        {
+            names.push(
+                Path::new(relative)
+                    .with_extension("pcx")
+                    .to_string_lossy()
+                    .into_owned(),
+            );
         }
-        let mut last_missing = None;
-        let (path, image) = 'roots: {
-            for root in roots.iter() {
-                let path = root.join(relative);
-                match read_theme_image(&path, transparent_indices) {
-                    Ok(image) => break 'roots image,
-                    Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-                        last_missing = Some(path)
-                    }
-                    Err(error) => return Err(format!("{}: {error}", path.display())),
-                }
-            }
+        let resolved = self
+            .images
+            .lookup_variants(&names)
+            .map_err(|e| format!("{relative}: {e}"))?;
+        let Some(resolved) = resolved else {
             if !required && override_path.is_none() {
                 return Ok(None);
             }
-            let path = last_missing.unwrap_or_else(|| self.root.join(relative));
-            let error = std::io::Error::new(
-                std::io::ErrorKind::NotFound,
-                "file not found in configured source art folders",
-            );
-            return Err(format!("{}: {error}", path.display()));
+            return Err(self.images.missing(relative));
         };
+        let path = resolved.path;
+        let (_, image) = read_theme_image(&path, transparent_indices)
+            .map_err(|e| format!("{}: {e}", path.display()))?;
         if image.width < size.0 || image.height < size.1 {
             return Err(format!(
                 "{}: expected at least {}×{} pixels",
@@ -430,17 +449,17 @@ impl Theme {
     }
 }
 
+#[cfg(test)]
 fn load_campaign_unit_ini_paths(
     source: &Path,
     paths: &mut HashMap<String, String>,
 ) -> Result<(), String> {
-    let roots = [
-        ("base", source.join("Art/Units")),
-        ("ptw", source.join("civ3PTW/Art/Units")),
-        ("conquests", source.join("Conquests/Art/Units")),
-    ]
-    .into_iter()
-    .collect::<HashMap<_, _>>();
+    load_campaign_unit_ini_paths_with_resolver(&Civ3MediaResolver::installation(source), paths)
+}
+fn load_campaign_unit_ini_paths_with_resolver(
+    media: &Civ3MediaResolver,
+    paths: &mut HashMap<String, String>,
+) -> Result<(), String> {
     let mut identities = 0;
     for unit in &crate::rules::native::units().units {
         identities += 1;
@@ -454,19 +473,12 @@ fn load_campaign_unit_ini_paths(
             ));
         }
         for (variant, (folder, label)) in folders.into_iter().zip(labels).enumerate() {
-            let Some(root) = roots.get(label) else {
-                return Err(format!("{} has unknown art root '{label}'", unit.name));
-            };
-            let directory = root.join(folder);
-            let ini = fs::read_dir(&directory)
-                .map_err(|error| format!("{}: {error}", directory.display()))?
-                .filter_map(Result::ok)
-                .map(|entry| entry.path())
-                .find(|path| {
-                    path.extension()
-                        .is_some_and(|ext| ext.eq_ignore_ascii_case("ini"))
-                })
-                .ok_or_else(|| format!("{}: no unit INI found", directory.display()))?;
+            if !matches!(label, "base" | "ptw" | "conquests") {
+                return Err(format!("{}: unknown art root {label}", unit.name));
+            }
+            let ini = media
+                .edition(label)
+                .resolve(&format!("Art/Units/{folder}/{folder}.ini"))?;
             let key = if variant == 0 {
                 role.clone()
             } else {
@@ -509,101 +521,21 @@ pub(super) struct UnitSoundSource {
 
 impl Theme {
     fn resolve_theme_file(&self, reference: &str) -> Result<PathBuf, String> {
-        if Path::new(reference).is_absolute() && Path::new(reference).is_file() {
-            return Ok(Path::new(reference).to_owned());
+        if Path::new(reference).is_absolute() {
+            return self.media.existing(Path::new(reference));
         }
-        let mut bases = vec![self.root.clone()];
-        bases.extend(self.fallback_roots.iter().cloned());
-        if let Some(source) = &self.source_root {
-            bases.push(source.clone());
+        match self
+            .images
+            .lookup(reference)
+            .map_err(|e| format!("{reference}: {e}"))?
+        {
+            Some(found) => Ok(found.path),
+            None => self.media.resolve(reference),
         }
-        for base in bases {
-            if let Some(path) = resolve_case_insensitive_path(&base, reference) {
-                return Ok(path);
-            }
-        }
-        Err(format!(
-            "{}: file '{reference}' was not found in the configured art roots",
-            self.root.display()
-        ))
     }
-
     fn resolve_unit_file(&self, ini_path: &Path, reference: &str) -> Result<PathBuf, String> {
-        let mut bases = Vec::with_capacity(self.fallback_roots.len() + 3);
-        if let Some(parent) = ini_path.parent() {
-            bases.push(parent.to_owned());
-            // Expansion manifests often name an animation shared from the
-            // same unit's base-game folder using only its filename. Search
-            // that corresponding unit directory before the broader art roots.
-            if let Some(unit_folder) = parent.file_name() {
-                bases.extend(
-                    self.fallback_roots
-                        .iter()
-                        .map(|root| root.join("Units").join(unit_folder)),
-                );
-                if let Some(source) = &self.source_root {
-                    bases.extend(
-                        [
-                            source.join("Conquests/Art"),
-                            source.join("civ3PTW/Art"),
-                            source.join("Art"),
-                        ]
-                        .into_iter()
-                        .map(|root| root.join("Units").join(unit_folder)),
-                    );
-                }
-            }
-        }
-        bases.push(self.root.clone());
-        bases.extend(self.fallback_roots.iter().cloned());
-        if let Some(source) = &self.source_root {
-            bases.push(source.clone());
-        }
-        bases.dedup();
-        for base in bases {
-            if let Some(path) = resolve_case_insensitive_path(&base, reference) {
-                return Ok(path);
-            }
-        }
-        Err(format!(
-            "{}: animation file '{reference}' was not found relative to the INI or in the configured Civ III art roots",
-            ini_path.display()
-        ))
+        self.media.unit_reference(ini_path, reference)
     }
-}
-
-fn resolve_case_insensitive_path(base: &Path, reference: &str) -> Option<PathBuf> {
-    let normalized = reference.trim().trim_matches('"').replace('\\', "/");
-    let mut current = if normalized.starts_with('/') {
-        PathBuf::from("/")
-    } else {
-        base.to_owned()
-    };
-    for component in normalized.split('/') {
-        if component.is_empty() || component == "." || component.ends_with(':') {
-            continue;
-        }
-        if component == ".." {
-            current.pop();
-            continue;
-        }
-        let exact = current.join(component);
-        if exact.exists() {
-            current = exact;
-            continue;
-        }
-        let matched = fs::read_dir(&current)
-            .ok()?
-            .filter_map(Result::ok)
-            .find(|entry| {
-                entry
-                    .file_name()
-                    .to_string_lossy()
-                    .eq_ignore_ascii_case(component)
-            })?;
-        current = matched.path();
-    }
-    current.is_file().then_some(current)
 }
 
 fn expand_unit_animation_ini(
@@ -681,13 +613,15 @@ fn expand_unit_animation_ini(
                 *slot = Some(speed);
             }
             "SOUND EFFECTS" if !value.is_empty() => {
-                if let Ok(path) = theme.resolve_unit_file(&ini_path, value) {
-                    sounds.insert(action, UnitSoundSource { path });
-                } else {
-                    eprintln!(
-                        "{}: sound file '{value}' was not found; skipping it",
-                        ini_path.display()
-                    );
+                match theme
+                    .media
+                    .unit_lookup(&ini_path, value)
+                    .map_err(|e| format!("{}: sound {value}: {e}", ini_path.display()))?
+                {
+                    Some(found) => {
+                        sounds.insert(action, UnitSoundSource { path: found.path });
+                    }
+                    None => eprintln!("{}: optional sound '{value}' missing", ini_path.display()),
                 }
             }
             _ => {}
@@ -753,60 +687,18 @@ fn read_theme_image(
     path: &Path,
     transparent_indices: &[u8],
 ) -> Result<(PathBuf, Image), std::io::Error> {
-    let mut candidates = vec![path.to_owned()];
-    if path
+    let bytes = fs::read(path)?;
+    let image = if path
         .extension()
-        .is_some_and(|ext| ext.eq_ignore_ascii_case("png"))
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("pcx"))
     {
-        candidates.push(path.with_extension("pcx"));
-        candidates.push(path.with_extension("PCX"));
-    }
-    // Original Civ III installations mix both filename and extension casing.
-    // Resolve the basename case-insensitively and accept either supported image
-    // format so source trees load consistently on case-sensitive filesystems.
-    if let Some(parent) = path.parent()
-        && let (Some(wanted), Ok(entries)) = (path.file_stem(), fs::read_dir(parent))
-    {
-        let wanted = wanted.to_string_lossy();
-        for entry in entries.flatten() {
-            let candidate = entry.path();
-            let is_supported = candidate.extension().is_some_and(|ext| {
-                ext.eq_ignore_ascii_case("pcx") || ext.eq_ignore_ascii_case("png")
-            });
-            if is_supported
-                && candidate
-                    .file_stem()
-                    .is_some_and(|stem| stem.to_string_lossy().eq_ignore_ascii_case(&wanted))
-            {
-                candidates.push(candidate);
-            }
-        }
-    }
-    let mut last_error = None;
-    for candidate in candidates {
-        match fs::read(&candidate) {
-            Ok(bytes) => {
-                let image = if candidate
-                    .extension()
-                    .is_some_and(|ext| ext.eq_ignore_ascii_case("pcx"))
-                {
-                    decode_pcx(&bytes, transparent_indices).map_err(|message| {
-                        std::io::Error::new(std::io::ErrorKind::InvalidData, message)
-                    })?
-                } else {
-                    Image::from_file_with_format(&bytes, Some(ImageFormat::Png)).map_err(
-                        |error| {
-                            std::io::Error::new(std::io::ErrorKind::InvalidData, error.to_string())
-                        },
-                    )?
-                };
-                return Ok((candidate, image));
-            }
-            Err(error) => last_error = Some(error),
-        }
-    }
-    Err(last_error
-        .unwrap_or_else(|| std::io::Error::new(std::io::ErrorKind::NotFound, "file not found")))
+        decode_pcx(&bytes, transparent_indices)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?
+    } else {
+        Image::from_file_with_format(&bytes, Some(ImageFormat::Png))
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string()))?
+    };
+    Ok((path.to_owned(), image))
 }
 
 /// Decode the 8-bit, one-plane, indexed RLE PCX form used by Civ III terrain mods.
@@ -1643,7 +1535,10 @@ impl Civ3 {
                     .or_insert(animation);
             }
         }
-        let cursor_path = locate_source_root()?.join("Art/Animations/Cursor/Cursor.flc");
+        let cursor_path = theme
+            .media
+            .base_policy()
+            .resolve("Art/Animations/Cursor/Cursor.flc")?;
         let cursor_bytes = fs::read(&cursor_path)
             .map_err(|error| format!("{}: {error}", cursor_path.display()))?;
         let cursor_flic = super::flc::decode_flic(&cursor_bytes)
@@ -2510,6 +2405,57 @@ fn draw_sprite(texture: &Texture2D, center: Vec2, size: Vec2, source: Rect) {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn campaign_ini_selection_uses_catalog_names_with_mixed_case_directories() {
+        let install =
+            std::env::temp_dir().join(format!("civcraft-unit-media-{}", std::process::id()));
+        for unit in &crate::rules::native::units().units {
+            for (folder, label) in unit.art_folder.split('|').zip(unit.art_root.split('|')) {
+                let edition = match label {
+                    "base" => "art/units",
+                    "ptw" => "civ3ptw/art/units",
+                    "conquests" => "conquests/art/units",
+                    _ => unreachable!(),
+                };
+                let directory = install.join(edition).join(folder.to_ascii_lowercase());
+                std::fs::create_dir_all(&directory).unwrap();
+                std::fs::write(directory.join("unrelated.ini"), "wrong").unwrap();
+                std::fs::write(
+                    directory.join(format!("{}.ini", folder.to_ascii_lowercase())),
+                    "selected",
+                )
+                .unwrap();
+            }
+        }
+        let mut paths = std::collections::HashMap::new();
+        super::load_campaign_unit_ini_paths(&install, &mut paths).unwrap();
+        assert_eq!(paths.len(), 98); // 90 ordinary identities plus four Leader and Army eras.
+        for ini in paths.values() {
+            assert_eq!(std::fs::read_to_string(ini).unwrap(), "selected");
+        }
+        std::fs::remove_dir_all(install).unwrap();
+    }
+
+    #[test]
+    fn arbitrary_install_name_falls_back_and_resolves_image_directories() {
+        let install =
+            std::env::temp_dir().join(format!("civcraft-complete-{}", std::process::id()));
+        let root = install.join("Conquests/Art");
+        std::fs::create_dir_all(&root).unwrap();
+        let base = install.join("Art/tErRaIn");
+        std::fs::create_dir_all(&base).unwrap();
+        image::RgbaImage::from_pixel(1, 1, image::Rgba([1, 2, 3, 255]))
+            .save(base.join("MiXeD.png"))
+            .unwrap();
+        let theme = super::Theme::read(&root).unwrap();
+        let loaded = theme
+            .image("fixture", "Terrain/mixed.png", (1, 1), true)
+            .unwrap()
+            .unwrap();
+        assert_eq!(loaded.get_image_data(), &[[1, 2, 3, 255]]);
+        std::fs::remove_dir_all(install).unwrap();
+    }
+
     use super::*;
 
     #[test]
