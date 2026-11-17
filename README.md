@@ -31,13 +31,13 @@ Run a short desktop smoke test to verify that the game starts, loads the Civ III
 artwork, renders a frame, and advances a few normal turns:
 
 ```sh
-./scripts/smoke-test.sh
+CIVCRAFT_SOURCE_DIR="/path/to/civ3-install" ./scripts/smoke-test.sh
 ```
 
-The script uses `CIVCRAFT_SOURCE_DIR` when set and otherwise checks for the
-checkout-local `../source` installation. It exits successfully with `SKIP` when
-neither path contains `Conquests/Art/Terrain`. Set `CIVCRAFT_SMOKE_TURNS` to
-change the default three turns.
+The script requires an explicit `CIVCRAFT_SOURCE_DIR` and does not guess an
+installation location. It exits successfully with `SKIP` when the variable is
+unset or its path does not contain `Conquests/Art/Terrain`. Set
+`CIVCRAFT_SMOKE_TURNS` to change the default three turns.
 
 `--map-size` defaults to `small` (80×80). It accepts `tiny`, `small`,
 `standard`, `large`, `huge`, or custom `WIDTHxHEIGHT` dimensions. The default
