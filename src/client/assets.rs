@@ -74,6 +74,9 @@ pub(crate) fn window_conf() -> Conf {
     {
         let mut conf = conf;
         conf.platform.apple_gfx_api = macroquad::miniquad::conf::AppleGfxApi::Metal;
+        // Miniquad's Metal render pipelines are single-sampled. The window
+        // framebuffer has to match the pipeline's sample count.
+        conf.sample_count = 1;
         conf
     }
     #[cfg(not(target_os = "macos"))]

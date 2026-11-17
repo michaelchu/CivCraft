@@ -1,5 +1,22 @@
 //! Evidence for native visual QA. Drawing timings measure CPU submission only.
+use macroquad::prelude::{Image, get_internal_gl, get_screen_data, miniquad::Backend};
 use std::{fs, io, path::Path, time::Instant};
+
+pub(crate) fn capture_screen() -> Result<Image, &'static str> {
+    // The desktop frame loop is running on Macroquad's render thread.
+    unsafe {
+        if get_internal_gl().quad_context.info().backend == Backend::Metal {
+            get_internal_gl().flush();
+            let pixels = get_internal_gl().quad_context.read_screen_pixels()?;
+            return Ok(Image {
+                width: pixels.width,
+                height: pixels.height,
+                bytes: pixels.rgba,
+            });
+        }
+    }
+    Ok(get_screen_data())
+}
 
 #[derive(Default)]
 struct SceneTiming {

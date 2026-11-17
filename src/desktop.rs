@@ -124,6 +124,10 @@ pub async fn run_desktop() {
         (0..client::UI_REVIEW_SCENES.len()).collect()
     };
     let automated = smoke_test || screenshot_path.is_some() || ui_review.is_some();
+    if screenshot_path.is_some() || ui_review.is_some() {
+        // Configure readback on the render thread before any screenshot frame.
+        unsafe { get_internal_gl().quad_context.enable_screen_readback() };
+    }
     let asset_context = client::AssetContext::from_env(!automated).unwrap_or_else(|error| {
         eprintln!("Could not configure assets: {error}");
         std::process::exit(2);
@@ -349,7 +353,16 @@ pub async fn run_desktop() {
             let main_capture_phase = if scene == 13 { 8 } else { 5 };
             if phase == main_capture_phase || next {
                 let started = std::time::Instant::now();
-                let image = get_screen_data();
+                let image = visual_test::capture_screen().unwrap_or_else(|error| {
+                    let profile = ui_profile.as_mut().unwrap();
+                    profile.check(scene, "screen_capture", false);
+                    let _ = profile.finish(dir);
+                    eprintln!(
+                        "Could not capture {}: {error}",
+                        client::UI_REVIEW_SCENES[scene]
+                    );
+                    std::process::exit(1);
+                });
                 use std::hash::{Hash, Hasher};
                 let mut hasher = std::collections::hash_map::DefaultHasher::new();
                 image.bytes.hash(&mut hasher);
@@ -450,7 +463,12 @@ pub async fn run_desktop() {
             && frame == 120
         {
             ensure_parent(path);
-            get_screen_data().export_png(path);
+            visual_test::capture_screen()
+                .unwrap_or_else(|error| {
+                    eprintln!("Could not capture screenshot: {error}");
+                    std::process::exit(1);
+                })
+                .export_png(path);
             break;
         }
         next_frame().await;
