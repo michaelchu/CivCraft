@@ -554,11 +554,14 @@ pub(crate) fn buildings() -> &'static BuildingCatalog {
                         "unknown resource target in {}",
                         rule.id
                     ),
-                    "River" | "Lake" | "Sea" | "Water" | "MinSize" | "OwnerCityCount" => assert!(
-                        requirement.target.is_none(),
-                        "unexpected named target in {}",
-                        rule.id
-                    ),
+                    "River" | "Lake" | "Sea" | "Water" | "MinSize" | "OwnerCityCount"
+                    | "OwnerEliteUnit" => {
+                        assert!(
+                            requirement.target.is_none(),
+                            "unexpected named target in {}",
+                            rule.id
+                        );
+                    }
                     other => panic!("unsupported building requirement {other}"),
                 }
                 assert!(

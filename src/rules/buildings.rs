@@ -32,6 +32,8 @@ pub(crate) enum Requirement {
     OwnerCityCount(usize),
     OwnerBuildingCount(usize, usize),
     Resource(usize),
+    /// The owner has at least one unit at the top level of its veteran system.
+    OwnerEliteUnit,
 }
 
 #[derive(Clone)]
@@ -208,6 +210,7 @@ fn native_building_requirement(
                 .unwrap_or_else(|_| panic!("native building count is negative")),
         ),
         "Resource" => Requirement::Resource(value),
+        "OwnerEliteUnit" => Requirement::OwnerEliteUnit,
         other => panic!("unknown native building requirement {other:?}"),
     };
     (parsed, requirement.present)

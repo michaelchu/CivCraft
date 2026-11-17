@@ -11,6 +11,14 @@ impl Simulation {
         levels > 1 && unit.c2c3_veteran + 1 == levels
     }
 
+    /// True when any living unit of `owner` is elite. Stands in for Civ III's
+    /// "a victorious army" requirement for the Heroic Epic.
+    pub(in crate::sim) fn owner_has_elite_unit(&self, owner: usize) -> bool {
+        self.units
+            .iter()
+            .any(|unit| unit.owner == owner && self.unit_is_elite(unit))
+    }
+
     /// Whether this kill could create a Great Leader. Cheap checks come first
     /// and nothing here draws from the RNG.
     pub(in crate::sim) fn great_leader_eligible(&self, winner: &Unit, loser: &Unit) -> bool {
@@ -251,6 +259,36 @@ mod tests {
         while game.roll_great_leader(winner, &loser, true).is_none() {}
         let changes = serde_json::to_string(&game.observe_lifecycle().changes).unwrap();
         assert!(changes.contains("\"source\":\"great_leader\""), "{changes}");
+    }
+
+    #[test]
+    fn heroic_epic_needs_an_elite_unit() {
+        let mut game = game();
+        game.create_city(HUMAN, 20, 24);
+        let city = game.cities[0].clone();
+        let blocker = game.building_blocker(&city, Building::HEROIC_EPIC);
+        assert!(
+            blocker
+                .as_deref()
+                .is_some_and(|text| text.contains("elite unit")),
+            "{blocker:?}"
+        );
+        assert!(!game.can_produce(&city, Production::Building(Building::HEROIC_EPIC)));
+        spawn_elite(&mut game, HUMAN, UnitKind::Knight, 10, 24);
+        assert_eq!(game.building_blocker(&city, Building::HEROIC_EPIC), None);
+        assert!(game.can_produce(&city, Production::Building(Building::HEROIC_EPIC)));
+    }
+
+    #[test]
+    fn owner_has_elite_unit_ignores_other_owners_and_civilians() {
+        let mut game = game();
+        spawn_elite(&mut game, 1, UnitKind::Knight, 10, 24);
+        game.spawn_unit(HUMAN, UnitKind::Worker, 12, 24);
+        game.spawn_unit(HUMAN, UnitKind::Knight, 14, 24);
+        assert!(!game.owner_has_elite_unit(HUMAN));
+        assert!(game.owner_has_elite_unit(1));
+        spawn_elite(&mut game, HUMAN, UnitKind::Knight, 16, 24);
+        assert!(game.owner_has_elite_unit(HUMAN));
     }
 
     fn attack_until_leader(attacker_is_elite: bool) -> bool {

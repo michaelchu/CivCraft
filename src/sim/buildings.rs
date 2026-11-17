@@ -231,6 +231,7 @@ impl Simulation {
                     .count()
                     >= count
             }
+            Requirement::OwnerEliteUnit => self.owner_has_elite_unit(city.owner),
             Requirement::Resource(id) => {
                 let resource = match id {
                     0 => Resource::Aluminum,
@@ -387,6 +388,7 @@ fn requirement_name(requirement: Requirement) -> String {
         Requirement::Water => "nearby sea or lake".into(),
         Requirement::MinSize(size) => format!("city size {size}"),
         Requirement::OwnerCityCount(count) => format!("{count} cities"),
+        Requirement::OwnerEliteUnit => "an elite unit".into(),
         Requirement::OwnerBuildingCount(id, count) => {
             format!("{count} {} buildings", Building(id).data().name)
         }
