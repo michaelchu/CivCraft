@@ -214,16 +214,27 @@ impl UnitRule {
         }
     }
 
-    fn civilization_mask_allows(&self, civilization: &str) -> bool {
+    fn civilization_mask_allows(&self, identities: &[&str]) -> bool {
         self.available_to
             .split(';')
-            .any(|available| available == civilization)
+            .any(|available| identities.contains(&available))
     }
 
+    /// Civ III masks name civilizations by their Conquests noun ("Vikings",
+    /// "Americans"), while players carry the CivCraft display name
+    /// ("Scandinavia", "America"). Match any identity the catalog records for
+    /// the civilization so renamed display names keep their unit access.
     pub(super) fn available_to(&self, civilization: &str) -> bool {
+        let mut identities = vec![civilization];
+        if let Some(entry) = crate::rules::civilizations::by_name(civilization) {
+            identities.push(entry.name.as_str());
+            identities.push(entry.noun.as_str());
+            identities.extend(entry.legacy_names.iter().map(String::as_str));
+        }
         if self.category == "wonder_created"
-            || (!self.unique_civilization.is_empty() && self.unique_civilization != civilization)
-            || !self.civilization_mask_allows(civilization)
+            || (!self.unique_civilization.is_empty()
+                && !identities.contains(&self.unique_civilization))
+            || !self.civilization_mask_allows(&identities)
         {
             return false;
         }
@@ -231,9 +242,9 @@ impl UnitRule {
         // The unique-unit relationship takes precedence for production.
         !rules().iter().any(|unique| {
             unique.category == "unique"
-                && unique.unique_civilization == civilization
+                && identities.contains(&unique.unique_civilization)
                 && unique.replacement_id() == Some(self.id)
-                && unique.civilization_mask_allows(civilization)
+                && unique.civilization_mask_allows(&identities)
         })
     }
 
@@ -471,6 +482,19 @@ mod tests {
             let base = get(base_id).unwrap();
             assert!(!base.available_to(civilization), "{}", unit.id);
             assert!(unit.available_to(civilization), "{}", unit.id);
+        }
+    }
+
+    #[test]
+    fn every_civilization_display_name_can_build_basic_units() {
+        for civilization in crate::rules::civilizations::all() {
+            for id in ["settler", "worker"] {
+                assert!(
+                    get(id).unwrap().available_to(&civilization.name),
+                    "{} must be able to build {id}",
+                    civilization.name
+                );
+            }
         }
     }
 

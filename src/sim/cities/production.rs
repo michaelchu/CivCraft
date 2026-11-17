@@ -186,7 +186,19 @@ impl Simulation {
                 }
             }
         }
-        Production::Unit(UnitKind::Warrior)
+        self.ai_fallback_production(city)
+    }
+
+    /// Default AI target when the advisors want nothing: the (possibly
+    /// upgraded) Warrior, or Coinage when the civilization can build neither
+    /// units nor buildings so shields are not stranded on an impossible item.
+    pub(in crate::sim) fn ai_fallback_production(&self, city: &City) -> Production {
+        let warrior = self.worklist_replacement(city, Production::Unit(UnitKind::Warrior));
+        if self.can_produce(city, warrior) {
+            warrior
+        } else {
+            Production::Building(Building::COINAGE)
+        }
     }
 
     #[cfg(any(test, feature = "scenarios"))]
@@ -230,6 +242,15 @@ impl Simulation {
             let city = &self.cities[index];
             if !city.bought_production {
                 self.cities[index].production = self.worklist_replacement(city, city.production);
+            }
+            // An AI city whose current item became impossible (for example a
+            // unit its civilization cannot build) would otherwise bank shields
+            // forever; re-choose, falling back to Coinage.
+            if self.players[owner].ai
+                && !self.can_produce(&self.cities[index], self.cities[index].production)
+            {
+                let replacement = self.choose_ai_production(owner, city_id);
+                self.cities[index].production = replacement;
             }
             let before_shield_upkeep = self.cities[index].clone();
             let before_shield_forecast = self.city_forecast(&before_shield_upkeep);
