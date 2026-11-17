@@ -34,6 +34,24 @@ jobs:
       - name: Test documentation
         run: cargo test --doc
 
+  headless:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Check headless dependencies
+        shell: bash
+        run: |
+          dependencies=$(cargo tree --locked --no-default-features --features scenarios --edges normal --prefix none)
+          if grep -E '^(macroquad|miniquad|symphonia|image|image-compare) v' <<< "$dependencies"; then
+            exit 1
+          fi
+      - name: Build and run a headless scenario
+        run: |
+          cargo build --locked --no-default-features --features scenarios --bin headless_sim
+          ./target/debug/headless_sim --scenario city-healing --turns 1 --report "$RUNNER_TEMP/healing.json"
+
   coverage:
     runs-on: macos-latest
     steps:

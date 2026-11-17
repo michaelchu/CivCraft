@@ -7,7 +7,22 @@ mod records;
 
 type PairMemory<T> = BTreeMap<(usize, usize), T>;
 
-// Field order is part of the 0x26, 0x27 and 0x28 wire formats. Make a
+// Only the legacy readers consume the AI's former reduced tile memory.
+#[derive(Clone, Copy)]
+pub(super) struct MapObservation {
+    pub(super) route: movement::RouteTile,
+    pub(super) owner: Option<usize>,
+    pub(super) ocean: bool,
+}
+
+#[derive(Default, Deserialize)]
+#[cfg_attr(test, derive(Serialize))]
+#[serde(transparent)]
+pub(super) struct LegacyAiMap(
+    #[serde(with = "records::map")] pub(super) BTreeMap<(usize, usize), MapObservation>,
+);
+
+// Field order is part of the 0x26 through 0x29 wire formats. Make a
 // version-specific type if a future version changes any existing payload.
 #[derive(Serialize, Deserialize)]
 struct SavedCore<'a> {
@@ -57,14 +72,11 @@ struct SavedCore<'a> {
 }
 
 #[derive(Serialize, Deserialize)]
-struct SavedAi<'a> {
+struct SavedAi<'a, A> {
     ai_purchase_reserve: Cow<'a, BTreeMap<usize, i32>>,
     city_founders: Cow<'a, BTreeMap<u32, usize>>,
-    #[serde(
-        serialize_with = "records::map::serialize",
-        deserialize_with = "records::map::deserialize_cow"
-    )]
-    ai_map_memory: Cow<'a, AiMapMemory>,
+    // A unit value occupies zero bytes in the current bincode layout.
+    legacy_ai_map: A,
     ai_war_plans: Cow<'a, PairMemory<diplomacy::WarPlan>>,
     ai_space_warnings: Cow<'a, PairMemory<i32>>,
     ai_free_bulbs: Cow<'a, BTreeMap<usize, i32>>,
@@ -91,10 +103,11 @@ struct SavedWorld<'a> {
 }
 
 #[derive(Serialize, Deserialize)]
-pub(super) struct SavedCampaign<'a> {
+pub(super) struct SavedCampaign<'a, A, S> {
     core: SavedCore<'a>,
-    ai: SavedAi<'a>,
+    ai: SavedAi<'a, A>,
     world: SavedWorld<'a>,
+    partial_sites: S,
 }
 
 #[derive(Deserialize)]
@@ -102,7 +115,7 @@ pub(super) struct LegacyCampaign<'a> {
     core: SavedCore<'a>,
     #[serde(deserialize_with = "records::sequence::deserialize")]
     route_memory: Vec<Option<movement::RouteTile>>,
-    ai: SavedAi<'a>,
+    ai: SavedAi<'a, LegacyAiMap>,
     world: SavedWorld<'a>,
 }
 
@@ -111,19 +124,26 @@ impl LegacyCampaign<'_> {
         self.core.map_wrap
     }
 
-    pub(super) fn into_game(self) -> (Simulation, Vec<Option<movement::RouteTile>>) {
+    pub(super) fn into_game(self) -> (Simulation, Vec<Option<movement::RouteTile>>, LegacyAiMap) {
         let Self {
             core,
             route_memory,
             ai,
             world,
         } = self;
-        (SavedCampaign { core, ai, world }.into_game(), route_memory)
+        let (game, legacy_ai_map, ()) = SavedCampaign {
+            core,
+            ai,
+            world,
+            partial_sites: (),
+        }
+        .into_game();
+        (game, route_memory, legacy_ai_map)
     }
 }
 
-impl<'a> SavedCampaign<'a> {
-    pub(super) fn from_game(game: &'a Simulation) -> Self {
+impl<'a, A, S> SavedCampaign<'a, A, S> {
+    pub(super) fn from_game(game: &'a Simulation, legacy_ai_map: A, partial_sites: S) -> Self {
         let mut list_order = game.list_order.clone();
         list_order.synchronize(&game.units, &game.cities);
         let cargo_order = game.cargo_order_snapshot();
@@ -168,7 +188,7 @@ impl<'a> SavedCampaign<'a> {
             ai: SavedAi {
                 ai_purchase_reserve: Cow::Borrowed(&game.ai_purchase_reserve),
                 city_founders: Cow::Borrowed(&game.city_founders),
-                ai_map_memory: Cow::Borrowed(&game.ai_map_memory),
+                legacy_ai_map,
                 ai_war_plans: Cow::Borrowed(&game.ai_war_plans),
                 ai_space_warnings: Cow::Borrowed(&game.ai_space_warnings),
                 ai_free_bulbs: Cow::Borrowed(&game.ai_free_bulbs),
@@ -190,12 +210,18 @@ impl<'a> SavedCampaign<'a> {
                 cargo_order,
                 observed_map: Cow::Borrowed(&game.observed_map),
             },
+            partial_sites,
         }
     }
 
-    pub(super) fn into_game(self) -> Simulation {
-        let Self { core, ai, world } = self;
-        Simulation {
+    pub(super) fn into_game(self) -> (Simulation, A, S) {
+        let Self {
+            core,
+            ai,
+            world,
+            partial_sites,
+        } = self;
+        let game = Simulation {
             world_seed: core.world_seed,
             map_seed: core.map_seed,
             civilization_count: core.civilization_count,
@@ -225,7 +251,6 @@ impl<'a> SavedCampaign<'a> {
             climate_pressure: core.climate_pressure.into_owned(),
             ai_purchase_reserve: ai.ai_purchase_reserve.into_owned(),
             city_founders: ai.city_founders.into_owned(),
-            ai_map_memory: ai.ai_map_memory.into_owned(),
             ai_war_plans: ai.ai_war_plans.into_owned(),
             ai_space_warnings: ai.ai_space_warnings.into_owned(),
             ai_free_bulbs: ai.ai_free_bulbs.into_owned(),
@@ -245,6 +270,7 @@ impl<'a> SavedCampaign<'a> {
             cargo_order: world.cargo_order,
             observed_map: world.observed_map.into_owned(),
             ..Simulation::default()
-        }
+        };
+        (game, ai.legacy_ai_map, partial_sites)
     }
 }

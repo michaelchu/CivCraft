@@ -159,8 +159,8 @@ impl Simulation {
             nuclear_strike: self.can_begin_nuclear_strike(unit),
             transport_action: self.transport_action(unit).map(str::to_owned),
             unload_all: self.can_unload_all(unit),
-            can_connect: unit.kind.stats().can_work && unit.order.is_none(),
-            can_patrol: unit.kind.is_military() && unit.order.is_none(),
+            can_connect: self.can_start_connect(unit),
+            can_patrol: self.can_start_patrol(unit),
             found_city: (stats.can_found && unit.transport.is_none())
                 .then(|| self.founding_blocker(unit).is_none()),
             road_action,

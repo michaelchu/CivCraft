@@ -2,7 +2,7 @@
 
 use super::super::*;
 
-use crate::sim::headless_scenarios::{cache_known_ai_tiles, give_unit_full_movement};
+use crate::sim::headless_scenarios::{capture_known_tiles, give_unit_full_movement};
 
 impl Simulation {
     pub(crate) fn ai_paradrop_stack_playtest(&mut self) -> (bool, bool) {
@@ -24,7 +24,7 @@ impl Simulation {
         let unit = self.units.last().unwrap().clone();
         self.spawn_unit(HUMAN, UnitKind::Warrior, target.0, target.1);
         self.refresh_visibility();
-        cache_known_ai_tiles(self, 1);
+        capture_known_tiles(self, 1);
         let declined = !self.run_ai_paratrooper(&unit);
         self.units.retain(|unit| unit.id != paratrooper);
         let paratrooper = self.spawn_unit(1, UnitKind::Paratrooper, home.0, home.1);
@@ -34,7 +34,7 @@ impl Simulation {
             self.spawn_unit(HUMAN, UnitKind::Warrior, target.0, target.1);
         }
         self.refresh_visibility();
-        cache_known_ai_tiles(self, 1);
+        capture_known_tiles(self, 1);
         self.set_random_seed(1);
         let struck = self.run_ai_paratrooper(&unit)
             && self.unit_by_id(paratrooper).is_some_and(|unit| {

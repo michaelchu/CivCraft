@@ -434,3 +434,37 @@ fn mobilization_requires_nationalism_and_peace_treaty_returns_to_normalcy() {
     game.sign_pact(HUMAN, 1, Pact::Peace);
     assert!(!game.players[HUMAN].mobilized);
 }
+
+#[test]
+fn retained_government_base_values_match_the_effects_used_by_gameplay() {
+    let mut game = Simulation::new(crate::test_support::seeded_map());
+    let kinds = [
+        EffectKind::MaxRates,
+        EffectKind::EmpireSizeBase,
+        EffectKind::CivilWarChance,
+    ];
+    for government in Government::targets()
+        .iter()
+        .copied()
+        .chain([Government::Anarchy])
+    {
+        game.players[HUMAN].government = government;
+        let context = SimulationRequirementContext::for_player_at(&game, HUMAN, None);
+        assert_eq!(
+            kinds.map(|kind| context.effect(kind)),
+            [
+                government.max_rate(),
+                government.empire_size(),
+                government.civil_war_chance()
+            ]
+            .map(i64::from),
+            "{government:?}"
+        );
+    }
+    assert_eq!(Government::Fascism.max_rate(), 70);
+    assert_eq!(Government::Fascism.empire_size(), 20);
+    assert_eq!(Government::Fascism.civil_war_chance(), 60);
+    assert_eq!(Government::Feudalism.max_rate(), 60);
+    assert_eq!(Government::Feudalism.empire_size(), 14);
+    assert_eq!(Government::Feudalism.civil_war_chance(), 20);
+}

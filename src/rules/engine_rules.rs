@@ -1815,9 +1815,31 @@ impl RulesetData {
         })
     }
 
+    /// The government-only contribution. Contextual effects remain part of
+    /// the full evaluator for callers that supply a player or city.
+    pub(crate) fn government_base_effect(&self, government: &str, kind: EffectKind) -> i64 {
+        self.effects
+            .of_kind(kind)
+            .filter(|effect| {
+                matches!(&effect.requirements[..], [requirement]
+                    if requirement.kind == RequirementKind::Gov
+                        && requirement.range == RequirementRange::Player
+                        && requirement.present
+                        && requirement.matches_name(government))
+            })
+            .map(|effect| {
+                assert!(
+                    effect.multiplier.is_none(),
+                    "a government base effect must be a scalar"
+                );
+                effect.value
+            })
+            .sum()
+    }
+
     /// Decode the CivCraft-native governments and their government-scoped
     /// effects. The selected Freeciv government records are deliberately not
-    /// consulted: campaign government identity and tunables live in native TOML.
+    /// consulted: the native catalog supplies campaign government identities.
     pub(crate) fn government_catalog(&self) -> Result<GovernmentRulesetCatalog, LoadError> {
         let native = crate::rules::native::governments();
         if native.governments.is_empty() {
@@ -3103,7 +3125,7 @@ mod tests {
                 .iter()
                 .all(|file| file.source == RuleFileSource::SelectedRuleset)
         );
-        assert_eq!(rules.effects.len(), 508);
+        assert_eq!(rules.effects.len(), 514);
         assert_eq!(rules.actions.len(), 19);
         assert_eq!(rules.action_enablers.len(), 89);
         assert_eq!(
@@ -3151,7 +3173,7 @@ mod tests {
         let data_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data/rulesets");
         let rules = RulesetData::load_civcraft(&data_root).unwrap();
 
-        assert_eq!(rules.effects.len(), 508);
+        assert_eq!(rules.effects.len(), 514);
         assert_eq!(
             rules
                 .content
