@@ -34,7 +34,7 @@ fn civ3_map_sizes_select_their_rosters_and_generate_matching_starts() {
         (Civ3MapSize::Large, 12),
         (Civ3MapSize::Huge, 16),
     ] {
-        let map = generate_for_civ3_size(42, size, Civ3WorldSettings::default());
+        let map = generate_for_civ3_size(42, size);
         assert_eq!(map.civilization_count, expected, "{size}");
         assert_eq!(map.starts.len(), expected, "{size}");
         assert_eq!(

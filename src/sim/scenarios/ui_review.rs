@@ -5,6 +5,154 @@ use super::*;
 #[path = "ui_review/tests.rs"]
 mod tests;
 
+/// The mutations available to the visual review harness. Screens have no
+/// mutable access to the underlying campaign.
+pub(crate) struct ReviewFixture<'a>(pub(in crate::sim) &'a mut Simulation);
+
+impl ReviewFixture<'_> {
+    pub(crate) fn fixture(&mut self) -> (u32, u32) {
+        ui_review_fixture(self.0)
+    }
+
+    pub(crate) fn reveal_all_tiles(&mut self) {
+        ui_review_reveal_all_tiles(self.0)
+    }
+
+    pub(crate) fn civ3_city_sprites(&mut self) {
+        ui_review_civ3_city_sprites(self.0)
+    }
+
+    pub(crate) fn first_contact(&mut self) {
+        ui_review_first_contact(self.0)
+    }
+
+    pub(crate) fn compensation_negotiation(&mut self, other: usize) {
+        super::diplomacy::ui_review_compensation_negotiation(self.0, other)
+    }
+
+    pub(crate) fn resource_shadows(&mut self) {
+        ui_review_resource_shadows(self.0)
+    }
+
+    pub(crate) fn offer(&mut self) -> TreatyOffer {
+        super::diplomacy::ui_review_offer(self.0)
+    }
+
+    pub(crate) fn spaceship(&mut self) {
+        manual_spaceship_playtest_setup(self.0)
+    }
+
+    pub(crate) fn touching_borders(&mut self) {
+        ui_review_touching_borders(self.0)
+    }
+
+    pub(crate) fn rivers(&mut self, fogged: bool) {
+        ui_review_rivers(self.0, fogged)
+    }
+
+    pub(crate) fn terrain_layers(&mut self, layers: bool) -> Option<u32> {
+        ui_review_terrain_layers(self.0, layers)
+    }
+
+    pub(crate) fn ice_transitions(&mut self) {
+        ui_review_ice_transitions(self.0)
+    }
+
+    pub(crate) fn civ3_water_depths(&mut self) {
+        ui_review_civ3_water_depths(self.0)
+    }
+
+    pub(crate) fn terrain_seams(&mut self) {
+        ui_review_terrain_seams(self.0)
+    }
+
+    pub(crate) fn wrap_seam(&mut self) -> u32 {
+        ui_review_wrap_seam(self.0)
+    }
+
+    pub(crate) fn observed_map(&mut self) -> (u32, (i32, i32)) {
+        ui_review_observed_map(self.0)
+    }
+
+    pub(crate) fn route_setup(&mut self) -> (u32, (i32, i32)) {
+        ui_review_route_setup(self.0)
+    }
+
+    pub(crate) fn fog(&mut self) -> u32 {
+        ui_review_fog(self.0)
+    }
+
+    pub(crate) fn animation_setup(&mut self, combat: bool) -> (u32, (i32, i32)) {
+        ui_review_animation_setup(self.0, combat)
+    }
+
+    pub(crate) fn city_appearance(&mut self) {
+        ui_review_city_appearance(self.0)
+    }
+
+    pub(crate) fn unit_status(&mut self) {
+        ui_review_unit_status(self.0)
+    }
+
+    pub(crate) fn generated_river_focus(&mut self) -> Option<(i32, i32)> {
+        ui_review_generated_river_focus(self.0)
+    }
+
+    pub(crate) fn record_knowledge(&mut self) {
+        ui_review_record_knowledge(self.0)
+    }
+
+    pub(crate) fn reobserve_map(&mut self) {
+        ui_review_reobserve_map(self.0)
+    }
+
+    pub(crate) fn clear_animation_events(&mut self) {
+        self.0.take_visual_events();
+    }
+}
+
+/// Read-only inspection for assertions made by the visual review harness.
+pub(crate) struct ReviewState<'a>(pub(in crate::sim) &'a Simulation);
+
+impl<'a> ReviewState<'a> {
+    pub(crate) fn units(self) -> &'a [Unit] {
+        self.0.units()
+    }
+
+    pub(crate) fn unit_by_id(self, id: u32) -> Option<&'a Unit> {
+        self.0.unit_by_id(id)
+    }
+
+    pub(crate) fn cities(self) -> &'a [City] {
+        self.0.cities()
+    }
+
+    pub(crate) fn city_by_id(self, id: u32) -> Option<&'a City> {
+        self.0.city_by_id(id)
+    }
+
+    pub(crate) fn cities_owned_by(self, owner: usize) -> impl Iterator<Item = &'a City> {
+        self.0.cities_owned_by(owner)
+    }
+
+    pub(crate) fn human_rates(self) -> [i32; 3] {
+        self.0.players()[HUMAN].rates
+    }
+
+    pub(crate) fn tile_visibility(self, x: i32, y: i32) -> (bool, bool) {
+        let tile = self.0.tile(x, y);
+        (tile.seen, tile.visible)
+    }
+
+    pub(crate) fn observed_map_valid(self, reobserved: bool) -> bool {
+        ui_review_observed_map_valid(self.0, reobserved)
+    }
+
+    pub(crate) fn move_command(self, unit: u32, dx: i32, dy: i32) -> Command {
+        Command::move_civ3_by_offset(self.0, unit, dx, dy)
+    }
+}
+
 /// Gallery scenario: a city and its road are remembered while changes to
 /// the live tile and city remain hidden until the scout returns.
 pub(crate) fn ui_review_observed_map(sim: &mut Simulation) -> (u32, (i32, i32)) {

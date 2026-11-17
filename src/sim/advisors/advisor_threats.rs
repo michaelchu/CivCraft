@@ -213,7 +213,7 @@ impl Simulation {
                 let cost = self.movement_cost_for(&actor, x, y).or_else(|| {
                     // A ship's reverse attack map overlaps the coastal city,
                     // even when the ship cannot enter its land tile normally.
-                    (index == goal && unit.kind.is_naval()).then_some(MOVE_FRAGMENTS)
+                    (index == goal && unit.kind.is_naval()).then_some(campaign_move_fragments())
                 });
                 let Some(cost) = cost else {
                     continue;

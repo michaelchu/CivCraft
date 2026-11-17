@@ -1,7 +1,7 @@
 //! Current campaign persistence, input validation, and runtime restoration.
 //!
 //! Saves encode the durable part of [`Simulation`] with the current versioned
-//! binary format. Older formats are not migrated or loaded.
+//! binary format. The previous 0x26 format is read and upgraded on the next save.
 //!
 //! When adding persistent fields, decide whether they belong in the save,
 //! update the round-trip and corruption checks. Runtime caches should remain excluded when
@@ -38,8 +38,13 @@ where
 // incompatible. Achievement culture now goes directly into Player.history,
 // matching Freeciv's persisted player-history field.
 // Earlier save versions remain unsupported rather than silently discarding it.
-const HEADER: &[u8] = b"CIVCRAFT\0\x26";
-const MAX_PAYLOAD: u64 = 16 * 1024 * 1024;
+const HEADER: &[u8] = b"CIVCRAFT\0\x27";
+const LEGACY_HEADER: &[u8] = b"CIVCRAFT\0\x26";
+const LEGACY_MAX_PAYLOAD: u64 = 16 * 1024 * 1024;
+// Allow space for terrain, human route memory, and a remembered tile for
+// each active civilization, in addition to the campaign-wide state budget.
+const MAX_PAYLOAD: u64 =
+    LEGACY_MAX_PAYLOAD + MapWrap::MAX_TILES * (256 + MAX_CIVILIZATIONS as u64 * 128);
 
 type PairMemory<T> = std::collections::BTreeMap<(usize, usize), T>;
 type UnitTargets = std::collections::BTreeMap<u32, u32>;
@@ -78,6 +83,13 @@ type CampaignPayload<A> = (
     AiMapMemory,
     A,
 );
+type SavedCampaign = (
+    CampaignPayload<Strategy9>,
+    Extras11,
+    list_order::ListOrder,
+    Extras13,
+    observed_map::ObservedMap,
+);
 
 static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
 
@@ -86,7 +98,7 @@ impl Simulation {
         let mut list_order = self.list_order.clone();
         list_order.synchronize(&self.units, &self.cities);
         let cargo_order = self.cargo_order_snapshot();
-        let payload = codec()
+        let payload = codec(MAX_PAYLOAD)
             .serialize(&(
                 (
                     self,
@@ -120,7 +132,6 @@ impl Simulation {
                 &list_order,
                 (&self.native_random, &cargo_order),
                 &self.observed_map,
-                self.map_wrap,
             ))
             .map_err(io::Error::other)?;
         let filename = path
@@ -154,16 +165,31 @@ impl Simulation {
         let mut file = fs::File::open(path)?;
         let mut header = [0; HEADER.len()];
         file.read_exact(&mut header)?;
-        if header != HEADER {
-            return Err(invalid("Unsupported CivCraft save format"));
-        }
+        let max_payload = match header.as_slice() {
+            HEADER => MAX_PAYLOAD,
+            LEGACY_HEADER => LEGACY_MAX_PAYLOAD,
+            _ => return Err(invalid("Unsupported CivCraft save format")),
+        };
         let mut payload = Vec::new();
-        file.take(MAX_PAYLOAD + 1).read_to_end(&mut payload)?;
-        if payload.len() as u64 > MAX_PAYLOAD {
+        file.take(max_payload + 1).read_to_end(&mut payload)?;
+        if payload.len() as u64 > max_payload {
             return Err(invalid("CivCraft save exceeds the size limit"));
         }
+        let saved = if header == LEGACY_HEADER {
+            let (saved, duplicate_wrap): (SavedCampaign, MapWrap) = codec(max_payload)
+                .deserialize(&payload)
+                .map_err(|error| invalid(error.to_string()))?;
+            if saved.0.0.map_wrap != duplicate_wrap {
+                return Err(invalid("Conflicting legacy map dimensions"));
+            }
+            saved
+        } else {
+            codec(max_payload)
+                .deserialize(&payload)
+                .map_err(|error| invalid(error.to_string()))?
+        };
         let (loaded, memory, reserves, founders, observations, ai_strategy) =
-            decode_current(&payload).map_err(|error| invalid(error.to_string()))?;
+            restore_campaign(saved);
         let mut game = loaded;
         let (
             (
@@ -345,6 +371,8 @@ impl Simulation {
 
     fn validate_campaign(&self) -> io::Result<()> {
         let players = self.players.len();
+        let topology = MapWrap::with_dimensions(self.map_wrap.width(), self.map_wrap.height())
+            .map_err(invalid)?;
         let trade_route_settings = crate::rules::engine_rules::RulesetData::campaign_default()
             .trade_route_settings()
             .map_err(|error| invalid(format!("Invalid C2C3 trade-route rules: {error}")))?;
@@ -359,7 +387,7 @@ impl Simulation {
             Production::Unit(_) => true,
         };
         if !(PLAYER_COUNT + 1..=PLAYER_SLOTS).contains(&players)
-            || self.tiles.len() != (self.map_wrap.width() * self.map_wrap.height()) as usize
+            || self.tiles.len() != topology.tile_count()
             || self.nation_scores.len() != players
             || self.spaceships.len() != players
             || self.turn < 1
@@ -439,22 +467,14 @@ impl Simulation {
     }
 }
 
-fn decode_current(payload: &[u8]) -> Result<CampaignPayload<Strategy9>, bincode::Error> {
+fn restore_campaign(saved: SavedCampaign) -> CampaignPayload<Strategy9> {
     let (
         mut campaign,
         (current, guard_targets, unit_guards, city_rapture, goto_tiles),
         order,
         (random, cargo),
         observed,
-        wrap,
-    ): (
-        CampaignPayload<Strategy9>,
-        Extras11,
-        list_order::ListOrder,
-        Extras13,
-        observed_map::ObservedMap,
-        MapWrap,
-    ) = codec().deserialize(payload)?;
+    ) = saved;
     campaign.0.climate_current = current;
     campaign.0.ai_guard_targets = guard_targets;
     campaign.0.ai_unit_guards = unit_guards;
@@ -464,13 +484,12 @@ fn decode_current(payload: &[u8]) -> Result<CampaignPayload<Strategy9>, bincode:
     campaign.0.native_random = random;
     campaign.0.cargo_order = cargo;
     campaign.0.observed_map = observed;
-    campaign.0.map_wrap = wrap;
-    Ok(campaign)
+    campaign
 }
 
-fn codec() -> impl Options {
+fn codec(max_payload: u64) -> impl Options {
     bincode::DefaultOptions::new()
-        .with_limit(MAX_PAYLOAD)
+        .with_limit(max_payload)
         .reject_trailing_bytes()
 }
 
@@ -480,23 +499,51 @@ fn invalid(message: impl Into<String>) -> io::Error {
 
 pub(super) mod known_by {
     use super::PLAYER_SLOTS;
-    use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
+    use serde::{Deserializer, Serializer, de};
+    use std::fmt;
+
+    const PACKED_BYTES: usize = PLAYER_SLOTS.div_ceil(8);
 
     pub fn serialize<S: Serializer>(
         known: &[bool; PLAYER_SLOTS],
         serializer: S,
     ) -> Result<S::Ok, S::Error> {
-        known.as_slice().serialize(serializer)
+        let mut packed = [0_u8; PACKED_BYTES];
+        for (index, &visible) in known.iter().enumerate() {
+            packed[index / 8] |= u8::from(visible) << (index % 8);
+        }
+        serializer.serialize_bytes(&packed)
     }
 
     pub fn deserialize<'de, D: Deserializer<'de>>(
         deserializer: D,
     ) -> Result<[bool; PLAYER_SLOTS], D::Error> {
-        Vec::<bool>::deserialize(deserializer)?
-            .try_into()
-            .map_err(|known: Vec<bool>| {
-                de::Error::invalid_length(known.len(), &"the campaign player slot count")
-            })
+        struct Visibility;
+
+        impl de::Visitor<'_> for Visibility {
+            type Value = [bool; PLAYER_SLOTS];
+
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+                formatter.write_str("packed campaign visibility or the legacy boolean array")
+            }
+
+            fn visit_bytes<E: de::Error>(self, bytes: &[u8]) -> Result<Self::Value, E> {
+                match bytes.len() {
+                    PACKED_BYTES => Ok(std::array::from_fn(|index| {
+                        bytes[index / 8] & (1 << (index % 8)) != 0
+                    })),
+                    // Bincode encoded the old sequence with the same length
+                    // prefix and a single 0 or 1 for each player slot.
+                    PLAYER_SLOTS if bytes.iter().all(|&byte| byte <= 1) => {
+                        Ok(std::array::from_fn(|index| bytes[index] == 1))
+                    }
+                    PLAYER_SLOTS => Err(E::custom("invalid legacy visibility value")),
+                    length => Err(E::invalid_length(length, &self)),
+                }
+            }
+        }
+
+        deserializer.deserialize_bytes(Visibility)
     }
 }
 

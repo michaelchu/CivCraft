@@ -299,7 +299,6 @@ pub(crate) struct NativeTerrainParameters {
     pub(crate) freeze_requirement: i32,
     pub(crate) lake_max_size: i32,
     pub(crate) min_start_native_area: i32,
-    pub(crate) move_fragments: i32,
     pub(crate) igter_cost: i32,
 }
 
@@ -406,64 +405,6 @@ pub(crate) struct ExperienceCatalog {
     pub(crate) schema_version: u32,
     pub(crate) source: String,
     pub(crate) levels: Vec<NativeExperienceLevel>,
-}
-
-#[derive(Debug, Deserialize)]
-pub(crate) struct EffectCatalog {
-    pub(crate) schema_version: u32,
-    pub(crate) source: String,
-    pub(crate) effects: Vec<NativeEffect>,
-}
-
-#[derive(Debug, Deserialize)]
-pub(crate) struct ActionCatalog {
-    pub(crate) schema_version: u32,
-    pub(crate) source: String,
-    pub(crate) actions: Vec<NativeAction>,
-    pub(crate) enablers: Vec<NativeActionEnabler>,
-}
-
-#[derive(Debug, Deserialize)]
-pub(crate) struct NativeAction {
-    pub(crate) id: String,
-    pub(crate) action: String,
-}
-
-#[derive(Debug, Deserialize)]
-pub(crate) struct NativeActionEnabler {
-    pub(crate) id: String,
-    pub(crate) action: String,
-    #[serde(default)]
-    pub(crate) actor_requirements: Vec<NativeEffectRequirement>,
-    #[serde(default)]
-    pub(crate) target_requirements: Vec<NativeEffectRequirement>,
-}
-
-#[derive(Debug, Deserialize)]
-pub(crate) struct NativeEffect {
-    pub(crate) id: String,
-    pub(crate) kind: String,
-    pub(crate) value: i64,
-    pub(crate) multiplier: Option<String>,
-    #[serde(default)]
-    pub(crate) requirements: Vec<NativeEffectRequirement>,
-}
-
-#[derive(Debug, Deserialize)]
-pub(crate) struct NativeEffectRequirement {
-    pub(crate) kind: String,
-    pub(crate) name: String,
-    pub(crate) range: String,
-    #[serde(default = "native_requirement_present")]
-    pub(crate) present: bool,
-    #[serde(default)]
-    pub(crate) survives: bool,
-    #[serde(default)]
-    pub(crate) quiet: bool,
-}
-
-fn native_requirement_present() -> bool {
-    true
 }
 
 #[derive(Debug, Deserialize)]
@@ -657,26 +598,6 @@ pub(crate) fn experience() -> &'static ExperienceCatalog {
     })
 }
 
-pub(crate) fn effects() -> &'static EffectCatalog {
-    static CATALOG: OnceLock<EffectCatalog> = OnceLock::new();
-    CATALOG.get_or_init(|| {
-        toml::from_str(include_str!(
-            "../../data/rulesets/civcraft/content/effects.toml"
-        ))
-        .expect("native effects TOML must be valid")
-    })
-}
-
-pub(crate) fn actions() -> &'static ActionCatalog {
-    static CATALOG: OnceLock<ActionCatalog> = OnceLock::new();
-    CATALOG.get_or_init(|| {
-        toml::from_str(include_str!(
-            "../../data/rulesets/civcraft/content/actions.toml"
-        ))
-        .expect("native actions TOML must be valid")
-    })
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -738,13 +659,6 @@ mod tests {
         assert_eq!(settlements().schema_version, 1);
         assert_eq!(experience().schema_version, 1);
         assert_eq!(experience().levels.len(), 4);
-        assert_eq!(effects().schema_version, 1);
-        assert_eq!(effects().source, "CivCraft native effect graph");
-        assert_eq!(effects().effects.len(), 508);
-        assert_eq!(actions().schema_version, 1);
-        assert_eq!(actions().source, "CivCraft native action graph");
-        assert_eq!(actions().actions.len(), 19);
-        assert_eq!(actions().enablers.len(), 89);
         assert_eq!(
             experience()
                 .levels

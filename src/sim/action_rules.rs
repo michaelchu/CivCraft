@@ -306,20 +306,14 @@ impl<'a> SimulationRequirementContext<'a> {
         tile: (i32, i32),
     ) -> Result<&'static crate::rules::native::NativeTerrain, RequirementEvaluationError> {
         let terrain = self.tile_state(tile).terrain;
-        let terrain_name = super::movement_rules::MovementRules::campaign()
-            .terrain_data(terrain)
-            .map_err(|_| RequirementEvaluationError::Unsupported {
-                kind: "Terrain mapping".to_owned(),
-                name: RequirementValue::String(terrain.name().to_owned()),
-            })?
-            .rule_name;
+        let terrain_name = terrain.c2c3_rugged_rule_name();
         crate::rules::native::terrain()
             .terrains
             .iter()
-            .find(|record| record.rule_name.eq_ignore_ascii_case(&terrain_name))
+            .find(|record| record.rule_name.eq_ignore_ascii_case(terrain_name))
             .ok_or_else(|| RequirementEvaluationError::Unsupported {
                 kind: "Terrain mapping".to_owned(),
-                name: RequirementValue::String(terrain_name),
+                name: RequirementValue::String(terrain_name.to_owned()),
             })
     }
 
@@ -355,6 +349,10 @@ impl<'a> SimulationRequirementContext<'a> {
             return Err(Self::unsupported(requirement));
         }
         let tile = self.tile.ok_or_else(|| Self::unsupported(requirement))?;
+        // Volcano has a land class for campaign effects, but no C2C3 flags.
+        if field == "flags" && self.tile_state(tile).terrain == Terrain::Volcano {
+            return Ok(false);
+        }
         let record = self.terrain_record(tile)?;
         match field {
             "class" => Ok(record.class.eq_ignore_ascii_case(name)),
@@ -378,6 +376,9 @@ impl<'a> SimulationRequirementContext<'a> {
             _ => return Err(Self::unsupported(requirement)),
         };
         let tile = self.tile.ok_or_else(|| Self::unsupported(requirement))?;
+        if self.tile_state(tile).terrain == Terrain::Volcano {
+            return Ok(false);
+        }
         let record = self.terrain_record(tile)?;
         let time = match field {
             "road_time" => record.road_time,
@@ -1100,23 +1101,15 @@ impl RequirementContext for SimulationRequirementContext<'_> {
             RequirementKind::Terrain if requirement.range == RequirementRange::Tile => {
                 let tile = self.tile.ok_or_else(unsupported)?;
                 let actual = self.tile_state(tile).terrain;
+                let Some(actual_name) = actual.c2c3_rule_name() else {
+                    return Ok(false);
+                };
                 match requirement.resolved {
                     Some(ResolvedRequirementValue::Terrain(expected)) => {
-                        let actual_name = super::movement_rules::MovementRules::campaign()
-                            .terrain_data(actual)
-                            .map_err(|_| unsupported())?
-                            .rule_name;
                         let expected_name = expected.c2c3_rule_name().ok_or_else(unsupported)?;
                         Ok(actual_name.eq_ignore_ascii_case(expected_name))
                     }
-                    _ => {
-                        let name = Self::string_name(requirement)?;
-                        let terrain_name = super::movement_rules::MovementRules::campaign()
-                            .terrain_data(actual)
-                            .map_err(|_| unsupported())?
-                            .rule_name;
-                        Ok(terrain_name.eq_ignore_ascii_case(name))
-                    }
+                    _ => Ok(actual_name.eq_ignore_ascii_case(Self::string_name(requirement)?)),
                 }
             }
             RequirementKind::TerrainClass

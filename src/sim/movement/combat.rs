@@ -16,8 +16,10 @@ impl Simulation {
 
     fn attack_power_with_base(unit: &Unit, attack: i32) -> i32 {
         let mut power = percent_of(attack * POWER_FACTOR, unit.veteran_power());
-        if super::super::combat_rules::selected().tired_attack && unit.moves_left < MOVE_FRAGMENTS {
-            power = power * unit.moves_left.max(0) / MOVE_FRAGMENTS;
+        if super::super::combat_rules::selected().tired_attack
+            && unit.moves_left < campaign_move_fragments()
+        {
+            power = power * unit.moves_left.max(0) / campaign_move_fragments();
         }
         power
     }
@@ -918,8 +920,10 @@ impl Simulation {
 
         let mut damaged_attacker = attacker.clone();
         damaged_attacker.hp = att_hp;
-        let attacker_moves_left =
-            (self.unit_move_rate(&damaged_attacker) - attacker_moves_used - MOVE_FRAGMENTS).max(0);
+        let attacker_moves_left = (self.unit_move_rate(&damaged_attacker)
+            - attacker_moves_used
+            - campaign_move_fragments())
+        .max(0);
         let mut damaged_defender = defender.clone();
         damaged_defender.hp = def_hp;
         let defender_moves_left =
@@ -994,7 +998,8 @@ impl Simulation {
                 if entered
                     && let Some(unit) = self.units.iter_mut().find(|unit| unit.id == attacker_id)
                 {
-                    let occupation_cost = (full_moves - unit.moves_left - MOVE_FRAGMENTS).max(0);
+                    let occupation_cost =
+                        (full_moves - unit.moves_left - campaign_move_fragments()).max(0);
                     unit.moves_left = (old_moves - occupation_cost).max(0);
                 }
             }

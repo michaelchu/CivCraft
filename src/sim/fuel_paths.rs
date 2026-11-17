@@ -186,7 +186,7 @@ impl FuelPaths {
         if self.possible_base(sim, x, y) {
             return 0;
         }
-        let maximum = self.initial_bundle.max(self.full_moves()) / MOVE_FRAGMENTS;
+        let maximum = self.initial_bundle.max(self.full_moves()) / campaign_move_fragments();
         // Deliberate pf_tools.c quirk: this test still applies when
         // omniscience is TRUE in the enclosing PF parameters.
         sim.tiles
@@ -201,7 +201,7 @@ impl FuelPaths {
                 (distance <= maximum && self.possible_base(sim, nx, ny)).then_some(distance)
             })
             .min()
-            .map_or(-1, |distance| distance * MOVE_FRAGMENTS)
+            .map_or(-1, |distance| distance * campaign_move_fragments())
     }
 
     fn attack_at(&self, sim: &Simulation, x: i32, y: i32, seen: bool) -> Result<bool, ()> {
@@ -346,7 +346,7 @@ impl FuelPaths {
         } else if self.all_attack_moves() {
             before > self.rate
         } else {
-            before - MOVE_FRAGMENTS >= source_required
+            before - campaign_move_fragments() >= source_required
         }
     }
 
@@ -385,10 +385,10 @@ impl FuelPaths {
                             if self.all_attack_moves() || self.suicide() {
                                 self.rate
                             } else {
-                                MOVE_FRAGMENTS
+                                campaign_move_fragments()
                             }
                         } else {
-                            MOVE_FRAGMENTS
+                            campaign_move_fragments()
                         };
                         self.nodes[next].step_cost[direction] = cost.wrapping_add(2) as u16;
                         cost

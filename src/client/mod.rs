@@ -349,7 +349,7 @@ impl Game {
     }
 
     pub(crate) fn ui_review_sources(&self) -> UiReviewSources {
-        UiReviewSources::new(self.sim.review_simulation())
+        UiReviewSources::new(&self.sim)
     }
 
     pub(super) fn notify(&mut self, message: impl Into<String>) {

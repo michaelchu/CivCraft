@@ -640,6 +640,54 @@ mod tests {
     }
 
     #[test]
+    fn city_map_labels_use_the_worked_tile_rules() {
+        let mut sim = Simulation::new(crate::mapgen::generate(42));
+        sim.create_city(HUMAN, 20, 24);
+        sim.players[HUMAN].government = Government::Despotism;
+        let city_id = sim.cities.last().unwrap().id;
+        let positions: Vec<_> = sim
+            .map_city_radius(sim.city_by_id(city_id).unwrap())
+            .filter(|&(dx, dy, _, _)| (dx, dy) != (0, 0))
+            .take(4)
+            .map(|(_, _, x, y)| (x, y))
+            .collect();
+        for (index, &(x, y)) in positions.iter().enumerate() {
+            let tile = sim.tile_mut(x, y);
+            tile.seen = index != 3;
+            tile.terrain = if index == 0 {
+                Terrain::Coast
+            } else {
+                Terrain::Plains
+            };
+            tile.resource = if index == 1 {
+                Some(Resource::Wheat)
+            } else {
+                None
+            };
+            tile.road = index == 2;
+            tile.irrigation = index == 2;
+        }
+        let city = sim.city_by_id(city_id).unwrap();
+        let view = sim.city_manager_view(city_id).unwrap();
+        let shown_yields = |(x, y)| {
+            view.map_tiles
+                .iter()
+                .find(|tile| (tile.x, tile.y) == (x, y))
+                .unwrap()
+                .yields
+        };
+        for &(x, y) in &positions[..3] {
+            assert_eq!(
+                shown_yields((x, y)),
+                sim.city_tile_yields(city, x, y, false, None)
+            );
+        }
+        let (x, y) = positions[0];
+        assert_ne!(shown_yields((x, y)), sim.tile(x, y).yields());
+        assert_eq!(shown_yields(positions[3]), (0, 0, 0));
+    }
+
+    #[test]
     fn map_painter_projection_filters_undiscovered_strategic_resources() {
         let mut sim = Simulation::new(crate::mapgen::generate(42));
         sim.players[HUMAN].known.clear();

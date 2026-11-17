@@ -34,9 +34,9 @@ pub(crate) fn run(config: Config) -> Result<(), String> {
     let mut scenario = if let Some(path) = &config.load_campaign {
         scenario::load(path)?
     } else if let Some(name) = &config.scenario {
-        scenario::build(name, config.seed, config.map_size, config.world)?
+        scenario::build(name, config.seed, config.world)?
     } else {
-        scenario::generated(config.seed, config.map_size, config.world)
+        scenario::generated(config.seed, config.world)
     };
     scenario.game.trace = Collector::enabled(kinds, config.buffer_events);
     if config.profile_turns {
@@ -168,7 +168,7 @@ pub fn run_cli(args: &[String]) -> Result<(), String> {
         return Ok(());
     }
     if args.iter().any(|a| a == "--list-scenarios") {
-        println!("{}", scenario::IDS.join("\n"));
+        println!("{}", scenario::names().collect::<Vec<_>>().join("\n"));
         return Ok(());
     }
     run(config::Config::parse(args)?)

@@ -25,10 +25,11 @@ scope, status, and subsystem-difference ledger.
 
 ## Change the CivCraft ruleset
 
-1. Edit the corresponding file under
-   `data/rulesets/civcraft/engine/` and record the reason and intended
-   Freeciv behavior in the change description. Keep copied C2C3 records and
-   CivCraft-specific overrides distinguishable.
+1. Edit the corresponding file under `data/rulesets/civcraft/engine/`.
+   `actions.ruleset` owns actions and enablers, `effects.ruleset` owns
+   effects and their requirements, and `terrain.ruleset` owns
+   `[parameters].move_fragments`. Record the reason and intended Freeciv
+   behavior in the change description.
 2. Keep inherited engine defaults that affect gameplay explicit in
    `game.ruleset` when the campaign relies on them. Do not silently fall back
    to values from another Freeciv ruleset.
@@ -134,10 +135,10 @@ the user. Update the owning ledger row when one of these decisions changes.
 
 The gameplay simulation remains authoritative behind CivCraft's existing
 command/client-view boundary; rendering consumes simulation state. Current
-saves use header `CIVCRAFT\0\x22`. Older save headers are rejected and are not
-migrated. A future persistent-state change must explicitly choose a save-version
-policy and cover round-trip, invalid-input, and compatibility behavior before
-the corresponding plan item is complete.
+saves use header `CIVCRAFT\0\x27`. The loader reads `0x26` campaigns and
+writes the new format on the next save. Round-trip checks cover supported
+map sizes through 512×512. Future persistent-state changes should specify the
+save version and cover round-trip, invalid-input, and compatibility behavior.
 
 P14 is complete when a maintainer can identify the authority and owner for a
 ruleset change, content mapping, upstream revision, and parity vector; every

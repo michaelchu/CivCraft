@@ -2,24 +2,7 @@
 
 use super::super::*;
 
-fn cache_known_ai_tiles(sim: &mut Simulation, owner: usize) {
-    let observations: Vec<_> = sim
-        .tiles
-        .iter()
-        .enumerate()
-        .filter(|(_, tile)| tile.known_by[owner])
-        .map(|(index, _)| ((owner, index), sim.live_map_observation(index)))
-        .collect();
-    sim.ai_map_memory.extend(observations);
-}
-
-fn give_unit_full_movement(sim: &mut Simulation, id: u32, kind: UnitKind) {
-    sim.units
-        .iter_mut()
-        .find(|unit| unit.id == id)
-        .unwrap()
-        .moves_left = kind.stats().moves * MOVE_FRAGMENTS;
-}
+use crate::sim::headless_scenarios::{cache_known_ai_tiles, give_unit_full_movement};
 
 impl Simulation {
     pub(crate) fn ai_paradrop_stack_playtest(&mut self) -> (bool, bool) {
@@ -60,84 +43,6 @@ impl Simulation {
                     && self.map_distance(unit.x, unit.y, target.0, target.1) <= 1
             });
         (declined, struck)
-    }
-
-    pub(crate) fn ai_paradrop_playtest(&mut self) -> (bool, bool, bool) {
-        self.units.clear();
-        self.sign_pact(1, HUMAN, Pact::War);
-        let home = (10, 24);
-        let front = offset_native_by_map(home.0, home.1, 6, 0);
-        let enemy = offset_native_by_map(home.0, home.1, -6, 0);
-        let threat = offset_native_by_map(front.0, front.1, 1, 0);
-        self.players[1].known.push(Tech::COMBINED_ARMS);
-        for (x, y) in [home, front, enemy, threat] {
-            let tile = self.tile_mut(x, y);
-            tile.terrain = Terrain::Grassland;
-            tile.hut = false;
-            tile.known_by[1] = true;
-        }
-        self.create_city(1, home.0, home.1);
-        self.create_city(1, front.0, front.1);
-        self.create_city(HUMAN, enemy.0, enemy.1);
-        self.cities.last_mut().unwrap().size = 2;
-        // Paradrop defense reacts to attack power, which Cannons lack.
-        let horseman = self.spawn_unit(HUMAN, UnitKind::Horseman, threat.0, threat.1);
-        give_unit_full_movement(self, horseman, UnitKind::Horseman);
-        let guard = self.spawn_unit(1, UnitKind::Warrior, home.0, home.1);
-        let para = self.spawn_unit(1, UnitKind::Paratrooper, home.0, home.1);
-        give_unit_full_movement(self, para, UnitKind::Paratrooper);
-        self.refresh_visibility();
-        cache_known_ai_tiles(self, 1);
-        self.run_ai_player(1);
-        // Freeciv first lands in the threatened empty city, then ramps again
-        // after the drop; the paratrooper may leave the city to kill the
-        // adjacent attacker before the AI pass ends.
-        let defended = self
-            .units
-            .iter()
-            .any(|unit| unit.id == para && unit.paradropped && (unit.x, unit.y) != home)
-            && self.units.iter().all(|unit| unit.id != horseman)
-            && self
-                .units
-                .iter()
-                .any(|unit| unit.id == guard && (unit.x, unit.y) == home)
-            && self
-                .cities
-                .iter()
-                .any(|city| city.owner == 1 && (city.x, city.y) == front)
-            && self
-                .cities
-                .iter()
-                .any(|city| city.owner == HUMAN && (city.x, city.y) == enemy);
-        let defender = self.spawn_unit(HUMAN, UnitKind::Warrior, enemy.0, enemy.1);
-        let raider = self.spawn_unit(1, UnitKind::Paratrooper, home.0, home.1);
-        give_unit_full_movement(self, raider, UnitKind::Paratrooper);
-        self.refresh_visibility();
-        cache_known_ai_tiles(self, 1);
-        let raider_unit = self.units.last().unwrap().clone();
-        self.run_ai_paratrooper(&raider_unit);
-        let refused = self
-            .cities
-            .iter()
-            .any(|city| city.owner == HUMAN && (city.x, city.y) == enemy);
-        self.units.retain(|unit| {
-            unit.id != defender && unit.id != raider && unit.kind != UnitKind::Horseman
-        });
-        let raider = self.spawn_unit(1, UnitKind::Paratrooper, home.0, home.1);
-        give_unit_full_movement(self, raider, UnitKind::Paratrooper);
-        self.refresh_visibility();
-        cache_known_ai_tiles(self, 1);
-        let raider_unit = self.unit_by_id(raider).unwrap().clone();
-        let captured = self.run_ai_paratrooper(&raider_unit)
-            && self
-                .units
-                .iter()
-                .any(|unit| unit.id == raider && (unit.x, unit.y) == enemy)
-            && self
-                .cities
-                .iter()
-                .any(|city| city.owner == 1 && (city.x, city.y) == enemy);
-        (defended, refused, captured)
     }
 
     pub(crate) fn paradrop_playtest_setup(&mut self) -> (u32, (i32, i32), bool) {

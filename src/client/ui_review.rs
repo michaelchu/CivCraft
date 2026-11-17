@@ -1,5 +1,6 @@
 //! Opt-in visual QA through the actual renderer, using isolated fixture games.
 use super::*;
+#[cfg(test)]
 use crate::sim::Simulation;
 
 type WorkerAssignmentSnapshot = (u32, i32, i32, Vec<(i32, i32)>, [i32; 3]);
@@ -53,16 +54,16 @@ pub(crate) const UI_REVIEW_SCENES: &[&str] = &[
 /// Cloning preserves the complete RNG and campaign state. Fixtures are built
 /// once and kept immutable; every scenario receives an independent clone.
 pub(crate) struct UiReviewSources {
-    initial: Simulation,
-    fixture: Simulation,
+    initial: ClientSimulation,
+    fixture: ClientSimulation,
     ids: (u32, u32),
 }
 impl UiReviewSources {
-    pub(crate) fn new(initial: &Simulation) -> Self {
-        let mut fixture = initial.clone();
-        let ids = crate::sim::scenarios::ui_review::ui_review_fixture(&mut fixture);
+    pub(crate) fn new(initial: &ClientSimulation) -> Self {
+        let mut fixture = initial.fork_for_review();
+        let ids = fixture.review_fixture().fixture();
         Self {
-            initial: initial.clone(),
+            initial: initial.fork_for_review(),
             fixture,
             ids,
         }
@@ -134,13 +135,11 @@ impl Game {
         } else {
             &sources.fixture
         };
-        *self = Game::from_simulation(baseline.clone());
+        *self = Game::from_client_simulation(baseline.fork_for_review());
         set_review_pointer(Some(vec2(-1.0, -1.0)));
         self.autosave_enabled = false;
         if scene == 0 {
-            crate::sim::scenarios::ui_review::ui_review_reveal_all_tiles(
-                self.sim.review_simulation_mut(),
-            );
+            self.sim.review_fixture().reveal_all_tiles();
             self.zoom = ZOOMED_OUT;
             self.focus_camera_on(
                 self.sim.map_wrap().width() / 2,
@@ -153,9 +152,7 @@ impl Game {
             return;
         }
         if scene == 43 {
-            crate::sim::scenarios::ui_review::ui_review_civ3_city_sprites(
-                self.sim.review_simulation_mut(),
-            );
+            self.sim.review_fixture().civ3_city_sprites();
             self.zoom = 0.78;
             self.focus_camera_on(20, 24);
             return;
@@ -175,27 +172,18 @@ impl Game {
             5 => self.overlay = Overlay::Government,
             6 => self.overlay = Overlay::Diplomacy,
             38 => {
-                crate::sim::scenarios::ui_review::ui_review_first_contact(
-                    self.sim.review_simulation_mut(),
-                );
+                self.sim.review_fixture().first_contact();
             }
             39 => {
-                crate::sim::scenarios::ui_review::ui_review_first_contact(
-                    self.sim.review_simulation_mut(),
-                );
+                self.sim.review_fixture().first_contact();
             }
             41 => {
-                crate::sim::scenarios::diplomacy::ui_review_compensation_negotiation(
-                    self.sim.review_simulation_mut(),
-                    1,
-                );
+                self.sim.review_fixture().compensation_negotiation(1);
                 self.overlay = Overlay::Diplomacy;
                 self.diplomacy_target = Some(1);
             }
             42 => {
-                crate::sim::scenarios::ui_review::ui_review_resource_shadows(
-                    self.sim.review_simulation_mut(),
-                );
+                self.sim.review_fixture().resource_shadows();
                 self.zoom = 1.15;
             }
             7 => {
@@ -205,81 +193,58 @@ impl Game {
             }
             8 => {
                 self.overlay = Overlay::Diplomacy;
-                self.reviewed_offer = Some((
-                    1,
-                    crate::sim::scenarios::diplomacy::ui_review_offer(
-                        self.sim.review_simulation_mut(),
-                    ),
-                ));
+                self.reviewed_offer = Some((1, self.sim.review_fixture().offer()));
             }
             9 => {
                 self.overlay = Overlay::Research;
                 self.center_research();
             }
             10 => {
-                crate::sim::scenarios::ui_review::manual_spaceship_playtest_setup(
-                    self.sim.review_simulation_mut(),
-                );
+                self.sim.review_fixture().spaceship();
                 self.overlay = Overlay::Spaceship;
             }
             11 => {
                 self.selected_unit = self
                     .sim
-                    .review_simulation()
+                    .review_state()
                     .units()
                     .iter()
                     .find(|u| u.owner == HUMAN && u.kind == UnitKind::Worker)
                     .map(|u| u.id);
             }
             12 => {
-                crate::sim::scenarios::ui_review::ui_review_touching_borders(
-                    self.sim.review_simulation_mut(),
-                );
+                self.sim.review_fixture().touching_borders();
                 self.zoom = 1.0;
             }
             16 | 17 => {
-                crate::sim::scenarios::ui_review::ui_review_rivers(
-                    self.sim.review_simulation_mut(),
-                    scene == 17,
-                );
+                self.sim.review_fixture().rivers(scene == 17);
                 self.zoom = Self::ui_review_map_zoom();
             }
             27 | 28 => {
-                crate::sim::scenarios::ui_review::ui_review_terrain_layers(
-                    self.sim.review_simulation_mut(),
-                    scene == 28,
-                );
+                self.sim.review_fixture().terrain_layers(scene == 28);
                 self.zoom = Self::ui_review_map_zoom();
             }
             37 => {
-                crate::sim::scenarios::ui_review::ui_review_ice_transitions(
-                    self.sim.review_simulation_mut(),
-                );
+                self.sim.review_fixture().ice_transitions();
                 self.zoom = 1.0;
                 self.focus_camera_on(20, 24);
                 return;
             }
             44 => {
-                crate::sim::scenarios::ui_review::ui_review_civ3_water_depths(
-                    self.sim.review_simulation_mut(),
-                );
+                self.sim.review_fixture().civ3_water_depths();
                 self.zoom = 1.35;
                 self.focus_camera_on(20, 24);
                 return;
             }
             34..=36 => {
-                crate::sim::scenarios::ui_review::ui_review_terrain_seams(
-                    self.sim.review_simulation_mut(),
-                );
+                self.sim.review_fixture().terrain_seams();
                 self.zoom = [0.625, 0.82, 1.35][scene - 34];
                 self.focus_camera_on(20, 24);
                 self.camera += vec2(0.137, 0.213);
                 return;
             }
             31 | 32 => {
-                crate::sim::scenarios::ui_review::ui_review_reveal_all_tiles(
-                    self.sim.review_simulation_mut(),
-                );
+                self.sim.review_fixture().reveal_all_tiles();
                 self.zoom = Self::ui_review_map_zoom();
                 self.focus_camera_on(
                     self.sim.map_wrap().width() / 2,
@@ -292,25 +257,19 @@ impl Game {
                 return;
             }
             33 => {
-                self.selected_unit = Some(crate::sim::scenarios::ui_review::ui_review_wrap_seam(
-                    self.sim.review_simulation_mut(),
-                ));
+                self.selected_unit = Some(self.sim.review_fixture().wrap_seam());
                 self.zoom = Self::ui_review_map_zoom();
                 self.focus_camera_on(12, 0);
                 return;
             }
             29 => {
-                let (_, focus) = crate::sim::scenarios::ui_review::ui_review_observed_map(
-                    self.sim.review_simulation_mut(),
-                );
+                let (_, focus) = self.sim.review_fixture().observed_map();
                 self.zoom = Self::ui_review_map_zoom();
                 self.focus_camera_on(focus.0, focus.1);
                 return;
             }
             30 => {
-                let (id, target) = crate::sim::scenarios::ui_review::ui_review_route_setup(
-                    self.sim.review_simulation_mut(),
-                );
+                let (id, target) = self.sim.review_fixture().route_setup();
                 self.selected_unit = Some(id);
                 self.targeting = TargetingMode::Goto;
                 self.zoom = Self::ui_review_map_zoom();
@@ -320,9 +279,7 @@ impl Game {
                 return;
             }
             26 => {
-                let unit = crate::sim::scenarios::ui_review::ui_review_fog(
-                    self.sim.review_simulation_mut(),
-                );
+                let unit = self.sim.review_fixture().fog();
                 self.selected_unit = Some(unit);
                 self.zoom = if Self::viewport_rect().w < 760.0 {
                     0.55
@@ -331,24 +288,17 @@ impl Game {
                 };
             }
             23..=25 => {
-                let (unit, _) = crate::sim::scenarios::ui_review::ui_review_animation_setup(
-                    self.sim.review_simulation_mut(),
-                    scene != 23,
-                );
+                let (unit, _) = self.sim.review_fixture().animation_setup(scene != 23);
                 self.selected_unit = Some(unit);
                 self.playback.review_progress = Some(if scene == 25 { 0.9 } else { 0.5 });
                 self.zoom = 1.35;
             }
             22 => {
-                crate::sim::scenarios::ui_review::ui_review_city_appearance(
-                    self.sim.review_simulation_mut(),
-                );
+                self.sim.review_fixture().city_appearance();
                 self.zoom = Self::ui_review_map_zoom();
             }
             21 => {
-                crate::sim::scenarios::ui_review::ui_review_unit_status(
-                    self.sim.review_simulation_mut(),
-                );
+                self.sim.review_fixture().unit_status();
                 self.zoom = Self::ui_review_map_zoom();
             }
             19 | 20 => {
@@ -356,7 +306,7 @@ impl Game {
                 if scene == 20 {
                     self.selected_unit = self
                         .sim
-                        .review_simulation()
+                        .review_state()
                         .units()
                         .iter()
                         .find(|u| u.owner == HUMAN && u.kind == UnitKind::Worker)
@@ -364,19 +314,18 @@ impl Game {
                 }
             }
             18 => {
-                let (x, y) = crate::sim::scenarios::ui_review::ui_review_generated_river_focus(
-                    self.sim.review_simulation_mut(),
-                )
-                .expect("generated river example");
+                let (x, y) = self
+                    .sim
+                    .review_fixture()
+                    .generated_river_focus()
+                    .expect("generated river example");
                 self.focus_camera_on(x, y);
                 self.zoom = 1.15;
                 return;
             }
             _ => {}
         }
-        crate::sim::scenarios::ui_review::ui_review_record_knowledge(
-            self.sim.review_simulation_mut(),
-        );
+        self.sim.review_fixture().record_knowledge();
         self.focus_camera_on(20, 24);
     }
 }
@@ -461,7 +410,7 @@ impl Game {
                 sequence.check(
                     "ai_requires_compensation",
                     self.sim.pact(HUMAN, 1) == Pact::Ceasefire
-                        && self.sim.review_simulation().players()[HUMAN].gold == 250
+                        && self.sim.treasury_view(HUMAN).unwrap() == 250
                         && self
                             .treaty_feedback
                             .as_ref()
@@ -495,7 +444,7 @@ impl Game {
                 )?;
                 sequence.check(
                     "compensation_paid_once",
-                    self.sim.review_simulation().players()[HUMAN].gold == 175,
+                    self.sim.treasury_view(HUMAN).unwrap() == 175,
                 )?;
                 return Ok(true);
             }
@@ -577,21 +526,15 @@ impl Game {
         if scene == 33 {
             if phase == 6 {
                 let id = self.selected_unit.unwrap();
-                let moved = self.move_selected(
-                    Command::move_civ3_by_offset(self.sim.review_simulation(), id, 0, -1),
-                    id,
-                );
+                let moved = self.move_selected(self.sim.review_state().move_command(id, 0, -1), id);
                 sequence.check("movement_stops_at_polar_edge", !moved)?;
-                let unit = self.sim.review_simulation().unit_by_id(id).unwrap();
+                let unit = self.sim.review_state().unit_by_id(id).unwrap();
                 sequence.check("bounded_map_keeps_unit_in_place", unit.y == 0)?;
                 sequence.check(
                     "bounded_map_still_accepts_real_move",
-                    self.move_selected(
-                        Command::move_civ3_by_offset(self.sim.review_simulation(), id, 1, 0),
-                        id,
-                    ),
+                    self.move_selected(self.sim.review_state().move_command(id, 1, 0), id),
                 )?;
-                self.sim.review_simulation_mut().take_visual_events();
+                self.sim.review_fixture().clear_animation_events();
                 self.playback.finish();
                 return Ok(true);
             }
@@ -608,7 +551,7 @@ impl Game {
         }
         if scene == 28 {
             if phase == 6 {
-                self.selected_city = self.sim.review_simulation().cities().first().map(|c| c.id);
+                self.selected_city = self.sim.review_state().cities().first().map(|c| c.id);
                 self.city_tiles = true;
                 sequence.check(
                     "layer_order_shared_with_city_map",
@@ -622,22 +565,14 @@ impl Game {
             if phase == 1 {
                 sequence.check(
                     "hidden_changes_keep_last_observed_art",
-                    crate::sim::scenarios::ui_review::ui_review_observed_map_valid(
-                        self.sim.review_simulation(),
-                        false,
-                    ),
+                    self.sim.review_state().observed_map_valid(false),
                 )?;
             }
             if phase == 6 {
-                crate::sim::scenarios::ui_review::ui_review_reobserve_map(
-                    self.sim.review_simulation_mut(),
-                );
+                self.sim.review_fixture().reobserve_map();
                 sequence.check(
                     "returning_vision_updates_remembered_art",
-                    crate::sim::scenarios::ui_review::ui_review_observed_map_valid(
-                        self.sim.review_simulation(),
-                        true,
-                    ),
+                    self.sim.review_state().observed_map_valid(true),
                 )?;
                 return Ok(true);
             }
@@ -666,11 +601,10 @@ impl Game {
             let visibility = |game: &Game| {
                 (0..game.sim.map_wrap().width() * game.sim.map_wrap().height())
                     .map(|i| {
-                        let tile = game.sim.review_simulation().tile(
+                        game.sim.review_state().tile_visibility(
                             i % game.sim.map_wrap().width(),
                             i / game.sim.map_wrap().width(),
-                        );
-                        (tile.seen, tile.visible)
+                        )
                     })
                     .collect::<Vec<_>>()
             };
@@ -688,10 +622,7 @@ impl Game {
                 let id = self.selected_unit.unwrap();
                 sequence.check(
                     "fog_move_uses_real_command",
-                    self.move_selected(
-                        Command::move_civ3_by_offset(self.sim.review_simulation(), id, 1, 0),
-                        id,
-                    ),
+                    self.move_selected(self.sim.review_state().move_command(id, 1, 0), id),
                 )?;
                 sequence.check("movement_refreshes_visibility", before != visibility(self))?;
                 return Ok(true);
@@ -703,10 +634,7 @@ impl Game {
                 let id = self.selected_unit.unwrap();
                 sequence.check(
                     "real_move_command_accepted",
-                    self.move_selected(
-                        Command::move_civ3_by_offset(self.sim.review_simulation(), id, 1, 0),
-                        id,
-                    ),
+                    self.move_selected(self.sim.review_state().move_command(id, 1, 0), id),
                 )?;
             }
             if phase == 2 {
@@ -725,14 +653,14 @@ impl Game {
         if matches!(scene, 19 | 20) && phase == 1 {
             let city = self
                 .sim
-                .review_simulation()
+                .review_state()
                 .cities_owned_by(HUMAN)
                 .next()
                 .unwrap();
             sequence.check(
                 "city_has_garrison",
                 self.sim
-                    .review_simulation()
+                    .review_state()
                     .units()
                     .iter()
                     .any(|u| (u.x, u.y) == (city.x, city.y)),
@@ -743,7 +671,7 @@ impl Game {
                     self.selected_unit.is_none()
                 } else {
                     self.sim
-                        .review_simulation()
+                        .review_state()
                         .units()
                         .iter()
                         .any(|u| Some(u.id) == self.selected_unit && (u.x, u.y) == (city.x, city.y))
@@ -757,7 +685,7 @@ impl Game {
                 })?;
                 sequence.check(
                     "city_founded_through_ui",
-                    self.sim.review_simulation().cities_owned_by(HUMAN).count() > 0
+                    self.sim.review_state().cities_owned_by(HUMAN).count() > 0
                         && self.selected_city.is_none()
                         && self.pending_city_view.is_some(),
                 )?;
@@ -789,13 +717,13 @@ impl Game {
                 return Ok(true);
             }
             if phase == 8 && scene == 15 && self.selected_city.is_none() {
-                let rates = self.sim.review_simulation().players()[HUMAN].rates;
+                let rates = self.sim.review_state().human_rates();
                 sequence.click(self, buttons, "tax_control", |action| {
                     matches!(action, UiAction::RaiseRate(1))
                 })?;
                 sequence.check(
                     "rates_changed_through_ui",
-                    self.sim.review_simulation().players()[HUMAN].rates != rates,
+                    self.sim.review_state().human_rates() != rates,
                 )?;
             }
             if phase == 8 && scene == 14 && sequence.worker.is_none() {
@@ -808,11 +736,11 @@ impl Game {
                 });
                 sequence.check("worked_tile_available", target.is_some())?;
                 let (id, x, y) = target.unwrap();
-                let city = self.sim.review_simulation().city_by_id(id).unwrap();
+                let city = self.sim.review_state().city_by_id(id).unwrap();
                 let before = city.specialists;
                 sequence.worker = Some((id, x, y, city.worked_tiles.clone(), before));
                 sequence.click(self,buttons,"remove_tile_worker",|action|matches!(action,UiAction::WorkCityTile(cid,tx,ty) if (cid,tx,ty)==(id,x,y)))?;
-                let city = self.sim.review_simulation().city_by_id(id).unwrap();
+                let city = self.sim.review_state().city_by_id(id).unwrap();
                 sequence.check(
                     "worker_became_entertainer",
                     !city.worked_tiles.contains(&(x, y)) && city.specialists[2] == before[2] + 1,
@@ -822,7 +750,7 @@ impl Game {
             if phase == 9 && scene == 14 && sequence.worker.is_some() {
                 let (id, x, y, worked, before) = sequence.worker.take().unwrap();
                 sequence.click(self,buttons,"restore_tile_worker",|action|matches!(action,UiAction::WorkCityTile(cid,tx,ty) if (cid,tx,ty)==(id,x,y)))?;
-                let city = self.sim.review_simulation().city_by_id(id).unwrap();
+                let city = self.sim.review_state().city_by_id(id).unwrap();
                 sequence.check(
                     "worker_assignment_restored",
                     city.specialists == before
@@ -831,14 +759,11 @@ impl Game {
                 )?;
             }
             if phase == 9 && scene == 15 {
-                let turn = self.sim.review_simulation().turn();
+                let turn = self.sim.turn_view();
                 sequence.click(self, buttons, "end_turn_control", |action| {
                     matches!(action, UiAction::EndTurn)
                 })?;
-                sequence.check(
-                    "normal_turn_advanced",
-                    self.sim.review_simulation().turn() == turn + 1,
-                )?;
+                sequence.check("normal_turn_advanced", self.sim.turn_view() == turn + 1)?;
                 return Ok(true);
             }
             return Ok(false);
@@ -908,7 +833,7 @@ mod tests {
     #[test]
     fn one_scenario_cannot_mutate_its_baseline_or_another_scenario() {
         let initial = Simulation::new(crate::mapgen::generate(42));
-        let sources = UiReviewSources::new(&initial);
+        let sources = UiReviewSources::new(&ClientSimulation::new(initial.clone()));
         let mut a = Game::from_simulation(initial.clone());
         let mut b = Game::from_simulation(initial);
         a.prepare_ui_review(15, &sources);
@@ -928,7 +853,14 @@ mod tests {
                 .iter()
                 .any(|c| c.owner == HUMAN)
         );
-        assert!(!sources.initial.cities().iter().any(|c| c.owner == HUMAN));
+        assert!(
+            !sources
+                .initial
+                .review_state()
+                .cities()
+                .iter()
+                .any(|c| c.owner == HUMAN)
+        );
     }
 
     #[test]
@@ -937,7 +869,7 @@ mod tests {
             42,
             crate::world::topology::MapWrap::X,
         ));
-        let sources = UiReviewSources::new(&initial);
+        let sources = UiReviewSources::new(&ClientSimulation::new(initial.clone()));
         let mut game = Game::from_simulation(initial);
         game.prepare_ui_review(0, &sources);
         assert!((0..game.sim.map_wrap().height()).all(|y| {

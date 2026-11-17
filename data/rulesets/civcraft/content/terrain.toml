@@ -8,7 +8,6 @@ thaw_requirement = 0
 freeze_requirement = 0
 lake_max_size = 14
 min_start_native_area = 0
-move_fragments = 6
 igter_cost = 2
 
 [[terrains]]

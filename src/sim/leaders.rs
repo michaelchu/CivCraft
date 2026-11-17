@@ -163,17 +163,17 @@ impl Simulation {
                     Self::pf_action_move_cost(actor.kind, action, rate)
                 } else if !known {
                     if unit.kind.is_naval() {
-                        2 * MOVE_FRAGMENTS
+                        2 * campaign_move_fragments()
                     } else if unit.kind.stats().ignores_terrain {
                         4
                     } else {
-                        6 * MOVE_FRAGMENTS
+                        6 * campaign_move_fragments()
                     }
                 } else {
-                    let Some(cost) = self
-                        .movement_cost_for(&actor, nx, ny)
-                        .or_else(|| self.boarding_target(&actor, nx, ny).map(|_| MOVE_FRAGMENTS))
-                    else {
+                    let Some(cost) = self.movement_cost_for(&actor, nx, ny).or_else(|| {
+                        self.boarding_target(&actor, nx, ny)
+                            .map(|_| campaign_move_fragments())
+                    }) else {
                         continue;
                     };
                     cost

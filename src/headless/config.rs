@@ -1,4 +1,9 @@
-use crate::{mapgen, sim::trace::Entity};
+use super::scenario::WorldProvenance;
+use crate::{
+    mapgen::Civ3MapSize,
+    sim::trace::Entity,
+    world_setup::{self, WorldSetup},
+};
 use serde_json::json;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
@@ -6,8 +11,7 @@ use std::path::PathBuf;
 pub(crate) struct Config {
     pub seed: u64,
     pub turns: u32,
-    pub map_size: mapgen::Civ3MapSize,
-    pub world: mapgen::Civ3WorldSettings,
+    pub world: WorldSetup,
     pub checkpoint_every: usize,
     pub report: String,
     pub analyzers: Vec<String>,
@@ -36,12 +40,6 @@ impl Config {
         const FLAGS: &[&str] = &[
             "--seed",
             "--turns",
-            "--map-size",
-            "--ocean-coverage",
-            "--climate",
-            "--world-age",
-            "--landform",
-            "--temperature",
             "--checkpoint-every",
             "--report",
             "--analytics",
@@ -61,7 +59,7 @@ impl Config {
         let mut values = BTreeMap::new();
         let mut iter = args.iter();
         while let Some(flag) = iter.next() {
-            if !FLAGS.contains(&flag.as_str()) {
+            if !FLAGS.contains(&flag.as_str()) && !world_setup::FLAGS.contains(&flag.as_str()) {
                 return Err(format!("unknown option {flag}; use --help"));
             }
             let value = iter
@@ -130,19 +128,18 @@ impl Config {
         if scenario.is_some() && load_campaign.is_some() {
             return Err("--scenario and --load-campaign are mutually exclusive".into());
         }
+        let world = WorldSetup::parse(Civ3MapSize::Tiny, |flag| {
+            Ok(values.get(flag).map(|&value| value.to_owned()))
+        })?;
+        if load_campaign.is_some() && world.specified {
+            return Err("world setup options require a newly generated world".into());
+        }
         Ok(Self {
             seed: value("--seed", "42")
                 .parse()
                 .map_err(|_| "--seed must be a nonnegative integer")?,
             turns,
-            map_size: value("--map-size", "tiny").parse()?,
-            world: mapgen::Civ3WorldSettings {
-                ocean_coverage: value("--ocean-coverage", "70").parse()?,
-                climate: value("--climate", "normal").parse()?,
-                age: value("--world-age", "4").parse()?,
-                landform: value("--landform", "continents").parse()?,
-                temperature: value("--temperature", "temperate").parse()?,
-            },
+            world,
             checkpoint_every: positive("--checkpoint-every", "10")?,
             report: value("--report", "headless-simulation.json").into(),
             analyzers: list(value("--analytics", "growth,settlement,production")),
@@ -168,14 +165,11 @@ impl Config {
                     .iter()
                     .any(|e| self.trace_entities.contains(e)))
     }
-    pub fn metadata(&self) -> serde_json::Value {
-        json!({"seed":self.seed,"map_size":self.map_size.to_string(),"requested_turns":self.turns,
+    pub fn metadata(&self, world: &WorldProvenance) -> serde_json::Value {
+        json!({"seed":world.seed,"map_size":world.size.to_string(),"requested_turns":self.turns,
             "scenario":self.scenario,"load_campaign":self.load_campaign,
-            "world_settings":{"ocean_coverage":self.world.ocean_coverage.percent(),
-                "climate":format!("{:?}",self.world.climate).to_ascii_lowercase(),
-                "world_age_billions":match self.world.age {mapgen::WorldAge::Billion3=>3,mapgen::WorldAge::Billion4=>4,mapgen::WorldAge::Billion5=>5},
-                "landform":format!("{:?}",self.world.landform).to_ascii_lowercase(),
-                "temperature":format!("{:?}",self.world.temperature).to_ascii_lowercase()},
+            "map_generator":world.generator.map(|generator| generator.name()),
+            "world_settings":world.settings,
             "checkpoint_every":self.checkpoint_every,"trace_domains":self.trace_domains,"trace_entities":self.trace_entities,
             "trace_buffer_events":self.buffer_events,"trace_max_events":self.max_events,"trace_max_bytes":self.max_event_bytes,
             "snapshot_providers":self.providers,"stop_on_finding":self.stop_on_finding,
@@ -193,7 +187,8 @@ pub(crate) const HELP: &str = "Headless AI simulator\n\
 --stop-on-finding none|any|invariant --checkpoint-every 10\n\
 --profile-turns true|false (records per-turn phase timings)\n\
 --scenario NAME | --load-campaign PATH; --list-scenarios\n\
-World setup: --ocean-coverage 60|70|80 --climate arid|normal|wet --world-age 3|4|5\n\
+World setup: --map-generator fractal|opensimplex (default fractal)\n\
+OpenSimplex only: --ocean-coverage 60|70|80 --climate arid|normal|wet --world-age 3|4|5\n\
 --landform archipelago|continents|pangaea --temperature cool|temperate|warm";
 
 #[cfg(test)]

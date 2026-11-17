@@ -104,6 +104,7 @@ pub(crate) use pillage::PillageTarget;
 pub(crate) use pollution::Contamination;
 use spaceship::Spaceship;
 pub(crate) use spaceship::{STRUCTURE_PARENT, ShipPart};
+#[cfg(any(test, feature = "scenarios"))]
 mod headless_scenarios;
 #[cfg(test)]
 mod playtest;
@@ -142,7 +143,10 @@ pub(crate) const BARBARIANS: usize = MAX_CIVILIZATIONS;
 const FREECIV_GAME_IDENTIFIER_DRAWS: usize = 32;
 const FREECIV_BASE64URL_CHARACTERS: u32 = 64;
 const PERCENT_SCALE: i32 = crate::world::PERCENT_SCALE;
-pub(crate) const MOVE_FRAGMENTS: i32 = 6;
+use movement_rules::campaign_move_fragments;
+// Historical movement fixtures use the original six-fragment scale.
+#[cfg(test)]
+const MOVE_FRAGMENTS: i32 = 6;
 const ACTIVITY_FACTOR: i32 = 10;
 const POWER_FACTOR: i32 = 10;
 const CITY_DEFEND_BONUS: i32 = 50;
@@ -321,10 +325,7 @@ pub(crate) struct Simulation {
     #[serde(skip)]
     ai_danger_route_cache: std::cell::RefCell<std::collections::BTreeMap<u32, Vec<i32>>>,
     #[serde(skip)]
-    movement_step_cost_cache:
-        std::cell::RefCell<std::collections::HashMap<movement_rules::StepCostCacheKey, i32>>,
-    #[serde(skip)]
-    movement_native_cache: std::cell::RefCell<Vec<i8>>,
+    movement_cache: pf_actions::MovementCache,
     #[serde(skip)]
     visibility_refresh_deferred: bool,
     #[serde(skip)]
@@ -664,8 +665,7 @@ impl Simulation {
             ai_threat_route_cache_enabled: Default::default(),
             ai_threat_arrival_cache: Default::default(),
             ai_danger_route_cache: Default::default(),
-            movement_step_cost_cache: Default::default(),
-            movement_native_cache: Default::default(),
+            movement_cache: Default::default(),
             visibility_refresh_deferred: false,
             visibility_refresh_pending: false,
             visibility_pending_render_tiles: Default::default(),
@@ -699,7 +699,7 @@ impl Simulation {
                 });
                 for _ in 0..count {
                     let mut unit = Unit::new(game.next_unit_id, owner, kind, start.0, start.1);
-                    unit.moves_left = kind.stats().moves * MOVE_FRAGMENTS;
+                    unit.moves_left = kind.stats().moves * campaign_move_fragments();
                     game.units.push(unit);
                     game.next_unit_id += 1;
                 }

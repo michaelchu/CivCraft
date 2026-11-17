@@ -11,6 +11,61 @@ fn temporary_save(name: &str) -> std::path::PathBuf {
 }
 
 #[test]
+fn loads_v26_campaign_and_rewrites_it_in_the_current_format() {
+    // Generated with e1123c9, seed 42, 16x16, with slots 63 and 511 known
+    // on tile zero.
+    let legacy = Path::new(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/fixtures/civcraft_v26_campaign.save"
+    ));
+    let game = Simulation::load_campaign(legacy).unwrap();
+    assert_eq!(game.world_seed, 42);
+    assert_eq!(game.map_wrap, MapWrap::with_dimensions(16, 16).unwrap());
+    assert!(game.tiles[0].known_by[63]);
+    assert!(game.tiles[0].known_by[PLAYER_SLOTS - 1]);
+    assert!(!game.tiles[0].known_by[PLAYER_SLOTS - 2]);
+
+    let path = temporary_save("upgrade-v26");
+    game.save_campaign(&path).unwrap();
+    let bytes = fs::read(&path).unwrap();
+    assert!(bytes.starts_with(HEADER));
+    assert!(bytes.len() < fs::metadata(legacy).unwrap().len() as usize / 2);
+    let reloaded = Simulation::load_campaign(&path).unwrap();
+    fs::remove_file(path).unwrap();
+    assert_eq!(reloaded.tiles[0].known_by, game.tiles[0].known_by);
+    assert_eq!(reloaded.map_wrap, game.map_wrap);
+}
+
+#[test]
+fn large_explored_campaigns_save_reload_and_advance() {
+    for dimension in [256, 512] {
+        let wrap = MapWrap::with_dimensions(dimension, dimension).unwrap();
+        let mut game = Simulation::new(crate::mapgen::generate_with_wrap(42, wrap));
+        for tile in &mut game.tiles {
+            tile.seen = true;
+            tile.known_by[HUMAN] = true;
+            tile.known_by[PLAYER_SLOTS - 1] = true;
+        }
+        game.remember_route_tiles(true);
+        let path = temporary_save("large-map");
+        game.save_campaign(&path).unwrap();
+        drop(game);
+        let mut loaded = Simulation::load_campaign(&path).unwrap();
+        fs::remove_file(path).unwrap();
+        assert_eq!(loaded.map_wrap, wrap);
+        assert!(
+            loaded.tiles.iter().all(|tile| {
+                tile.seen && tile.known_by[HUMAN] && tile.known_by[PLAYER_SLOTS - 1]
+            })
+        );
+        assert!(loaded.route_memory.iter().all(Option::is_some));
+        let turn = loaded.turn;
+        loaded.simulate_turn();
+        assert_eq!(loaded.turn, turn + 1);
+    }
+}
+
+#[test]
 fn current_campaign_round_trip_preserves_gameplay_and_topology_state() {
     let path = temporary_save("save-round-trip");
     let mut game = Simulation::new(crate::test_support::seeded_map());

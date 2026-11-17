@@ -467,13 +467,13 @@ impl Simulation {
                         land_queue.push(Reverse((cost, index)));
                     }
                 }
-                if cost + MOVE_FRAGMENTS * land_speed < sea_costs[index]
+                if cost + campaign_move_fragments() * land_speed < sea_costs[index]
                     && self.tile(nx, ny).terrain.is_water()
                     && self.movement_cost_for(&staged, nx, ny).is_some()
                     && !self.treaty_blocks_move(&staged, nx, ny)
                     && !blocked
                 {
-                    let cost = cost + MOVE_FRAGMENTS * land_speed;
+                    let cost = cost + campaign_move_fragments() * land_speed;
                     sea_costs[index] = cost;
                     sea_queue.push(Reverse((cost, index, meeting)));
                 }

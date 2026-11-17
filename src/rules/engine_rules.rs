@@ -183,7 +183,8 @@ pub(crate) struct CalendarSettings {
     pub(crate) negative_label: String,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
 pub(crate) enum StartPositionSetting {
     Default,
     Single,
@@ -217,7 +218,7 @@ impl StartPositionSetting {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
 pub(crate) struct OceanDepthSettings {
     pub(crate) lake: i32,
     pub(crate) lake_unsafe_coast: bool,
@@ -227,14 +228,14 @@ pub(crate) struct OceanDepthSettings {
     pub(crate) deep_ocean_unsafe_coast: bool,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
 pub(crate) struct HutPlacementSettings {
     pub(crate) land_only: bool,
     pub(crate) minimum_latitude: i32,
     pub(crate) maximum_latitude: i32,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
 pub(crate) struct MapGenerationSettings {
     pub(crate) landmass_percent: i32,
     pub(crate) startpos: StartPositionSetting,
@@ -910,18 +911,13 @@ impl std::error::Error for LoadError {}
 
 impl RulesetData {
     /// Load the single CivCraft campaign package: generic Freeciv engine
-    /// inputs from `engine/`, overlaid with CivCraft-owned TOML catalogs from
-    /// `content/`.
+    /// inputs from `engine/` and Civ III content bindings from `content/`.
     pub(crate) fn load_civcraft(data_root: &Path) -> Result<Self, LoadError> {
         let engine_dir = data_root.join("civcraft/engine");
         let mut rules = Self::load_from_directory(data_root, &engine_dir, "civcraft")?;
-        rules.effects = native_effect_records()?.into();
-        rules.actions = native_action_records();
-        rules.action_enablers = native_action_enablers()?;
         let source_catalog =
             Civ3ContentCatalog::load().map_err(|error| LoadError::new(error.to_string()))?;
         rules.source_content = source_catalog.records;
-        loader::resolve_requirement_values(&mut rules);
         Ok(rules)
     }
 
@@ -1674,132 +1670,6 @@ impl RulesetData {
         }
         Ok(enabled)
     }
-}
-
-fn native_effect_records() -> Result<Vec<EffectRecord>, LoadError> {
-    crate::rules::native::effects()
-        .effects
-        .iter()
-        .map(|effect| {
-            let requirements = effect
-                .requirements
-                .iter()
-                .map(|requirement| {
-                    native_requirement("effects.toml", &effect.id, "requirements", requirement)
-                })
-                .collect::<Result<Vec<_>, LoadError>>()?;
-            let kind = EffectKind::parse(&effect.kind).ok_or_else(|| {
-                LoadError::new(format!(
-                    "native effect {} has unknown effect type {:?}",
-                    effect.id, effect.kind
-                ))
-            })?;
-            Ok(EffectRecord {
-                rule_name: effect.id.clone(),
-                kind,
-                value: effect.value,
-                multiplier: effect.multiplier.clone(),
-                requirements,
-            })
-        })
-        .collect()
-}
-
-fn native_requirement(
-    file: &str,
-    id: &str,
-    key: &str,
-    requirement: &crate::rules::native::NativeEffectRequirement,
-) -> Result<Requirement, LoadError> {
-    let range = match requirement.range.to_ascii_lowercase().as_str() {
-        "local" => RequirementRange::Local,
-        "tile" => RequirementRange::Tile,
-        "cadjacent" => RequirementRange::CAdjacent,
-        "adjacent" => RequirementRange::Adjacent,
-        "city" => RequirementRange::City,
-        "traderoute" => RequirementRange::Traderoute,
-        "continent" => RequirementRange::Continent,
-        "player" => RequirementRange::Player,
-        "team" => RequirementRange::Team,
-        "alliance" => RequirementRange::Alliance,
-        "world" => RequirementRange::World,
-        other => {
-            return Err(LoadError::new(format!(
-                "native record {id} has unknown requirement range {other:?}"
-            )));
-        }
-    };
-    let kind = RequirementKind::parse(&requirement.kind).ok_or_else(|| {
-        LoadError::new(format!(
-            "native record {id} has unknown requirement type {:?}",
-            requirement.kind
-        ))
-    })?;
-    Ok(Requirement {
-        kind,
-        name: RequirementValue::String(requirement.name.clone()),
-        resolved: None,
-        range,
-        present: requirement.present,
-        survives: requirement.survives,
-        quiet: requirement.quiet,
-        source: RuleSourceLocation {
-            file: PathBuf::from(format!("data/rulesets/civcraft/content/{file}")),
-            section: id.to_owned(),
-            key: key.to_owned(),
-            line: 0,
-        },
-    })
-}
-
-fn native_action_records() -> Vec<ActionRecord> {
-    crate::rules::native::actions()
-        .actions
-        .iter()
-        .map(|action| ActionRecord {
-            rule_name: action.id.clone(),
-            action: action.action.clone(),
-            fields: Vec::new(),
-        })
-        .collect()
-}
-
-fn native_action_enablers() -> Result<Vec<ActionEnabler>, LoadError> {
-    crate::rules::native::actions()
-        .enablers
-        .iter()
-        .map(|enabler| {
-            Ok(ActionEnabler {
-                rule_name: enabler.id.clone(),
-                action: enabler.action.clone(),
-                actor_requirements: enabler
-                    .actor_requirements
-                    .iter()
-                    .map(|requirement| {
-                        native_requirement(
-                            "actions.toml",
-                            &enabler.id,
-                            "actor_requirements",
-                            requirement,
-                        )
-                    })
-                    .collect::<Result<Vec<_>, _>>()?,
-                target_requirements: enabler
-                    .target_requirements
-                    .iter()
-                    .map(|requirement| {
-                        native_requirement(
-                            "actions.toml",
-                            &enabler.id,
-                            "target_requirements",
-                            requirement,
-                        )
-                    })
-                    .collect::<Result<Vec<_>, _>>()?,
-                fields: Vec::new(),
-            })
-        })
-        .collect()
 }
 
 fn required_parameter<'a>(
@@ -3292,10 +3162,6 @@ mod tests {
         let data_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data/rulesets");
         let rules = RulesetData::load_civcraft(&data_root).unwrap();
 
-        assert_eq!(
-            rules.effects.len(),
-            crate::rules::native::effects().effects.len()
-        );
         assert_eq!(rules.effects.len(), 508);
         assert_eq!(
             rules

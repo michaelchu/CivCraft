@@ -23,10 +23,6 @@ Current catalogs:
   runtime indices, source coordinates, costs, prerequisite graph inputs, eras,
   era gates, and native capability flags (including the Civ III Engineering
   bridge capability).
-- `content/effects.toml`: the complete 508-effect campaign graph, including typed
-  requirements and multipliers.
-- `content/actions.toml`: the 19 campaign actions and 89 typed action-enabler
-  branches.
 - `content/governments.toml`: the eight Conquests governments, names, prerequisites,
   AI preferences, flags, core scalar values, and support/assimilation/
   resistance/military-law tables.
@@ -37,12 +33,11 @@ Current catalogs:
   worker results, native classes, flags, climate transitions, and terrain
   parameters.
 
-The campaign loader opens `engine/` and overlays the native effect, action,
-technology, and source-content bindings from `content/`. The native technology
-catalog is the sole source for researchable technology identities, names,
-prerequisites, eras, and research metadata. The `.ruleset` files are not a
-second campaign or a second research tree; they are the compatibility layer for
-generic engine tables that have not yet been migrated to native schemas.
+The campaign reads its effect graph from `engine/effects.ruleset`, actions and
+enablers from `engine/actions.ruleset`, and movement fragments from
+`engine/terrain.ruleset`. The native technology catalog owns researchable
+technology identities, names, prerequisites, eras, and research metadata.
+`engine/techs.ruleset` supplies generic engine records and requirement names.
 
 Unit shield costs are authoritative in `content/units.toml` (`cost_shields`). Production,
 settlement AI valuation, and shield-recovery base values share that cost.

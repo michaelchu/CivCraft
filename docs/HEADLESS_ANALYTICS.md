@@ -28,8 +28,9 @@ reporter changes are needed to register an analyzer or provider.
 
 The runner accepts either `--scenario NAME` or `--load-campaign PATH`. Use
 `--list-scenarios` to inspect registered names. Both forms produce a normal
-`Simulation`, enable all civilizations as AI, attach a fresh trace collector,
-and then enter the same snapshot, analyzer, event, and reporting loop. They are
+`Simulation` and enter the same snapshot, analyzer, event, and reporting
+loop. The runner attaches tracing before scripted actions and enables all
+civilizations as AI before advancing turns. They are
 mutually exclusive; omitting both retains generated-campaign behavior.
 
 Named scenarios are versioned Rust definitions. Their checks are written
@@ -66,11 +67,32 @@ Registration makes it available as `--scenario ai-paradrops` with no runner
 change. `Scenario::new` starts from a new campaign with the human seat intact
 and enables all-AI play only after the actions run; `Scenario::all_ai` enables
 it first. Regression scenarios always use the reference map generator for the
-requested seed rather than the campaign map options.
+requested seed and report that map's effective settings. The
+`generated-ai` scenario accepts generation options. Fixed scenarios and
+loaded campaigns reject world setup flags. Saved campaigns report their
+seed and dimensions and leave generator settings empty.
 
-A unit test runs the whole table and compares the failing checks against an
-explicit `KNOWN_FAILING_CHECKS` list in `src/sim/scenarios/regression.rs`; a
-new failure, or a listed check that starts passing, fails that test.
+The regression suite runs the same registry and asserts unique scenario
+and check names. The previously detached registry referenced retired desktop
+fixtures. The migrated registry carries forward the runnable headless cases
+and the AI paradrop regression. Existing subsystem tests still cover their
+own fixtures.
+
+The reference checks use seed 42. Two scenarios also reproduce seed-sensitive
+failures in the original `e1123c9` fixture code. Use the commands below to
+inspect the failed checks and their details in the published reports.
+
+| Scenario and seed | Failed checks |
+| --- | --- |
+| `settlement-ferry`, 1 | `ferry_queued`, `settler_sequenced`, `island_founded` |
+| `ai-paradrops`, 3 | `ai_paradrops` fails its threatened-city reinforcement check. The defended landing refusal and undefended-city capture both succeed. |
+
+```sh
+cargo run --offline --bin headless_sim -- \
+  --scenario settlement-ferry --seed 1 --turns 1 --report /tmp/ferry-seed-1.json
+cargo run --offline --bin headless_sim -- \
+  --scenario ai-paradrops --seed 3 --turns 1 --report /tmp/paradrops-seed-3.json
+```
 
 ## Add a game trace
 
@@ -289,12 +311,14 @@ size grows with requested turns and selected/required providers; event limits
 do not limit snapshots. The compact timeline and findings remain in memory.
 I/O errors fail the runner rather than silently continuing without evidence.
 
-## Report schema 6
+## Report schema 7
 
 `report.json` is the review entry point:
 
 - `run`: status, stop reason, effective configuration, elapsed execution time,
   commit SHA, dirty-tree indicator, turn count and game-over state.
+  `configuration.map_generator` identifies the generator. `world_settings`
+  contains the selected generator's inputs and is null for a loaded campaign.
 - `analytics`: enabled analyzer versions, thresholds, observation boundaries,
   and namespaced metrics.
 - `coverage`: required-event overflow, events not retained by filters/limits,
@@ -351,8 +375,7 @@ The deterministic tiny-map workload below is the current ramp regression:
 
 ```sh
 cargo run --offline --release --bin headless_sim -- \
-  --seed 42 --map-size tiny --ocean-coverage 70 --climate normal \
-  --world-age 4 --landform continents --temperature temperate \
+  --seed 42 --map-size tiny \
   --turns 80 --checkpoint-every 10 --profile-turns true \
   --report /tmp/civcraft-ramp80.json
 ```

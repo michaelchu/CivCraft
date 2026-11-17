@@ -10,6 +10,15 @@ use crate::rules::engine_rules::{ContentKind, ContentRecord, RuleRecord, Ruleset
 use super::unit_catalog::UnitClass;
 use super::{Base, Terrain, UnitKind};
 
+pub(super) fn campaign_move_fragments() -> i32 {
+    static FRAGMENTS: std::sync::OnceLock<i32> = std::sync::OnceLock::new();
+    *FRAGMENTS.get_or_init(|| {
+        MovementRules::campaign()
+            .integer_parameter("terrain.ruleset", "parameters", "move_fragments", true)
+            .expect("campaign terrain rules define a positive movement scale")
+    })
+}
+
 #[derive(Clone, Copy)]
 pub(super) struct MovementRules<'a> {
     rules: &'a RulesetData,
@@ -116,7 +125,7 @@ impl<'a> MovementRules<'a> {
     /// already expressed in these fragments.
     pub(super) fn move_fragments(&self) -> Result<i32, MovementRulesError> {
         if self.uses_native_terrain() {
-            return Ok(crate::rules::native::terrain().parameters.move_fragments);
+            return Ok(campaign_move_fragments());
         }
         self.integer_parameter("terrain.ruleset", "parameters", "move_fragments", true)
     }
@@ -794,8 +803,6 @@ pub(super) struct MovementTile {
     pub(super) base: Option<Base>,
 }
 
-pub(super) type StepCostCacheKey = (MovementTile, MovementTile, UnitClass, bool, bool, bool);
-
 impl MovementTile {
     pub(super) const fn new(
         terrain: Terrain,
@@ -1004,8 +1011,8 @@ impl Terrain {
     }
 
     /// [`Self::c2c3_rule_name`] with CivCraft's rugged-terrain adaptation:
-    /// Volcano borrows the Mountains record. Only mechanics that document
-    /// this adaptation (terrain defense and tile output) may use it.
+    /// Volcano borrows the Mountains record for defense, output and terrain
+    /// class. Its exact identity, terrain flags and worker actions stay distinct.
     pub(in crate::sim) fn c2c3_rugged_rule_name(self) -> &'static str {
         match self {
             Terrain::Volcano => "Mountains",
@@ -2086,6 +2093,41 @@ mod tests {
             MovementRules::new(&missing_parameter).move_fragments(),
             Err(MovementRulesError::MissingRecord { .. })
         ));
+    }
+
+    #[test]
+    fn configured_movement_scale_reaches_starting_units_path_cost_and_tired_attack() {
+        use crate::sim::{HUMAN, Simulation, Unit};
+
+        let rules = MovementRules::campaign();
+        let scale = rules
+            .integer_parameter("terrain.ruleset", "parameters", "move_fragments", true)
+            .unwrap();
+        let game = Simulation::new(crate::test_support::seeded_map());
+        assert!(!game.units().is_empty());
+        assert!(
+            game.units()
+                .iter()
+                .all(|unit| { unit.moves_left == unit.kind.stats().moves * scale })
+        );
+
+        let kind = UnitKind::Warrior;
+        let class = rules.unit_class_for_kind(kind).unwrap();
+        let tile = MovementTile::new(Terrain::Hills, false, false, false, None);
+        assert_eq!(
+            rules
+                .step_cost(tile, tile, class, true, false, false)
+                .unwrap(),
+            scale * rules.terrain_movement_cost(Terrain::Hills).unwrap()
+        );
+        let mut unit = Unit::new(1, HUMAN, kind, 0, 0);
+        unit.moves_left = scale;
+        let full_power = Simulation::attack_power(&unit);
+        unit.moves_left = scale - 1;
+        assert_eq!(
+            Simulation::attack_power(&unit),
+            full_power * (scale - 1) / scale
+        );
     }
 
     #[test]
