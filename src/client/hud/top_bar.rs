@@ -2,11 +2,20 @@
 
 use super::*;
 
+/// The button row starts at the same top margin as the messages on the left.
+const BUTTON_TOP: f32 = HUD_MARGIN;
+const BUTTON_H: f32 = 33.0;
+
 /// Strip covering the floating buttons and the gaps around them, so a near-miss
 /// click is not delivered to the map underneath.
 fn controls_row_rect(button_start: f32, width: f32) -> Rect {
     let left = button_start - 4.0;
-    Rect::new(left, 0.0, (width - left).max(0.0), CONTROLS_H - 3.0)
+    Rect::new(
+        left,
+        0.0,
+        (width - left).max(0.0),
+        BUTTON_TOP + BUTTON_H + 5.0,
+    )
 }
 
 /// Left edge of the floating button row: eight buttons, plus one while a
@@ -106,7 +115,12 @@ impl Game {
         for (index, (icon, action, label, rate, enabled, accent)) in
             controls.into_iter().enumerate()
         {
-            let rect = Rect::new(button_start + index as f32 * step, 5.0, button_width, 33.0);
+            let rect = Rect::new(
+                button_start + index as f32 * step,
+                BUTTON_TOP,
+                button_width,
+                BUTTON_H,
+            );
             draw_ui_button(rect, "", enabled, accent);
             let color = if enabled {
                 Color::from_rgba(241, 238, 218, 255)
@@ -138,9 +152,9 @@ impl Game {
 
         let music_rect = Rect::new(
             button_start + (button_count - 1) as f32 * step,
-            5.0,
+            BUTTON_TOP,
             button_width,
-            33.0,
+            BUTTON_H,
         );
         draw_ui_button(music_rect, "", true, self.music_open);
         let music_color = Color::from_rgba(241, 238, 218, 255);
@@ -262,8 +276,13 @@ mod tests {
         // Gap between two 38px buttons that sit 42px apart, plus the strips above and below.
         assert!(row.contains(vec2(1000.0 + 40.0, 20.0)));
         assert!(row.contains(vec2(1100.0, 1.0)));
-        assert!(row.contains(vec2(1100.0, CONTROLS_H - 4.0)));
+        assert!(row.contains(vec2(1100.0, BUTTON_TOP + BUTTON_H + 4.0)));
+        assert!(!row.contains(vec2(1100.0, BUTTON_TOP + BUTTON_H + 8.0)));
         assert!(!row.contains(vec2(900.0, 20.0)));
-        assert!(!row.contains(vec2(1100.0, CONTROLS_H + 2.0)));
+    }
+
+    #[test]
+    fn buttons_share_the_top_margin_with_the_messages() {
+        assert_eq!(BUTTON_TOP, HUD_MARGIN);
     }
 }

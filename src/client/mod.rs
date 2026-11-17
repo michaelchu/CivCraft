@@ -89,7 +89,7 @@ use research_tree::{NODE_SIZE, RESEARCH_AGES, ResearchTree};
 const TILE_W: f32 = 96.0;
 const TILE_H: f32 = 48.0;
 /// Height of the floating button row; the map itself fills the whole window.
-const CONTROLS_H: f32 = 46.0;
+const CONTROLS_H: f32 = HUD_MARGIN + 33.0 + 5.0;
 const HUD_MARGIN: f32 = 14.0;
 const WORLD_ART_SCALE: f32 = 0.75;
 const ZOOMED_OUT: f32 = 1.0;
