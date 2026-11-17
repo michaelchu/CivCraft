@@ -12,7 +12,7 @@ overlay.
   Spaceship (when available), Music. Tooltips and the music panel are kept.
 - Bottom-right context card gains a fixed info block directly below the
   header section at the top of the card (the unit icon, name and status, or the
-  city name): Turn·Year, Gold, Government, Research progress. It uses the 2x2
+  city name): Year (no label) and Government on the first row, Gold and Research progress on the second; there is no turn number. It uses the 2x2
   cell style the unit stats used, in the spot those boxes occupied.
 - The info block is always visible: unit selected, city selected, or nothing.
 
