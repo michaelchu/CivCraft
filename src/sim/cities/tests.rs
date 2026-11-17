@@ -1018,3 +1018,98 @@ fn leader_is_not_capturable() {
         Some(false)
     );
 }
+
+fn leader_test_game() -> (Simulation, u32) {
+    let mut game = Simulation::new(crate::test_support::seeded_map());
+    game.units.clear();
+    game.cities.clear();
+    game.players[HUMAN].known = Tech::all().collect();
+    game.create_city(HUMAN, 20, 24);
+    let id = game.cities[0].id;
+    (game, id)
+}
+
+#[test]
+fn leader_completes_only_legal_buildings() {
+    for building in [Building::PYRAMIDS, Building::TEMPLE] {
+        let (mut game, city) = leader_test_game();
+        let leader = game.spawn_unit(HUMAN, UnitKind::Leader, 20, 24);
+        game.cities[0].production = Production::Building(building);
+        game.cities[0].shields = 0;
+        assert!(game.complete_production(leader, city), "{building:?}");
+        assert_eq!(
+            game.cities[0].shields,
+            Production::Building(building).cost()
+        );
+        assert!(game.cities[0].bought_production);
+        assert!(game.unit_by_id(leader).is_none(), "the Leader is expended");
+    }
+
+    let refused: Vec<(&str, Production)> = vec![
+        ("Coinage", Production::Building(Building::COINAGE)),
+        ("a unit", Production::Unit(UnitKind::Warrior)),
+        (
+            "a spaceship part",
+            Production::Building(
+                Building::all()
+                    .find(|b| b.data().genus == crate::rules::Genus::Special)
+                    .unwrap(),
+            ),
+        ),
+    ];
+    for (label, production) in refused {
+        let (mut game, city) = leader_test_game();
+        let leader = game.spawn_unit(HUMAN, UnitKind::Leader, 20, 24);
+        game.cities[0].production = production;
+        game.cities[0].shields = 0;
+        assert!(!game.complete_production(leader, city), "{label}");
+        assert_eq!(game.cities[0].shields, 0, "{label}");
+        assert!(game.unit_by_id(leader).is_some(), "{label}");
+    }
+
+    let (mut game, city) = leader_test_game();
+    let leader = game.spawn_unit(HUMAN, UnitKind::Leader, 20, 24);
+    game.cities[0].production = Production::Building(Building::TEMPLE);
+    game.cities[0].buildings.push(Building::TEMPLE);
+    assert!(!game.complete_production(leader, city), "already built");
+    game.cities[0].buildings.clear();
+    game.cities[0].bought_production = true;
+    assert!(!game.complete_production(leader, city), "already completed");
+
+    let (mut game, _) = leader_test_game();
+    game.create_city(1, 30, 24);
+    let foreign = game.cities[1].id;
+    let leader = game.spawn_unit(HUMAN, UnitKind::Leader, 30, 24);
+    game.cities[1].production = Production::Building(Building::TEMPLE);
+    assert!(
+        !game.complete_production(leader, foreign),
+        "another civilization's city"
+    );
+}
+
+#[test]
+fn completed_production_cannot_be_redirected() {
+    let (mut game, city) = leader_test_game();
+    let leader = game.spawn_unit(HUMAN, UnitKind::Leader, 20, 24);
+    game.cities[0].production = Production::Building(Building::TEMPLE);
+    game.cities[0].shields = 0;
+    let gold = game.players[HUMAN].gold;
+    assert!(game.complete_production(leader, city));
+    assert!(
+        !game.can_change_production(&game.cities[0], Production::Building(Building::LIBRARY)),
+        "the stock cannot move to another item"
+    );
+    game.process_player_cities(HUMAN);
+    assert!(game.players[HUMAN].gold <= gold + 50);
+}
+
+#[test]
+fn completed_item_finishes_at_turn_end() {
+    let (mut game, city) = leader_test_game();
+    let leader = game.spawn_unit(HUMAN, UnitKind::Leader, 20, 24);
+    game.cities[0].production = Production::Building(Building::TEMPLE);
+    game.cities[0].shields = 0;
+    assert!(game.complete_production(leader, city));
+    game.process_player_cities(HUMAN);
+    assert!(game.cities[0].has_building(Building::TEMPLE));
+}

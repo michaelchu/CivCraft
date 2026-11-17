@@ -92,9 +92,9 @@ impl Game {
                     });
                 }
             }
-            UiAction::HelpWonder(city) => {
+            UiAction::CompleteProduction(city) => {
                 if let Some(id) = self.selected_unit
-                    && self.sim.apply(Command::HelpWonder {
+                    && self.sim.apply(Command::CompleteProduction {
                         unit_id: id,
                         city_id: city,
                     })

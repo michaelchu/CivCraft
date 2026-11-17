@@ -148,7 +148,7 @@ pub(crate) enum UiAction {
     ConnectTo(i32, i32),
     BeginPatrol,
     PatrolTo(i32, i32),
-    HelpWonder(u32),
+    CompleteProduction(u32),
     JoinCity(u32),
     Airlift(u32),
     BeginParadrop,
