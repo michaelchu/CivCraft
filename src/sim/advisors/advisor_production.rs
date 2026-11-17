@@ -1,5 +1,6 @@
 //! Advisor scoring of city production choices.
 
+use super::super::workers::WorkMap;
 use super::*;
 
 impl Simulation {
@@ -51,7 +52,7 @@ impl Simulation {
             && self.can_change_production(city, production)
         {
             self.trace.count_operation("advisor.settlement_hits", 1);
-            return Some(AiBuildChoice { production, want });
+            return self.price_settlement_expansion(city, AiBuildChoice { production, want });
         }
         self.trace
             .count_operation("advisor.settlement_recalculations", 1);
@@ -83,7 +84,152 @@ impl Simulation {
                 choice.map(|value| (value.production, value.want));
             self.cities[index].ai_settlement_next = turn + interval;
         }
-        choice
+        choice.and_then(|choice| self.price_settlement_expansion(city, choice))
+    }
+
+    pub(super) fn price_settlement_expansion(
+        &self,
+        city: &City,
+        mut choice: AiBuildChoice,
+    ) -> Option<AiBuildChoice> {
+        let Production::Unit(kind) = choice.production else {
+            return Some(choice);
+        };
+        let founders = self
+            .units
+            .iter()
+            .filter(|unit| unit.owner == city.owner && unit.kind.stats().can_found)
+            .count();
+        // A ferry can put founders already paid for to use. Don't strand
+        // that backlog by charging the price of another founder to its boat.
+        if !kind.stats().can_found && founders > 0 {
+            return Some(choice);
+        }
+        let settings = crate::rules::engine_rules::SettlementAiSettings::campaign();
+        let cities = self
+            .cities
+            .iter()
+            .filter(|other| other.owner == city.owner)
+            .count();
+        let queued = self
+            .cities
+            .iter()
+            .filter(|other| {
+                other.owner == city.owner
+                    && other.id != city.id
+                    && matches!(other.production, Production::Unit(unit) if unit.stats().can_found)
+            })
+            .count();
+        let land = self
+            .tiles
+            .iter()
+            .filter(|tile| !tile.terrain.is_water() && tile.terrain.allows_city())
+            .count();
+        let space = land as f64
+            / (self.civilization_count.max(1) as f64
+                * f64::from(settings.preferred_land_tiles_per_city));
+        let administration = self
+            .city_rule_effect(
+                city,
+                EffectKind::EmpireSizeBase,
+                None,
+                None,
+                None,
+                false,
+                self.players[city.owner].government,
+                None,
+            )
+            .max(1);
+        let sustainable = space.min(f64::from(administration)).max(1.0);
+        let committed = (cities + founders + queued) as f64;
+        // Preserve the initial foothold, including small island starts where
+        // a map-area estimate alone would suppress the very first ferry.
+        let foothold = f64::from(settings.free_expansion_cities);
+        // CivCraft balance extension to Freeciv's daidomestic founder want:
+        // include the empire's land/admin capacity and expansion already
+        // funded. This is a price, not a founding or city-count limit: a
+        // sufficiently valuable frontier can still justify further growth.
+        // Apply it AFTER the raw site cache on every pass, so new founders,
+        // queues and government changes never leave stale expansion wants.
+        let cost = f64::from(settings.expansion_cost_priority)
+            * ((committed - foothold).max(0.0) / (sustainable - foothold).max(1.0)).powi(2);
+        choice.want -= cost;
+        (choice.want > 0.0).then_some(choice)
+    }
+
+    #[cfg(any(test, feature = "scenarios"))]
+    pub(in crate::sim) fn expansion_balance_playtest(
+        &mut self,
+    ) -> Vec<(&'static str, bool, String)> {
+        self.units.clear();
+        self.cities.clear();
+        for tile in &mut self.tiles {
+            tile.terrain = Terrain::Grassland;
+            tile.resource = Some(Resource::Wheat);
+            tile.owner = Some(1);
+            tile.hut = false;
+            tile.known_by[1] = true;
+        }
+        self.players[1].government = Government::Despotism;
+        self.create_city(1, 10, 24);
+        self.cities[0].size = 4;
+        self.cities[0].specialists = [0; 3];
+        self.reconcile_city_workers();
+        let city = self.cities[0].clone();
+        let early = self.cached_settlement_choice(&city, None);
+        let next = self.cities[0].ai_settlement_next;
+        let raw = self.cities[0].ai_settlement_choice;
+        for _ in 0..30 {
+            self.spawn_unit(1, UnitKind::Settler, city.x, city.y);
+        }
+        let backlog = self.cached_settlement_choice(&city, None);
+        let fresh_pressure = backlog.is_none()
+            && self.cities[0].ai_settlement_next == next
+            && self.cities[0].ai_settlement_choice == raw;
+        self.units.clear();
+        let recovered = self.cached_settlement_choice(&city, None);
+        let recovered = recovered.zip(early).is_some_and(|(a, b)| a.want == b.want);
+        let quote = |want| AiBuildChoice {
+            production: Production::Unit(UnitKind::Settler),
+            want,
+        };
+        let mut checks = vec![
+            ("early_expansion", early.is_some(), "A young empire still wants a viable new city".into()),
+            ("pending_founders_reprice_cached_advice", fresh_pressure, "An existing founder backlog suppresses new production without waiting for the site-cache timer".into()),
+            ("expansion_recovers_when_backlog_clears", recovered, "Clearing commitments restores the cached site's original adjusted want".into()),
+        ];
+        self.create_city(1, 20, 24);
+        for _ in 0..2 {
+            self.spawn_unit(1, UnitKind::Settler, city.x, city.y);
+        }
+        let without_queue = self
+            .price_settlement_expansion(&city, quote(400.0))
+            .map(|c| c.want);
+        self.cities[1].production = Production::Unit(UnitKind::Settler);
+        let with_queue = self
+            .price_settlement_expansion(&city, quote(400.0))
+            .map(|c| c.want);
+        checks.push((
+            "queued_founders_have_a_cost",
+            with_queue < without_queue,
+            "Other cities' existing founder production counts as committed expansion".into(),
+        ));
+        for i in 2..20 {
+            self.create_city(1, 4 + (i % 5) * 6, 4 + (i / 5) * 6);
+        }
+        let ordinary = self.price_settlement_expansion(&city, quote(400.0));
+        let exceptional = self.price_settlement_expansion(&city, quote(10_000.0));
+        checks.push((
+            "large_empire_prices_marginal_expansion",
+            ordinary.is_none(),
+            "A crowded empire rejects an ordinary site after administration and space costs".into(),
+        ));
+        checks.push((
+            "valuable_sites_are_not_hard_capped",
+            exceptional.is_some(),
+            "A sufficiently valuable opportunity can justify expansion beyond twenty cities".into(),
+        ));
+        checks
     }
 
     fn cached_building_choice(
@@ -140,7 +286,11 @@ impl Simulation {
     /// Freeciv's `contemplate_terrain_improvements` values the best task a
     /// virtual worker could perform, then scales that want by upkeep,
     /// population cost, and the owner's worker-to-city ratio.
-    fn worker_production_choice_in_place(&mut self, city: &City) -> Option<(UnitKind, f64)> {
+    fn worker_production_choice_in_place(
+        &mut self,
+        city: &City,
+        worker_cache: &mut WorkMap,
+    ) -> Option<(UnitKind, f64)> {
         // `dai_role_utype_for_terrain_class(..., UTYF_WORKERS, TC_LAND)` walks
         // role units backwards and returns the first buildable type. CivCraft
         // maps the source worker flag from the Civ III catalog and uses its
@@ -168,7 +318,7 @@ impl Simulation {
         // autoworker advisor. A virtual unit starts at this city, like the
         // unit created by contemplate_terrain_improvements.
         let worker = self.make_unit(0, city.owner, kind, city.x, city.y);
-        let raw_want = self.worker_improvement_want(&worker) as i32;
+        let raw_want = self.worker_improvement_want_with_cache(&worker, worker_cache) as i32;
         if raw_want <= 0 {
             return None;
         }
@@ -208,7 +358,7 @@ impl Simulation {
     #[cfg(test)]
     pub(super) fn worker_production_choice(&self, city: &City) -> Option<(UnitKind, f64)> {
         let mut preview = self.clone();
-        preview.worker_production_choice_in_place(city)
+        preview.worker_production_choice_in_place(city, &mut Default::default())
     }
 
     /// Return the selected ruleset's raw food upkeep for a prospective worker.
@@ -674,6 +824,15 @@ impl Simulation {
         city: &City,
         wonder_city: Option<u32>,
     ) -> Option<AiBuildChoice> {
+        self.ai_build_choice_with_worker_cache(city, wonder_city, &mut Default::default())
+    }
+
+    fn ai_build_choice_with_worker_cache(
+        &mut self,
+        city: &City,
+        wonder_city: Option<u32>,
+        worker_cache: &mut WorkMap,
+    ) -> Option<AiBuildChoice> {
         let profiler = self.trace.profiler();
         let _profile = profiler.scope("advisor.build.military");
         let (_, military) = self.military_build_advice_with_wonder_city(city, wonder_city);
@@ -692,7 +851,7 @@ impl Simulation {
             }
         };
         let _profile = profiler.scope("advisor.build.worker");
-        if let Some((kind, want)) = self.worker_production_choice_in_place(city) {
+        if let Some((kind, want)) = self.worker_production_choice_in_place(city, worker_cache) {
             consider(Production::Unit(kind), want);
         }
         drop(_profile);
@@ -732,6 +891,15 @@ impl Simulation {
             .map(|city| city.id)
             .collect();
         let wonder_city = self.ai_wonder_city(owner);
+        // Freeciv daicity.c:dai_manage_cities initializes infracache once
+        // before contemplate_terrain_improvements visits the owner's cities.
+        // This pass changes production targets, not the tiles, assignments,
+        // technology, rates, government or units used by worker evaluation.
+        // Share infrastructure values and compatible terrain projections;
+        // worker_plan still builds routes and computes arrival per actor.
+        // Keep the cache local: spending, city processing and unit movement
+        // after this pass can invalidate it, including within the same turn.
+        let mut worker_cache = WorkMap::default();
         for id in ids {
             let Some(city) = self.city_by_id(id).cloned() else {
                 continue;
@@ -739,7 +907,9 @@ impl Simulation {
             let _profile = profiler.scope("advisor.build.military_tech_wants");
             self.record_ai_military_tech_wants(&city);
             drop(_profile);
-            if let Some(choice) = self.ai_build_choice_in_place(&city, wonder_city) {
+            if let Some(choice) =
+                self.ai_build_choice_with_worker_cache(&city, wonder_city, &mut worker_cache)
+            {
                 choices.insert(id, choice);
                 if city.production != choice.production {
                     self.change_production(id, choice.production);

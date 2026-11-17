@@ -446,6 +446,19 @@ CivCraft now follows those shapes without introducing a global path cache:
 - worker tile/activity values and safety checks are shared within a phase,
   while route cost, reservations, work rate, and road-network bonuses remain
   worker-specific; worker activity occupancy uses map-indexed vectors;
+- production advice shares infrastructure values and compatible terrain
+  projections across the owner's virtual workers, following
+  `daicity.c:dai_manage_cities`'s single `initialize_infrastructure_cache`
+  before the city loop. This cache is local to `prepare_ai_city_defenses`;
+  isolated advice starts fresh, and nothing survives into spending, movement,
+  city processing, or the next pass. Routes and arrival times are still
+  calculated separately for each virtual worker;
+- worker planning skips units without the worker flag, matching `daisettler.c`'s
+  `UTYF_WORKERS` guard. Road-to-rail eligibility shares the phase's terrain
+  projection cache. Road-network bonuses are reused only while the actual
+  road/rail worker activity maps remain unchanged, and founding a city clears
+  these caches along with other terrain projections. This preserves
+  `infracache.c`'s requirement that newly assigned road work affect bonuses;
 - government evaluation scans owner and home-city unit facts once per refresh;
 - ferry and rendezvous searches consume `NormalPaths` lazily and stop after a
   result is determined. Cross-actor reuse remains deliberately unsupported
@@ -474,6 +487,29 @@ advice, government projection, worker routing, and per-unit AI planning. Use
 counters for subsequent comparisons.
 
 ## Test entry points
+
+### Expansion balance
+
+The `expansion-balance` scenario checks that founder backlogs and other cities'
+founder queues immediately reduce production wants even when site advice is
+cached, that clearing those commitments restores expansion, and that valuable
+opportunities remain possible beyond twenty cities.
+
+CivCraft deliberately tunes Freeciv's dense small-city preference: overlap is
+more expensive and unclaimed room for growth is worth more. Founder production
+also pays a rising price against the smaller of government administration
+capacity (`Empire_Size_Base`) and a fair share of habitable map area. Live
+founders and other cities' founder queues count as committed expansion. The
+ruleset's `preferred_land_tiles_per_city` and `expansion_cost_priority` tune
+this price. `free_expansion_cities` preserves an initial foothold, including
+the first ferry on a small island. This changes AI incentives, not founding
+legality or a city cap.
+These are CivCraft balance choices, not claims about unmodified Freeciv AI.
+
+```sh
+cargo run --offline --release --bin headless_sim -- \
+  --scenario expansion-balance --turns 1 --report /tmp/expansion-balance.json
+```
 
 Both executables are thin wrappers around the library. Shared simulation,
 analytics, UI, and CLI tests run once in the library harness:

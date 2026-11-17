@@ -881,8 +881,13 @@ shield_priority = 17
 trade_priority = 18
 research_priority_percent = 120
 no_research_priority = 1
-growth_priority = 15
-growth_potential_deemphasis = 8
+; CivCraft balance: prefer room for growth and price committed expansion.
+; These override Freeciv's dense small-city preference; they are not a cap.
+growth_priority = 45
+growth_potential_deemphasis = 4
+preferred_land_tiles_per_city = 14
+expansion_cost_priority = 400
+free_expansion_cities = 3
 growth_food_threshold = 2
 perfection = 3
 good_enough = 250

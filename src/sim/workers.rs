@@ -7,7 +7,8 @@ use super::*;
 mod planning;
 #[cfg(test)]
 mod playtest;
-use planning::{WORKER_FACTOR, WorkMap, amortize};
+pub(super) use planning::WorkMap;
+use planning::{WORKER_FACTOR, amortize};
 #[cfg(test)]
 use planning::{WorkerPlan, consider_action};
 use std::cmp::Reverse;
@@ -400,13 +401,20 @@ impl Simulation {
     }
 
     pub(super) fn worker_improvement_want(&mut self, actor: &Unit) -> f32 {
-        self.worker_plan(actor, &mut WorkMap::default(), &[])
-            .map_or(0.0, |plan| {
-                amortize(
-                    (plan.new - plan.old + plan.extra) * WORKER_FACTOR,
-                    plan.delay,
-                ) / WORKER_FACTOR
-            })
+        self.worker_improvement_want_with_cache(actor, &mut WorkMap::default())
+    }
+
+    pub(super) fn worker_improvement_want_with_cache(
+        &mut self,
+        actor: &Unit,
+        cache: &mut WorkMap,
+    ) -> f32 {
+        self.worker_plan(actor, cache, &[]).map_or(0.0, |plan| {
+            amortize(
+                (plan.new - plan.old + plan.extra) * WORKER_FACTOR,
+                plan.delay,
+            ) / WORKER_FACTOR
+        })
     }
 
     pub(super) fn run_auto_worker(&mut self, id: u32) {

@@ -54,6 +54,82 @@ fn worker_road_bonus_rewards_network_connectors_not_isolated_spurs() {
 }
 
 #[test]
+fn road_bonus_cache_tracks_new_work_and_founder_terrain_changes() {
+    let mut game = game();
+    let center = (10, 20);
+    let north = offset_native_by_map(center.0, center.1, 0, -1);
+    let id = game.spawn_unit(1, UnitKind::Worker, north.0, north.1);
+    let index = game.map_wrap.index(north.0, north.1);
+    let mut roads = vec![false; game.tiles.len()];
+    let rails = vec![false; game.tiles.len()];
+    let mut cache = WorkMap::default();
+    cache.prepare_road_bonuses(&roads, &rails);
+    for _ in 0..2 {
+        assert_eq!(
+            game.cached_worker_road_extra(&mut cache, center, false, &roads, &rails),
+            0.0
+        );
+    }
+
+    // A worker starting a road changes the bonus before the road completes.
+    let unit = game.units.iter_mut().find(|unit| unit.id == id).unwrap();
+    unit.work_kind = Some(WorkKind::Road);
+    roads[index] = true;
+    cache.prepare_road_bonuses(&roads, &rails);
+    let connected = game.worker_road_extra(center, false);
+    assert!(connected > 0.0);
+    assert_eq!(
+        game.cached_worker_road_extra(&mut cache, center, false, &roads, &rails),
+        connected
+    );
+
+    game.units
+        .iter_mut()
+        .find(|unit| unit.id == id)
+        .unwrap()
+        .work_kind = None;
+    roads[index] = false;
+    cache.prepare_road_bonuses(&roads, &rails);
+    assert_eq!(
+        game.cached_worker_road_extra(&mut cache, center, false, &roads, &rails),
+        0.0
+    );
+
+    // Founding can change tile infrastructure with no activity-map change.
+    game.tile_mut(north.0, north.1).road = true;
+    cache.clear_projections();
+    cache.prepare_road_bonuses(&roads, &rails);
+    assert_eq!(
+        game.cached_worker_road_extra(&mut cache, center, false, &roads, &rails),
+        connected
+    );
+}
+
+#[test]
+fn non_worker_units_skip_worker_routes_and_scoring() {
+    let mut game = game();
+    game.create_city(1, 10, 20);
+    let scout = game.make_unit(999, 1, UnitKind::Scout, 10, 20);
+    assert!(!scout.kind.is_worker());
+    game.trace.enable_profiling();
+    game.trace
+        .begin_turn_profile(game.turn, game.cities.len(), game.units.len());
+    assert_eq!(game.worker_improvement_want(&scout), 0.0);
+    game.trace.finish_turn_profile();
+    let profiles = game.trace.drain_profiles();
+    assert!(
+        !profiles[0]
+            .operations
+            .contains_key("worker.route_maps_built")
+    );
+    assert!(
+        !profiles[0]
+            .operations
+            .contains_key("worker.worksite_candidates")
+    );
+}
+
+#[test]
 fn worker_road_bonus_ignores_connectors_whose_destinations_are_too_slow() {
     let mut game = game();
     let center = (10, 20);

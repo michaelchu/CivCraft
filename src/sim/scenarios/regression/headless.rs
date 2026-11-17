@@ -6,6 +6,7 @@ use super::*;
 pub(super) const SCENARIOS: &[Scenario] = &[
     Scenario::all_ai("city-healing", city_healing),
     Scenario::all_ai("settlement-ferry", settlement_ferry),
+    Scenario::all_ai("expansion-balance", expansion_balance),
     Scenario::all_ai("combat-matrix", combat_matrix),
     Scenario::new("ai-paradrops", ai_paradrops),
 ];
@@ -37,6 +38,10 @@ fn settlement_ferry(sim: &mut Simulation, checks: &mut Checks) {
             "AI transported its founder and established the island city".into(),
         ),
     ]);
+}
+
+fn expansion_balance(sim: &mut Simulation, checks: &mut Checks) {
+    checks.extend(sim.expansion_balance_playtest());
 }
 
 fn combat_matrix(sim: &mut Simulation, checks: &mut Checks) {
