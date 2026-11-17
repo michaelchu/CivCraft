@@ -83,6 +83,7 @@ impl Report {
         );
         Ok(())
     }
+    #[cfg(feature = "desktop")]
     pub fn final_minimap(
         &mut self,
         turn: i32,

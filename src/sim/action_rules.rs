@@ -365,11 +365,11 @@ impl<'a> SimulationRequirementContext<'a> {
             Some(ResolvedRequirementValue::Tech(tech)) => tech,
             _ => match &requirement.name {
                 RequirementValue::String(name) => {
-                    match super::content_adapter::bind_freeciv_technology(self.ruleset, name)
+                    match crate::rules::content_adapter::bind_freeciv_technology(name)
                         .map_err(|_| Self::unsupported(requirement))?
                     {
-                        super::content_adapter::FreecivTechBinding::Bound(tech) => tech,
-                        super::content_adapter::FreecivTechBinding::MissingFromCiv3Catalog => {
+                        crate::rules::content_adapter::FreecivTechBinding::Bound(tech) => tech,
+                        crate::rules::content_adapter::FreecivTechBinding::MissingFromCiv3Catalog => {
                             if self.unbound_content_is_absent {
                                 return Ok(false);
                             }

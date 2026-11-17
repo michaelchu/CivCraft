@@ -12,6 +12,7 @@ mod pacts;
 mod scenarios;
 mod vision;
 mod war_planning;
+#[cfg(feature = "desktop")]
 pub(crate) use espionage::EspionageRivalView;
 pub(crate) use espionage::{EspionageMission, EspionageRisk};
 #[cfg(test)]

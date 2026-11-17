@@ -1,4 +1,7 @@
-//! Campaign music loaded from the user's Civilization III installation.
+//! Campaign music loaded through configured media roots.
+use super::asset_error::{AssetError, AssetResult};
+#[cfg(test)]
+use std::path::Path;
 
 use crate::rules::TechEra;
 #[cfg(test)]
@@ -9,19 +12,9 @@ use macroquad::audio::{
 use macroquad::prelude::get_frame_time;
 use std::{
     fs,
-    io::{Cursor, ErrorKind},
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::mpsc::{self, Receiver, TryRecvError},
     thread,
-};
-use symphonia::core::{
-    audio::SampleBuffer,
-    codecs::DecoderOptions,
-    errors::Error as DecodeError,
-    formats::FormatOptions,
-    io::{MediaSourceStream, MediaSourceStreamOptions},
-    meta::MetadataOptions,
-    probe::Hint,
 };
 
 const CULTURE_GROUP_CODES: [&str; 5] = ["NA", "EC", "GR", "ME", "OR"];
@@ -72,11 +65,12 @@ fn crossfade_weights(progress: f32) -> (f32, f32) {
 
 /// Manages the current looping music track for an interactive campaign.
 pub(crate) struct MusicPlayer {
-    root: Option<PathBuf>,
+    library: Option<std::sync::Arc<super::audio_assets::AudioLibrary>>,
+    full_looped: bool,
     requested_cue: Option<MusicCue>,
     current_sound: Option<Sound>,
     incoming_sound: Option<Sound>,
-    pending_load: Option<Receiver<(MusicCue, Result<PreparedMusic, String>)>>,
+    pending_load: Option<Receiver<(MusicCue, AssetResult<PreparedMusic>)>>,
     full_after_intro: Option<Sound>,
     intro_duration: Option<f32>,
     intro_elapsed: f32,
@@ -90,16 +84,16 @@ pub(crate) struct MusicPlayer {
 struct PreparedMusic {
     intro: Option<(Vec<u8>, f32)>,
     full_track: Vec<u8>,
+    looped: bool,
 }
 
 impl MusicPlayer {
-    pub(crate) fn new(enabled: bool) -> Self {
-        let root = enabled
-            .then(|| super::tileset::locate_source_root().ok())
-            .flatten()
-            .map(|path| path.join("Sounds"));
+    pub(crate) fn new(context: &super::AssetContext) -> Self {
+        let library = context.audio.clone();
+        let enabled = library.is_some();
         Self {
-            root,
+            library,
+            full_looped: true,
             requested_cue: None,
             current_sound: None,
             incoming_sound: None,
@@ -126,13 +120,21 @@ impl MusicPlayer {
         if !self.enabled {
             return;
         }
-        let Some(root) = self.root.as_deref() else {
+        let Some(library) = self.library.as_ref() else {
             return;
         };
         let cue = MusicCue { era, culture_group };
 
         if request_music_cue(&mut self.requested_cue, cue) {
-            let Some(paths) = resolve_music_paths(root, cue) else {
+            let paths = match resolve_library_music(library, cue) {
+                Ok(paths) => paths,
+                Err(error) => {
+                    self.stop_current();
+                    eprintln!("Could not resolve music: {error}");
+                    return;
+                }
+            };
+            let Some((paths, looped)) = paths else {
                 self.stop_current();
                 eprintln!(
                     "No Civ III music track found for {} culture group {}",
@@ -149,19 +151,22 @@ impl MusicPlayer {
                     } else {
                         let mut clip_bytes = Vec::with_capacity(paths.clips.len());
                         for path in paths.clips {
-                            clip_bytes.push(
-                                fs::read(&path)
-                                    .map_err(|error| format!("{}: {error}", path.display()))?,
-                            );
+                            clip_bytes.push(fs::read(&path).map_err(|error| {
+                                AssetError::io("read intro clip", &path, error)
+                            })?);
                         }
-                        let (wav, duration) = concatenate_wav_clips(&clip_bytes)?;
+                        let (wav, duration) =
+                            super::audio_codecs::concatenate_wav_clips(&clip_bytes)?;
                         Some((wav, duration))
                     };
                     let bytes = fs::read(&paths.full_track)
-                        .map_err(|error| format!("{}: {error}", paths.full_track.display()))?;
-                    let full_track = decode_mp3_to_wav(&bytes)
-                        .map_err(|error| format!("{}: {error}", paths.full_track.display()))?;
-                    Ok(PreparedMusic { intro, full_track })
+                        .map_err(|error| AssetError::io("read music", &paths.full_track, error))?;
+                    let full_track = super::audio_codecs::decode_to_wav(&paths.full_track, &bytes)?;
+                    Ok(PreparedMusic {
+                        intro,
+                        full_track,
+                        looped,
+                    })
                 })();
                 let _ = sender.send((cue, result));
             });
@@ -189,6 +194,7 @@ impl MusicPlayer {
                                     }
                                     None => None,
                                 };
+                                self.full_looped = prepared.looped;
                                 match load_sound_from_bytes(&prepared.full_track).await {
                                     Ok(full_sound) => {
                                         if self.incoming_playing
@@ -206,7 +212,7 @@ impl MusicPlayer {
                                                 self.full_after_intro = None;
                                                 self.intro_duration = None;
                                                 self.intro_elapsed = 0.0;
-                                                (full_sound, true)
+                                                (full_sound, prepared.looped)
                                             };
                                         if self.playing {
                                             self.incoming_sound = Some(sound);
@@ -266,7 +272,7 @@ impl MusicPlayer {
                 play_sound(
                     self.current_sound.as_ref().unwrap(),
                     PlaySoundParams {
-                        looped: true,
+                        looped: self.full_looped,
                         volume: 0.0,
                     },
                 );
@@ -352,13 +358,36 @@ struct MusicPaths {
     full_track: PathBuf,
 }
 
+#[cfg(test)]
+fn resolve_music_file(root: &Path, relative: &Path) -> Option<PathBuf> {
+    let roots = if root.file_name().is_some_and(|name| name == "Sounds") {
+        let install = root.parent()?;
+        vec![
+            install.join("Conquests/Sounds"),
+            install.join("civ3PTW/Sounds"),
+            root.to_owned(),
+        ]
+    } else {
+        vec![root.to_owned()]
+    };
+    super::media::Civ3MediaResolver::new(roots)
+        .resolve(relative.to_str()?)
+        .ok()
+        .filter(|p| p.is_file())
+}
+
+#[cfg(test)]
 fn resolve_music_paths(root: &Path, cue: MusicCue) -> Option<MusicPaths> {
     let full_track = resolve_track(root, cue.era, cue.culture_group)?;
     let clips = if cue.era == TechEra::Ancient {
         if let Some(code) = group_code(cue.culture_group) {
             (b'a'..=b'i')
-                .map(|letter| root.join(format!("build/ancient/Anc{code}{}.wav", letter as char)))
-                .filter(|path| path.is_file())
+                .filter_map(|letter| {
+                    resolve_music_file(
+                        root,
+                        Path::new(&format!("build/ancient/Anc{code}{}.wav", letter as char)),
+                    )
+                })
                 .collect()
         } else {
             Vec::new()
@@ -367,141 +396,6 @@ fn resolve_music_paths(root: &Path, cue: MusicCue) -> Option<MusicPaths> {
         Vec::new()
     };
     Some(MusicPaths { clips, full_track })
-}
-
-fn concatenate_wav_clips(clips: &[Vec<u8>]) -> Result<(Vec<u8>, f32), String> {
-    let first = clips
-        .first()
-        .ok_or_else(|| "no Ancient WAV clips found".to_owned())?;
-    if first.len() < 44 || &first[0..4] != b"RIFF" || &first[8..12] != b"WAVE" {
-        return Err("Ancient WAV clip has an unsupported header".to_owned());
-    }
-    let format = &first[12..40];
-    let byte_rate = u32::from_le_bytes(first[28..32].try_into().unwrap());
-    if byte_rate == 0 {
-        return Err("Ancient WAV clip has an invalid byte rate".to_owned());
-    }
-    let mut audio = Vec::new();
-    for clip in clips {
-        if clip.len() < 44
-            || &clip[0..4] != b"RIFF"
-            || &clip[8..12] != b"WAVE"
-            || &clip[12..40] != format
-            || &clip[36..40] != b"data"
-        {
-            return Err("Ancient WAV clips do not share a supported PCM format".to_owned());
-        }
-        let data_size = u32::from_le_bytes(clip[40..44].try_into().unwrap()) as usize;
-        let data_end = 44_usize
-            .checked_add(data_size)
-            .filter(|&end| end <= clip.len())
-            .ok_or_else(|| "Ancient WAV clip is truncated".to_owned())?;
-        audio.extend_from_slice(&clip[44..data_end]);
-    }
-    let data_size =
-        u32::try_from(audio.len()).map_err(|_| "Ancient intro is too large".to_owned())?;
-    let riff_size = data_size
-        .checked_add(36)
-        .ok_or_else(|| "Ancient intro is too large".to_owned())?;
-    let mut wav = Vec::with_capacity(44 + audio.len());
-    wav.extend_from_slice(&first[..44]);
-    wav[4..8].copy_from_slice(&riff_size.to_le_bytes());
-    wav[40..44].copy_from_slice(&data_size.to_le_bytes());
-    wav.extend_from_slice(&audio);
-    let duration = data_size as f32 / byte_rate as f32;
-    Ok((wav, duration))
-}
-
-fn decode_mp3_to_wav(bytes: &[u8]) -> Result<Vec<u8>, String> {
-    let stream = MediaSourceStream::new(
-        Box::new(Cursor::new(bytes.to_vec())),
-        MediaSourceStreamOptions::default(),
-    );
-    let mut hint = Hint::new();
-    hint.with_extension("mp3");
-    let probed = symphonia::default::get_probe()
-        .format(
-            &hint,
-            stream,
-            &FormatOptions::default(),
-            &MetadataOptions::default(),
-        )
-        .map_err(|error| error.to_string())?;
-    let mut format = probed.format;
-    let track = format
-        .default_track()
-        .ok_or_else(|| "MP3 has no audio track".to_owned())?;
-    let track_id = track.id;
-    let codec_params = track.codec_params.clone();
-    let mut decoder = symphonia::default::get_codecs()
-        .make(&codec_params, &DecoderOptions::default())
-        .map_err(|error| error.to_string())?;
-    let mut sample_rate = None;
-    let mut channel_count = None;
-    let mut samples = Vec::<i16>::new();
-
-    loop {
-        let packet = match format.next_packet() {
-            Ok(packet) => packet,
-            Err(DecodeError::IoError(error)) if error.kind() == ErrorKind::UnexpectedEof => break,
-            Err(DecodeError::ResetRequired) => {
-                decoder.reset();
-                continue;
-            }
-            Err(error) => return Err(error.to_string()),
-        };
-        if packet.track_id() != track_id {
-            continue;
-        }
-        let decoded = match decoder.decode(&packet) {
-            Ok(decoded) => decoded,
-            Err(DecodeError::DecodeError(_)) => continue,
-            Err(DecodeError::ResetRequired) => {
-                decoder.reset();
-                continue;
-            }
-            Err(error) => return Err(error.to_string()),
-        };
-        let spec = *decoded.spec();
-        let rate = spec.rate;
-        let channels = spec.channels.count();
-        if sample_rate.is_some_and(|current| current != rate)
-            || channel_count.is_some_and(|current| current != channels)
-        {
-            return Err("MP3 changes sample rate or channel count mid-track".to_owned());
-        }
-        sample_rate = Some(rate);
-        channel_count = Some(channels);
-        let mut buffer = SampleBuffer::<i16>::new(decoded.capacity() as u64, spec);
-        buffer.copy_interleaved_ref(decoded);
-        samples.extend_from_slice(buffer.samples());
-    }
-
-    let sample_rate = sample_rate.ok_or_else(|| "MP3 contained no decoded samples".to_owned())?;
-    let channels = channel_count.ok_or_else(|| "MP3 contained no audio channels".to_owned())?;
-    let data_bytes = u32::try_from(samples.len() * 2)
-        .map_err(|_| "decoded MP3 is too large for a WAV buffer".to_owned())?;
-    let channels = u16::try_from(channels).map_err(|_| "MP3 has too many channels".to_owned())?;
-    let block_align = channels * 2;
-    let byte_rate = sample_rate * u32::from(block_align);
-
-    let mut wav = Vec::with_capacity(44 + data_bytes as usize);
-    wav.extend_from_slice(b"RIFF");
-    wav.extend_from_slice(&(36 + data_bytes).to_le_bytes());
-    wav.extend_from_slice(b"WAVEfmt ");
-    wav.extend_from_slice(&16_u32.to_le_bytes());
-    wav.extend_from_slice(&1_u16.to_le_bytes());
-    wav.extend_from_slice(&channels.to_le_bytes());
-    wav.extend_from_slice(&sample_rate.to_le_bytes());
-    wav.extend_from_slice(&byte_rate.to_le_bytes());
-    wav.extend_from_slice(&block_align.to_le_bytes());
-    wav.extend_from_slice(&16_u16.to_le_bytes());
-    wav.extend_from_slice(b"data");
-    wav.extend_from_slice(&data_bytes.to_le_bytes());
-    for sample in samples {
-        wav.extend_from_slice(&sample.to_le_bytes());
-    }
-    Ok(wav)
 }
 
 fn group_code(group: i32) -> Option<&'static str> {
@@ -534,37 +428,66 @@ fn ordered_group_codes(group: i32) -> impl Iterator<Item = &'static str> {
         .map(move |index| CULTURE_GROUP_CODES[(offset + index) % CULTURE_GROUP_CODES.len()])
 }
 
-/// Resolves an exact culture/era track first, then a deterministic era fallback.
-fn resolve_track(root: &Path, era: TechEra, group: i32) -> Option<PathBuf> {
-    let exact = exact_track(era, group).map(|path| root.join(path));
-    if let Some(path) = exact.filter(|path| path.is_file()) {
-        return Some(path);
-    }
-
-    let fallbacks: Vec<PathBuf> = match era {
+fn music_candidates(era: TechEra, group: i32) -> Vec<PathBuf> {
+    let mut candidates: Vec<_> = exact_track(era, group).into_iter().collect();
+    let fallbacks: Vec<_> = match era {
         TechEra::Ancient => ordered_group_codes(group)
             .map(|code| {
                 let full = if code == "ME" { "Full" } else { "full" };
-                root.join(format!("build/ancient/Anc{code}{full}.mp3"))
+                PathBuf::from(format!("build/ancient/Anc{code}{full}.mp3"))
             })
             .collect(),
         TechEra::MiddleAges => ordered_group_codes(group)
-            .map(|code| root.join(format!("build/Middle Ages/Mid{code}Full.mp3")))
+            .map(|code| PathBuf::from(format!("build/Middle Ages/Mid{code}Full.mp3")))
             .collect(),
         TechEra::Industrial => ordered_group_codes(group)
-            .map(|code| root.join(format!("build/IndModern/Ind{code}Full.mp3")))
+            .map(|code| PathBuf::from(format!("build/IndModern/Ind{code}Full.mp3")))
             .collect(),
         TechEra::Modern => {
             let offset = usize::try_from(group).unwrap_or_default() % GENERIC_MODERN_TRACKS.len();
             (0..GENERIC_MODERN_TRACKS.len())
-                .map(|index| {
-                    root.join(GENERIC_MODERN_TRACKS[(offset + index) % GENERIC_MODERN_TRACKS.len()])
+                .map(|i| {
+                    PathBuf::from(GENERIC_MODERN_TRACKS[(offset + i) % GENERIC_MODERN_TRACKS.len()])
                 })
                 .collect()
         }
     };
-
-    fallbacks.into_iter().find(|path| path.is_file())
+    candidates.extend(fallbacks);
+    candidates
+}
+#[cfg(test)]
+fn resolve_track(root: &Path, era: TechEra, group: i32) -> Option<PathBuf> {
+    music_candidates(era, group)
+        .into_iter()
+        .find_map(|p| resolve_music_file(root, &p))
+}
+fn resolve_library_music(
+    library: &super::audio_assets::AudioLibrary,
+    cue: MusicCue,
+) -> AssetResult<Option<(MusicPaths, bool)>> {
+    for candidate in music_candidates(cue.era, cue.culture_group) {
+        let logical = format!("Sounds/{}", candidate.to_string_lossy());
+        if let Some(full_track) = library.resolve_default(&logical)? {
+            let mut clips = Vec::new();
+            if cue.era == TechEra::Ancient
+                && let Some(code) = group_code(cue.culture_group)
+            {
+                for letter in b'a'..=b'i' {
+                    if let Some(path) = library.resolve_default(&format!(
+                        "Sounds/build/ancient/Anc{code}{}.wav",
+                        letter as char
+                    ))? {
+                        clips.push(path);
+                    }
+                }
+            }
+            return Ok(Some((
+                MusicPaths { clips, full_track },
+                library.default_looped(&logical),
+            )));
+        }
+    }
+    Ok(None)
 }
 
 #[cfg(test)]
@@ -581,7 +504,33 @@ mod tests {
             TEMP_DIR_COUNTER.fetch_add(1, Ordering::Relaxed)
         ));
         fs::create_dir(&root).unwrap();
-        root
+        root.canonicalize().unwrap()
+    }
+
+    #[test]
+    fn music_uses_expansion_precedence_and_case_insensitive_clip_names() {
+        let install = temp_sounds();
+        let root = install.join("Sounds");
+        let base = root.join("build/ancient");
+        let expansion = install.join("conquests/sounds/BUILD/ANCIENT");
+        fs::create_dir_all(&base).unwrap();
+        fs::create_dir_all(&expansion).unwrap();
+        fs::write(base.join("AncGRfull.mp3"), "base").unwrap();
+        let track = expansion.join("ancgrFULL.MP3");
+        let clip = expansion.join("ancgrA.WAV");
+        fs::write(&track, "expansion").unwrap();
+        fs::write(&clip, "intro").unwrap();
+        let paths = resolve_music_paths(
+            &root,
+            MusicCue {
+                era: TechEra::Ancient,
+                culture_group: 2,
+            },
+        )
+        .unwrap();
+        assert_eq!(paths.full_track, track);
+        assert_eq!(paths.clips, vec![clip]);
+        fs::remove_dir_all(install).unwrap();
     }
 
     #[test]
@@ -731,7 +680,8 @@ mod tests {
         if !path.is_file() {
             return;
         }
-        let wav = decode_mp3_to_wav(&fs::read(path).unwrap()).unwrap();
+        let wav =
+            super::super::audio_codecs::decode_to_wav(&path, &fs::read(&path).unwrap()).unwrap();
         assert_eq!(&wav[..4], b"RIFF");
         assert_eq!(&wav[8..12], b"WAVE");
         assert!(wav.len() > 44);

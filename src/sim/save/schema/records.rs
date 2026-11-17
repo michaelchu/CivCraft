@@ -1,4 +1,4 @@
-//! Frozen entity layouts for campaign formats 0x26 through 0x28.
+//! Frozen entity layouts for campaign formats 0x26 through 0x29.
 //!
 //! These remote definitions read and write the original bincode sequence and
 //! enum tags. The simulation types can evolve by updating the conversion at
@@ -177,17 +177,6 @@ pub(super) mod map {
             }
         }
         deserializer.deserialize_map(Map(PhantomData))
-    }
-
-    pub(in crate::sim::save::schema) fn deserialize_cow<
-        'de,
-        K: Ord + Clone + Deserialize<'de> + 'static,
-        T: Wire + Clone + 'static,
-        D: Deserializer<'de>,
-    >(
-        deserializer: D,
-    ) -> Result<Cow<'static, BTreeMap<K, T>>, D::Error> {
-        deserialize(deserializer).map(Cow::Owned)
     }
 }
 
@@ -705,5 +694,7 @@ struct ObservedMapWire {
     #[serde(with = "map")]
     cities: BTreeMap<(usize, u32), (u64, ObservedCity)>,
     #[serde(skip)]
-    human_city_owners: BTreeMap<(i32, i32), usize>,
+    city_owners: BTreeMap<(usize, usize), usize>,
+    #[serde(skip)]
+    partial_sites: observed_map::PartialCitySites,
 }

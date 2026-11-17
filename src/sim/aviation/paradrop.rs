@@ -54,45 +54,6 @@ fn selected_airlift_capacity_always_enabled(source: bool) -> Option<bool> {
 }
 
 impl Simulation {
-    pub(crate) fn known_target_tile(&self, owner: usize, x: i32, y: i32) -> Option<Tile> {
-        let index = self.map_wrap.index(x, y);
-        let live = self.tile(x, y);
-        if !live.known_by[owner] {
-            return None;
-        }
-        if owner == HUMAN {
-            if live.visible {
-                return Some(live.clone());
-            }
-            if live.seen {
-                return self.remembered_tile(owner, x, y).cloned();
-            }
-            return None;
-        }
-
-        let observation = self.ai_map_memory.get(&(owner, index))?;
-        let mut tile = live.clone();
-        tile.terrain = observation.route.terrain;
-        tile.road = observation.route.road;
-        tile.railroad = observation.route.railroad;
-        tile.river = observation.route.river;
-        tile.base = None;
-        tile.owner = observation.owner;
-        Some(tile)
-    }
-
-    pub(crate) fn known_target_is_city(&self, owner: usize, x: i32, y: i32) -> bool {
-        if owner == HUMAN {
-            self.render_cities()
-                .iter()
-                .any(|city| (city.city.x, city.city.y) == (x, y))
-        } else {
-            self.ai_map_memory
-                .get(&(owner, self.map_wrap.index(x, y)))
-                .is_some_and(|observation| observation.route.city_owner.is_some())
-        }
-    }
-
     fn paradrop_tile_is_native(&self, kind: UnitKind, tile: &Tile) -> bool {
         let rules = crate::sim::movement_rules::MovementRules::campaign();
         let class = rules
@@ -246,13 +207,13 @@ impl Simulation {
         if !(0..self.map_wrap.height()).contains(&y) || distance < 1 || distance > range {
             return false;
         }
-        let Some(target_state) = self.known_target_tile(unit.owner, x, y) else {
+        let Some(target_state) = self.known_tile_for(unit.owner, x, y) else {
             return false;
         };
-        (self.known_target_is_city(unit.owner, x, y)
-            || self.paradrop_tile_is_native(unit.kind, &target_state))
+        (self.observed_city_owner(unit.owner, x, y).is_some()
+            || self.paradrop_tile_is_native(unit.kind, target_state))
             && self
-                .selected_paradrop_action(unit, (x, y), &target_state)
+                .selected_paradrop_action(unit, (x, y), target_state)
                 .is_some()
     }
 
@@ -401,10 +362,10 @@ impl Simulation {
             }
             return false;
         }
-        let Some(known_tile) = self.known_target_tile(unit.owner, x, y) else {
+        let Some(known_tile) = self.known_tile_for(unit.owner, x, y) else {
             return false;
         };
-        let Some(action) = self.selected_paradrop_action(&unit, (x, y), &known_tile) else {
+        let Some(action) = self.selected_paradrop_action(&unit, (x, y), known_tile) else {
             return false;
         };
 

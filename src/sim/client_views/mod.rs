@@ -689,6 +689,36 @@ mod tests {
     }
 
     #[test]
+    fn movement_order_buttons_and_commands_share_actor_eligibility() {
+        let mut game = Simulation::new(crate::test_support::seeded_map());
+        game.units.clear();
+        let start = (10, 24);
+        let target = game.map_wrap.civ3_neighbor(start.0, start.1, 1).unwrap();
+        for (x, y) in [start, target] {
+            let tile = game.tile_mut(x, y);
+            tile.terrain = Terrain::Grassland;
+            tile.road = false;
+        }
+        let id = game.spawn_unit(HUMAN, UnitKind::Worker, start.0, start.1);
+        game.refresh_visibility();
+
+        assert!(!game.unit_action_view(id).unwrap().can_patrol);
+        assert!(!game.apply(Command::Patrol(id, target.0, target.1)));
+        assert!(game.unit_action_view(id).unwrap().can_connect);
+        assert!(game.apply(Command::Work(id, WorkKind::Road)));
+        assert!(!game.unit_action_view(id).unwrap().can_connect);
+        assert!(!game.apply(Command::Connect(id, target.0, target.1)));
+        assert_eq!(game.unit_by_id(id).unwrap().work_kind, Some(WorkKind::Road));
+
+        game.units.clear();
+        let guard = game.spawn_unit(HUMAN, UnitKind::Warrior, start.0, start.1);
+        game.refresh_visibility();
+        assert!(game.unit_action_view(guard).unwrap().can_patrol);
+        assert!(game.apply(Command::Patrol(guard, target.0, target.1)));
+        assert!(!game.unit_action_view(guard).unwrap().can_patrol);
+    }
+
+    #[test]
     fn found_city_button_and_command_share_movement_and_treaty_checks() {
         let mut sim = Simulation::new(crate::mapgen::generate(42));
         sim.units.clear();

@@ -4,6 +4,7 @@ use crate::native::apple::{
     apple_util::{self, msg_send_},
     frameworks::*,
 };
+use std::{convert::TryFrom, ptr::NonNull};
 
 use super::*;
 
@@ -390,6 +391,98 @@ impl RenderingBackend for MetalContext {
             },
         }
     }
+
+    fn enable_screen_readback(&mut self) {
+        unsafe { msg_send_![self.view, setFramebufferOnly: BOOL::from(false)] };
+    }
+
+    fn read_screen_pixels(&mut self) -> Result<ScreenPixels, &'static str> {
+        if self.render_encoder.is_some() {
+            return Err("finish the Metal render pass before reading pixels");
+        }
+        let command_buffer = self
+            .command_buffer
+            .ok_or("no rendered Metal frame to capture")?;
+        unsafe {
+            let drawable = msg_send_![self.view, currentDrawable];
+            let texture = msg_send_![drawable, texture];
+            if texture.is_null() {
+                return Err("no Metal drawable to capture");
+            }
+            let framebuffer_only: BOOL = msg_send![texture, isFramebufferOnly];
+            let format: u64 = msg_send![texture, pixelFormat];
+            let samples: u64 = msg_send![self.view, sampleCount];
+            if framebuffer_only != BOOL::from(false)
+                || format != MTLPixelFormat::BGRA8Unorm as u64
+                || samples != 1
+            {
+                return Err("expected a readable, single-sample BGRA8 Metal framebuffer");
+            }
+            let width: u64 = msg_send![texture, width];
+            let height: u64 = msg_send![texture, height];
+            let image_width = u16::try_from(width).map_err(|_| "Metal framebuffer is too wide")?;
+            let image_height =
+                u16::try_from(height).map_err(|_| "Metal framebuffer is too tall")?;
+            if width == 0 || height == 0 {
+                return Err("Metal framebuffer is empty");
+            }
+            let bytes_per_row = width * 4;
+            let byte_count = bytes_per_row * height;
+            let buffer = msg_send_![self.device, newBufferWithLength: byte_count
+                options: MTLResourceOptions::StorageModeShared];
+            let buffer = NonNull::new(buffer)
+                .map(RcObjcId::from_owned)
+                .ok_or("could not allocate Metal screenshot buffer")?;
+            let origin = MTLOrigin { x: 0, y: 0, z: 0 };
+            let size = MTLSize {
+                width,
+                height,
+                depth: 1,
+            };
+            let encoder = msg_send_![command_buffer, blitCommandEncoder];
+            if encoder.is_null() {
+                return Err("could not create Metal screenshot blit encoder");
+            }
+            msg_send_![encoder, copyFromTexture: texture
+                sourceSlice: 0_u64
+                sourceLevel: 0_u64
+                sourceOrigin: origin
+                sourceSize: size
+                toBuffer: buffer.as_id()
+                destinationOffset: 0_u64
+                destinationBytesPerRow: bytes_per_row
+                destinationBytesPerImage: byte_count];
+            msg_send_![encoder, endEncoding];
+
+            // Read the rendered pixels before presentation can discard the drawable's contents.
+            // Any subsequent drawing and presentation continue in a new command buffer.
+            msg_send_![command_buffer, commit];
+            msg_send_![command_buffer, waitUntilCompleted];
+            self.command_buffer = Some(msg_send_![self.command_queue, commandBuffer]);
+            const MTL_COMMAND_BUFFER_COMPLETED: u64 = 4;
+            let status: u64 = msg_send![command_buffer, status];
+            if status != MTL_COMMAND_BUFFER_COMPLETED {
+                return Err("Metal screenshot command buffer failed");
+            }
+            let contents: *const u8 = msg_send![buffer.as_id(), contents];
+            if contents.is_null() {
+                return Err("Metal screenshot buffer is inaccessible");
+            }
+            let bgra = std::slice::from_raw_parts(contents, byte_count as usize);
+            let mut rgba = Vec::with_capacity(bgra.len());
+            for row in bgra.chunks_exact(bytes_per_row as usize).rev() {
+                for pixel in row.chunks_exact(4) {
+                    rgba.extend_from_slice(&[pixel[2], pixel[1], pixel[0], pixel[3]]);
+                }
+            }
+            Ok(ScreenPixels {
+                width: image_width,
+                height: image_height,
+                rgba,
+            })
+        }
+    }
+
     fn buffer_size(&mut self, buffer: BufferId) -> usize {
         let buffer = &self.buffers[buffer.0];
         buffer.size

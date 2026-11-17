@@ -4,19 +4,13 @@ set -euo pipefail
 app_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 source_dir=${CIVCRAFT_SOURCE_DIR:-}
 
-if [[ -z "$source_dir" ]]; then
-    for candidate in "$app_dir/../source" "$app_dir/source"; do
-        if [[ -d "$candidate/Conquests/Art/Terrain" ]]; then
-            source_dir=$candidate
-            break
-        fi
-    done
-fi
-
 if [[ -z "$source_dir" || ! -d "$source_dir/Conquests/Art/Terrain" ]]; then
-    echo "SKIP: Civ III source path not detected; set CIVCRAFT_SOURCE_DIR to run the desktop smoke test."
+    echo "SKIP: Set CIVCRAFT_SOURCE_DIR to a Civ III installation containing Conquests/Art/Terrain to run the desktop smoke test."
     exit 0
 fi
+
+# Preserve explicitly configured relative paths when switching to the app directory.
+source_dir=$(cd -- "$source_dir" && pwd -P)
 
 turns=${CIVCRAFT_SMOKE_TURNS:-3}
 if ! [[ "$turns" =~ ^[1-9][0-9]*$ ]]; then

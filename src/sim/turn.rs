@@ -222,7 +222,6 @@ impl Simulation {
 struct CalendarContext<'a> {
     year: i32,
     global_advances: &'a [Tech],
-    ruleset: &'a RulesetData,
 }
 
 impl RequirementContext for CalendarContext<'_> {
@@ -248,11 +247,11 @@ impl RequirementContext for CalendarContext<'_> {
                 Some(ResolvedRequirementValue::Tech(tech)) => tech,
                 _ => match &requirement.name {
                     RequirementValue::String(name) => {
-                        match super::content_adapter::bind_freeciv_technology(self.ruleset, name)
+                        match crate::rules::content_adapter::bind_freeciv_technology(name)
                             .map_err(|_| unsupported())?
                         {
-                            super::content_adapter::FreecivTechBinding::Bound(tech) => tech,
-                            super::content_adapter::FreecivTechBinding::MissingFromCiv3Catalog => {
+                            crate::rules::content_adapter::FreecivTechBinding::Bound(tech) => tech,
+                            crate::rules::content_adapter::FreecivTechBinding::MissingFromCiv3Catalog => {
                                 return Ok(false);
                             }
                         }
@@ -291,7 +290,6 @@ fn next_calendar_state(
     let context = CalendarContext {
         year: current_year,
         global_advances,
-        ruleset,
     };
     let mut increase = i32::try_from(effect_value(
         &ruleset.effects,

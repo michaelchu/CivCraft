@@ -287,7 +287,8 @@ cargo run --offline --release --bin headless_sim -- \
   or analyzer inputs. Arbitrary domain names allow newly instrumented modules;
   an unmatched name produces no events from that domain.
 - `--snapshot-providers cities,civilizations,units,lifecycle,research,minimap` selects output providers
-  (these six are the default; `territory` is also available);
+  (these six are the default; `territory` is also available). The final minimap
+  requires the default `desktop` feature; graphics-free builds omit it;
   `none` records just the envelope plus analyzer-required data.
 - The `territory` provider records map dimensions, row-major tile ownership,
   and a land mask so unowned land can be distinguished from water. City
@@ -346,7 +347,9 @@ Sidecars:
   The default `minimap` output selection is final-only: no map arrays are written
   to per-turn snapshots, no intermediate PNGs or HTML viewer are generated, and
   running checkpoints have `evidence.minimap:null`. Excluding `minimap` from
-  `--snapshot-providers` disables the export; `none` does so too.
+  `--snapshot-providers` disables the export; `none` does so too. Builds using
+  `--no-default-features --features scenarios` retain research analytics but omit
+  minimap support and keep `evidence.minimap:null`.
 - `report.json.events.jsonl`: events selected for persistence. Sequences are
   stable within the run but may have gaps after filtering or overflow.
 

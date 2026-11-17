@@ -1,6 +1,7 @@
 //! Regression tests for the current campaign save format.
 
 use super::*;
+use std::collections::BTreeMap;
 
 pub(in crate::sim) fn temporary_save(name: &str) -> std::path::PathBuf {
     std::env::temp_dir().join(format!(
@@ -61,23 +62,82 @@ fn loads_v27_campaign_and_rewrites_it_in_the_current_format() {
 }
 
 #[test]
-fn published_v28_campaign_keeps_its_exact_wire_layout() {
+fn published_v28_campaign_upgrades_to_the_current_observation_schema() {
     // Written with e6de9e1 after creating a city and refreshing map knowledge.
     let path = Path::new(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/tests/fixtures/civcraft_v28_campaign.save"
     ));
     let bytes = fs::read(path).unwrap();
-    assert!(bytes.starts_with(HEADER));
+    assert!(bytes.starts_with(V28_HEADER));
     let mut game = Simulation::load_campaign(path).unwrap();
     assert_eq!(game.world_seed, 42);
     assert!(game.city_at(5, 6).is_some());
     assert!(game.units.iter().any(|unit| (unit.x, unit.y) == (6, 6)));
     assert!(game.remembered_tile(HUMAN, 5, 6).is_some());
-    assert_eq!(game.encode_campaign().unwrap(), bytes[HEADER.len()..]);
+    let new_path = temporary_save("upgrade-v28");
+    game.save_campaign(&new_path).unwrap();
+    let reloaded = Simulation::load_campaign(&new_path).unwrap();
+    assert!(fs::read(&new_path).unwrap().starts_with(HEADER));
+    fs::remove_file(new_path).unwrap();
+    assert_eq!(
+        game.encode_campaign().unwrap(),
+        reloaded.encode_campaign().unwrap()
+    );
     let turn = game.turn;
     game.simulate_turn();
     assert_eq!(game.turn, turn + 1);
+}
+
+#[test]
+fn a_v28_route_only_observation_survives_upgrade_until_the_tile_is_reobserved() {
+    let mut game = Simulation::new(crate::test_support::seeded_map());
+    game.units.clear();
+    game.observed_map = Default::default();
+    let observer = 1;
+    let (x, y) = (23, 36);
+    let index = game.map_wrap.index(x, y);
+    game.tiles[index].terrain = Terrain::Ocean;
+    game.tiles[index].known_by[observer] = true;
+    let old_map = LegacyAiMap(BTreeMap::from([(
+        (observer, index),
+        schema::MapObservation {
+            route: movement::RouteTile {
+                terrain: Terrain::Grassland,
+                road: true,
+                railroad: false,
+                river: false,
+                city_owner: Some(HUMAN),
+            },
+            owner: Some(HUMAN),
+            ocean: false,
+        },
+    )]));
+    let old = temporary_save("route-only-v28");
+    let mut bytes = V28_HEADER.to_vec();
+    bytes.extend(
+        codec(MAX_PAYLOAD)
+            .serialize(&SavedCampaign::from_game(&game, old_map, ()))
+            .unwrap(),
+    );
+    fs::write(&old, bytes).unwrap();
+    let game = Simulation::load_campaign(&old).unwrap();
+    fs::remove_file(old).unwrap();
+    let new = temporary_save("route-only-v29");
+    game.save_campaign(&new).unwrap();
+    let mut game = Simulation::load_campaign(&new).unwrap();
+    fs::remove_file(new).unwrap();
+    let known = game.known_tile_for(observer, x, y).unwrap();
+    assert_eq!(known.terrain, Terrain::Grassland);
+    assert!(known.road);
+    assert_eq!(game.observed_city_owner(observer, x, y), Some(HUMAN));
+
+    game.reveal_map_circle(observer, x, y, 0);
+    assert_eq!(
+        game.known_tile_for(observer, x, y).unwrap().terrain,
+        Terrain::Ocean
+    );
+    assert_eq!(game.observed_city_owner(observer, x, y), None);
 }
 
 #[test]

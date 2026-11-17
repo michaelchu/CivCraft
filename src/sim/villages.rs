@@ -49,25 +49,7 @@ impl Simulation {
                 "Friendly nomads joined your expedition as Settlers.".into()
             }
             NativeVillageReward::Map => {
-                let reveal_radius = (crate::rules::native::settlements()
-                    .villages
-                    .map_reveal_radius_squared as f32)
-                    .sqrt()
-                    .ceil() as i32;
-                for (nx, ny, distance) in self.map_wrap.civ3_radius(x, y, reveal_radius) {
-                    if distance * distance
-                        > crate::rules::native::settlements()
-                            .villages
-                            .map_reveal_radius_squared
-                    {
-                        continue;
-                    }
-                    let tile = self.tile_mut(nx, ny);
-                    tile.known_by[owner] = true;
-                    if owner == HUMAN {
-                        tile.seen = true;
-                    }
-                }
+                self.reveal_map_circle(owner, x, y, villages.map_reveal_radius_squared);
                 "The village shared a map of the surrounding terrain.".into()
             }
         };

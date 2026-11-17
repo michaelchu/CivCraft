@@ -1,8 +1,8 @@
 //! Advisor selection and valuation of research goals.
 
 use super::super::action_rules::SimulationRequirementContext;
-use super::super::content_adapter::{FreecivTechBinding, bind_freeciv_technology};
 use super::*;
+use crate::rules::content_adapter::{FreecivTechBinding, bind_freeciv_technology};
 use crate::rules::engine_rules::RequirementKind;
 use crate::rules::engine_rules::{
     EffectRecord, Requirement as FreecivRequirement, RequirementContext, RequirementRange,
@@ -282,7 +282,7 @@ impl Simulation {
             let candidate_techs: Vec<_> = effect
                 .requirements
                 .iter()
-                .filter_map(|requirement| bound_player_tech(ruleset, requirement))
+                .filter_map(bound_player_tech)
                 .filter(|(required, _)| *required == tech)
                 .collect();
             if candidate_techs.is_empty() {
@@ -300,9 +300,7 @@ impl Simulation {
             };
 
             let other_requirements_active = effect.requirements.iter().all(|requirement| {
-                if bound_player_tech(ruleset, requirement)
-                    .is_some_and(|(required, _)| required == tech)
-                {
+                if bound_player_tech(requirement).is_some_and(|(required, _)| required == tech) {
                     return true;
                 }
                 // dai_tech_effect_values passes only player and city to
@@ -571,9 +569,7 @@ fn city_effect_techs() -> &'static [Tech] {
                                 && effect
                                     .requirements
                                     .iter()
-                                    .filter_map(|requirement| {
-                                        bound_player_tech(ruleset, requirement)
-                                    })
+                                    .filter_map(bound_player_tech)
                                     .any(|(required, _)| required == tech)
                         })
             })
@@ -583,10 +579,7 @@ fn city_effect_techs() -> &'static [Tech] {
 
 /// Resolve only the player-scoped, non-surviving Tech universals that
 /// daitech.c treats as the candidate advance itself.
-fn bound_player_tech(
-    ruleset: &RulesetData,
-    requirement: &FreecivRequirement,
-) -> Option<(Tech, bool)> {
+fn bound_player_tech(requirement: &FreecivRequirement) -> Option<(Tech, bool)> {
     if requirement.kind != RequirementKind::Tech
         || requirement.range != RequirementRange::Player
         || requirement.survives
@@ -596,7 +589,7 @@ fn bound_player_tech(
     let tech = match requirement.resolved {
         Some(crate::rules::engine_rules::ResolvedRequirementValue::Tech(tech)) => tech,
         _ => match &requirement.name {
-            RequirementValue::String(name) => match bind_freeciv_technology(ruleset, name).ok()? {
+            RequirementValue::String(name) => match bind_freeciv_technology(name).ok()? {
                 FreecivTechBinding::Bound(tech) => tech,
                 FreecivTechBinding::MissingFromCiv3Catalog => return None,
             },

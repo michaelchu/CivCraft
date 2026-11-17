@@ -310,6 +310,71 @@ impl Simulation {
     }
 }
 
+#[cfg(any(test, feature = "scenarios"))]
+impl Simulation {
+    pub(in crate::sim) fn research_history_playtest(
+        &mut self,
+    ) -> Vec<(&'static str, bool, String)> {
+        if self.trace.research.is_none() {
+            self.start_research_observation();
+        }
+        let tech = Tech::all()
+            .find(|t| {
+                t.is_civ3_advance()
+                    && !self.has_tech(0, *t)
+                    && !self.has_tech(1, *t)
+                    && self.tech_available(0, *t)
+                    && self.tech_available(1, *t)
+                    && !t.data().unwrap().first_discovery_bonus
+            })
+            .expect("fixture has a common available advance");
+        self.players[0].researching = tech;
+        self.players[0].research = 0;
+        let science = self.target_cost(0, tech) + self.technology_upkeep(0);
+        self.resolve_research_turn(0, science);
+        let traded = self.transfer_treaty_technology(0, 1, tech);
+        self.players[0].research = 0;
+        self.apply_research_upkeep(0, -1);
+        self.reconcile_research_observation();
+        let s = self.observe_research();
+        vec![
+            (
+                "research_completed",
+                s.changes.iter().any(|c| {
+                    c.owner == 0
+                        && c.technology_id == tech.0
+                        && c.source == TechnologySource::Research
+                }),
+                "Completed science identifies its technology and owner".into(),
+            ),
+            (
+                "technology_traded",
+                traded
+                    && s.changes.iter().any(|c| {
+                        c.owner == 1
+                            && c.source == TechnologySource::Trade
+                            && c.other_owner == Some(0)
+                    }),
+                "Technology transfer is distinct from research".into(),
+            ),
+            (
+                "technology_lost",
+                s.changes.iter().any(|c| {
+                    c.owner == 0
+                        && c.source == TechnologySource::Upkeep
+                        && c.action == TechnologyAction::Lost
+                }),
+                "Negative science uses the engine's upkeep-driven technology loss".into(),
+            ),
+            (
+                "research_history_complete",
+                s.complete_since_start,
+                "Knowledge changes reconcile with live player knowledge".into(),
+            ),
+        ]
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -391,70 +456,5 @@ mod tests {
             |c| c.source == TechnologySource::Unobserved && c.action == TechnologyAction::Lost
         ));
         assert!(g.trace.drain().is_empty());
-    }
-}
-
-#[cfg(any(test, feature = "scenarios"))]
-impl Simulation {
-    pub(in crate::sim) fn research_history_playtest(
-        &mut self,
-    ) -> Vec<(&'static str, bool, String)> {
-        if self.trace.research.is_none() {
-            self.start_research_observation();
-        }
-        let tech = Tech::all()
-            .find(|t| {
-                t.is_civ3_advance()
-                    && !self.has_tech(0, *t)
-                    && !self.has_tech(1, *t)
-                    && self.tech_available(0, *t)
-                    && self.tech_available(1, *t)
-                    && !t.data().unwrap().first_discovery_bonus
-            })
-            .expect("fixture has a common available advance");
-        self.players[0].researching = tech;
-        self.players[0].research = 0;
-        let science = self.target_cost(0, tech) + self.technology_upkeep(0);
-        self.resolve_research_turn(0, science);
-        let traded = self.transfer_treaty_technology(0, 1, tech);
-        self.players[0].research = 0;
-        self.apply_research_upkeep(0, -1);
-        self.reconcile_research_observation();
-        let s = self.observe_research();
-        vec![
-            (
-                "research_completed",
-                s.changes.iter().any(|c| {
-                    c.owner == 0
-                        && c.technology_id == tech.0
-                        && c.source == TechnologySource::Research
-                }),
-                "Completed science identifies its technology and owner".into(),
-            ),
-            (
-                "technology_traded",
-                traded
-                    && s.changes.iter().any(|c| {
-                        c.owner == 1
-                            && c.source == TechnologySource::Trade
-                            && c.other_owner == Some(0)
-                    }),
-                "Technology transfer is distinct from research".into(),
-            ),
-            (
-                "technology_lost",
-                s.changes.iter().any(|c| {
-                    c.owner == 0
-                        && c.source == TechnologySource::Upkeep
-                        && c.action == TechnologyAction::Lost
-                }),
-                "Negative science uses the engine's upkeep-driven technology loss".into(),
-            ),
-            (
-                "research_history_complete",
-                s.complete_since_start,
-                "Knowledge changes reconcile with live player knowledge".into(),
-            ),
-        ]
     }
 }

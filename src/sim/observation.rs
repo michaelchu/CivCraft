@@ -175,6 +175,7 @@ pub(crate) struct UnitSnapshot {
 }
 
 impl Simulation {
+    #[cfg(feature = "desktop")]
     pub(crate) fn observe_minimap(&self) -> MinimapSnapshot {
         let rgb = |color: macroquad::prelude::Color| {
             [color.r, color.g, color.b].map(|c| (c * 255.0).round() as u8)

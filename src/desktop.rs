@@ -11,7 +11,7 @@
 
 use crate::{client, ensure_parent, mapgen, sim, visual_test, world_setup::WorldSetup};
 
-use crate::client::{Assets, Game, MusicPlayer, Tileset, UiAction, UnitSoundPlayer};
+use crate::client::{Assets, Game, MusicPlayer, UiAction, UnitSoundPlayer};
 use macroquad::prelude::*;
 use std::{env, path::Path};
 
@@ -61,10 +61,6 @@ pub async fn run_desktop() {
         std::process::exit(2);
     }
     let tileset_name = argument_value("--tileset").unwrap_or_else(|| "civ3".to_owned());
-    let tileset = Tileset::select(&tileset_name).unwrap_or_else(|error| {
-        eprintln!("{error}");
-        std::process::exit(2);
-    });
     let smoke_test = env::args().any(|arg| arg == "--smoke-test");
     let smoke_turns = argument_value("--smoke-turns")
         .map(|value| {
@@ -128,6 +124,20 @@ pub async fn run_desktop() {
         (0..client::UI_REVIEW_SCENES.len()).collect()
     };
     let automated = smoke_test || screenshot_path.is_some() || ui_review.is_some();
+    if screenshot_path.is_some() || ui_review.is_some() {
+        // Configure readback on the render thread before any screenshot frame.
+        unsafe { get_internal_gl().quad_context.enable_screen_readback() };
+    }
+    let asset_context = client::AssetContext::from_env(!automated).unwrap_or_else(|error| {
+        eprintln!("Could not configure assets: {error}");
+        std::process::exit(2);
+    });
+    let tileset = asset_context
+        .select_tileset(&tileset_name)
+        .unwrap_or_else(|error| {
+            eprintln!("{error}");
+            std::process::exit(2);
+        });
     let seed = if let Some(index) = args.iter().position(|arg| arg == "--seed") {
         args.get(index + 1)
             .and_then(|arg| arg.parse::<u64>().ok())
@@ -147,7 +157,7 @@ pub async fn run_desktop() {
     } else {
         Game::from_simulation(sim::Simulation::new(world.generate(seed)))
     };
-    let assets = Assets::new(&tileset).unwrap_or_else(|error| {
+    let assets = Assets::new(&tileset, &asset_context).unwrap_or_else(|error| {
         eprintln!("Could not load {} tileset. {error}", tileset.name());
         std::process::exit(2);
     });
@@ -167,8 +177,8 @@ pub async fn run_desktop() {
         tileset.name()
     );
     game.autosave_enabled = !automated;
-    let mut music = MusicPlayer::new(!automated);
-    let mut unit_sounds = UnitSoundPlayer::new(!automated);
+    let mut music = MusicPlayer::new(&asset_context);
+    let mut unit_sounds = UnitSoundPlayer::new(&asset_context);
     if ui_review.is_some() {
         client::set_review_pointer(Some(vec2(-1.0, -1.0)));
     }
@@ -343,7 +353,16 @@ pub async fn run_desktop() {
             let main_capture_phase = if scene == 13 { 8 } else { 5 };
             if phase == main_capture_phase || next {
                 let started = std::time::Instant::now();
-                let image = get_screen_data();
+                let image = visual_test::capture_screen().unwrap_or_else(|error| {
+                    let profile = ui_profile.as_mut().unwrap();
+                    profile.check(scene, "screen_capture", false);
+                    let _ = profile.finish(dir);
+                    eprintln!(
+                        "Could not capture {}: {error}",
+                        client::UI_REVIEW_SCENES[scene]
+                    );
+                    std::process::exit(1);
+                });
                 use std::hash::{Hash, Hasher};
                 let mut hasher = std::collections::hash_map::DefaultHasher::new();
                 image.bytes.hash(&mut hasher);
@@ -444,7 +463,12 @@ pub async fn run_desktop() {
             && frame == 120
         {
             ensure_parent(path);
-            get_screen_data().export_png(path);
+            visual_test::capture_screen()
+                .unwrap_or_else(|error| {
+                    eprintln!("Could not capture screenshot: {error}");
+                    std::process::exit(1);
+                })
+                .export_png(path);
             break;
         }
         next_frame().await;

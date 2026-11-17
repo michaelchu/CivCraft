@@ -1,4 +1,5 @@
 pub(crate) mod config;
+#[cfg(feature = "desktop")]
 mod minimap;
 mod report;
 pub(crate) mod scenario;
@@ -24,6 +25,7 @@ pub(crate) fn run(config: Config) -> Result<(), String> {
         .collect::<std::collections::BTreeSet<_>>();
     provider_ids.extend(config.providers.iter().cloned());
     // Minimap is a final-only export; never capture its map arrays in turn history.
+    #[cfg(feature = "desktop")]
     let final_minimap = provider_ids.remove("minimap");
     let providers = analytics::providers::build(&provider_ids)?;
     let mut kinds = registry.event_kinds();
@@ -154,6 +156,7 @@ pub(crate) fn run(config: Config) -> Result<(), String> {
         reason = "game_over";
     }
     registry.finish();
+    #[cfg(feature = "desktop")]
     if final_minimap {
         report.final_minimap(snapshot.turn, snapshot.phase, &game.observe_minimap())?;
     }

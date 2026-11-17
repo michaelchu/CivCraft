@@ -179,6 +179,7 @@ fn lifecycle_snapshots_survive_disabled_event_output() {
     std::fs::remove_dir_all(directory).unwrap();
 }
 
+#[cfg(feature = "desktop")]
 #[test]
 fn minimap_exports_only_one_final_image_without_map_history() {
     let directory = report_directory("minimap with spaces");

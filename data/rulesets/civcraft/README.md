@@ -21,14 +21,15 @@ Current catalogs:
 - `content/buildings.toml`: 91 active rules with stable IDs and named requirements;
   serialized identities are resolved by the native Rust compatibility table.
 - `content/governments.toml`: the eight Conquests governments, names, prerequisites,
-  AI preferences, flags, core scalar values, and support/assimilation/
+  AI preferences, flags, and support/assimilation/
   resistance/military-law tables.
 - `content/economy.toml`: city growth, output, upkeep, and founding parameters.
 - `content/settlements.toml`: settlement AI, citizen nationality/partisan rules, and
   village outcome parameters.
 
 The campaign embeds its engine ruleset and native catalogs when built. The
-effect graph comes from `engine/effects.ruleset`, action enablers come from
+effect graph, including government rate caps, empire size and civil-war chance, comes from
+`engine/effects.ruleset`, action enablers come from
 `engine/actions.ruleset`, and movement, activity timing, tile and road yields,
 and climate come from `engine/terrain.ruleset`. The modular Rust catalog in `src/rules/technologies.rs` owns researchable
 technology identities, names, prerequisites, eras, and research metadata.
