@@ -1209,6 +1209,58 @@ fn fighter_air_superiority_intercepts_within_half_range_once_per_turn() {
 }
 
 #[test]
+fn bombard_orders_use_each_campaign_units_full_range() {
+    let mut game = Simulation::new(crate::test_support::seeded_map());
+    game.units.clear();
+    game.cities.clear();
+    game.create_city(HUMAN, 0, 20);
+    game.sign_pact(HUMAN, 1, Pact::War);
+    let width = game.map_wrap.width();
+    for kind in UnitKind::ALL_NATIVE {
+        let range = if kind.bombard_range() == 0 && kind.is_aircraft() {
+            kind.operational_range()
+        } else {
+            kind.bombard_range()
+        };
+        if range <= 0 || kind.bombard_strength() <= 0 || kind.bombard_rate() <= 0 {
+            continue;
+        }
+        let gun = game.make_unit(0, HUMAN, kind, 0, 20);
+        // Fire west across the seam at a visible hostile road.
+        for distance in [range, range + 1] {
+            let x = width - distance;
+            let tile = game.tile_mut(x, 20);
+            tile.road = true;
+            tile.owner = Some(1);
+            tile.visible = true;
+            assert_eq!(
+                game.can_bombard_tile(&gun, x, 20),
+                distance == range,
+                "{kind:?} at {distance}"
+            );
+        }
+    }
+}
+
+#[test]
+fn cruise_missile_is_spent_only_on_a_legal_ranged_shot() {
+    let mut game = Simulation::new(crate::test_support::seeded_map());
+    game.units.clear();
+    game.cities.clear();
+    game.sign_pact(HUMAN, 1, Pact::War);
+    let id = game.spawn_unit(HUMAN, UnitKind::CruiseMissile, 10, 20);
+    for x in [14, 15] {
+        game.tile_mut(x, 20).road = true;
+        game.tile_mut(x, 20).owner = Some(1);
+        game.tile_mut(x, 20).visible = true;
+    }
+    assert!(!game.apply(Command::Bombard(id, 15, 20)));
+    assert!(game.bombardable_targets_in_range(id).contains(&(14, 20)));
+    assert!(game.apply(Command::Bombard(id, 14, 20)));
+    assert!(game.unit_by_id(id).is_none());
+}
+
+#[test]
 fn bombard_uses_civ3_range_and_unit_mapping() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     let (x, y) = (10, 20);
@@ -1786,6 +1838,7 @@ mod stealth_tests {
             UnitKind::Artillery,
             UnitKind::RadarArtillery,
             UnitKind::Hwacha,
+            UnitKind::CruiseMissile,
             UnitKind::Trebuchet,
             UnitKind::Frigate,
             UnitKind::Ironclad,
@@ -1813,10 +1866,6 @@ mod stealth_tests {
                 "{kind:?} has no Civ III bombard tile/operational range"
             );
         }
-        assert!(
-            !game.has_civ3_bombard_capability(UnitKind::CruiseMissile),
-            "Cruise Missile remains a one-shot attack rather than a separate Bombard action"
-        );
     }
 
     #[test]

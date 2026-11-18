@@ -5,13 +5,6 @@ use super::*;
 use crate::rules::engine_rules::{RulesetData, requirements_met};
 use std::collections::HashSet;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct NuclearActionRules {
-    min_range: i32,
-    max_range: Option<i32>,
-    consuming_always: bool,
-}
-
 fn required_action_parameter(key: &str) -> &'static crate::rules::engine_rules::RuleParameter {
     let mut matching = RulesetData::campaign_default()
         .parameters
@@ -31,47 +24,17 @@ fn required_action_parameter(key: &str) -> &'static crate::rules::engine_rules::
     parameter
 }
 
-fn nuclear_action_rules(action: &str) -> NuclearActionRules {
+fn nuclear_action_consumes_weapon(action: &str) -> bool {
     let prefix = match action {
         "Explode Nuclear" => "explode_nuclear",
         "Nuke City" => "nuke_city",
         "Nuke Units" => "nuke_units",
         _ => panic!("unsupported nuclear action {action:?}"),
     };
-    let min_range = required_action_parameter(&format!("{prefix}_min_range"))
-        .integer_value()
-        .expect("selected C2C3 nuclear minimum range is an integer")
-        .and_then(|value| i32::try_from(value).ok())
-        .expect("selected C2C3 nuclear minimum range fits in i32");
-    let max_parameter = required_action_parameter(&format!("{prefix}_max_range"));
-    let max_range = match max_parameter.integer_value() {
-        Ok(Some(value)) => {
-            Some(i32::try_from(value).expect("selected C2C3 nuclear maximum range fits in i32"))
-        }
-        Ok(None) => panic!("selected C2C3 nuclear maximum range is empty"),
-        Err(_) => match max_parameter
-            .string_value()
-            .expect("selected C2C3 nuclear maximum range is an integer or string")
-        {
-            Some(value) if value.eq_ignore_ascii_case("unlimited") => None,
-            Some(value) => panic!("unsupported selected C2C3 nuclear maximum range {value:?}"),
-            None => panic!("selected C2C3 nuclear maximum range is empty"),
-        },
-    };
-    let consuming_always = required_action_parameter(&format!("{prefix}_consuming_always"))
+    required_action_parameter(&format!("{prefix}_consuming_always"))
         .boolean_value()
         .expect("selected C2C3 nuclear consuming setting is boolean")
-        .expect("selected C2C3 nuclear consuming setting is not empty");
-    assert!(min_range >= 0, "nuclear minimum range cannot be negative");
-    assert!(
-        max_range.is_none_or(|maximum| maximum >= min_range),
-        "nuclear maximum range must be at least the minimum"
-    );
-    NuclearActionRules {
-        min_range,
-        max_range,
-        consuming_always,
-    }
+        .expect("selected C2C3 nuclear consuming setting is not empty")
 }
 
 fn freeciv_map_offsets_within_radius(radius: i32) -> Vec<(i32, i32, i32)> {
@@ -117,14 +80,14 @@ impl Simulation {
         let Some(unit) = self.unit_by_id(id).cloned() else {
             return;
         };
-        if unit.owner == HUMAN || !self.can_begin_nuclear_strike(&unit) {
+        if !self.can_begin_nuclear_strike(&unit) || !self.players[unit.owner].ai {
             return;
         }
         let city_target = self
             .cities
             .iter()
             .filter(|city| city.owner != unit.owner && self.at_war(unit.owner, city.owner))
-            .filter(|city| self.ai_air_target_reachable(&unit, city.x, city.y))
+            .filter(|city| self.can_launch_nuclear_strike_at(&unit, city.x, city.y))
             .max_by_key(|city| city.size)
             .map(|city| (city.x, city.y));
         let target = city_target.or_else(|| {
@@ -135,29 +98,13 @@ impl Simulation {
                         && self.at_war(unit.owner, other.owner)
                         && other.transport.is_none()
                 })
-                .filter(|other| self.ai_air_target_reachable(&unit, other.x, other.y))
+                .filter(|other| self.can_launch_nuclear_strike_at(&unit, other.x, other.y))
                 .max_by_key(|other| other.kind.stats().attack * 3 + other.kind.stats().defense * 2)
                 .map(|other| (other.x, other.y))
         });
         if let Some((x, y)) = target {
             self.launch_nuclear_strike(id, x, y);
         }
-    }
-
-    fn ai_air_target_reachable(&self, unit: &Unit, x: i32, y: i32) -> bool {
-        if !self.can_launch_nuclear_strike_at(unit, x, y) {
-            return false;
-        }
-        let mut paths = super::normal_paths::NormalPaths::enemy_map(self, unit);
-        paths
-            .movement_cost(self, x, y)
-            .is_some_and(|cost| cost < unit.moves_left)
-    }
-
-    fn nuclear_action_in_range(&self, unit: &Unit, action: &str, x: i32, y: i32) -> bool {
-        let rules = nuclear_action_rules(action);
-        let distance = self.map_wrap.civ3_distance(unit.x, unit.y, x, y);
-        distance >= rules.min_range && rules.max_range.is_none_or(|maximum| distance <= maximum)
     }
 
     fn nuclear_action_available(
@@ -198,6 +145,15 @@ impl Simulation {
         {
             return false;
         }
+        // Nuclear launch distance comes from the campaign unit. The ICBM's
+        // zero range denotes a map-wide launch; other zero-range units can
+        // only detonate in place.
+        let range = unit.kind.bombard_range();
+        if !(unit.kind == UnitKind::ICBM && range == 0)
+            && self.map_wrap.civ3_distance(unit.x, unit.y, x, y) > range
+        {
+            return false;
+        }
         let position = (x, y);
         let target_state = if position == (unit.x, unit.y) {
             // The actor's own tile is known to its owner, even if the test or
@@ -213,15 +169,13 @@ impl Simulation {
         let Some(action) = self.nuclear_action_for_target(unit, x, y) else {
             return false;
         };
-        if !self.nuclear_action_in_range(unit, action, x, y)
-            || !self.nuclear_action_available(
-                unit,
-                action,
-                position,
-                target_state,
-                target_is_city_center,
-            )
-        {
+        if !self.nuclear_action_available(
+            unit,
+            action,
+            position,
+            target_state,
+            target_is_city_center,
+        ) {
             return false;
         }
         if action == "Nuke Units" && !self.physical_attack_stack_allowed(unit, x, y) {
@@ -394,7 +348,7 @@ impl Simulation {
             return;
         }
 
-        if nuclear_action_rules(action).consuming_always {
+        if nuclear_action_consumes_weapon(action) {
             self.remove_units_with_cargo_because(vec![weapon.id], lifecycle::UnitRemoval::Expended);
         }
 
@@ -493,7 +447,7 @@ mod tests {
     }
 
     #[test]
-    fn nuclear_actions_use_selected_c2c3_target_ranges_and_enablers() {
+    fn nuclear_actions_use_unit_ranges_and_selected_c2c3_enablers() {
         let mut game = nuclear_game();
         let (x, y) = (10, 20);
         game.sign_pact(HUMAN, 1, Pact::War);
@@ -539,14 +493,43 @@ mod tests {
             "unreachable aircraft protects the reachable ground unit under unreachableprotects"
         );
 
-        let distant_city = game
-            .map_wrap
-            .civ3_offset(adjacent_city.0, adjacent_city.1, 2, 0)
-            .unwrap();
-        game.create_city(1, distant_city.0, distant_city.1);
-        game.tile_mut(distant_city.0, distant_city.1).known_by[HUMAN] = true;
-        let distant_nuke = game.unit_by_id(nuke).unwrap().clone();
-        assert!(!game.can_launch_nuclear_strike_at(&distant_nuke, distant_city.0, distant_city.1));
+        let width = game.map_wrap.width();
+        let edge = ((x - 6).rem_euclid(width), y);
+        let beyond = ((x - 7).rem_euclid(width), y);
+        for (tx, ty) in [edge, beyond] {
+            game.create_city(1, tx, ty);
+        }
+        game.spawn_unit(HUMAN, UnitKind::Warrior, beyond.0, y + 1);
+        game.refresh_visibility();
+        assert_eq!(game.observed_city_owner(HUMAN, beyond.0, beyond.1), Some(1));
+        assert!(!game.apply(Command::NuclearStrike(nuke, beyond.0, beyond.1)));
+        assert!(game.apply(Command::NuclearStrike(nuke, edge.0, edge.1)));
+        assert!(game.unit_by_id(nuke).is_none());
+    }
+
+    #[test]
+    fn icbm_can_launch_across_the_map_for_player_and_ai() {
+        for ai in [false, true] {
+            let mut game = nuclear_game();
+            let owner = if ai { 1 } else { HUMAN };
+            let enemy = if ai { HUMAN } else { 1 };
+            let target = (game.map_wrap.width() / 2, game.map_wrap.height() - 2);
+            game.create_city(enemy, target.0, target.1);
+            game.sign_pact(owner, enemy, Pact::War);
+            let id = game.spawn_unit(owner, UnitKind::ICBM, 0, 2);
+            game.spawn_unit(owner, UnitKind::Warrior, target.0, target.1 - 1);
+            game.refresh_visibility();
+            assert_eq!(
+                game.observed_city_owner(owner, target.0, target.1),
+                Some(enemy)
+            );
+            if ai {
+                game.run_ai_nuclear_strike(id);
+            } else {
+                assert!(game.apply(Command::NuclearStrike(id, target.0, target.1)));
+            }
+            assert!(game.unit_by_id(id).is_none());
+        }
     }
 
     #[test]

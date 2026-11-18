@@ -378,8 +378,10 @@ that code has been added.
   city state; failed landings resolve actual terrain/occupants, apply action
   consequences, and update the revealed map circle without exposing unseen
   units. Air recovery and attrition use selected effects and class percentages.
-- Nuclear actions use remembered target city state, selected action/range and
-  blast effects, SDI `Nuke_Proof` checks and RNG order, population loss, unit
+- Campaign unit data sets strike distance. Cruise Missiles bombard once at
+  range 4, Tactical Nukes can launch at range 6, and ICBMs have map-wide
+  range. Nuclear actions use remembered target city state, selected action
+  enablers and blast effects, SDI `Nuke_Proof` checks and RNG order, population loss, unit
   survival, and fallout placement. SDI interception evaluates the caught-action
   consequence before consuming the weapon. C2C3 defines no caught casus belli
   for nuclear actions, so that consequence has no current diplomatic effect.

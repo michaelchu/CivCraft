@@ -287,6 +287,11 @@ impl Simulation {
                 self.run_ai_great_leader(&unit);
                 continue;
             }
+            if unit.kind.is_nuclear_weapon() {
+                let _profile = profiler.scope("ai.units.nuclear");
+                self.run_ai_nuclear_strike(id);
+                continue;
+            }
             // Ranged bombardment is an action on the current tile; try it
             // before city defense, guard, or movement automation spends moves.
             let _profile = profiler.scope("ai.units.bombard");
@@ -314,11 +319,6 @@ impl Simulation {
                 }
                 let _profile = profiler.scope("ai.units.city_defender");
                 self.manage_ai_city_defender(id, home);
-                continue;
-            }
-            if unit.kind.is_nuclear_weapon() {
-                let _profile = profiler.scope("ai.units.nuclear");
-                self.run_ai_nuclear_strike(id);
                 continue;
             }
             let _profile = profiler.scope("ai.units.assigned_guard");

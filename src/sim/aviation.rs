@@ -17,20 +17,6 @@ fn selected_unit_class_flag(kind: UnitKind, flag: &str) -> Option<bool> {
     crate::sim::action_rules::freeciv_unit_class_flag(kind, flag)
 }
 
-fn civ3_bombard_unit(kind: UnitKind) -> Option<()> {
-    let range = if kind.bombard_range() > 0 {
-        kind.bombard_range()
-    } else if kind.is_aircraft() {
-        // Civ III aircraft use operational range for air bombard missions;
-        // their BIQ bombard_range field is zero.
-        kind.operational_range()
-    } else {
-        0
-    };
-    (!kind.is_missile() && kind.bombard_strength() > 0 && kind.bombard_rate() > 0 && range > 0)
-        .then_some(())
-}
-
 fn civ3_air_superiority_unit(kind: UnitKind) -> bool {
     matches!(
         kind,
@@ -146,7 +132,7 @@ impl Simulation {
     /// Whether the Conquests BIQ gives this unit usable bombard strength,
     /// rate, and a tile or aircraft operational range.
     pub(super) fn has_civ3_bombard_capability(&self, kind: UnitKind) -> bool {
-        civ3_bombard_unit(kind).is_some()
+        kind.bombard_strength() > 0 && kind.bombard_rate() > 0 && Self::civ3_bombard_range(kind) > 0
     }
 
     pub(crate) fn can_set_air_superiority(&self, unit: &Unit) -> bool {
@@ -290,7 +276,8 @@ impl Simulation {
         (unit.owner == HUMAN || self.players.get(unit.owner).is_some_and(|player| player.ai))
             && self.has_civ3_bombard_capability(unit.kind)
             && unit.moves_left > 0
-            && (unit.kind.fuel_capacity() == 0
+            && (unit.kind == UnitKind::CruiseMissile
+                || unit.kind.fuel_capacity() == 0
                 || self.refuel_site(unit.owner, unit.x, unit.y)
                 || self.aboard_refueling_transport(unit))
     }
@@ -817,9 +804,6 @@ impl Simulation {
     }
 
     fn try_bombard_mode(&mut self, attacker: &Unit, x: i32, y: i32, precision: bool) -> MoveResult {
-        let Some(()) = civ3_bombard_unit(attacker.kind) else {
-            return MoveResult::Blocked;
-        };
         if !(if precision {
             self.can_precision_bomb_tile(attacker, x, y) && attacker.moves_left > 0
         } else {
@@ -1003,7 +987,12 @@ impl Simulation {
             }
         }
 
-        if let Some(bomber) = self.units.iter_mut().find(|unit| unit.id == attacker.id) {
+        if attacker.kind == UnitKind::CruiseMissile {
+            self.remove_units_with_cargo_because(
+                vec![attacker.id],
+                lifecycle::UnitRemoval::Expended,
+            );
+        } else if let Some(bomber) = self.units.iter_mut().find(|unit| unit.id == attacker.id) {
             bomber.moves_left = 0;
             bomber.moved = true;
             bomber.state = UnitState::Idle;

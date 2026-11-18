@@ -4,9 +4,7 @@ use super::*;
 
 impl Simulation {
     pub(crate) fn nuclear_playtest_setup(&mut self, intercepted: bool) -> (u32, u32, u32) {
-        // Civ III's normal opening has a Settler and Worker, not a founded
-        // city. Stage both launch and target cities explicitly; C2C3 nuclear
-        // city actions can target only an adjacent city.
+        // Stage both cities explicitly for the launch and SDI checks.
         self.units.clear();
         self.cities.clear();
         let (sx, sy) = (10, 20);
