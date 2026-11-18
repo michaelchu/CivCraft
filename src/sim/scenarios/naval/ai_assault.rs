@@ -1,11 +1,11 @@
 use crate::{
-    sim::{HUMAN, Simulation, UnitKind, offset_native_by_map},
+    sim::{HUMAN, Pact, Simulation, UnitKind, offset_native_by_map},
     world::GeneratedMap,
 };
 use serde_json::{Value, json};
 
 use super::super::{
-    builder::WorldBuilder,
+    builder::{CivPreset, WorldBuilder},
     regression::{Check, Playtest, Scenario},
 };
 
@@ -17,7 +17,19 @@ pub(in crate::sim::scenarios) const SCENARIO: Scenario =
     Scenario::playtest("naval-ai-assault", setup);
 
 fn setup(map: GeneratedMap) -> (Simulation, Box<dyn Playtest>) {
-    let mut game = WorldBuilder::ocean_campaign(map);
+    let mut game = WorldBuilder::ocean_campaign(
+        map,
+        &[
+            CivPreset {
+                id: "rome",
+                technologies: None,
+            },
+            CivPreset {
+                id: "inca",
+                technologies: None,
+            },
+        ],
+    );
     let mut world = WorldBuilder::new(&mut game);
     world.start_at(16, -3000);
     let home = (10, 24);
@@ -31,7 +43,7 @@ fn setup(map: GeneratedMap) -> (Simulation, Box<dyn Playtest>) {
     let target = world.city(HUMAN, island[1], 2);
     // An established hostile relationship avoids the grace period when
     // newly contacted civilizations accept ceasefires regardless of trust.
-    world.war(ATTACKER, HUMAN, 1, [-10_000, -10_000]);
+    world.diplomacy(ATTACKER, HUMAN, Pact::War, 1, [-10_000, -10_000]);
     let mut troops = Vec::new();
     for kind in [UnitKind::Marine, UnitKind::Warrior, UnitKind::Warrior] {
         troops.push(world.unit(ATTACKER, kind, home));
@@ -41,7 +53,7 @@ fn setup(map: GeneratedMap) -> (Simulation, Box<dyn Playtest>) {
     for _ in 0..2 {
         troops.push(world.unit(ATTACKER, UnitKind::Marine, home));
     }
-    world.refresh_visibility();
+    world.finish();
     (
         game,
         Box::new(Assault {

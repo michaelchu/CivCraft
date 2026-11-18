@@ -333,17 +333,33 @@ pub(super) struct Relation {
 
 impl Simulation {
     #[cfg(any(test, feature = "scenarios"))]
-    pub(in crate::sim) fn set_scenario_diplomatic_history(
+    pub(in crate::sim) fn set_scenario_diplomacy(
         &mut self,
         first: usize,
         second: usize,
+        pact: Pact,
         first_contact: i32,
         mut trust: [i32; 2],
     ) {
+        // Signing peace during play starts an armistice. A fixture can
+        // start after that armistice has already expired.
+        self.sign_pact(
+            first,
+            second,
+            if pact == Pact::Armistice {
+                Pact::Peace
+            } else {
+                pact
+            },
+        );
         let relation = self
             .diplomacy
             .entry(Self::relation_key(first, second))
             .or_default();
+        if pact == Pact::Peace {
+            relation.pact = Pact::Peace;
+            relation.until = 0;
+        }
         relation.first_contact = Some(first_contact);
         if first > second {
             trust.swap(0, 1);

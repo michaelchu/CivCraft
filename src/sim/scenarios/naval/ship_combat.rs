@@ -1,13 +1,13 @@
 //! An isolated hunt on open water, driven by the regular naval AI.
 
 use crate::{
-    sim::{HUMAN, Simulation, Unit, UnitKind, offset_native_by_map},
+    sim::{HUMAN, Pact, Simulation, Unit, UnitKind, offset_native_by_map},
     world::GeneratedMap,
 };
 use serde_json::{Value, json};
 
 use super::super::{
-    builder::WorldBuilder,
+    builder::{CivPreset, WorldBuilder},
     regression::{Check, Playtest, Scenario},
 };
 
@@ -18,7 +18,19 @@ pub(in crate::sim::scenarios) const SCENARIO: Scenario =
     Scenario::playtest("naval-ship-combat", setup);
 
 fn setup(map: GeneratedMap) -> (Simulation, Box<dyn Playtest>) {
-    let mut game = WorldBuilder::ocean_campaign(map);
+    let mut game = WorldBuilder::ocean_campaign(
+        map,
+        &[
+            CivPreset {
+                id: "rome",
+                technologies: None,
+            },
+            CivPreset {
+                id: "inca",
+                technologies: None,
+            },
+        ],
+    );
     let mut world = WorldBuilder::new(&mut game);
     world.start_at(16, 1900);
     let start = (10, 24);
@@ -32,8 +44,8 @@ fn setup(map: GeneratedMap) -> (Simulation, Box<dyn Playtest>) {
     // to decide whether an intercept is possible.
     let previous = offset_native_by_map(start.0, start.1, 2, 0);
     world.previous_unit_position(defender, previous);
-    world.war(HUNTER, HUMAN, 1, [-10_000, -10_000]);
-    world.refresh_visibility();
+    world.diplomacy(HUNTER, HUMAN, Pact::War, 1, [-10_000, -10_000]);
+    world.finish();
     // These are the only ships and there are no cities that can build more.
     // A new combat kill credited to the hunter therefore identifies the duel.
     let starting_kills = game.nation_scores[HUNTER].units_killed;

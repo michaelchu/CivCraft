@@ -82,6 +82,31 @@ the campaign. Its structured observations appear under
 or a short turn budget, the runner asks the observer to evaluate all required
 outcomes. Only those assertions contribute to the scenario check totals.
 
+The world builder takes an ordered list of `CivPreset` entries. Each entry
+uses a stable catalog ID and optionally replaces the civilization's starting
+technologies. `None` uses the catalog defaults, and `Some(&[])` starts with
+no technologies. The order assigns active player slots starting at zero.
+The blank sea map retains the caller's seed and topology. Set the calendar
+before placing entities or setting treaty history, then call `finish()`
+before handing the campaign to the runner.
+
+```rust
+let mut game = WorldBuilder::ocean_campaign(
+    map,
+    &[
+        CivPreset { id: "england", technologies: Some(&[Tech::COMBUSTION]) },
+        CivPreset { id: "germany", technologies: None },
+    ],
+);
+let mut world = WorldBuilder::new(&mut game);
+world.start_at(120, 1900);
+world.grassland((10, 24));
+let city = world.city(0, (10, 24), 3);
+let ship = world.unit(1, UnitKind::Battleship, (10, 25));
+world.diplomacy(0, 1, Pact::Peace, 42, [3000, 5000]);
+world.finish();
+```
+
 The naval assault is the first example in
 `src/sim/scenarios/naval/ai_assault.rs`. Run it with
 `--scenario naval-ai-assault --seed 42 --turns 30`. It starts with a blank sea

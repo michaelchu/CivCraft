@@ -463,6 +463,19 @@ impl Simulation {
 
     /// Builds a new campaign from a generated map and initializes player state.
     pub(crate) fn new(map: crate::world::GeneratedMap) -> Self {
+        let roster = crate::rules::civilizations::select_roster(map.seed, MAX_CIVILIZATIONS);
+        Self::new_with_roster(
+            map,
+            roster
+                .into_iter()
+                .map(|civ| (civ, civ.starting_techs.as_slice())),
+        )
+    }
+
+    fn new_with_roster<'a>(
+        map: crate::world::GeneratedMap,
+        roster: impl IntoIterator<Item = (&'a crate::rules::civilizations::Civilization, &'a [Tech])>,
+    ) -> Self {
         let crate::world::GeneratedMap {
             seed,
             map_seed,
@@ -477,9 +490,8 @@ impl Simulation {
 
         let tiles = generated_tiles.into_iter().map(Tile::from).collect();
 
-        let roster = crate::rules::civilizations::select_roster(seed, MAX_CIVILIZATIONS);
         let mut players = Vec::new();
-        for (i, civilization) in roster.iter().enumerate().take(MAX_CIVILIZATIONS) {
+        for (i, (civilization, known)) in roster.into_iter().enumerate() {
             players.push(Player {
                 name: civilization.name.clone(),
                 civilization_id: Some(civilization.id.clone()),
@@ -490,7 +502,7 @@ impl Simulation {
                 revolution_target: None,
                 revolution_turn: None,
                 mobilized: false,
-                known: civilization.starting_techs.to_vec(),
+                known: known.to_vec(),
                 researching: Tech::UNSET,
                 researching_saved: None,
                 research_saved: 0,
@@ -502,6 +514,7 @@ impl Simulation {
             });
         }
 
+        assert_eq!(players.len(), MAX_CIVILIZATIONS);
         players.push(Player {
             name: "Barbarians".to_owned(),
             civilization_id: None,

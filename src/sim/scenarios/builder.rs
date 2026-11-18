@@ -1,9 +1,17 @@
 //! Small typed helpers for constructing deterministic campaign fixtures.
 
 use crate::{
-    sim::{Pact, Simulation, UnitKind},
+    rules::{Tech, civilizations},
+    sim::{MAX_CIVILIZATIONS, Pact, Simulation, UnitKind},
     world::{GeneratedMap, GeneratedTile, Terrain, TerrainBase},
 };
+
+/// The stable catalog ID and starting knowledge for a civilization slot.
+pub(crate) struct CivPreset<'a> {
+    pub id: &'a str,
+    /// None uses the catalog defaults. Some(&[]) starts with no technologies.
+    pub technologies: Option<&'a [Tech]>,
+}
 
 pub(crate) struct WorldBuilder<'a> {
     game: &'a mut Simulation,
@@ -14,9 +22,45 @@ impl<'a> WorldBuilder<'a> {
         Self { game }
     }
 
-    /// Keep the seed, topology and roster, but discard generated geography
-    /// and starting positions before the simulation initializes its state.
-    pub(crate) fn ocean_campaign(mut map: GeneratedMap) -> Simulation {
+    /// Keep the seed and topology. Active slots match the requested order.
+    pub(crate) fn ocean_campaign(mut map: GeneratedMap, civs: &[CivPreset<'_>]) -> Simulation {
+        assert!(
+            (1..=MAX_CIVILIZATIONS).contains(&civs.len()),
+            "invalid scenario roster size"
+        );
+        let mut roster: Vec<(&civilizations::Civilization, &[Tech])> = Vec::new();
+        for preset in civs {
+            let civ = civilizations::by_id(preset.id)
+                .unwrap_or_else(|| panic!("unknown scenario civilization {}", preset.id));
+            assert!(
+                !roster.iter().any(|(entry, _)| entry.id == civ.id),
+                "duplicate scenario civilization {}",
+                civ.id
+            );
+            let techs = preset.technologies.unwrap_or(&civ.starting_techs);
+            for (index, tech) in techs.iter().enumerate() {
+                assert!(
+                    Tech::all().any(|candidate| candidate == *tech),
+                    "invalid scenario technology {tech:?}"
+                );
+                assert!(
+                    !techs[..index].contains(tech),
+                    "duplicate scenario technology {tech:?}"
+                );
+            }
+            roster.push((civ, techs));
+        }
+        // Keep inactive slots for the fixed barbarian slot and save layout.
+        // Their empty knowledge keeps them out of global technology history.
+        for civ in civilizations::all() {
+            if roster.len() == MAX_CIVILIZATIONS {
+                break;
+            }
+            if !roster.iter().any(|(entry, _)| entry.id == civ.id) {
+                roster.push((civ, &[]));
+            }
+        }
+        map.civilization_count = civs.len();
         map.starts.clear();
         map.tiles.fill(GeneratedTile {
             terrain: Terrain::Sea,
@@ -27,10 +71,14 @@ impl<'a> WorldBuilder<'a> {
             river_edges: 0,
             resource: None,
         });
-        Simulation::new(map)
+        Simulation::new_with_roster(map, roster)
     }
 
     pub(crate) fn start_at(&mut self, turn: i32, year: i32) {
+        assert!(
+            (1..=super::super::score::TURN_LIMIT).contains(&turn),
+            "invalid scenario start turn {turn}"
+        );
         self.game.turn = turn;
         self.game.year = year;
     }
@@ -49,13 +97,31 @@ impl<'a> WorldBuilder<'a> {
     }
 
     pub(crate) fn city(&mut self, owner: usize, position: (i32, i32), size: i32) -> u32 {
+        assert!(
+            owner < self.game.civilization_count,
+            "inactive scenario city owner {owner}"
+        );
+        assert!(size > 0, "scenario city size must be positive");
+        assert!(
+            !self.game.tile(position.0, position.1).terrain.is_water(),
+            "scenario city must start on land"
+        );
+        assert!(
+            self.game.city_at(position.0, position.1).is_none(),
+            "scenario city tile already occupied"
+        );
         self.game.create_city(owner, position.0, position.1);
         let city = self.game.cities.last_mut().expect("city was just created");
         city.size = size;
+        city.specialists[2] = size;
         city.id
     }
 
     pub(crate) fn unit(&mut self, owner: usize, kind: UnitKind, position: (i32, i32)) -> u32 {
+        assert!(
+            owner < self.game.civilization_count || owner == crate::sim::BARBARIANS,
+            "inactive scenario unit owner {owner}"
+        );
         self.game.spawn_unit(owner, kind, position.0, position.1)
     }
 
@@ -89,13 +155,75 @@ impl<'a> WorldBuilder<'a> {
         self.game.previous_naval_positions.insert(id, position);
     }
 
-    pub(crate) fn war(&mut self, first: usize, second: usize, first_contact: i32, trust: [i32; 2]) {
-        self.game.sign_pact(first, second, Pact::War);
+    /// Trust values are ordered by the two slots passed by the caller.
+    pub(crate) fn diplomacy(
+        &mut self,
+        first: usize,
+        second: usize,
+        pact: Pact,
+        first_contact: i32,
+        trust: [i32; 2],
+    ) {
+        assert!(
+            first != second
+                && first < self.game.civilization_count
+                && second < self.game.civilization_count,
+            "diplomacy requires two active scenario civilizations"
+        );
+        assert!(
+            (0..=self.game.turn).contains(&first_contact),
+            "first contact cannot occur after the scenario starts"
+        );
         self.game
-            .set_scenario_diplomatic_history(first, second, first_contact, trust);
+            .set_scenario_diplomacy(first, second, pact, first_contact, trust);
     }
 
-    pub(crate) fn refresh_visibility(&mut self) {
+    /// Make the assembled world ready for the runner's initial snapshot.
+    pub(crate) fn finish(self) {
         self.game.refresh_visibility();
+        self.game.refresh_score_snapshot();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn presets_initialize_roster_knowledge_calendar_entities_and_diplomacy() {
+        let mut game = WorldBuilder::ocean_campaign(
+            crate::test_support::seeded_map(),
+            &[
+                CivPreset {
+                    id: "england",
+                    technologies: Some(&[Tech::COMBUSTION]),
+                },
+                CivPreset {
+                    id: "germany",
+                    technologies: Some(&[]),
+                },
+            ],
+        );
+        let mut world = WorldBuilder::new(&mut game);
+        world.start_at(120, 1900);
+        world.grassland((10, 24));
+        let city = world.city(0, (10, 24), 3);
+        let ship = world.unit(1, UnitKind::Battleship, (10, 25));
+        world.diplomacy(1, 0, Pact::Peace, 42, [3000, 5000]);
+        world.finish();
+
+        assert_eq!(game.civilization_count, 2);
+        assert_eq!(game.players[0].civilization_id.as_deref(), Some("england"));
+        assert_eq!(game.players[1].civilization_id.as_deref(), Some("germany"));
+        assert_eq!(game.players[0].known, [Tech::COMBUSTION]);
+        assert!(game.players[1].known.is_empty());
+        assert_eq!(game.global_advances, [Tech::COMBUSTION]);
+        assert_ne!(game.players[0].researching, Tech::COMBUSTION);
+        assert_eq!((game.turn, game.year), (120, 1900));
+        assert_eq!(game.city_by_id(city).unwrap().founded_turn, 120);
+        assert_eq!(game.nation_scores[0].score_population, 3);
+        assert_eq!(game.unit_by_id(ship).unwrap().owner, 1);
+        assert_eq!(game.pact(0, 1), Pact::Peace);
+        assert_eq!(game.diplomacy[&(0, 1)].trust, [5000, 3000]);
     }
 }
