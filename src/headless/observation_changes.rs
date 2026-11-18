@@ -33,6 +33,12 @@ fn project(provider: &str, mut row: Value) -> Value {
         "diplomacy" => &["trust", "war_plans", "until"],
         _ => &[],
     };
+    if provider == "civilizations"
+        && let Some(strategy) = row.get_mut("strategy").and_then(Value::as_object_mut)
+    {
+        strategy.remove("projected_income");
+        strategy.remove("gold_reserve");
+    }
     if provider == "governments" {
         let available: Vec<_> = row
             .get("candidates")
@@ -196,6 +202,26 @@ mod tests {
         snapshot["research"]["civilizations"][0]["known_technology_ids"] = json!([1, 2]);
         assert_eq!(output.observe(&snapshot).len(), 2);
     }
+    #[test]
+    fn strategy_changes_keep_posture_and_omit_routine_financial_inputs() {
+        let mut output = ObservationChanges::default();
+        let mut snapshot = json!({"civilizations":[{"id":1,"strategy":{
+            "posture":"develop", "gold_reserve":10,"projected_income":5}}]});
+        output.observe(&snapshot);
+        snapshot["civilizations"][0]["strategy"]["gold_reserve"] = json!(12);
+        snapshot["civilizations"][0]["strategy"]["projected_income"] = json!(6);
+        assert!(output.observe(&snapshot).is_empty());
+        snapshot["civilizations"][0]["strategy"]["posture"] = json!("recover");
+        let changes = output.observe(&snapshot);
+        assert_eq!(changes.len(), 1);
+        assert_eq!(changes[0]["after"]["strategy"]["posture"], "recover");
+        assert!(
+            changes[0]["after"]["strategy"]
+                .get("gold_reserve")
+                .is_none()
+        );
+    }
+
     #[test]
     fn unknown_provider_fields_are_preserved() {
         let mut output = ObservationChanges::default();

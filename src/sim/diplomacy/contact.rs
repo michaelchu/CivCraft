@@ -3,7 +3,7 @@
 use super::*;
 
 impl Simulation {
-    pub(super) fn player_has_no_diplomacy(&self, owner: usize) -> bool {
+    pub(in crate::sim) fn player_has_no_diplomacy(&self, owner: usize) -> bool {
         self.player_effect(owner, EffectKind::NoDiplomacy) > 0
     }
 

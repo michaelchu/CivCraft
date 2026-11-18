@@ -107,7 +107,7 @@ impl Simulation {
     /// Projected per-turn income follows common/player.c's accounting split:
     /// city gold pays city-style unit upkeep, while mixed/nation styles charge
     /// the nation for paid unit upkeep. C2C3 selects Mixed.
-    fn ai_projected_income(&self, owner: usize) -> i32 {
+    pub(in crate::sim) fn ai_projected_income(&self, owner: usize) -> i32 {
         let style = crate::sim::economy::ruleset::CityEconomySettings::campaign().gold_upkeep_style;
         let mut income = 0;
         for city in self.cities.iter().filter(|city| city.owner == owner) {
@@ -391,7 +391,9 @@ impl Simulation {
                 }
             }
         }
-        let at_war = self.ai_on_war_footing(owner);
+        let strategy = self.strategic_priorities(owner);
+        let reserve = reserve.max(strategy.gold_reserve);
+        let at_war = strategy.wars > 0 || strategy.preparing;
         self.spend_ai_routine_gold(owner, reserve, expenses, at_war, &emergency_cities, choices);
         if !at_war {
             self.spend_ai_upgrade_gold(owner, None, reserve.max(expenses));
@@ -413,6 +415,7 @@ impl Simulation {
             .filter(|city| city.owner == owner)
             .count();
         let gold = self.players[owner].gold;
+        let strategy = self.strategic_priorities(owner);
         let mut purchases = Vec::new();
         for city in self.cities.iter().filter(|city| {
             city.owner == owner && city.shields > 0 && !emergency_cities.contains(&city.id)
@@ -454,7 +457,8 @@ impl Simulation {
                 .get(&city.id)
                 .filter(|choice| choice.production == city.production)
                 .map_or(0.0, |choice| choice.want);
-            purchases.push((want, price, city.id, cash_floor));
+            let weight = self.ai_routine_purchase_weight(city.production, &strategy);
+            purchases.push((want * weight as f64 / 100.0, price, city.id, cash_floor));
         }
         purchases.sort_by(|a, b| {
             b.0.total_cmp(&a.0)
@@ -465,6 +469,48 @@ impl Simulation {
             if self.players[owner].gold - price >= cash_floor {
                 self.rush_production(owner, city);
             }
+        }
+    }
+
+    fn ai_routine_purchase_weight(
+        &self,
+        production: Production,
+        strategy: &ai_strategy::StrategicPriorities,
+    ) -> i32 {
+        match production {
+            Production::Unit(kind) if kind.is_military() => strategy.military,
+            Production::Building(building) => {
+                let effects =
+                    Self::ai_building_source_effects(building, RulesetData::campaign_default());
+                let science = effects.iter().any(|effect| {
+                    matches!(
+                        effect.kind,
+                        EffectKind::SsStructural
+                            | EffectKind::SsComponent
+                            | EffectKind::SsModule
+                            | EffectKind::EnableSpace
+                    ) || (matches!(
+                        effect.kind,
+                        EffectKind::OutputBonus | EffectKind::OutputBonus2
+                    ) && effect.requirements.iter().any(|requirement| {
+                        requirement.present
+                            && requirement.kind == RequirementKind::OutputType
+                            && matches!(&requirement.name, RequirementValue::String(name)
+                                        if name.eq_ignore_ascii_case("Science"))
+                    }))
+                });
+                if science {
+                    strategy.science
+                } else if effects
+                    .iter()
+                    .any(|effect| effect.kind == EffectKind::DefendBonus)
+                {
+                    strategy.military
+                } else {
+                    strategy.economy
+                }
+            }
+            _ => strategy.economy,
         }
     }
 
@@ -576,5 +622,58 @@ mod city_sale_tests {
         assert!(game.ai_sell_for_solvency(1));
         assert!(!game.cities[0].buildings.contains(&candidate));
         assert!(game.cities[0].buildings.contains(&Building::LIBRARY));
+    }
+}
+
+#[cfg(test)]
+mod strategy_spending_tests {
+    use super::*;
+
+    #[test]
+    fn routine_purchases_follow_civ_priorities_when_only_one_rush_is_affordable() {
+        let mut base = Simulation::new(crate::test_support::seeded_map());
+        base.units.clear();
+        base.cities.clear();
+        base.diplomacy.clear();
+        base.ai_war_plans.clear();
+        base.players[1]
+            .known
+            .extend(Tech::all().filter(|tech| matches!(tech.name(), "Currency" | "Literature")));
+        for (x, y) in [(12, 24), (18, 30)] {
+            base.create_city(1, x, y);
+        }
+        base.turn += 1;
+        let mut choices = std::collections::BTreeMap::new();
+        for (city, building) in base
+            .cities
+            .iter_mut()
+            .zip([Building::MARKETPLACE, Building::LIBRARY])
+        {
+            city.production = Production::Building(building);
+            city.shields = 1;
+            choices.insert(
+                city.id,
+                AiBuildChoice {
+                    production: city.production,
+                    want: 100.0,
+                },
+            );
+        }
+        base.players[1].gold = base
+            .cities
+            .iter()
+            .map(|city| base.rush_cost(city).unwrap())
+            .max()
+            .unwrap();
+        for (identity, expected_city) in [("rome", 0), ("korea", 1)] {
+            let mut game = base.clone();
+            game.players[1].civilization_id = Some(identity.into());
+            game.spend_ai_routine_gold(1, 0, 0, false, &[], &choices);
+            assert!(game.cities[expected_city].bought_production, "{identity}");
+            assert!(
+                !game.cities[1 - expected_city].bought_production,
+                "{identity}"
+            );
+        }
     }
 }

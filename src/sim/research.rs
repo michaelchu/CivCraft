@@ -248,9 +248,19 @@ impl Simulation {
         // Government, city and effect contributions already belong to the
         // phase's persistent adv_want (float) snapshot. Selection consumes it
         // without recomputing after cities or technologies have changed.
+        let strategy = self.strategic_priorities(owner);
+        let cities = self.cities_owned_by(owner).count().max(1);
         let wants: Vec<_> = advances
             .iter()
-            .map(|&tech| self.advisor_tech_want(owner, tech))
+            .map(|&tech| {
+                self.strategic_research_want(
+                    owner,
+                    tech,
+                    self.advisor_tech_want(owner, tech),
+                    &strategy,
+                    cities,
+                )
+            })
             .collect();
         let (values, goal_values) = Self::source_research_scores(&wants, &paths);
         let mut goal = None;

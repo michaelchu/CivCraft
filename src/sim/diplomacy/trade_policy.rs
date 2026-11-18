@@ -74,20 +74,6 @@ fn policy() -> &'static Policy {
     })
 }
 
-fn trait_enabled(civ: &crate::rules::native::NativeCivilization, name: &str) -> bool {
-    match name {
-        "agricultural" => civ.agricultural,
-        "commercial" => civ.commercial,
-        "expansionist" => civ.expansionist,
-        "industrious" => civ.industrious,
-        "militaristic" => civ.militaristic,
-        "religious" => civ.religious,
-        "scientific" => civ.scientific,
-        "seafaring" => civ.seafaring,
-        _ => false,
-    }
-}
-
 #[derive(Clone, Serialize)]
 struct Choice {
     offer: TreatyOffer,
@@ -117,15 +103,55 @@ struct Asset {
 }
 
 impl Simulation {
-    fn trade_civilization(
+    /// Public traits for human estimates; AI pressure is always the owner's own.
+    pub(in crate::sim) fn strategic_technology_percent(
         &self,
         owner: usize,
-    ) -> Option<&crate::rules::native::NativeCivilization> {
-        let id = self.players[owner].civilization_id.as_deref()?;
-        crate::rules::native::civilizations()
-            .civilizations
-            .iter()
-            .find(|civ| civ.id == id)
+        tech: Tech,
+        strategy: Option<&ai_strategy::StrategicPriorities>,
+    ) -> i32 {
+        let rules = policy();
+        let mut percent = 100;
+        if let Some(civ) = self.ai_civilization(owner) {
+            if civ.scientific {
+                percent += rules.scientific_bonus_percent as i32;
+            }
+            for (name, technologies) in &rules.interests {
+                if ai_traits::trait_enabled(civ, name)
+                    && technologies.iter().any(|name| name == tech.name())
+                {
+                    percent += rules.trait_bonus_percent as i32;
+                }
+            }
+        }
+        if let Some(strategy) = strategy {
+            let interested = |category: &str| {
+                rules.interests[category]
+                    .iter()
+                    .any(|name| name == tech.name())
+            };
+            let mut weight = 100;
+            if interested("commercial") || interested("agricultural") || interested("industrious") {
+                weight = weight.max(strategy.economy);
+            }
+            if interested("scientific")
+                || (strategy.space_program
+                    && rules
+                        .victory_technologies
+                        .iter()
+                        .any(|name| name == tech.name()))
+            {
+                weight = weight.max(strategy.science);
+            }
+            if self.military_technology(tech) {
+                weight = weight.max(strategy.military);
+            }
+            percent += (weight - 100) / 2;
+            if self.military_technology(tech) && strategy.wars > 0 {
+                percent += rules.military_need_bonus_percent as i32;
+            }
+        }
+        percent
     }
 
     pub(in crate::sim) fn diplomatic_trade_reserve(&self, owner: usize) -> i32 {
@@ -146,7 +172,8 @@ impl Simulation {
             .map(|(_, cost)| cost)
             .sum();
         let upkeep = buildings.saturating_add(city_support.max(national_support));
-        self.ai_gold_reserve(owner)
+        self.strategic_priorities(owner)
+            .gold_reserve
             .saturating_add(upkeep.saturating_mul(policy().reserve_turns))
     }
 
@@ -182,6 +209,10 @@ impl Simulation {
             tech,
             giving,
             self.diplomatic_trade_reserve(owner),
+            self.players[owner]
+                .ai
+                .then(|| self.strategic_priorities(owner))
+                .as_ref(),
         )
     }
 
@@ -192,6 +223,7 @@ impl Simulation {
         tech: Tech,
         giving: bool,
         reserve: i32,
+        strategy: Option<&ai_strategy::StrategicPriorities>,
     ) -> Result<i64, &'static str> {
         if self.players[owner].ai && self.ai_war_countdown(owner, other) >= 0 {
             return Err("planned_hostility");
@@ -206,7 +238,7 @@ impl Simulation {
             .ok_or("not_tradable")?;
         let base = i64::from(base.max(1));
         let rules = policy();
-        let civ = self.trade_civilization(owner);
+        let civ = self.ai_civilization(owner);
         if giving {
             if dangerous
                 || (self.military_technology(tech)
@@ -243,17 +275,7 @@ impl Simulation {
             };
             return Ok((base * percent / 100).max(1));
         }
-        let mut percent = 100;
-        if let Some(civ) = civ {
-            if civ.scientific {
-                percent += rules.scientific_bonus_percent;
-            }
-            for (name, technologies) in &rules.interests {
-                if trait_enabled(civ, name) && technologies.iter().any(|name| name == tech.name()) {
-                    percent += rules.trait_bonus_percent;
-                }
-            }
-        }
+        let mut percent = self.strategic_technology_percent(owner, tech, strategy) as i64;
         let player = &self.players[owner];
         // An AI evaluates its own priorities privately. Human willingness is
         // only estimated from the market and public traits, never their queue.
@@ -264,13 +286,6 @@ impl Simulation {
                 || player.researching == tech)
         {
             percent += rules.research_goal_bonus_percent;
-        }
-        if self.military_technology(tech)
-            && self
-                .diplomacy_neighbors(owner)
-                .any(|(target, _)| self.diplomatic_at_war(owner, target))
-        {
-            percent += rules.military_need_bonus_percent;
         }
         let mut value = base * percent / 100;
         if player.ai && player.researching == tech {
@@ -298,14 +313,34 @@ impl Simulation {
         let mut assets = Vec::new();
         let seller_reserve = self.diplomatic_trade_reserve(seller);
         let buyer_reserve = self.diplomatic_trade_reserve(buyer);
+        let seller_strategy = self.players[seller]
+            .ai
+            .then(|| self.strategic_priorities(seller));
+        let buyer_strategy = self.players[buyer]
+            .ai
+            .then(|| self.strategic_priorities(buyer));
         for tech in
             Tech::all().filter(|&tech| self.has_tech(seller, tech) && !self.has_tech(buyer, tech))
         {
             let values = self
-                .technology_value_with_reserve(seller, buyer, tech, true, seller_reserve)
+                .technology_value_with_reserve(
+                    seller,
+                    buyer,
+                    tech,
+                    true,
+                    seller_reserve,
+                    seller_strategy.as_ref(),
+                )
                 .and_then(|ask| {
-                    self.technology_value_with_reserve(buyer, seller, tech, false, buyer_reserve)
-                        .map(|bid| Asset { tech, ask, bid })
+                    self.technology_value_with_reserve(
+                        buyer,
+                        seller,
+                        tech,
+                        false,
+                        buyer_reserve,
+                        buyer_strategy.as_ref(),
+                    )
+                    .map(|bid| Asset { tech, ask, bid })
                 });
             match values {
                 Ok(asset) => assets.push(asset),

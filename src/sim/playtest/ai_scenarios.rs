@@ -51,7 +51,7 @@ impl Simulation {
         let Some((_, price)) = self.paid_upgrade(self.units.last().unwrap()) else {
             return false;
         };
-        self.players[1].gold = 3;
+        self.players[1].gold = self.strategic_priorities(1).gold_reserve;
         self.choose_ai_rates(1);
         let baseline = self.players[1].rates[1];
         self.spend_ai_defense_gold(1);

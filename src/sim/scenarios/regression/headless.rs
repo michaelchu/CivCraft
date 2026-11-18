@@ -18,7 +18,12 @@ pub(super) const SCENARIOS: &[Scenario] = &[
     Scenario::new("diplomacy-parity", diplomacy_parity),
     Scenario::new("peaceful-first-contact", peaceful_first_contact),
     Scenario::new("proactive-trade", proactive_trade),
+    Scenario::new("shared-strategy", shared_strategy),
 ];
+
+fn shared_strategy(sim: &mut Simulation, checks: &mut Checks) {
+    checks.extend(sim.shared_strategy_scenario());
+}
 
 fn proactive_trade(sim: &mut Simulation, checks: &mut Checks) {
     checks.extend(sim.proactive_trade_scenario());

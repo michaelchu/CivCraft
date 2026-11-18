@@ -190,11 +190,12 @@ impl Simulation {
             }
         }
 
-        // Freeciv defaults traitdistribution to FIXED. CivCraft currently
-        // has no nation-specific trait overrides, so use the selected
-        // C2C3 `aggressive_default` rather than a compiled-in 50.
-        let war_threshold =
-            aggression_war_threshold(crate::sim::ai_traits::fixed_default("aggressive"));
+        // Keep the selected C2C3 aggression baseline, then apply the
+        // owner-authorized strategic policy preference for military action.
+        let strategy = self.strategic_priorities(owner);
+        let aggression =
+            crate::sim::ai_traits::fixed_default("aggressive") + (strategy.military - 100) / 5;
+        let war_threshold = aggression_war_threshold(aggression);
         let target = contacts
             .iter()
             .copied()
@@ -208,6 +209,7 @@ impl Simulation {
             });
         let already_at_war = contacts.iter().any(|&target| self.at_war(owner, target));
         if !already_at_war
+            && strategy.can_start_optional_war()
             && let Some(target) = target
             && self.diplomacy[&Self::relation_key(owner, target)].trust[usize::from(owner > target)]
                 < war_threshold

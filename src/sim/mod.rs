@@ -21,6 +21,7 @@ mod action_rules;
 mod advisors;
 mod ai;
 mod ai_economy;
+mod ai_strategy;
 mod ai_traits;
 mod aviation;
 mod bases;

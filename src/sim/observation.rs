@@ -157,6 +157,7 @@ pub(crate) struct CivilizationSnapshot {
     pub units: usize,
     pub gold: i32,
     pub score: i32,
+    pub strategy: Option<super::ai_strategy::StrategicPriorities>,
 }
 #[derive(Clone, Serialize)]
 pub(crate) struct UnitSnapshot {
@@ -301,6 +302,8 @@ impl Simulation {
                     units: self.units_owned_by(owner).count(),
                     gold: player.gold,
                     score: self.civilization_score(owner),
+                    strategy: (player.ai && self.player_alive(owner))
+                        .then(|| self.strategic_priorities(owner)),
                 }
             })
             .collect()
