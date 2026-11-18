@@ -157,14 +157,14 @@ fn sea_worker_routes_reject_known_land_and_use_native_unknown_terrain_cost() {
     for tile in &mut game.tiles {
         tile.terrain = Terrain::Grassland;
         tile.owner = None;
-        tile.known_by[HUMAN] = true;
+        tile.known_by.set(HUMAN, true);
     }
     let start = (10, 24);
     let sea = offset_native_by_map(start.0, start.1, 1, 0);
     let land = offset_native_by_map(start.0, start.1, 0, 1);
     game.tile_mut(start.0, start.1).terrain = Terrain::Sea;
     game.tile_mut(sea.0, sea.1).terrain = Terrain::Sea;
-    game.tile_mut(sea.0, sea.1).known_by[HUMAN] = false;
+    game.tile_mut(sea.0, sea.1).known_by.set(HUMAN, false);
     game.spawn_unit(HUMAN, UnitKind::Transport, start.0, start.1);
     let routes = game.worker_routes(game.units.last().unwrap());
     assert_eq!(routes.costs[Simulation::idx(land.0, land.1)], i32::MAX);

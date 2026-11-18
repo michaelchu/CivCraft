@@ -444,7 +444,7 @@ mod tests {
         game.turn = 1;
         for tile in &mut game.tiles {
             tile.terrain = Terrain::Grassland;
-            tile.known_by = [true; PLAYER_SLOTS];
+            tile.known_by = [true; PLAYER_SLOTS].into();
             tile.visible = true;
         }
         let city_position = (10, 20);

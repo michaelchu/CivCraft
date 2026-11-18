@@ -8,6 +8,8 @@
 
 mod entities;
 mod terrain;
+mod visibility;
+pub(crate) use visibility::KnownBy;
 mod unit_stats;
 mod units;
 

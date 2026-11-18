@@ -200,11 +200,13 @@ mod tests {
             tile.known_by.fill(false);
             tile.seen = false;
         }
-        game.tile_mut(city.x, city.y).known_by[1] = true;
-        game.tile_mut(city.x, city.y).known_by[HUMAN] = true;
-        game.tile_mut(inside.0, inside.1).known_by[HUMAN] = true;
-        game.tile_mut(outside.0, outside.1).known_by[HUMAN] = true;
-        game.tile_mut(outside.0, outside.1).known_by[1] = false;
+        game.tile_mut(city.x, city.y).known_by.set(1, true);
+        game.tile_mut(city.x, city.y).known_by.set(HUMAN, true);
+        game.tile_mut(inside.0, inside.1).known_by.set(HUMAN, true);
+        game.tile_mut(outside.0, outside.1)
+            .known_by
+            .set(HUMAN, true);
+        game.tile_mut(outside.0, outside.1).known_by.set(1, false);
 
         assert!(game.share_treaty_city_map(1, city.id));
         assert!(game.tile(inside.0, inside.1).known_by[1]);

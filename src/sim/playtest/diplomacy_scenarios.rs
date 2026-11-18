@@ -13,7 +13,7 @@ impl Simulation {
         self.tile_mut(x, y).terrain = Terrain::Ocean;
         self.refresh_visibility();
         self.tile_mut(x, y).seen = false;
-        self.tile_mut(x, y).known_by[HUMAN] = false;
+        self.tile_mut(x, y).known_by.set(HUMAN, false);
         self.transfer_treaty_map(1, HUMAN, TreatyMap::Sea);
         self.tile(x, y).seen
             && !self.tile(x, y).visible

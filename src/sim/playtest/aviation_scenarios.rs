@@ -25,7 +25,7 @@ impl Simulation {
         if intercepted {
             city.buildings.push(Building::SDI_DEFENSE);
         }
-        self.tile_mut(target.0, target.1).known_by[HUMAN] = true;
+        self.tile_mut(target.0, target.1).known_by.set(HUMAN, true);
         self.sign_pact(HUMAN, 1, Pact::War);
         self.completed_wonders.push(Building::MANHATTAN_PROJECT);
         let missile = self.spawn_unit(HUMAN, UnitKind::ICBM, sx, sy);
@@ -205,7 +205,7 @@ impl Simulation {
         let (x, y) = (10, 24);
         self.sign_pact(1, HUMAN, Pact::War);
         for tile in &mut self.tiles {
-            tile.known_by[1] = true;
+            tile.known_by.set(1, true);
             tile.hut = false;
         }
         self.tile_mut(x, y).terrain = Terrain::Grassland;

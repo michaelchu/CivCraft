@@ -354,11 +354,11 @@ mod tests {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         game.tiles.truncate(7);
         for tile in &mut game.tiles {
-            tile.known_by[HUMAN] = false;
+            tile.known_by.set(HUMAN, false);
         }
-        game.tiles[0].known_by[HUMAN] = true;
+        game.tiles[0].known_by.set(HUMAN, true);
         assert!(!game.map_known_at_percent(HUMAN, 25));
-        game.tiles[1].known_by[HUMAN] = true;
+        game.tiles[1].known_by.set(HUMAN, true);
         assert!(game.map_known_at_percent(HUMAN, 25));
     }
 
@@ -386,7 +386,7 @@ mod tests {
         game.cities.clear();
         game.units.clear();
         for tile in &mut game.tiles {
-            tile.known_by = [false; PLAYER_SLOTS];
+            tile.known_by = [false; PLAYER_SLOTS].into();
         }
         game.players[HUMAN].history = 10_000;
         game.players[1].history = 10_000;

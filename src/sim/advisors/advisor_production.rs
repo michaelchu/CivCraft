@@ -168,7 +168,7 @@ impl Simulation {
             tile.resource = Some(Resource::Wheat);
             tile.owner = Some(1);
             tile.hut = false;
-            tile.known_by[1] = true;
+            tile.known_by.set(1, true);
         }
         self.players[1].government = Government::Despotism;
         self.create_city(1, 10, 24);

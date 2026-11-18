@@ -39,10 +39,10 @@ impl Simulation {
         game.spawn_unit(HUMAN, UnitKind::Warrior, enemy.0, enemy.1);
         game.sign_pact(1, HUMAN, Pact::War);
         let city = game.cities[0].clone();
-        game.tile_mut(enemy.0, enemy.1).known_by[1] = false;
+        game.tile_mut(enemy.0, enemy.1).known_by.set(1, false);
         let unknown = game.offensive_advice(&city);
         let hidden = unknown.0.is_none() && unknown.1.is_empty();
-        game.tile_mut(enemy.0, enemy.1).known_by[1] = true;
+        game.tile_mut(enemy.0, enemy.1).known_by.set(1, true);
         game.players[1].known.push(Tech::IRON_WORKING);
         let learned = game.offensive_advice(&city);
         let known = learned

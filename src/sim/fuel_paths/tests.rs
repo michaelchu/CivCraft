@@ -215,12 +215,12 @@ fn refuel_callback_keeps_enemy_base_and_omniscient_known_map_quirks() {
     sim.tile_mut(base.0, base.1).base = Some(Base::Airstrip);
     sim.tile_mut(base.0, base.1).owner = Some(1);
     for tile in &mut sim.tiles {
-        tile.known_by[HUMAN] = false;
+        tile.known_by.set(HUMAN, false);
     }
     let map = FuelPaths::new(&sim, &plane, true).unwrap();
     assert_eq!(map.required_moves(&sim, Simulation::idx(base.0, base.1)), 0);
     assert_eq!(map.required_moves(&sim, Simulation::idx(10, 20)), -1);
-    sim.tile_mut(base.0, base.1).known_by[HUMAN] = true;
+    sim.tile_mut(base.0, base.1).known_by.set(HUMAN, true);
     assert_eq!(
         map.required_moves(&sim, Simulation::idx(10, 20)),
         MOVE_FRAGMENTS

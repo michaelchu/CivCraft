@@ -295,7 +295,7 @@ pub(crate) fn ui_review_fixture(sim: &mut Simulation) -> (u32, u32) {
     sim.reconcile_city_workers();
     sim.refresh_visibility();
     for tile in &mut sim.tiles {
-        tile.known_by[HUMAN] = true;
+        tile.known_by.set(HUMAN, true);
     }
     diplomacy::ui_review_contacts(sim);
     (city, rival)
@@ -393,7 +393,7 @@ pub(crate) fn ui_review_rivers(sim: &mut Simulation, fogged: bool) {
         let tile = sim.tile_mut(x, y);
         tile.seen = false;
         tile.visible = false;
-        tile.known_by[HUMAN] = false;
+        tile.known_by.set(HUMAN, false);
         let (x, y) = offset_native_by_map(20, 24, 3, -1);
         sim.tile_mut(x, y).visible = false;
     }
@@ -430,7 +430,7 @@ pub(crate) fn ui_review_generated_river_focus(sim: &mut Simulation) -> Option<(i
     for tile in &mut sim.tiles {
         tile.seen = true;
         tile.visible = true;
-        tile.known_by[HUMAN] = true;
+        tile.known_by.set(HUMAN, true);
         tile.last_seen_owner = tile.owner;
     }
     target
@@ -673,7 +673,7 @@ pub(crate) fn ui_review_fog(sim: &mut Simulation) -> u32 {
             let tile = sim.tile_mut(x, y);
             tile.seen = distance <= 6;
             tile.visible = distance <= 3;
-            tile.known_by[HUMAN] = tile.seen;
+            tile.known_by.set(HUMAN, tile.seen);
         }
     }
     id
@@ -698,7 +698,7 @@ pub(crate) fn ui_review_remember_all_tiles(sim: &mut Simulation) {
     for tile in &mut sim.tiles {
         tile.seen = true;
         tile.visible = false;
-        tile.known_by[HUMAN] = true;
+        tile.known_by.set(HUMAN, true);
     }
     ui_review_record_knowledge(sim);
 }
@@ -979,7 +979,7 @@ pub(crate) fn ui_review_reveal_all_tiles(sim: &mut Simulation) {
     for tile in &mut sim.tiles {
         tile.seen = true;
         tile.visible = true;
-        tile.known_by[HUMAN] = true;
+        tile.known_by.set(HUMAN, true);
     }
     ui_review_record_knowledge(sim);
 }

@@ -957,7 +957,7 @@ mod selected_rules_tests {
         let id = sim.spawn_unit(HUMAN, UnitKind::Explorer, 10, 20);
         let actor = sim.unit_by_id(id).unwrap().clone();
         let target = sim.map_wrap.civ3_neighbor(10, 20, 2).unwrap();
-        sim.tile_mut(target.0, target.1).known_by[HUMAN] = false;
+        sim.tile_mut(target.0, target.1).known_by.set(HUMAN, false);
 
         let expected = MovementRules::campaign()
             .unknown_tile_move_cost(actor.kind)

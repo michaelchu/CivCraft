@@ -189,7 +189,7 @@ impl Simulation {
         }
         self.turn = 30;
         let distant = self.spawn_unit(HUMAN, UnitKind::Warrior, 2, 24);
-        self.tile_mut(2, 24).known_by[1] = true;
+        self.tile_mut(2, 24).known_by.set(1, true);
         self.tile_mut(2, 24).owner = Some(1);
         let fogged = !self.unit_visible_to(1, self.unit_by_id(distant).unwrap());
         let hidden = self.spawn_unit(HUMAN, UnitKind::Submarine, 22, 24);
@@ -319,8 +319,8 @@ impl Simulation {
         ] {
             let tile = self.tile_mut(point.0, point.1);
             tile.terrain = terrain;
-            tile.known_by[1] = known;
-            tile.known_by[HUMAN] = false;
+            tile.known_by.set(1, known);
+            tile.known_by.set(HUMAN, false);
             tile.visible = false;
             tile.seen = false;
         }
@@ -380,8 +380,8 @@ impl Simulation {
 
         let point = (23, 36);
         let tile = self.tile_mut(point.0, point.1);
-        tile.known_by[1] = true;
-        tile.known_by[HUMAN] = false;
+        tile.known_by.set(1, true);
+        tile.known_by.set(HUMAN, false);
         tile.seen = false;
         let mut observed = vec![vec![false; self.tiles.len()]; self.players.len()];
         observed[1][self.map_wrap.index(point.0, point.1)] = true;

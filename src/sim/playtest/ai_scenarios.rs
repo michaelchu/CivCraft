@@ -118,7 +118,7 @@ impl Simulation {
             tile.railroad = false;
             tile.river = false;
             tile.owner = None;
-            tile.known_by[1] = true;
+            tile.known_by.set(1, true);
         }
         let start = (10, 24);
         let point = |step| offset_native_by_map(start.0, start.1, step, 0);
@@ -227,7 +227,7 @@ impl Simulation {
                 } else {
                     Terrain::Grassland
                 };
-                tile.known_by[HUMAN] = false;
+                tile.known_by.set(HUMAN, false);
             }
             let id = self.spawn_unit(HUMAN, kind, 10, 20);
             self.units
@@ -269,7 +269,7 @@ impl Simulation {
             tile.known_by.fill(false);
         }
         let ai = self.spawn_unit(1, UnitKind::Explorer, 10, 20);
-        self.tile_mut(10, 20).known_by[1] = true;
+        self.tile_mut(10, 20).known_by.set(1, true);
         let constrained = self.run_auto_explorer(ai) == ExploreResult::Done;
         self.units.clear();
         let human = self.spawn_unit(HUMAN, UnitKind::Explorer, 10, 20);
@@ -294,7 +294,7 @@ impl Simulation {
             .count()
             > before;
         for tile in &mut self.tiles {
-            tile.known_by[HUMAN] = true;
+            tile.known_by.set(HUMAN, true);
         }
         self.units
             .iter_mut()

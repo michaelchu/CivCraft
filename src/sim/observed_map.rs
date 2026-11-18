@@ -195,7 +195,7 @@ impl Simulation {
         for owner in 0..self.players.len() {
             if self.reveals_map(owner) {
                 for tile in &mut self.tiles {
-                    tile.known_by[owner] = true;
+                    tile.known_by.set(owner, true);
                     if owner == HUMAN {
                         tile.seen = true;
                     }
@@ -230,7 +230,7 @@ impl Simulation {
                 let idx = self.map_wrap.index(visible_x, visible_y);
                 if owner != BARBARIANS {
                     for &target in &recipients[owner] {
-                        self.tiles[idx].known_by[target] = true;
+                        self.tiles[idx].known_by.set(target, true);
                         render_seen[target][idx] = true;
                     }
                 }
@@ -250,7 +250,7 @@ impl Simulation {
         for owner in city_reveal_owners {
             for city in &self.cities {
                 let tile = &mut self.tiles[self.map_wrap.index(city.x, city.y)];
-                tile.known_by[owner] = true;
+                tile.known_by.set(owner, true);
                 tile.seen |= owner == HUMAN;
             }
         }
@@ -423,7 +423,7 @@ impl Simulation {
                     resource: None,
                 });
                 snapshot.seen = true;
-                snapshot.known_by[observer] = true;
+                snapshot.known_by.set(observer, true);
                 snapshot.owner = owner;
                 snapshot.road = route.road;
                 snapshot.railroad = route.railroad;
@@ -703,7 +703,7 @@ impl Simulation {
                     continue;
                 }
                 let tile = &mut self.tiles[index];
-                tile.known_by[recipient] = true;
+                tile.known_by.set(recipient, true);
                 if recipient == HUMAN {
                     tile.seen = true;
                 }
@@ -784,7 +784,7 @@ impl Simulation {
         let mut transferred = std::collections::BTreeSet::new();
         for (index, entry) in tiles {
             let tile = &mut self.tiles[index];
-            tile.known_by[receiver] = true;
+            tile.known_by.set(receiver, true);
             if receiver == HUMAN {
                 tile.seen = true;
                 tile.last_seen_owner = entry.1.owner;

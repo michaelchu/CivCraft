@@ -83,7 +83,7 @@ impl Simulation {
         } else {
             Terrain::Grassland
         };
-        tile.known_by[HUMAN] = !sea;
+        tile.known_by.set(HUMAN, !sea);
         tile.hut = true;
         let (lx, ly) = neighbors(x, y).next().unwrap();
         self.tile_mut(lx, ly).terrain = Terrain::Grassland;

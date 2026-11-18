@@ -27,7 +27,7 @@ fn sane_rendezvous_retains_escort_when_omniscient_policy_cannot_pass_enemy() {
     let mut game = game();
     for tile in &mut game.tiles {
         tile.terrain = Terrain::Sea;
-        tile.known_by[1] = false;
+        tile.known_by.set(1, false);
     }
     let start = (10, 24);
     let point = |step| offset_native_by_map(start.0, start.1, step, 0);
@@ -40,7 +40,7 @@ fn sane_rendezvous_retains_escort_when_omniscient_policy_cannot_pass_enemy() {
     let guard = game.spawn_unit(1, UnitKind::Musketman, start.0, start.1);
     let barrier = point(2);
     game.spawn_unit(HUMAN, UnitKind::Warrior, barrier.0, barrier.1);
-    game.tile_mut(barrier.0, barrier.1).known_by[1] = false;
+    game.tile_mut(barrier.0, barrier.1).known_by.set(1, false);
     assert!(game.assign_ai_guard(guard, GuardTarget::Unit(charge)));
     let actor = game.unit_by_id(guard).unwrap();
     assert!(game.ai_goto_is_sane(actor, finish));

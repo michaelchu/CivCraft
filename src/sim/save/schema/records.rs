@@ -255,7 +255,7 @@ struct TileWire {
     visible: bool,
     stealth_visible: bool,
     #[serde(with = "crate::sim::save::known_by")]
-    known_by: [bool; PLAYER_SLOTS],
+    known_by: crate::sim::KnownBy,
 }
 
 #[derive(Serialize, Deserialize)]

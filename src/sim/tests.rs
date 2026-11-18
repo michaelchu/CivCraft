@@ -73,7 +73,7 @@ fn newly_founded_city_uses_c2c3_border_and_work_radii() {
         game.cities.clear();
         for tile in &mut game.tiles {
             tile.terrain = Terrain::Grassland;
-            tile.known_by = [true; PLAYER_SLOTS];
+            tile.known_by = [true; PLAYER_SLOTS].into();
             tile.owner = None;
             tile.border_city = None;
         }
@@ -370,7 +370,7 @@ fn player_restore_wires_selected_aircraft_recovery_and_fuel_sites() {
     for tile in &mut game.tiles {
         tile.terrain = Terrain::Grassland;
         tile.base = None;
-        tile.known_by[HUMAN] = false;
+        tile.known_by.set(HUMAN, false);
     }
 
     let airstrip = (5, 20);
@@ -381,7 +381,7 @@ fn player_restore_wires_selected_aircraft_recovery_and_fuel_sites() {
     for (position, base) in [(airstrip, Base::Airstrip), (airbase, Base::Airbase)] {
         let tile = game.tile_mut(position.0, position.1);
         tile.base = Some(base);
-        tile.known_by[HUMAN] = true;
+        tile.known_by.set(HUMAN, true);
     }
     game.create_city(HUMAN, airport.0, airport.1);
     let airport_city = game.city_index_at(airport.0, airport.1).unwrap();

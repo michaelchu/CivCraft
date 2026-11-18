@@ -98,7 +98,7 @@ fn a_v28_route_only_observation_survives_upgrade_until_the_tile_is_reobserved() 
     let (x, y) = (23, 36);
     let index = game.map_wrap.index(x, y);
     game.tiles[index].terrain = Terrain::Ocean;
-    game.tiles[index].known_by[observer] = true;
+    game.tiles[index].known_by.set(observer, true);
     let old_map = LegacyAiMap(BTreeMap::from([(
         (observer, index),
         schema::MapObservation {
@@ -147,8 +147,8 @@ fn large_explored_campaigns_save_reload_and_advance() {
         let mut game = Simulation::new(crate::mapgen::generate_with_wrap(42, wrap));
         for tile in &mut game.tiles {
             tile.seen = true;
-            tile.known_by[HUMAN] = true;
-            tile.known_by[PLAYER_SLOTS - 1] = true;
+            tile.known_by.set(HUMAN, true);
+            tile.known_by.set(PLAYER_SLOTS - 1, true);
         }
         game.remember_render_map(&[vec![true; wrap.tile_count()]]);
         let path = temporary_save("large-map");

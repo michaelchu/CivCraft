@@ -664,7 +664,7 @@ fn treaty_city_listing_excludes_capitals_hidden_cities_and_other_owners() {
     }
     let city_id = game.cities.last().unwrap().id;
     let target = game.city_by_id(city_id).unwrap();
-    game.tile_mut(target.x, target.y).known_by[HUMAN] = true;
+    game.tile_mut(target.x, target.y).known_by.set(HUMAN, true);
     let hidden_ids: Vec<_> = game
         .cities
         .iter()
@@ -673,7 +673,7 @@ fn treaty_city_listing_excludes_capitals_hidden_cities_and_other_owners() {
         .collect();
     for hidden_id in hidden_ids {
         let hidden = game.city_by_id(hidden_id).unwrap();
-        game.tile_mut(hidden.x, hidden.y).known_by[HUMAN] = false;
+        game.tile_mut(hidden.x, hidden.y).known_by.set(HUMAN, false);
     }
     assert_eq!(game.treaty_trade_cities(1, HUMAN), [city_id]);
     assert!(game.treaty_trade_cities(1, 1).is_empty());
@@ -734,7 +734,7 @@ fn multiple_city_clauses_transfer_when_the_recipient_accepts() {
             let city = game.city_by_id(id).unwrap();
             (city.x, city.y)
         };
-        game.tile_mut(x, y).known_by[HUMAN] = true;
+        game.tile_mut(x, y).known_by.set(HUMAN, true);
     }
 
     let mut offer = TreatyOffer::default();

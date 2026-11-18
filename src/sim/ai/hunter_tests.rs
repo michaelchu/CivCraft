@@ -384,7 +384,7 @@ fn military_pickup_preserves_a_civilian_boss_until_released() {
     let shore = offset_native_by_map(home.0, home.1, 8, 0);
     for (x, y) in [home, shore, target] {
         game.tile_mut(x, y).terrain = Terrain::Grassland;
-        game.tile_mut(x, y).known_by[1] = true;
+        game.tile_mut(x, y).known_by.set(1, true);
     }
     game.create_city(1, home.0, home.1);
     game.create_city(HUMAN, target.0, target.1);
@@ -543,7 +543,7 @@ fn amphibious_waypoint_keeps_the_passengers_final_land_goal() {
         tile.terrain = Terrain::Sea;
         tile.owner = None;
         tile.hut = false;
-        tile.known_by[1] = true;
+        tile.known_by.set(1, true);
     }
     let start = (10, 24);
     let waypoint = offset_native_by_map(start.0, start.1, 5, 0);

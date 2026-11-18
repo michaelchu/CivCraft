@@ -103,7 +103,7 @@ fn idle_ferry_recovery_uses_allied_ports_and_native_regeneration_penalty() {
     let mut game = world();
     for tile in &mut game.tiles {
         tile.terrain = Terrain::Sea;
-        tile.known_by[1] = true;
+        tile.known_by.set(1, true);
     }
     let ship = game.spawn_unit(1, UnitKind::Caravel, 10, 20);
     let near = offset_native_by_map(10, 20, 1, 0);
@@ -158,8 +158,8 @@ fn native_start_ignore_can_leave_a_forbidden_start_without_entering_forbidden_de
     assert_eq!(game.pact(HUMAN, 1), Pact::Peace);
     game.tile_mut(10, 20).owner = Some(1);
     let next = offset_native_by_map(10, 20, 1, 0);
-    game.tile_mut(10, 20).known_by[HUMAN] = true;
-    game.tile_mut(next.0, next.1).known_by[HUMAN] = true;
+    game.tile_mut(10, 20).known_by.set(HUMAN, true);
+    game.tile_mut(next.0, next.1).known_by.set(HUMAN, true);
     let unit = game.unit_by_id(id).unwrap();
     assert!(!game.explorer_may_visit(unit, 10, 20));
     assert_eq!(game.explorer_search(unit, None).0, Some(next));
@@ -175,7 +175,7 @@ fn explorer_rechecks_entry_when_a_foreign_unit_occupies_the_goal() {
     let goal = offset_native_by_map(start.0, start.1, 1, 0);
     let explorer = game.make_unit(0, HUMAN, UnitKind::Explorer, start.0, start.1);
     for (x, y) in [start, goal] {
-        game.tile_mut(x, y).known_by[HUMAN] = true;
+        game.tile_mut(x, y).known_by.set(HUMAN, true);
     }
     game.tile_mut(goal.0, goal.1).hut = true;
     assert_eq!(game.explorer_search(&explorer, None).0, Some(goal));
@@ -235,7 +235,7 @@ fn likely_native_keeps_reference_unknown_center_quirk() {
     let mut game = world();
     let point = (10, 20);
     for (x, y) in game.map_wrap.civ3_neighbors(point.0, point.1) {
-        game.tile_mut(x, y).known_by[HUMAN] = true;
+        game.tile_mut(x, y).known_by.set(HUMAN, true);
     }
     assert_eq!(
         game.explorer_likely_native(HUMAN, UnitKind::Explorer, point.0, point.1),
@@ -254,12 +254,12 @@ fn scoring_requires_unknown_sight_but_known_huts_override_it() {
     let id = game.spawn_unit(HUMAN, UnitKind::Warrior, 10, 20);
     let unit = game.unit_by_id(id).unwrap().clone();
     for tile in &mut game.tiles {
-        tile.known_by[HUMAN] = true;
+        tile.known_by.set(HUMAN, true);
     }
     assert_eq!(game.explorer_desirable(&unit, 12, 24), 0);
     game.tile_mut(12, 24).hut = true;
     assert_eq!(game.explorer_desirable(&unit, 12, 24), 60_902);
-    game.tile_mut(12, 24).known_by[HUMAN] = false;
+    game.tile_mut(12, 24).known_by.set(HUMAN, false);
     assert!(game.explorer_desirable(&unit, 12, 24) < HUT_SCORE);
 }
 
@@ -269,12 +269,12 @@ fn first_search_never_targets_unknown_even_for_omniscient_ai() {
     let id = game.spawn_unit(1, UnitKind::Explorer, 10, 20);
     let unit = game.unit_by_id(id).unwrap().clone();
     for tile in &mut game.tiles {
-        tile.known_by[1] = false;
+        tile.known_by.set(1, false);
     }
-    game.tile_mut(10, 20).known_by[1] = true;
+    game.tile_mut(10, 20).known_by.set(1, true);
     assert!(game.explorer_search(&unit, None).0.is_none());
     let next = offset_native_by_map(10, 20, 1, 0);
-    game.tile_mut(next.0, next.1).known_by[1] = true;
+    game.tile_mut(next.0, next.1).known_by.set(1, true);
     assert_eq!(game.explorer_search(&unit, None).0, Some(next));
 }
 
@@ -303,7 +303,7 @@ fn second_search_avoids_an_expensive_vulnerable_stack() {
     let id = game.spawn_unit(HUMAN, UnitKind::Explorer, 10, 20);
     let unit = game.unit_by_id(id).unwrap().clone();
     for tile in &mut game.tiles {
-        tile.known_by[HUMAN] = true;
+        tile.known_by.set(HUMAN, true);
     }
     let stacked = offset_native_by_map(10, 20, 1, 0);
     let goal = offset_native_by_map(10, 20, 2, 0);
@@ -327,8 +327,8 @@ fn paused_exploration_clears_human_automation_without_a_dangerous_last_step() {
     let next = offset_native_by_map(10, 20, 1, 0);
     let enemy = offset_native_by_map(10, 20, 2, 0);
     game.spawn_unit(1, UnitKind::Warrior, enemy.0, enemy.1);
-    game.tile_mut(10, 20).known_by[HUMAN] = true;
-    game.tile_mut(next.0, next.1).known_by[HUMAN] = true;
+    game.tile_mut(10, 20).known_by.set(HUMAN, true);
+    game.tile_mut(next.0, next.1).known_by.set(HUMAN, true);
     game.tile_mut(enemy.0, enemy.1).visible = true;
     let actor = game.units.iter_mut().find(|unit| unit.id == id).unwrap();
     actor.moves_left = 2;

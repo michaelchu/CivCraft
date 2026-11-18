@@ -56,7 +56,7 @@ fn sanity_pf_assumes_unknown_source_scope_is_native_even_for_zero_attack_carrier
     let bridge = offset_native_by_map(10, 20, 1, 0);
     let target = offset_native_by_map(10, 20, 2, 0);
     game.tile_mut(target.0, target.1).terrain = Terrain::Sea;
-    game.tile_mut(bridge.0, bridge.1).known_by[HUMAN] = false;
+    game.tile_mut(bridge.0, bridge.1).known_by.set(HUMAN, false);
     let id = game.spawn_unit(HUMAN, UnitKind::Carrier, 10, 20);
     game.spawn_unit(BARBARIANS, UnitKind::Caravel, target.0, target.1);
     let actor = game.unit_by_id(id).unwrap();
@@ -87,7 +87,7 @@ fn explorer_hostile_endpoint_uses_imported_terrain_movement_cost() {
 fn refuge_sanity_gate_is_optimistic_about_unknown_non_native_terrain() {
     let mut game = world();
     for tile in &mut game.tiles {
-        tile.known_by[BARBARIANS] = false;
+        tile.known_by.set(BARBARIANS, false);
     }
     game.tile_mut(10, 20).terrain = Terrain::Sea;
     let id = game.spawn_unit(BARBARIANS, UnitKind::Caravel, 10, 20);

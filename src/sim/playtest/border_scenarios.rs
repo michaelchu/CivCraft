@@ -8,7 +8,7 @@ impl Simulation {
         self.cities.clear();
         for tile in &mut self.tiles {
             tile.terrain = Terrain::Grassland;
-            tile.known_by = [false; PLAYER_SLOTS];
+            tile.known_by = [false; PLAYER_SLOTS].into();
             tile.owner = None;
             tile.border_city = None;
             tile.last_seen_owner = None;
@@ -29,7 +29,7 @@ impl Simulation {
         }
         self.tile_mut(lake.0, lake.1).terrain = Terrain::Lake;
         for (tx, ty) in [(x, y), coast, sea, lake] {
-            self.tile_mut(tx, ty).known_by[1] = true;
+            self.tile_mut(tx, ty).known_by.set(1, true);
         }
         self.create_city(1, x, y);
         let water = self.tile(coast.0, coast.1).owner == Some(1)
@@ -56,7 +56,7 @@ impl Simulation {
         self.cities.clear();
         for tile in &mut self.tiles {
             tile.terrain = Terrain::Grassland;
-            tile.known_by = [false; PLAYER_SLOTS];
+            tile.known_by = [false; PLAYER_SLOTS].into();
             tile.owner = None;
             tile.border_city = None;
             tile.last_seen_owner = None;
@@ -64,8 +64,8 @@ impl Simulation {
         // Keep this culture-claim scenario independent of the unresolved rule
         // for claiming terrain a civilization has not discovered.
         for tile in &mut self.tiles {
-            tile.known_by[HUMAN] = true;
-            tile.known_by[1] = true;
+            tile.known_by.set(HUMAN, true);
+            tile.known_by.set(1, true);
         }
         let (x, y) = (10, 24);
         let wrap = self.map_wrap;
@@ -95,7 +95,7 @@ impl Simulation {
         size_growth.cities.clear();
         for tile in &mut size_growth.tiles {
             tile.terrain = Terrain::Grassland;
-            tile.known_by[HUMAN] = true;
+            tile.known_by.set(HUMAN, true);
             tile.owner = None;
             tile.border_city = None;
         }

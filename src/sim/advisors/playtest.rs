@@ -62,7 +62,7 @@ impl super::Simulation {
             tile.road = true;
             tile.river = true;
             tile.hut = false;
-            tile.known_by[1] = true;
+            tile.known_by.set(1, true);
         }
         self.players[1].known = self.research_path(1, Tech::LITERATURE);
         self.players[1]

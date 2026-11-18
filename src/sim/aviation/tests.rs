@@ -148,7 +148,7 @@ fn ai_artillery_moves_toward_a_firing_position_when_no_shot_is_in_range() {
         tile.terrain = Terrain::Grassland;
         tile.base = None;
         tile.hut = false;
-        tile.known_by[1] = true;
+        tile.known_by.set(1, true);
     }
     game.create_city(1, source.0, source.1);
     game.create_city(HUMAN, target.0, target.1);
@@ -189,10 +189,10 @@ fn ai_artillery_moves_to_the_only_known_firing_position_one_step_away() {
     game.cities.last_mut().unwrap().size = 4;
     let id = game.spawn_unit(1, UnitKind::Artillery, start.0, start.1);
     for tile in &mut game.tiles {
-        tile.known_by[1] = false;
+        tile.known_by.set(1, false);
     }
     for (x, y) in [start, firing, target] {
-        game.tile_mut(x, y).known_by[1] = true;
+        game.tile_mut(x, y).known_by.set(1, true);
     }
 
     let gun = game.unit_by_id(id).unwrap().clone();
@@ -218,7 +218,7 @@ fn ai_bombard_does_not_use_remembered_visibility_to_find_hidden_units() {
     game.create_city(HUMAN, 2, 2);
     game.sign_pact(1, HUMAN, Pact::War);
     let artillery = game.spawn_unit(1, UnitKind::Artillery, sx, sy);
-    game.tile_mut(tx, ty).known_by[1] = true;
+    game.tile_mut(tx, ty).known_by.set(1, true);
     let target = game.spawn_unit(HUMAN, UnitKind::Submarine, tx, ty);
     assert!(!game.unit_visible_to(1, game.unit_by_id(target).unwrap()));
 
@@ -353,7 +353,7 @@ fn paradrop_uses_selected_actions_minimum_moves_and_unit_range() {
     game.cities.clear();
     for tile in &mut game.tiles {
         tile.terrain = Terrain::Grassland;
-        tile.known_by[HUMAN] = true;
+        tile.known_by.set(HUMAN, true);
         tile.hut = false;
     }
     let source = (10, 20);
@@ -440,7 +440,7 @@ fn blind_paradrop_uses_remembered_land_then_resolves_actual_water_death() {
     game.cities.clear();
     for tile in &mut game.tiles {
         tile.terrain = Terrain::Grassland;
-        tile.known_by[HUMAN] = true;
+        tile.known_by.set(HUMAN, true);
         tile.visible = false;
         tile.seen = true;
         tile.hut = false;
@@ -493,7 +493,7 @@ fn paradrop_action_enablers_use_remembered_target_ownership() {
     game.cities.clear();
     for tile in &mut game.tiles {
         tile.terrain = Terrain::Grassland;
-        tile.known_by[HUMAN] = true;
+        tile.known_by.set(HUMAN, true);
         tile.visible = false;
         tile.seen = true;
         tile.hut = false;
@@ -727,7 +727,7 @@ fn empty_terrain_bombard_setup() -> (Simulation, u32, (i32, i32)) {
     }
     game.tile_mut(tx, ty).owner = Some(1);
     game.tile_mut(tx, ty).visible = true;
-    game.tile_mut(tx, ty).known_by[HUMAN] = true;
+    game.tile_mut(tx, ty).known_by.set(HUMAN, true);
     game.create_city(HUMAN, sx, sy);
     game.sign_pact(HUMAN, 1, Pact::War);
     let artillery = game.spawn_unit(HUMAN, UnitKind::Artillery, sx, sy);
@@ -850,7 +850,7 @@ fn ai_artillery_bombards_a_known_hostile_terrain_improvement() {
         game.tile_mut(x, y).base = None;
     }
     game.tile_mut(tx, ty).owner = Some(HUMAN);
-    game.tile_mut(tx, ty).known_by[1] = true;
+    game.tile_mut(tx, ty).known_by.set(1, true);
     game.tile_mut(tx, ty).road = true;
     game.tile_mut(tx, ty).mine = true;
     game.sign_pact(1, HUMAN, Pact::War);
@@ -875,11 +875,11 @@ fn city_bombard_setup() -> (Simulation, u32, i32, i32) {
         tile.terrain = Terrain::Grassland;
         tile.base = None;
         tile.visible = true;
-        tile.known_by[HUMAN] = true;
+        tile.known_by.set(HUMAN, true);
     }
     game.create_city(1, tx, ty);
     game.tile_mut(tx, ty).visible = true;
-    game.tile_mut(tx, ty).known_by[HUMAN] = true;
+    game.tile_mut(tx, ty).known_by.set(HUMAN, true);
     game.cities[0].size = 3;
     game.sign_pact(HUMAN, 1, Pact::War);
     let cannon = game.spawn_unit(HUMAN, UnitKind::Cannon, sx, sy);
@@ -1022,9 +1022,9 @@ fn ai_bomber_bombards_a_known_hostile_terrain_tile_from_an_airbase() {
         tile.base = None;
     }
     game.tile_mut(sx, sy).base = Some(Base::Airbase);
-    game.tile_mut(sx, sy).known_by[1] = true;
+    game.tile_mut(sx, sy).known_by.set(1, true);
     game.tile_mut(tx, ty).owner = Some(HUMAN);
-    game.tile_mut(tx, ty).known_by[1] = true;
+    game.tile_mut(tx, ty).known_by.set(1, true);
     game.tile_mut(tx, ty).road = true;
     game.tile_mut(tx, ty).mine = true;
     game.sign_pact(1, HUMAN, Pact::War);
@@ -1048,7 +1048,7 @@ fn ai_bomber_rebases_to_a_site_with_an_in_range_enemy_city() {
         tile.terrain = Terrain::Grassland;
         tile.base = None;
         tile.owner = None;
-        tile.known_by[1] = false;
+        tile.known_by.set(1, false);
         tile.road = false;
         tile.railroad = false;
         tile.mine = false;
@@ -1064,7 +1064,7 @@ fn ai_bomber_rebases_to_a_site_with_an_in_range_enemy_city() {
         let tile = game.tile_mut(x, y);
         tile.terrain = Terrain::Grassland;
         tile.base = None;
-        tile.known_by[1] = true;
+        tile.known_by.set(1, true);
     }
     game.tile_mut(base.0, base.1).base = Some(Base::Airbase);
     game.create_city(1, source.0, source.1);
@@ -1144,7 +1144,7 @@ fn fighter_air_superiority_intercepts_within_half_range_once_per_turn() {
         game.tile_mut(x, y).terrain = Terrain::Grassland;
         game.tile_mut(x, y).base = None;
         game.tile_mut(x, y).visible = true;
-        game.tile_mut(x, y).known_by[HUMAN] = true;
+        game.tile_mut(x, y).known_by.set(HUMAN, true);
     }
     game.create_city(HUMAN, base.0, base.1);
     game.sign_pact(HUMAN, 1, Pact::War);
@@ -1877,7 +1877,7 @@ mod stealth_tests {
         game.tile_mut(point.0, point.1).terrain = Terrain::Grassland;
         game.tile_mut(point.0, point.1).base = Some(Base::Airstrip);
         game.tile_mut(point.0, point.1).owner = Some(HUMAN);
-        game.tile_mut(point.0, point.1).known_by[1] = true;
+        game.tile_mut(point.0, point.1).known_by.set(1, true);
         game.sign_pact(1, HUMAN, Pact::War);
         let id = game.spawn_unit(1, UnitKind::Fighter, point.0, point.1);
         game.units
@@ -1891,7 +1891,7 @@ mod stealth_tests {
             game.unit_by_id(id).unwrap().fuel,
             UnitKind::Fighter.fuel_capacity()
         );
-        game.tile_mut(point.0, point.1).known_by[1] = false;
+        game.tile_mut(point.0, point.1).known_by.set(1, false);
         assert!(!game.refuel_site(1, point.0, point.1));
     }
 
@@ -1984,7 +1984,7 @@ mod stealth_tests {
         let target = offset_native_by_map(origin.0, origin.1, 1, 0);
         game.create_city(HUMAN, origin.0, origin.1);
         game.create_city(1, target.0, target.1);
-        game.tile_mut(target.0, target.1).known_by[HUMAN] = true;
+        game.tile_mut(target.0, target.1).known_by.set(HUMAN, true);
         let id = game.spawn_unit(HUMAN, UnitKind::TacticalNuke, origin.0, origin.1);
         let nuke = game.unit_by_id(id).unwrap().clone();
         assert!(UnitKind::TacticalNuke.has_flag(super::super::unit_catalog::UnitFlag::OneAttack));
@@ -2169,7 +2169,9 @@ mod stealth_tests {
         game.create_city(HUMAN, origin.0, origin.1);
         let troop = game.spawn_unit(HUMAN, UnitKind::Paratrooper, origin.0, origin.1);
         game.spawn_unit(1, UnitKind::Warrior, landing.0, landing.1);
-        game.tile_mut(landing.0, landing.1).known_by[HUMAN] = true;
+        game.tile_mut(landing.0, landing.1)
+            .known_by
+            .set(HUMAN, true);
         game.tile_mut(landing.0, landing.1).seen = true;
         remember_all_tiles_for_human(&mut game);
         game.turn += 30;
@@ -2193,7 +2195,7 @@ mod stealth_tests {
             tile.hut = false;
             tile.visible = false;
             tile.seen = true;
-            tile.known_by[HUMAN] = true;
+            tile.known_by.set(HUMAN, true);
         }
         let origin = (10, 20);
         let landing = offset_native_by_map(origin.0, origin.1, 5, 0);

@@ -18,7 +18,7 @@ impl Simulation {
             tile.railroad = false;
             tile.base = None;
             tile.hut = false;
-            tile.known_by[1] = true;
+            tile.known_by.set(1, true);
         }
         self.sign_pact(1, HUMAN, Pact::War);
         let home = (10, 24);

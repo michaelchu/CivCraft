@@ -41,7 +41,7 @@ mod tests {
     fn remembered_tiles_do_not_reveal_units_and_foreign_cities_conceal_garrisons() {
         let mut game = observers();
         let id = game.spawn_unit(HUMAN, UnitKind::Warrior, 26, 24);
-        game.tile_mut(26, 24).known_by[1] = true;
+        game.tile_mut(26, 24).known_by.set(1, true);
         assert!(!game.unit_visible_to(1, game.unit_by_id(id).unwrap()));
         let id = game.spawn_unit(HUMAN, UnitKind::Warrior, 18, 24);
         assert!(game.unit_visible_to(1, game.unit_by_id(id).unwrap()));

@@ -475,7 +475,7 @@ impl Simulation {
             tile.road = false;
             tile.railroad = false;
             tile.river = false;
-            tile.known_by[1] = true;
+            tile.known_by.set(1, true);
         }
         self.sign_pact(1, HUMAN, Pact::War);
         let origin = (10, 24);

@@ -137,7 +137,9 @@ fn enabled_borders_only_claim_known_tiles_beyond_the_city_source() {
     assert_eq!(game.tile(origin.0, origin.1).owner, Some(HUMAN));
     assert_eq!(game.tile(neighbor.0, neighbor.1).owner, None);
 
-    game.tile_mut(neighbor.0, neighbor.1).known_by[HUMAN] = true;
+    game.tile_mut(neighbor.0, neighbor.1)
+        .known_by
+        .set(HUMAN, true);
     game.rebuild_city_ownership();
     assert_eq!(game.tile(neighbor.0, neighbor.1).owner, Some(HUMAN));
 }

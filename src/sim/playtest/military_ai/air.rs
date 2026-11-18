@@ -10,7 +10,7 @@ impl Simulation {
         self.sign_pact(1, HUMAN, Pact::War);
         for tile in &mut self.tiles {
             tile.terrain = Terrain::Grassland;
-            tile.known_by[1] = true;
+            tile.known_by.set(1, true);
             tile.hut = false;
             tile.base = None;
         }
@@ -54,7 +54,7 @@ impl Simulation {
         for (x, y) in [home, target, outside] {
             let tile = self.tile_mut(x, y);
             tile.terrain = Terrain::Grassland;
-            tile.known_by[HUMAN] = true;
+            tile.known_by.set(HUMAN, true);
             tile.seen = true;
             tile.hut = false;
         }
@@ -101,14 +101,14 @@ impl Simulation {
             tile.terrain = Terrain::Grassland;
             tile.base = None;
             tile.hut = false;
-            tile.known_by[1] = true;
+            tile.known_by.set(1, true);
         }
         let home = (10, 24);
         let near = offset_native_by_map(home.0, home.1, 1, 0);
         let far = offset_native_by_map(home.0, home.1, 8, 0);
         self.create_city(1, home.0, home.1);
-        self.tile_mut(near.0, near.1).known_by[1] = true;
-        self.tile_mut(far.0, far.1).known_by[1] = true;
+        self.tile_mut(near.0, near.1).known_by.set(1, true);
+        self.tile_mut(far.0, far.1).known_by.set(1, true);
         let fighter = self.spawn_unit(1, UnitKind::Fighter, home.0, home.1);
         self.units.last_mut().unwrap().moves_left =
             UnitKind::Fighter.stats().moves * MOVE_FRAGMENTS;
@@ -162,7 +162,7 @@ impl Simulation {
             tile.base = None;
             tile.hut = false;
             tile.owner = None;
-            tile.known_by[1] = false;
+            tile.known_by.set(1, false);
         }
         let home = (10, 24);
         self.tile_mut(home.0, home.1).terrain = Terrain::Grassland;
@@ -175,7 +175,7 @@ impl Simulation {
         if !self.board_specific_ship(infantry, ferry) || !self.board_specific_ship(marine, ferry) {
             return false;
         }
-        self.tile_mut(sea.0, sea.1).known_by[1] = false;
+        self.tile_mut(sea.0, sea.1).known_by.set(1, false);
         let city = self.cities[0].clone();
         let arrival = |sim: &Self, id| {
             sim.city_threat_arrivals(&city)
@@ -192,7 +192,7 @@ impl Simulation {
         self.tile_mut(airbase.0, airbase.1).base = Some(Base::Airbase);
         self.tile_mut(airbase.0, airbase.1).owner = Some(HUMAN);
         let para = self.spawn_unit(HUMAN, UnitKind::Paratrooper, airbase.0, airbase.1);
-        self.tile_mut(airbase.0, airbase.1).known_by[1] = false;
+        self.tile_mut(airbase.0, airbase.1).known_by.set(1, false);
         let airborne =
             arrival(self, para) == Some(0) && self.city_defense_production(&city).is_some();
         let before = self.unit_by_id(para).map(|u| (u.x, u.y));

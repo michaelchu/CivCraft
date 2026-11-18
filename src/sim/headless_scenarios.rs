@@ -31,7 +31,7 @@ impl Simulation {
             let tile = self.tile_mut(x, y);
             tile.terrain = Terrain::Grassland;
             tile.hut = false;
-            tile.known_by[1] = true;
+            tile.known_by.set(1, true);
         }
         self.create_city(1, home.0, home.1);
         self.create_city(1, front.0, front.1);
@@ -184,15 +184,15 @@ impl Simulation {
         let productive = offset_native_by_map(island.0, island.1, 1, 0);
         let productive_tile = self.tile_mut(productive.0, productive.1);
         productive_tile.terrain = Terrain::Grassland;
-        productive_tile.known_by[1] = true;
-        self.tile_mut(island.0, island.1).known_by[1] = true;
+        productive_tile.known_by.set(1, true);
+        self.tile_mut(island.0, island.1).known_by.set(1, true);
         for (_, _, x, y) in self.map_wrap.city_radius(island.0, island.1) {
             let tile = self.tile_mut(x, y);
             tile.terrain = Terrain::Grassland;
             tile.resource = Some(Resource::Wheat);
             tile.irrigation = true;
             tile.river = true;
-            tile.known_by[1] = true;
+            tile.known_by.set(1, true);
         }
         for (_, _, x, y) in self.map_wrap.city_radius(home.0, home.1) {
             if (x, y) == home {

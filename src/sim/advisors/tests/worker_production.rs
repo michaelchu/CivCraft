@@ -11,7 +11,7 @@ fn worker_advisor_city(food_positive: bool) -> (Simulation, u32) {
         tile.terrain = Terrain::Plains;
         tile.resource = Some(Resource::Wheat);
         tile.owner = Some(1);
-        tile.known_by[1] = true;
+        tile.known_by.set(1, true);
         tile.river = true;
         tile.road = false;
         tile.railroad = false;

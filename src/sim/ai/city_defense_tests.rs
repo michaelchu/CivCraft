@@ -17,7 +17,7 @@ fn city_fixture(size: i32) -> (Simulation, u32) {
         tile.road = false;
         tile.railroad = false;
         tile.river = false;
-        tile.known_by[1] = true;
+        tile.known_by.set(1, true);
     }
     game.players[1].government = Government::Despotism;
     game.create_city(1, 10, 24);

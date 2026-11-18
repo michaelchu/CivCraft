@@ -76,7 +76,7 @@ pub(crate) struct Tile {
     pub(crate) visible: bool,
     pub(crate) stealth_visible: bool,
     #[serde(with = "crate::sim::save::known_by")]
-    pub(crate) known_by: [bool; PLAYER_SLOTS],
+    pub(crate) known_by: crate::sim::KnownBy,
 }
 
 impl From<crate::world::GeneratedTile> for Tile {
@@ -106,7 +106,7 @@ impl From<crate::world::GeneratedTile> for Tile {
             seen: false,
             visible: false,
             stealth_visible: false,
-            known_by: [false; PLAYER_SLOTS],
+            known_by: [false; PLAYER_SLOTS].into(),
         }
     }
 }

@@ -19,7 +19,7 @@ impl Simulation {
             tile.last_seen_owner = None;
             tile.visible = true;
             tile.seen = true;
-            tile.known_by[HUMAN] = true;
+            tile.known_by.set(HUMAN, true);
         }
         let start = (10, 24);
         let point = |dx, dy| offset_native_by_map(start.0, start.1, dx, dy);
@@ -105,7 +105,7 @@ impl Simulation {
         for (x, y) in [home, point(8), target] {
             let tile = self.tile_mut(x, y);
             tile.terrain = Terrain::Grassland;
-            tile.known_by[1] = true;
+            tile.known_by.set(1, true);
         }
         self.create_city(1, home.0, home.1);
         self.create_city(HUMAN, target.0, target.1);
@@ -279,7 +279,7 @@ impl Simulation {
             tile.base = None;
             tile.hut = false;
             tile.owner = None;
-            tile.known_by[HUMAN] = true;
+            tile.known_by.set(HUMAN, true);
         }
         game.create_city(HUMAN, 10, 24);
         game.cities[0].production = Production::Building(Building::BARRACKS);
@@ -434,7 +434,7 @@ impl Simulation {
             tile.owner = None;
             tile.visible = true;
             tile.seen = true;
-            tile.known_by[HUMAN] = true;
+            tile.known_by.set(HUMAN, true);
         }
         self.create_city(1, 20, 40);
         self.sign_pact(HUMAN, 1, Pact::Peace);

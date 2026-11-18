@@ -207,12 +207,12 @@ fn distant_goto_does_not_route_through_an_enemy_zone_of_control() {
     let mut sim = world();
     for tile in &mut sim.tiles {
         tile.terrain = Terrain::Sea;
-        tile.known_by[1] = false;
+        tile.known_by.set(1, false);
     }
     for step in 0..=8 {
         let p = offset_native_by_map(10, 20, step, 0);
         sim.tile_mut(p.0, p.1).terrain = Terrain::Grassland;
-        sim.tile_mut(p.0, p.1).known_by[1] = true;
+        sim.tile_mut(p.0, p.1).known_by.set(1, true);
     }
     let enemy = offset_native_by_map(10, 20, 3, 1);
     sim.tile_mut(enemy.0, enemy.1).terrain = Terrain::Grassland;

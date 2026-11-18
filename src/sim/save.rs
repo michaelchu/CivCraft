@@ -415,29 +415,21 @@ fn invalid(message: impl Into<String>) -> io::Error {
 
 pub(super) mod known_by {
     use super::PLAYER_SLOTS;
+    use crate::sim::KnownBy;
     use serde::{Deserializer, Serializer, de};
     use std::fmt;
 
     const PACKED_BYTES: usize = PLAYER_SLOTS.div_ceil(8);
 
-    pub fn serialize<S: Serializer>(
-        known: &[bool; PLAYER_SLOTS],
-        serializer: S,
-    ) -> Result<S::Ok, S::Error> {
-        let mut packed = [0_u8; PACKED_BYTES];
-        for (index, &visible) in known.iter().enumerate() {
-            packed[index / 8] |= u8::from(visible) << (index % 8);
-        }
-        serializer.serialize_bytes(&packed)
+    pub fn serialize<S: Serializer>(known: &KnownBy, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_bytes(&known.0)
     }
 
-    pub fn deserialize<'de, D: Deserializer<'de>>(
-        deserializer: D,
-    ) -> Result<[bool; PLAYER_SLOTS], D::Error> {
+    pub fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<KnownBy, D::Error> {
         struct Visibility;
 
         impl de::Visitor<'_> for Visibility {
-            type Value = [bool; PLAYER_SLOTS];
+            type Value = KnownBy;
 
             fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
                 formatter.write_str("packed campaign visibility or the legacy boolean array")
@@ -445,13 +437,15 @@ pub(super) mod known_by {
 
             fn visit_bytes<E: de::Error>(self, bytes: &[u8]) -> Result<Self::Value, E> {
                 match bytes.len() {
-                    PACKED_BYTES => Ok(std::array::from_fn(|index| {
-                        bytes[index / 8] & (1 << (index % 8)) != 0
-                    })),
+                    PACKED_BYTES => Ok(KnownBy(
+                        bytes.try_into().expect("checked visibility length"),
+                    )),
                     // Bincode encoded the old sequence with the same length
                     // prefix and a single 0 or 1 for each player slot.
                     PLAYER_SLOTS if bytes.iter().all(|&byte| byte <= 1) => {
-                        Ok(std::array::from_fn(|index| bytes[index] == 1))
+                        Ok(KnownBy::from(std::array::from_fn(|index| {
+                            bytes[index] == 1
+                        })))
                     }
                     PLAYER_SLOTS => Err(E::custom("invalid legacy visibility value")),
                     length => Err(E::invalid_length(length, &self)),
@@ -460,6 +454,43 @@ pub(super) mod known_by {
         }
 
         deserializer.deserialize_bytes(Visibility)
+    }
+}
+
+#[cfg(test)]
+mod packed_visibility_tests {
+    use super::*;
+    use crate::sim::KnownBy;
+    #[derive(serde::Serialize, serde::Deserialize)]
+    struct Record {
+        #[serde(with = "super::known_by")]
+        known: KnownBy,
+    }
+    #[test]
+    fn visibility_encoding_preserves_packed_bytes_and_legacy_slots() {
+        let legacy: Vec<u8> = (0..PLAYER_SLOTS)
+            .map(|player| u8::from(player % 7 == 0 || player == PLAYER_SLOTS - 1))
+            .collect();
+        let loaded: Record = bincode::deserialize(&bincode::serialize(&legacy).unwrap()).unwrap();
+        for (player, &flag) in legacy.iter().enumerate() {
+            assert_eq!(loaded.known[player], flag == 1);
+        }
+        let mut packed = vec![0_u8; PLAYER_SLOTS.div_ceil(8)];
+        for (player, &flag) in legacy.iter().enumerate() {
+            packed[player / 8] |= flag << (player % 8);
+        }
+        assert_eq!(
+            bincode::serialize(&loaded).unwrap(),
+            bincode::serialize(&packed).unwrap()
+        );
+        let roundtrip: Record =
+            bincode::deserialize(&bincode::serialize(&loaded).unwrap()).unwrap();
+        assert_eq!(roundtrip.known, loaded.known);
+        for invalid in [vec![2_u8; PLAYER_SLOTS], vec![0; 63]] {
+            assert!(
+                bincode::deserialize::<Record>(&bincode::serialize(&invalid).unwrap()).is_err()
+            );
+        }
     }
 }
 

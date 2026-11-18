@@ -8,7 +8,7 @@ impl Simulation {
         let (tx, ty) = offset_native_by_map(x, y, 1, 0);
         self.tile_mut(x, y).terrain = Terrain::Grassland;
         self.tile_mut(tx, ty).terrain = Terrain::Sea;
-        self.tile_mut(tx, ty).known_by[1] = true;
+        self.tile_mut(tx, ty).known_by.set(1, true);
         self.tile_mut(tx, ty).hut = false;
         // Ensure resources are available for content-specific production
         // advice; the selected C2C3 Cruise Missile record has no resource req.

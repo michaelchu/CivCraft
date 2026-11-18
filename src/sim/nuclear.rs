@@ -428,7 +428,7 @@ mod tests {
     }
 
     fn make_nuke(game: &mut Simulation, x: i32, y: i32) -> u32 {
-        game.tile_mut(x, y).known_by[HUMAN] = true;
+        game.tile_mut(x, y).known_by.set(HUMAN, true);
         game.spawn_unit(HUMAN, UnitKind::TacticalNuke, x, y)
     }
 
@@ -457,14 +457,17 @@ mod tests {
 
         let adjacent_city = game.map_wrap.civ3_offset(x, y, 2, 0).unwrap();
         game.create_city(1, adjacent_city.0, adjacent_city.1);
-        game.tile_mut(adjacent_city.0, adjacent_city.1).known_by[HUMAN] = true;
+        game.tile_mut(adjacent_city.0, adjacent_city.1)
+            .known_by
+            .set(HUMAN, true);
         let city_nuke = game.unit_by_id(nuke).unwrap().clone();
         assert!(game.can_launch_nuclear_strike_at(&city_nuke, adjacent_city.0, adjacent_city.1));
 
         let empty_units_tile = game.map_wrap.civ3_offset(x, y, 0, 2).unwrap();
         game.tile_mut(empty_units_tile.0, empty_units_tile.1).owner = Some(1);
         game.tile_mut(empty_units_tile.0, empty_units_tile.1)
-            .known_by[HUMAN] = true;
+            .known_by
+            .set(HUMAN, true);
         let empty_stack_nuke = game.unit_by_id(nuke).unwrap().clone();
         assert!(
             game.can_launch_nuclear_strike_at(
@@ -477,14 +480,18 @@ mod tests {
 
         let adjacent_units = game.map_wrap.civ3_offset(x, y, -2, 0).unwrap();
         game.tile_mut(adjacent_units.0, adjacent_units.1).owner = Some(1);
-        game.tile_mut(adjacent_units.0, adjacent_units.1).known_by[HUMAN] = true;
+        game.tile_mut(adjacent_units.0, adjacent_units.1)
+            .known_by
+            .set(HUMAN, true);
         game.spawn_unit(1, UnitKind::Warrior, adjacent_units.0, adjacent_units.1);
         let units_nuke = game.unit_by_id(nuke).unwrap().clone();
         assert!(game.can_launch_nuclear_strike_at(&units_nuke, adjacent_units.0, adjacent_units.1));
 
         let mixed_stack = game.map_wrap.offset(x, y, 2, -2).unwrap();
         game.tile_mut(mixed_stack.0, mixed_stack.1).owner = Some(1);
-        game.tile_mut(mixed_stack.0, mixed_stack.1).known_by[HUMAN] = true;
+        game.tile_mut(mixed_stack.0, mixed_stack.1)
+            .known_by
+            .set(HUMAN, true);
         game.spawn_unit(1, UnitKind::Warrior, mixed_stack.0, mixed_stack.1);
         game.spawn_unit(1, UnitKind::Fighter, mixed_stack.0, mixed_stack.1);
         let mixed_stack_nuke = game.unit_by_id(nuke).unwrap().clone();
@@ -548,7 +555,7 @@ mod tests {
         let target_index = game.map_wrap.index(target.0, target.1);
         let tile = game.tile_mut(target.0, target.1);
         tile.owner = Some(1);
-        tile.known_by[HUMAN] = true;
+        tile.known_by.set(HUMAN, true);
         tile.seen = true;
         tile.visible = false;
         let mut remembered = vec![vec![false; game.tiles.len()]; game.players.len()];

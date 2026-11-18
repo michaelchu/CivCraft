@@ -16,7 +16,7 @@ fn a_reachable_enemy_raises_demand_for_a_defender_upgrade() {
         .unwrap();
     let (nx, ny) = offset_native_by_map(x, y, 1, 0);
     game.tile_mut(nx, ny).terrain = Terrain::Grassland;
-    game.tile_mut(nx, ny).known_by[1] = true;
+    game.tile_mut(nx, ny).known_by.set(1, true);
     game.spawn_unit(HUMAN, UnitKind::Swordsman, nx, ny);
     assert_eq!(
         game.tech_sell_price(HUMAN, 1, Tech::BRONZE_WORKING)
@@ -116,7 +116,7 @@ fn threat_arrival_uses_source_pf_floor_and_retains_road_turn_zero() {
         tile.road = false;
         tile.river = false;
         tile.railroad = false;
-        tile.known_by[1] = true;
+        tile.known_by.set(1, true);
     }
     let home = (10, 24);
     game.create_city(1, home.0, home.1);
