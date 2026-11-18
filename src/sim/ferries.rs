@@ -106,10 +106,9 @@ impl Simulation {
                     .passengers
                     .iter()
                     .filter_map(|(&id, passenger)| {
-                        (!self
-                            .unit_by_id(id)
-                            .is_some_and(|unit| unit.owner == passenger.owner))
-                        .then_some(id)
+                        self.unit_by_id(id)
+                            .is_none_or(|unit| unit.owner != passenger.owner)
+                            .then_some(id)
                     }),
             )
             .collect();
