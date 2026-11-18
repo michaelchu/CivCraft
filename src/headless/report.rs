@@ -20,12 +20,18 @@ pub(crate) struct Report {
     path: PathBuf,
     snapshot_path: PathBuf,
     event_path: PathBuf,
+    changes_path: PathBuf,
+    changes: BufWriter<File>,
+    observation_changes: super::observation_changes::ObservationChanges,
+    change_records: usize,
+    last_snapshot: Option<(i32, crate::sim::trace::Phase)>,
     snapshots: BufWriter<File>,
     events: BufWriter<File>,
     started: Instant,
     commit: Option<String>,
     dirty: Option<bool>,
     snapshot_records: usize,
+    observation_boundaries: usize,
     event_records: usize,
     event_bytes: usize,
     pub omitted_events: usize,
@@ -33,6 +39,7 @@ pub(crate) struct Report {
     scenario: Provenance,
     turn_profiles: Vec<TurnProfile>,
     minimap: Value,
+    compaction: super::event_compaction::EventCompaction,
 }
 impl Report {
     pub fn new(path: &str, scenario: Provenance) -> Result<Self, String> {
@@ -46,6 +53,7 @@ impl Report {
             .to_string_lossy();
         let snapshot_path = path.with_file_name(format!("{filename}.snapshots.jsonl"));
         let event_path = path.with_file_name(format!("{filename}.events.jsonl"));
+        let changes_path = path.with_file_name(format!("{filename}.changes.jsonl"));
         let git = |args: &[&str]| {
             std::process::Command::new("git")
                 .args(args)
@@ -58,7 +66,13 @@ impl Report {
         Ok(Self {
             snapshots: BufWriter::new(File::create(&snapshot_path).map_err(|e| e.to_string())?),
             events: BufWriter::new(File::create(&event_path).map_err(|e| e.to_string())?),
+            changes: BufWriter::new(File::create(&changes_path).map_err(|e| e.to_string())?),
+            changes_path,
+            observation_changes: Default::default(),
+            change_records: 0,
+            last_snapshot: None,
             minimap: Value::Null,
+            compaction: Default::default(),
             path,
             snapshot_path,
             event_path,
@@ -66,6 +80,7 @@ impl Report {
             commit: git(&["rev-parse", "HEAD"]),
             dirty: git(&["status", "--porcelain"]).map(|s| !s.is_empty()),
             snapshot_records: 0,
+            observation_boundaries: 0,
             event_records: 0,
             event_bytes: 0,
             omitted_events: 0,
@@ -74,13 +89,42 @@ impl Report {
             turn_profiles: Vec::new(),
         })
     }
-    pub fn snapshot(&mut self, snapshot: &Snapshot) -> Result<(), String> {
+    fn persist_snapshot(&mut self, snapshot: &Snapshot) -> Result<(), String> {
+        if self.last_snapshot == Some((snapshot.turn, snapshot.phase)) {
+            return Ok(());
+        }
         serde_json::to_writer(&mut self.snapshots, snapshot).map_err(|e| e.to_string())?;
         self.snapshots.write_all(b"\n").map_err(|e| e.to_string())?;
         self.snapshot_records += 1;
+        self.last_snapshot = Some((snapshot.turn, snapshot.phase));
         self.timeline.push(
             json!({"turn":snapshot.turn,"phase":snapshot.phase,"city_count":snapshot.city_count}),
         );
+        Ok(())
+    }
+    pub fn snapshot(
+        &mut self,
+        snapshot: &Snapshot,
+        config: &Config,
+        required: bool,
+    ) -> Result<(), String> {
+        self.observation_boundaries += 1;
+        if config.report_detail == "lean" {
+            let value = serde_json::to_value(snapshot).map_err(|e| e.to_string())?;
+            let changes = self.observation_changes.observe(&value);
+            if !changes.is_empty() {
+                serde_json::to_writer(
+                    &mut self.changes,
+                    &json!({"turn":snapshot.turn,"phase":snapshot.phase,"changes":changes}),
+                )
+                .map_err(|e| e.to_string())?;
+                self.changes.write_all(b"\n").map_err(|e| e.to_string())?;
+                self.change_records += 1;
+            }
+        }
+        if config.report_detail == "verbose" || required {
+            self.persist_snapshot(snapshot)?;
+        }
         Ok(())
     }
     #[cfg(feature = "desktop")]
@@ -104,6 +148,10 @@ impl Report {
             self.omitted_events += 1;
             return Ok(false);
         }
+        if config.report_detail == "lean" && self.compaction.redundant(event) {
+            self.omitted_events += 1;
+            return Ok(false);
+        }
         let mut bytes = serde_json::to_vec(event).map_err(|e| e.to_string())?;
         bytes.push(b'\n');
         if self.event_bytes.saturating_add(bytes.len()) > config.max_event_bytes {
@@ -113,6 +161,7 @@ impl Report {
         self.events.write_all(&bytes).map_err(|e| e.to_string())?;
         self.event_records += 1;
         self.event_bytes += bytes.len();
+        self.compaction.retained(event);
         Ok(true)
     }
     #[expect(
@@ -129,6 +178,8 @@ impl Report {
         game_over: Option<&str>,
         dropped: u64,
     ) -> Result<(), String> {
+        self.persist_snapshot(last)?;
+        self.changes.flush().map_err(|e| e.to_string())?;
         self.snapshots.flush().map_err(|e| e.to_string())?;
         self.events.flush().map_err(|e| e.to_string())?;
         let mut civilizations =
@@ -168,16 +219,18 @@ impl Report {
             reason.unwrap_or("checkpoint")
         };
         let report = json!({
-            "version":8,
+            "version":9,
             "run":{"status":status,"stop_reason":stop_reason,
                 "configuration":config.metadata(&self.scenario.world),"turns_simulated":turns,"final_turn":last.turn,"game_over":game_over,
                 "scenario":self.scenario,
                 "git_commit":self.commit,"working_tree_dirty":self.dirty,"elapsed_seconds":self.started.elapsed().as_secs_f64()},
             "analytics":{"enabled":registry.descriptors(),"observation_boundaries":["initial","turn_end"],"metrics":registry.output.metrics},
             "coverage":{"collector_dropped_events":dropped,"events_not_retained":self.omitted_events,
+                "events_compacted_by_kind":self.compaction.counts,
+                "snapshot_boundaries_not_retained":self.observation_boundaries.saturating_sub(self.snapshot_records),
                 "analyzer_event_coverage_complete":dropped==0,
                 "effective_snapshot_providers":registry.providers().into_iter().map(str::to_owned).chain(config.providers.iter().cloned()).collect::<std::collections::BTreeSet<_>>(),
-                "note":"Trace output filters do not filter analyzer input. Collector overflow does. No finding is not proof of correct gameplay."},
+                "note":"Trace output filters do not filter analyzer input. Collector overflow does. Lean output suppresses repeated government decisions and routine growth/search events; counts are separate under events_compacted_by_kind. Analyzer snapshots remain complete. No finding is not proof of correct gameplay."},
             "technology_catalog":if last.research().is_some() {crate::sim::Simulation::technology_catalog()} else {Value::Null},
             "summary":{"research":last.research(),"lifecycle":last.lifecycle(),"finding_count":registry.output.findings.len(),"finding_observations":observations,
                 "open_findings":registry.output.findings.iter().filter(|f|f.status=="open").count(),
@@ -185,9 +238,11 @@ impl Report {
                 "final_city_count":last.city_count,"civilizations":civilizations,"city_growth_status_counts":growth_counts},
             "findings":registry.output.findings,"timeline":self.timeline,"turn_profiles":self.turn_profiles,
             "evidence":{
-                "snapshots":{"format":"jsonl","path":self.snapshot_path.file_name().unwrap().to_string_lossy(),"records":self.snapshot_records,"lookup":"Select by turn; initial snapshot is before the first step. Entity IDs identify cities, civilizations, and units."},
+                "changes":{"format":"jsonl","path":self.changes_path.file_name().unwrap().to_string_lossy(),"records":self.change_records,
+                    "note":"Lean inspection projections with before/after entity rows and boundary-local lifecycle/research changes. Not a replay or full state history. Verbose mode leaves this stream empty."},
+                "snapshots":{"retention":if config.report_detail == "lean" {"initial,scenario_actions,checkpoints,findings,final"} else {"every_boundary"},"format":"jsonl","path":self.snapshot_path.file_name().unwrap().to_string_lossy(),"records":self.snapshot_records,"lookup":"Full snapshots at retained boundaries. Findings always retain their referenced snapshot; lean mode omits other non-checkpoint boundaries. Use changes for a lean inspection timeline or --report-detail verbose for every boundary."},
                 "events":{"format":"jsonl","path":self.event_path.file_name().unwrap().to_string_lossy(),"records":self.event_records,"bytes":self.event_bytes,"lookup":"Select by sequence. Event turn and phase identify when the action occurred, not the next turn's snapshot."},
-                "lifecycle":{"enabled":last.lifecycle().is_some(),"lookup":"Read lifecycle.changes across snapshot records for unit and city histories. Totals start at lifecycle.since_turn; they do not reconstruct earlier campaign history."},
+                "lifecycle":{"enabled":last.lifecycle().is_some(),"lookup":"Read lifecycle.changes events in the lean changes stream, or lifecycle.changes across verbose snapshot records, for unit and city histories. Totals start at lifecycle.since_turn; they do not reconstruct earlier campaign history."},
                 "minimap":self.minimap,
                 "finding_semantics":"First/last observed turns do not imply continuous failure. Explicit recovery closes an episode; recurrence creates a new ID. Unavailable references are marked available:false."
             }
@@ -235,7 +290,7 @@ mod tests {
         .unwrap();
         let registry = Registry::new(vec![]).unwrap();
         let snapshot = Snapshot::new(1, Phase::Initial, 0);
-        report.snapshot(&snapshot).unwrap();
+        report.snapshot(&snapshot, &config, true).unwrap();
         let event = Event {
             sequence: 1,
             turn: 1,
@@ -277,5 +332,44 @@ mod tests {
             fs::remove_file(file.unwrap().path()).unwrap();
         }
         fs::remove_dir(directory).unwrap();
+    }
+    #[test]
+    fn lean_retains_required_evidence_and_final_checkpoint_without_every_boundary() {
+        let directory = directory();
+        let path = directory.join("lean.json");
+        let config = Config::parse(&["--report".into(), path.to_string_lossy().into()]).unwrap();
+        let mut report = Report::new(
+            path.to_str().unwrap(),
+            super::super::scenario::generated(config.seed, config.world).provenance,
+        )
+        .unwrap();
+        for turn in 1..=4 {
+            report
+                .snapshot(
+                    &Snapshot::new(turn, Phase::TurnEnd, 0),
+                    &config,
+                    turn == 1 || turn == 3,
+                )
+                .unwrap();
+        }
+        let registry = Registry::new(vec![]).unwrap();
+        report
+            .checkpoint(
+                &config,
+                &registry,
+                &Snapshot::new(4, Phase::TurnEnd, 0),
+                3,
+                Some("turn_limit"),
+                None,
+                0,
+            )
+            .unwrap();
+        let records = fs::read_to_string(directory.join("lean.json.snapshots.jsonl")).unwrap();
+        let turns: Vec<_> = records
+            .lines()
+            .map(|line| serde_json::from_str::<Value>(line).unwrap()["turn"].clone())
+            .collect();
+        assert_eq!(turns, vec![json!(1), json!(3), json!(4)]);
+        fs::remove_dir_all(directory).unwrap();
     }
 }

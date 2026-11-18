@@ -4,28 +4,67 @@ use crate::sim::{
     observation::{GovernmentDecision, GovernmentSnapshot, Snapshot},
     trace::Event,
 };
-use serde_json::json;
+use serde_json::{Value, json};
+use std::collections::{BTreeMap, VecDeque};
 #[derive(Default)]
 pub(crate) struct Government {
     decisions: u64,
     changes: u64,
     gaps: u64,
+    outcomes: BTreeMap<String, u64>,
+    recent_changes: VecDeque<Value>,
+}
+impl Government {
+    fn overview(snapshot: &Snapshot, out: &mut AnalysisOutput) {
+        let Some(players) = snapshot.get::<Vec<GovernmentSnapshot>>("governments") else {
+            return;
+        };
+        out.metric(
+            "ai_nations_observed",
+            players.iter().filter(|p| p.ai && p.alive).count(),
+        );
+        out.metric(
+            "nations",
+            json!(players.iter().filter(|p| p.alive).map(|p| json!({
+            "owner":p.owner,"name":p.name,"ai":p.ai,"cities":p.cities,
+            "current":p.current,"best_available":p.best_available,"research_goal":p.research_goal,
+            "revolution_target":p.revolution_target,
+            "advice_age_turns":p.evaluated_turn.map(|turn| snapshot.turn-turn),
+            "evaluated_turn":p.evaluated_turn,"next_evaluation":p.next_evaluation,
+            "evidence":{"snapshot_turn":snapshot.turn}
+        })).collect::<Vec<_>>()),
+        );
+    }
 }
 impl Analyzer for Government {
     fn descriptor(&self) -> Descriptor {
         Descriptor {
             id: "government",
-            version: 1,
+            version: 2,
             events: vec!["government.decision", "government.changed"],
             providers: vec!["governments"],
-            configuration: json!({"scope":"consistency_with_cached_advisor"}),
+            configuration: json!({"scope":"consistency_with_cached_advisor", "recent_changes_limit":32}),
         }
+    }
+    fn on_start(&mut self, snapshot: &Snapshot, out: &mut AnalysisOutput) {
+        Self::overview(snapshot, out);
     }
     fn on_event(&mut self, event: &Event, out: &mut AnalysisOutput) {
         if event.kind == "government.decision" {
             self.decisions += 1;
         } else {
             self.changes += 1;
+            self.recent_changes
+                .push_back(json!({"turn":event.turn, "phase":event.phase,
+                "evidence":out.evidence(),"change":event.payload}));
+            if self.recent_changes.len() > 32 {
+                self.recent_changes.pop_front();
+            }
+            out.metric("recent_changes", json!(self.recent_changes));
+        }
+        if let Some(outcome) = event.payload.get("outcome").and_then(Value::as_str) {
+            *self.outcomes.entry(outcome.to_owned()).or_default() += 1;
+            out.metric("decision_outcomes", json!(self.outcomes));
         }
         out.metric("decisions", self.decisions);
         out.metric("changes", self.changes);
@@ -58,10 +97,7 @@ impl Analyzer for Government {
                 "AI government differs from its cached best available choice with no pending revolution. The assessment may be stale; inspect evaluated_turn and candidate scores.",
                 json!(player));
         }
-        out.metric(
-            "ai_nations_observed",
-            players.iter().filter(|p| p.ai).count(),
-        );
+        Self::overview(snapshot, out);
     }
     fn on_gap(&mut self, dropped: u64, out: &mut AnalysisOutput) {
         self.gaps += dropped;
@@ -72,6 +108,8 @@ impl Analyzer for Government {
         out.metric("decisions", self.decisions);
         out.metric("changes", self.changes);
         out.metric("event_counts_complete", self.gaps == 0);
+        out.metric("decision_outcomes", json!(self.outcomes));
+        out.metric("recent_changes", json!(self.recent_changes));
     }
 }
 

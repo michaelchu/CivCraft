@@ -146,7 +146,7 @@ The default analyzers now include `government` and `diplomacy`. Their independen
 snapshot providers are `governments` and `diplomacy`; requesting either analyzer
 retains its required snapshots even with `--snapshot-providers none`.
 
-`governments` records each nation's current government, pending revolution,
+`governments` records each configured nation's name, current government, pending revolution,
 alive/AI status, city count, candidate availability and cached scores, best
 available choice, research goal, and evaluation/refresh turns. Missing advice
 has null scores and evaluation dates. Observation never populates or refreshes
@@ -162,7 +162,7 @@ changes, flags selections that differ from the published best available advice,
 and flags end-of-turn government/advice differences with no pending revolution.
 These are candidates for investigation; inspect score age and availability.
 
-`diplomacy` records sorted player pairs, first contact, pacts and expiry turns,
+`diplomacy` records sorted player pairs with names and alive flags, first contact, pacts and expiry turns,
 directional trust, embassies, shared vision, pending offers, and war plans with
 countdowns and reasons. Directional arrays follow `players` order. A null pact
 means no contact, distinct from explicit War.
@@ -186,8 +186,61 @@ cargo run --offline --release --bin headless_sim -- \
   --snapshot-providers governments,diplomacy --report /tmp/politics.json
 ```
 
-Review `analytics.metrics`, `findings`, the snapshot sidecar, and the event
-sidecar. Profiling remains a separate opt-in measurement of computation cost.
+Start inspection in `report.json`, before opening the raw streams:
+
+- `findings` contains candidates for investigation and their evidence references.
+- `analytics.metrics["government.nations"]` names the surviving nations and shows
+  current/best available governments, research goals, pending revolutions, advice
+  age and the snapshot turn to inspect for full candidate scores.
+- `government.decision_outcomes` counts every collected decision, including those
+  compacted out of event output. `government.recent_changes` shows the latest
+  32 government changes with evidence references.
+- `diplomacy.relationships` names contacted pairs and shows pacts, trust, pending
+  offers and war plans. `diplomacy.recent_activity` shows the latest 32 actions
+  with reasons and evidence references. These recent lists are bounded views;
+  earlier retained events remain in the event sidecar.
+- Event evidence includes `available:false` when output filters or limits omit
+  its record. `coverage.events_compacted_by_kind` separately counts compaction;
+  `coverage.events_not_retained` includes compaction, filters and output limits.
+
+The default `--report-detail lean` mode applies across adapters. It writes
+`report.json.changes.jsonl`: per-boundary records containing only changed entity
+rows, with `provider`, stable `key`, `before`, and `after`. Null `before` means
+creation; null `after` means removal. The first record establishes the lean
+baseline. Rows are inspection projections, not complete state or a replay log:
+
+| Provider | Lean inspection content |
+| --- | --- |
+| Cities | Population, ownership, production, disorder, specialists, growth status; omits routine food counters and worked-tile arrays |
+| Civilizations | Identity, survival, city/unit counts; omits routine gold/score ticks |
+| Units | Identity, owner, type, HP, orders/state, worker task; omits movement coordinates/budgets, route destination and work countdown |
+| Research | Known technology, research target/goal, rates and discoveries/losses; omits progress/accounting ticks |
+| Lifecycle | Changed cumulative totals and every boundary-local lifecycle fact |
+| Governments | Adoption, revolution target, available governments, best choice and research goal; detailed score refreshes stay in retained decision events |
+| Diplomacy | Contact, pact, offers, embassies/vision, war-plan reason/status and trust bands of 1,000; omits countdown and small trust ticks |
+| Territory/custom providers | Changed full values; unknown fields are preserved |
+
+Research and lifecycle boundary-local changes are always appended when nonempty,
+even if consecutive batches match. Government/diplomacy snapshots omit unused
+civilization slots, retain configured nations after elimination, and preserve IDs.
+
+Lean mode persists full snapshots at the initial boundary, scenario actions,
+checkpoints, finding evidence boundaries and the final boundary. The timeline
+lists these retained boundaries. All analyzer inputs remain complete each turn.
+This lets readers follow a finding to a full snapshot without keeping every
+routine dump. The final report's research/lifecycle summaries retain full totals.
+
+Lean event output suppresses identical successful government decisions until
+advice/state changes, ordinary food-storage ticks that exactly match nonnegative surplus without
+population change, and successful settlement-search diagnostic counters. It preserves
+refreshes, anomalies, growth/starvation, failed searches, government changes,
+production, settlement choices/founding, research, lifecycle and diplomacy events.
+Compaction happens only when writing output; analyzers still receive every event.
+
+Use `--report-detail verbose` for full snapshots at every boundary and every
+selected event (ordinary trace filters and limits still apply). Its changes
+stream is empty because the full streams carry the observations. Profiling is a
+separate opt-in measurement of computation cost.
 
 ## Opt-in simulation profiling
 
@@ -330,13 +383,15 @@ cargo run --offline --release --bin headless_sim -- \
 ```
 
 - `--analytics none` disables analyzers; `--list-analyzers` lists registered IDs.
+- `--report-detail lean|verbose` selects output detail across adapters. Lean is
+  the default. It does not change analyzer input or gameplay.
 - `--trace-domains all|none|DOMAIN,...` selects persisted event domains.
 - `--trace-entities all|city:N,unit:N,civilization:N` retains an event if any
   listed participant matches. Filters apply to persisted events, not snapshots
   or analyzer inputs. Arbitrary domain names allow newly instrumented modules;
   an unmatched name produces no events from that domain.
-- `--snapshot-providers cities,civilizations,units,lifecycle,research,minimap` selects output providers
-  (these six are the default; `territory` is also available). The final minimap
+- `--snapshot-providers cities,civilizations,units,lifecycle,research,governments,diplomacy,minimap` selects output providers
+  (these eight are the default; `territory` is also available). The final minimap
   requires the default `desktop` feature; graphics-free builds omit it;
   `none` records just the envelope plus analyzer-required data.
 - The `territory` provider records map dimensions, row-major tile ownership,
@@ -362,7 +417,7 @@ size grows with requested turns and selected/required providers; event limits
 do not limit snapshots. The compact timeline and findings remain in memory.
 I/O errors fail the runner rather than silently continuing without evidence.
 
-## Report schema 8
+## Report schema 9
 
 `report.json` is the review entry point:
 
@@ -385,7 +440,10 @@ I/O errors fail the runner rather than silently continuing without evidence.
 
 Sidecars:
 
-- `report.json.snapshots.jsonl`: initial snapshot plus one per completed step.
+- `report.json.changes.jsonl`: lean entity changes and interval history; see the
+  inspection projections above. Empty in verbose mode.
+- `report.json.snapshots.jsonl`: full snapshots at retained boundaries in lean
+  mode, or the initial snapshot plus every completed step in verbose mode.
   `cities`, `civilizations`, `units`, `lifecycle`, `research`, `governments`,
   and `diplomacy` are independent provider sections.
 - `report.json.minimap.png`: one final minimap, written when the run stops.
@@ -408,12 +466,13 @@ references omitted from disk are marked `available:false`. Snapshots referenced
 by the built-in analyzers are always retained. Turn counters in phase events
 can precede the following end-of-turn snapshot's counter.
 
-Both streams flush before a summary checkpoint is atomically published.
+All streams flush before a summary checkpoint is atomically published.
 `running` means a checkpoint; `completed` means the runner reached its turn
 limit, game over, or configured finding stop. A terminated run can leave its
 last valid `running` checkpoint. No findings is not proof of correct gameplay.
 
-Schema 8 adds lifecycle accounting and each live unit's `home_city`. Schema 6
+Schema 9 adds lean/verbose output, the inspection change stream, sparse full
+snapshot retention, and separate compaction accounting. Schema 8 adds lifecycle accounting and each live unit's `home_city`. Schema 6
 replaces implicit sequential step timings with scoped timing
 aggregates. Schema 5 replaced schema 4's history sidecar with independent
 snapshots/events, added the initial snapshot and analyzer metadata, and
@@ -460,16 +519,18 @@ completions and losses count individually and also update `future_techs`.
 
 Each civilization's `totals` records initial knowledge, cumulative acquisitions
 and losses, and counts by source. The latest state, totals and last interval are
-also under `summary.research`; read the snapshot stream for earlier intervals.
+also under `summary.research`; read `research.changes` batches in the lean change
+stream or verbose snapshots for earlier intervals.
 History begins at `since_turn`, so starting or loaded technologies are baseline
 knowledge, not new discoveries. Saves and speculative clones do not carry this
 run-local history. Disabled analyzers, trace filters and event-buffer/output limits
-do not truncate research snapshots. Direct uninstrumented knowledge edits are
+do not truncate analyzer inputs or research history in the lean change stream
+(or verbose snapshots). Direct uninstrumented knowledge edits are
 marked `unobserved` and set `complete_since_start:false` rather than guessing a source.
 
 ```sh
 jq '.summary.research.civilizations[] | {name, known_count, science_rate_percent, science_output, totals}' report.json
-jq -c '.research.changes[]' report.json.snapshots.jsonl
+jq -c '.changes[] | select(.provider == "research.changes") | .events[]' report.json.changes.jsonl
 ```
 
 Run `--scenario research-history --turns 1` to exercise actual research completion,
@@ -482,8 +543,9 @@ omit it and the shared catalog. The final-only `minimap` export is independent.
 The default `lifecycle` provider adds cumulative `unit_totals` by owner and unit
 kind, cumulative `city_totals` by owner, and `changes` since the previous snapshot.
 The final totals and final interval also appear at `summary.lifecycle`. Read the
-snapshot stream for the full history; each interval is written once to avoid
-repeating an ever-growing history in every snapshot.
+lean change stream (`provider:"lifecycle.changes"`) or verbose snapshot stream
+for the full history; each interval is written once to avoid repeating an
+ever-growing history in every snapshot.
 
 Unit totals distinguish city production (`built`, a subset of `created`), live
 units (`existing`), destruction, consumption (founding/joining a city or an

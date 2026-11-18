@@ -92,6 +92,14 @@ cargo run --offline --release --bin headless_sim -- \
 The default is 30 turns; use `--turns 10` for an initial review and longer runs
 for targeted investigations. Checkpoints are published every 10 turns.
 
+Reports default to `--report-detail lean`: important adapter changes are written
+to the `.changes.jsonl` sidecar, events omit routine repetition, and full snapshots
+are retained at checkpoints and finding boundaries. Start with the report's
+`findings` and `analytics.metrics`, then follow evidence references. Use
+`--report-detail verbose` for full per-turn snapshots and every selected event.
+Both modes provide the same complete analyzer inputs. See
+[Headless analytics](docs/HEADLESS_ANALYTICS.md) for change-stream fields and coverage.
+
 To benchmark the pinned Freeciv server with the same map presets, build it
 once from the repository root. This requires Meson, Ninja, a C compiler, and
 the ICU and zlib development packages.

@@ -72,6 +72,10 @@ impl AnalysisOutput {
         self.analyzer = analyzer.into();
         self.evidence = None;
     }
+    /// Evidence for the current observation, including whether event output was retained.
+    pub fn evidence(&self) -> Option<&EvidenceRef> {
+        self.evidence.as_ref()
+    }
     pub fn metric(&mut self, name: &str, value: impl Into<Value>) {
         self.metrics
             .insert(format!("{}.{}", self.analyzer, name), value.into());

@@ -4,31 +4,58 @@ use crate::sim::{
     observation::{DiplomacySnapshot, Snapshot},
     trace::Event,
 };
-use serde_json::json;
-use std::collections::BTreeMap;
+use serde_json::{Value, json};
+use std::collections::{BTreeMap, VecDeque};
 #[derive(Default)]
 pub(crate) struct Diplomacy {
     counts: BTreeMap<String, u64>,
     dropped: u64,
+    recent_activity: VecDeque<Value>,
 }
 impl Analyzer for Diplomacy {
     fn descriptor(&self) -> Descriptor {
         Descriptor {
             id: "diplomacy",
-            version: 1,
+            version: 2,
             events: vec!["diplomacy.transition"],
             providers: vec!["diplomacy"],
-            configuration: json!({"scope":"activity_and_outcomes"}),
+            configuration: json!({"scope":"activity_and_outcomes", "recent_activity_limit":32}),
         }
+    }
+    fn on_start(&mut self, snapshot: &Snapshot, out: &mut AnalysisOutput) {
+        self.on_boundary(snapshot, out);
     }
     fn on_event(&mut self, event: &Event, out: &mut AnalysisOutput) {
         if let Some(action) = event.payload["action"].as_str() {
             *self.counts.entry(action.to_owned()).or_default() += 1;
             out.metric("transitions", json!(self.counts));
+            self.recent_activity
+                .push_back(json!({"turn":event.turn,"evidence":out.evidence(),
+                "action":action,"actor":event.payload["actor"],"other":event.payload["other"],
+                "previous":event.payload["previous"],"current":event.payload["current"],
+                "reason":event.payload["reason"]}));
+            if self.recent_activity.len() > 32 {
+                self.recent_activity.pop_front();
+            }
+            out.metric("recent_activity", json!(self.recent_activity));
         }
     }
     fn on_boundary(&mut self, snapshot: &Snapshot, out: &mut AnalysisOutput) {
         if let Some(pairs) = snapshot.get::<Vec<DiplomacySnapshot>>("diplomacy") {
+            out.metric(
+                "relationships",
+                json!(
+                    pairs
+                        .iter()
+                        .filter(|p| p.first_contact.is_some())
+                        .map(
+                            |p| json!({"players":p.players,"names":p.names,"alive":p.alive,
+                    "pact":p.pact,"until":p.until,"trust":p.trust,"war_plans":p.war_plans,
+                    "pending_offer":p.offer,"evidence":{"snapshot_turn":snapshot.turn}})
+                        )
+                        .collect::<Vec<_>>()
+                ),
+            );
             out.metric(
                 "contacted_pairs",
                 pairs.iter().filter(|p| p.first_contact.is_some()).count(),
@@ -51,6 +78,7 @@ impl Analyzer for Diplomacy {
     fn finish(&mut self, out: &mut AnalysisOutput) {
         out.metric("transitions", json!(self.counts));
         out.metric("event_counts_complete", self.dropped == 0);
+        out.metric("recent_activity", json!(self.recent_activity));
     }
 }
 

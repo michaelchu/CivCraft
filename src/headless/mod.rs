@@ -1,7 +1,9 @@
 pub(crate) mod config;
+mod event_compaction;
 mod freeciv;
 #[cfg(feature = "desktop")]
 mod minimap;
+mod observation_changes;
 mod report;
 pub(crate) mod scenario;
 
@@ -56,7 +58,7 @@ pub(crate) fn run(config: Config) -> Result<(), String> {
     }
     let mut report = report::Report::new(&config.report, scenario.provenance.clone())?;
     let mut snapshot = analytics::providers::capture(&scenario.game, &providers, Phase::Initial);
-    report.snapshot(&snapshot)?;
+    report.snapshot(&snapshot, &config, true)?;
     scenario.game.trace.clear_lifecycle_changes();
     scenario.game.trace.clear_research_changes();
     registry.start(&snapshot);
@@ -76,10 +78,10 @@ pub(crate) fn run(config: Config) -> Result<(), String> {
         }
         snapshot =
             analytics::providers::capture(&scenario.game, &providers, Phase::ScenarioActions);
-        report.snapshot(&snapshot)?;
+        registry.boundary(&snapshot);
+        report.snapshot(&snapshot, &config, true)?;
         scenario.game.trace.clear_lifecycle_changes();
         scenario.game.trace.clear_research_changes();
-        registry.boundary(&snapshot);
     }
     report.checkpoint(
         &config,
@@ -118,10 +120,16 @@ pub(crate) fn run(config: Config) -> Result<(), String> {
             registry.event(&event, retained);
         }
         snapshot = analytics::providers::capture(game, &providers, Phase::TurnEnd);
-        report.snapshot(&snapshot)?;
+        registry.boundary(&snapshot);
+        let required = registry.output.findings.iter().any(|finding| {
+            finding
+                .evidence
+                .iter()
+                .any(|evidence| evidence.snapshot_turn == Some(snapshot.turn))
+        });
+        report.snapshot(&snapshot, &config, required)?;
         game.trace.clear_lifecycle_changes();
         game.trace.clear_research_changes();
-        registry.boundary(&snapshot);
         if config.stop_on_finding != "none"
             && registry.output.findings.iter().any(|f| {
                 f.status == "open"

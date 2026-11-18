@@ -76,6 +76,27 @@ because `--all-targets` does not run documentation tests. Nextest is for CI:
 CI runs `cargo nextest run --profile ci --all-targets` using
 `.config/nextest.toml`, followed by `cargo test --doc`.
 
+For analytics review, start with `report.json` findings and the named summaries
+under `analytics.metrics` (`government.nations`, `government.recent_changes`,
+`diplomacy.relationships`, and `diplomacy.recent_activity`). Follow their evidence
+references into the sidecars instead of dumping full JSONL streams. Default
+`--report-detail lean` output includes important adapter changes, compact events,
+and full snapshots at checkpoints and finding boundaries. Read
+`evidence.changes` for the change stream. Use `--report-detail verbose` for full
+per-boundary snapshots and every selected event. Analyzers receive all collected
+events and full snapshots in either mode.
+
+Start with lean mode for general reviews. Choose verbose mode when the question
+requires exact per-turn food, research progress, treasury, movement, work
+countdowns, or every government decision; when a missing intermediate snapshot
+blocks a diagnosis; or when validating an adapter or compaction rule. Rerun the
+same seed/world settings or saved campaign with a focused turn range and relevant
+providers/domains. Check coverage and retention metadata before treating an
+absent record as an absent action: verbose mode still honors trace filters and
+limits, and cannot expose uninstrumented actions. Enable `--profile-turns true`
+separately when investigating execution cost. See `docs/HEADLESS_ANALYTICS.md`
+for coverage and retention semantics.
+
 ### Headless scenarios and saved campaigns
 
 List and run registered scenarios without creating a graphics context:

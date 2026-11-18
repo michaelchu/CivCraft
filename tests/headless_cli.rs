@@ -147,7 +147,7 @@ fn lifecycle_snapshots_survive_disabled_event_output() {
         String::from_utf8_lossy(&output.stderr)
     );
     let report = read_report(&report);
-    assert_eq!(report["version"], 8);
+    assert_eq!(report["version"], 9);
     assert_eq!(report["summary"]["lifecycle"]["history_available"], true);
     assert_eq!(report["summary"]["lifecycle"]["complete_since_start"], true);
     let snapshots = directory.join(report["evidence"]["snapshots"]["path"].as_str().unwrap());
@@ -213,7 +213,7 @@ fn minimap_exports_only_one_final_image_without_map_history() {
         .lines()
         .map(|s| serde_json::from_str(s).unwrap())
         .collect();
-    assert_eq!(snapshots.len(), 3);
+    assert_eq!(snapshots.len(), 2);
     assert!(snapshots.iter().all(|s| s.get("minimap").is_none()));
     let width = evidence["width"].as_u64().unwrap();
     let height = evidence["height"].as_u64().unwrap();
@@ -304,7 +304,7 @@ fn world_options_validate_against_the_generator_and_report_the_effective_inputs(
             String::from_utf8_lossy(&run.stderr)
         );
         let report = read_report(&report);
-        assert_eq!(report["version"], 8);
+        assert_eq!(report["version"], 9);
         let config = &report["run"]["configuration"];
         assert_eq!(config["map_generator"], "opensimplex");
         assert_eq!(
@@ -440,5 +440,65 @@ fn political_analytics_require_providers_and_publish_metrics_without_event_outpu
         serde_json::from_str(snapshots.lines().next().unwrap()).unwrap();
     assert!(initial["governments"].is_array());
     assert!(initial["diplomacy"].is_array());
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn compact_events_preserve_analytics_and_snapshots_with_full_audit_opt_in() {
+    let directory = report_directory("event-detail");
+    let mut reports = Vec::new();
+    for detail in ["lean", "verbose"] {
+        let path = directory.join(format!("{detail}.json"));
+        headless()
+            .args([
+                "--seed",
+                "42",
+                "--turns",
+                "10",
+                "--analytics",
+                "government,diplomacy",
+                "--snapshot-providers",
+                "cities,civilizations,units,lifecycle,research,governments,diplomacy",
+                "--report-detail",
+                detail,
+                "--report",
+            ])
+            .arg(&path)
+            .assert()
+            .success();
+        reports.push(read_report(&path));
+    }
+    let compact = &reports[0];
+    let full = &reports[1];
+    assert_eq!(
+        compact["analytics"]["metrics"],
+        full["analytics"]["metrics"]
+    );
+    assert_eq!(compact["findings"], full["findings"]);
+    let lean = std::fs::read_to_string(directory.join("lean.json.snapshots.jsonl")).unwrap();
+    let verbose = std::fs::read_to_string(directory.join("verbose.json.snapshots.jsonl")).unwrap();
+    assert_eq!(lean.lines().next(), verbose.lines().next());
+    assert_eq!(lean.lines().last(), verbose.lines().last());
+    assert!(lean.lines().count() < verbose.lines().count());
+    assert!(compact["evidence"]["changes"]["records"].as_u64().unwrap() > 0);
+    assert_eq!(full["evidence"]["changes"]["records"], 0);
+    assert!(
+        compact["coverage"]["events_compacted_by_kind"]["government.decision"]
+            .as_u64()
+            .unwrap()
+            > 0
+    );
+    assert!(
+        compact["evidence"]["events"]["bytes"].as_u64().unwrap()
+            < full["evidence"]["events"]["bytes"].as_u64().unwrap()
+    );
+    assert_eq!(
+        compact["analytics"]["metrics"]["government.ai_nations_observed"],
+        4
+    );
+    assert_eq!(
+        compact["analytics"]["metrics"]["government.nations"][0]["name"],
+        "Romans"
+    );
     std::fs::remove_dir_all(directory).unwrap();
 }

@@ -17,6 +17,7 @@ pub(crate) struct Config {
     pub analyzers: Vec<String>,
     pub growth_stall_turns: u32,
     pub settlement_every: i32,
+    pub report_detail: String,
     pub trace_domains: BTreeSet<String>,
     pub trace_entities: BTreeSet<Entity>,
     pub buffer_events: usize,
@@ -67,6 +68,7 @@ impl Config {
             "--growth-stall-turns",
             "--settlement-check-every",
             "--trace-domains",
+            "--report-detail",
             "--trace-entities",
             "--trace-buffer-events",
             "--trace-max-events",
@@ -150,6 +152,10 @@ impl Config {
         if load_campaign.is_some() && world.specified {
             return Err("world setup options require a newly generated world".into());
         }
+        let report_detail = value("--report-detail", "lean");
+        if !["lean", "verbose"].contains(&report_detail) {
+            return Err("--report-detail accepts lean or verbose".into());
+        }
         Ok(Self {
             seed: value("--seed", "42")
                 .parse()
@@ -166,6 +172,7 @@ impl Config {
             settlement_every,
             trace_domains: list(value("--trace-domains", "all")).into_iter().collect(),
             trace_entities: entities,
+            report_detail: report_detail.into(),
             buffer_events: positive("--trace-buffer-events", "10000")?,
             max_events: positive("--trace-max-events", "50000")?,
             max_event_bytes: positive("--trace-max-bytes", "16777216")?,
@@ -190,7 +197,7 @@ impl Config {
             "map_generator":world.generator.map(|generator| generator.name()),
             "world_settings":world.settings,
             "checkpoint_every":self.checkpoint_every,"trace_domains":self.trace_domains,"trace_entities":self.trace_entities,
-            "trace_buffer_events":self.buffer_events,"trace_max_events":self.max_events,"trace_max_bytes":self.max_event_bytes,
+            "report_detail":self.report_detail,"trace_buffer_events":self.buffer_events,"trace_max_events":self.max_events,"trace_max_bytes":self.max_event_bytes,
             "snapshot_providers":self.providers,"stop_on_finding":self.stop_on_finding,
             "profile_turns":self.profile_turns})
     }
@@ -200,6 +207,7 @@ pub(crate) const HELP: &str = "Headless AI simulator\n\
 --engine freeciv [--freeciv-server PATH] (uses seed, turns, map size, and report options)\n\
 --analytics growth,settlement,production,government,diplomacy (or none); --list-analyzers\n\
 --growth-stall-turns 2 --settlement-check-every 10\n\
+--report-detail lean|verbose (default lean; analyzers always receive full observations)\n\
 --trace-domains all|none|cities,production,settlement,lifecycle\n\
 --trace-entities all|city:1,unit:7,civilization:0\n\
 --trace-buffer-events 10000 --trace-max-events 50000 --trace-max-bytes 16777216\n\
@@ -228,6 +236,7 @@ mod tests {
             vec!["--snapshot-providers", "wrong"],
             vec!["--stop-on-finding", "oops"],
             vec!["--profile-turns", "sometimes"],
+            vec!["--report-detail", "sometimes"],
             vec![
                 "--scenario",
                 "generated-ai",

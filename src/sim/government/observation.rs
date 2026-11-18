@@ -2,15 +2,17 @@
 use super::*;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub(crate) struct Candidate {
     pub government: Government,
     pub available: bool,
     pub score: Option<f64>,
 }
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub(crate) struct GovernmentSnapshot {
     pub owner: usize,
+    #[serde(default)]
+    pub name: String,
     pub ai: bool,
     pub alive: bool,
     pub cities: usize,
@@ -23,7 +25,7 @@ pub(crate) struct GovernmentSnapshot {
     pub research_goal: Option<Government>,
     pub candidates: Vec<Candidate>,
 }
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub(crate) struct GovernmentDecision {
     pub advice: GovernmentSnapshot,
     pub selected: Government,
@@ -45,8 +47,7 @@ impl trace::Payload for GovernmentChange {
 }
 impl Simulation {
     pub(crate) fn observe_governments(&self) -> Vec<GovernmentSnapshot> {
-        (0..self.players.len())
-            .filter(|&owner| owner != BARBARIANS)
+        (0..self.civilization_count)
             .map(|owner| self.observe_government(owner))
             .collect()
     }
@@ -55,6 +56,7 @@ impl Simulation {
         let cache = self.ai_government_cache.get(&owner);
         GovernmentSnapshot {
             owner,
+            name: player.name.clone(),
             ai: player.ai,
             alive: self.player_alive(owner),
             cities: self.cities.iter().filter(|c| c.owner == owner).count(),

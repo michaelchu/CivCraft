@@ -6,6 +6,8 @@ use serde::Serialize;
 pub(crate) struct DiplomacySnapshot {
     /// All directional arrays follow this player order.
     pub players: [usize; 2],
+    pub names: [String; 2],
+    pub alive: [bool; 2],
     pub first_contact: Option<i32>,
     /// None means no contact, distinct from explicit War.
     pub pact: Option<Pact>,
@@ -44,12 +46,22 @@ impl trace::Payload for DiplomacyEvent {
 }
 impl Simulation {
     pub(crate) fn observe_diplomacy(&self) -> Vec<DiplomacySnapshot> {
-        let mut pairs: Vec<_> = self.diplomacy.iter().collect();
+        let mut pairs: Vec<_> = self
+            .diplomacy
+            .iter()
+            .filter(|&(&(a, b), _)| {
+                [a, b]
+                    .iter()
+                    .all(|&owner| owner < self.civilization_count || owner == BARBARIANS)
+            })
+            .collect();
         pairs.sort_by_key(|&(key, _)| *key);
         pairs
             .into_iter()
             .map(|(&(a, b), r)| DiplomacySnapshot {
                 players: [a, b],
+                names: [self.players[a].name.clone(), self.players[b].name.clone()],
+                alive: [self.player_alive(a), self.player_alive(b)],
                 first_contact: r.first_contact,
                 pact: r.first_contact.map(|_| r.pact),
                 until: r.until,
