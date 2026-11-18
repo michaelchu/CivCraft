@@ -136,6 +136,23 @@ as a control. The report shows the route's goods and income at both ports.
 The building catalog marks Harbor as infrastructure so the AI accounts for
 its trade network role before deciding which improvements to sell.
 
+Use `city_production` to set a legal current build, its stored shields, and
+an ordered worklist. Future worklist items are checked when reached.
+`city_workforce` sets worked tiles and specialist counts in scientist, taxman,
+entertainer order. Set the city's territory before assigning its workers.
+`load_cargo` uses the regular boarding rules for units on the same tile.
+Set `unit_readiness` after boarding or changing rank and HP. It presets
+remaining movement fragments, fuel, and activity state.
+`economy` sets treasury and science, tax, and luxury rates under the current
+government. `research` sets an available technology, accumulated bulbs, and
+an optional reachable goal.
+
+Run `--scenario campaign-readiness-presets --seed 42 --turns 1` to check a
+defended city with a worklist, a loaded Carrier and fortified guard, a
+treasury and tax split, and a project one bulb from completion. The first
+normal turn completes the Worker, advances the Harbor from the worklist,
+and discovers Alphabet.
+
 The naval assault is defined in
 `src/sim/scenarios/naval/ai_assault.rs`. Run it with
 `--scenario naval-ai-assault --seed 42 --turns 30`. It starts with a blank sea

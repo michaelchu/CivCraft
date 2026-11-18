@@ -6,6 +6,9 @@ use crate::{
     world::{GeneratedMap, GeneratedTile, Resource, Terrain, TerrainBase},
 };
 
+mod readiness;
+pub(crate) use readiness::UnitReadiness;
+
 /// The stable catalog ID and starting knowledge for a civilization slot.
 pub(crate) struct CivPreset<'a> {
     pub id: &'a str,
