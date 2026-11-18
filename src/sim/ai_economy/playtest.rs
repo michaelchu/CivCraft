@@ -41,7 +41,9 @@ impl super::Simulation {
             unit.home_order = id;
         }
         self.players[1].rates = [60, 40, 0];
-        self.players[1].gold = 3;
+        // Keep ordinary reserves funded; deficit protection is tested by
+        // the shared-strategy scenario rather than this native balance vector.
+        self.players[1].gold = self.strategic_priorities(1).gold_reserve;
         self.choose_ai_rates(1);
         let ordinary = self.players[1].rates == [60, 40, 0];
         self.ai_purchase_reserve.insert(1, 100);
@@ -53,6 +55,7 @@ impl super::Simulation {
         self.choose_ai_rates(1);
         let rich = self.players[1].rates == [60, 40, 0];
         self.spawn_unit(HUMAN, UnitKind::Warrior, 35, 35);
+        self.make_diplomatic_contact(1, HUMAN);
         self.ai_war_plans.insert(
             (1, HUMAN),
             diplomacy::WarPlan {

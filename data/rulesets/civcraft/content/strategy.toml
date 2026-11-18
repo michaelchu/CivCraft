@@ -1,0 +1,28 @@
+# Shared AI policy weights (100 = neutral); mechanics remain in the advisors.
+schema_version = 1
+crisis_economy_bonus = 60
+war_military_bonus = 40
+preparation_military_bonus = 20
+space_science_bonus = 40
+# Cushion for a projected deficit, shared by taxes, routine purchases and trade.
+deficit_reserve_turns = 3
+research_interest_want = 4
+
+[traits.agricultural]
+economy = 15
+[traits.commercial]
+economy = 20
+[traits.expansionist]
+economy = 10
+military = 5
+[traits.industrious]
+economy = 20
+[traits.militaristic]
+military = 25
+[traits.religious]
+economy = 10
+[traits.scientific]
+science = 25
+[traits.seafaring]
+economy = 10
+science = 5

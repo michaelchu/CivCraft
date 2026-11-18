@@ -175,6 +175,7 @@ impl Simulation {
             expenses += forecast.building_upkeep + forecast.support.gold;
             income += forecast.gold;
         }
+        let strategy = self.strategic_priorities(owner);
         let player = &self.players[owner];
         let decision = native_tax_decision(TaxBudget {
             // AI_LEVEL_NORMAL explicitly sets H_RATES in ai/difficulty.c.
@@ -184,14 +185,14 @@ impl Simulation {
             expenses,
             income,
             gold: player.gold,
-            gold_reserve: self.ai_gold_reserve(owner),
+            gold_reserve: strategy.gold_reserve,
             science_upkeep: self.technology_upkeep(owner),
             bulbs: player.research,
             last_science: player.last_science,
             // No Tech_Parasite effects exist in Civ2Civ3; Future is the
             // only supported adv_wants_science=false condition.
             wants_science: player.researching != Tech::FUTURE,
-            war_footing: self.ai_on_war_footing(owner),
+            war_footing: strategy.wars > 0 || strategy.preparing,
         });
         self.players[owner].rates = decision.rates;
     }

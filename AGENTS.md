@@ -67,6 +67,17 @@ technology prerequisites/transfer and the custom espionage system remain under
 their existing rules. Preserve deterministic decisions, bounded searches and
 human approval of incoming offers. Do not infer missing civ traits from names.
 
+The same owner-authorized AI policy now includes shared strategic priorities
+across research, trade, tax reserves, routine spending and optional war planning.
+Weights live in `content/strategy.toml`; technology interests remain shared in
+`content/diplomacy.toml`. Preserve advisor legality, research switching costs,
+emergency defense and ally obligations. Economic recovery may postpone optional
+wars, and an actual space program can favor science; traits are preferences,
+not guaranteed victory routes or mechanical bonuses. Read each civilization's
+`strategy` observation and lean posture changes before escalating to verbose
+financial inputs. Validate policy changes with `shared-strategy` and
+`proactive-trade` release scenarios.
+
 ## Comparison source checkout
 
 The Freeciv source submodule at `reference/freeciv` tracks the public upstream

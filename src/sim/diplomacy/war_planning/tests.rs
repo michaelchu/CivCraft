@@ -281,3 +281,35 @@ fn senate_requires_a_revolution_before_the_planned_declaration() {
     assert_eq!(game.ai_war_countdown(1, HUMAN), -19);
     assert!(!game.ai_pending_war_targets.contains_key(&1));
 }
+
+#[test]
+fn economic_crisis_blocks_optional_wars_but_preserves_ally_obligations() {
+    let mut healthy = war_planning_game();
+    healthy.players[1].gold = 5000;
+    healthy.advance_ai_war_plans_for(1);
+    assert!(healthy.ai_war_countdown(1, HUMAN) >= 0);
+
+    let mut crisis = war_planning_game();
+    let city = crisis
+        .cities
+        .iter_mut()
+        .find(|city| city.owner == 1)
+        .unwrap();
+    city.buildings
+        .extend(std::iter::repeat_n(Building::LIBRARY, 20));
+    crisis.players[1].gold = 0;
+    assert!(crisis.strategic_priorities(1).economic_crisis);
+    crisis.advance_ai_war_plans_for(1);
+    assert_eq!(crisis.ai_war_countdown(1, HUMAN), -1);
+
+    crisis.make_diplomatic_contact(1, 2);
+    crisis.sign_pact(1, 2, Pact::Alliance);
+    crisis.make_diplomatic_contact(HUMAN, 2);
+    crisis.sign_pact(HUMAN, 2, Pact::War);
+    crisis.refresh_diplomatic_intelligence();
+    crisis.advance_ai_war_plans_for(1);
+    assert!(matches!(
+        crisis.ai_war_plans[&(1, HUMAN)].reason,
+        WarReason::Alliance
+    ));
+}

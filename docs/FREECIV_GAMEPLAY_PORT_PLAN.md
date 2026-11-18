@@ -83,6 +83,17 @@ legality before applying transfers. City/map clauses and custom espionage retain
 their existing implementations. The `proactive-trade` headless scenario covers
 an allied cash purchase, budget protection, priorities, security and conservation.
 
+The owner also authorized shared strategic priorities across AI advisors. The
+read-only assessment in `sim/ai_strategy.rs` combines verified traits with the
+nation's projected solvency, contacted living enemies, active preparations and
+actual spaceship investment. Content strategy weights influence research wants,
+the shared trade valuation, tax reserves, routine rush spending and optional war
+planning. Economic recovery postpones discretionary wars; emergency defense,
+revenge and ally obligations retain their existing paths. Research availability,
+switching penalties, rate caps and treaty legality remain unchanged. This
+supersedes the corresponding advisor policy parity claims below, not their
+underlying mechanics. The `shared-strategy` scenario exercises these priorities.
+
 ## Pinned reference
 
 - Freeciv checkout: `../reference/freeciv`

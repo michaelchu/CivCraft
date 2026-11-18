@@ -841,3 +841,28 @@ unchanged.
 - Verify summary references resolve to flushed evidence or are marked unavailable.
 - Exercise a registered event-only analyzer and a custom typed provider to
   ensure the runner and snapshot envelope need no domain-specific changes.
+
+
+### Shared AI strategic priorities
+
+Civilization snapshots include `strategy` for living AI nations (null for human
+or defeated nations). Weights for economy, science and military are relative to
+100, not budget percentages. `posture` is `develop`, `recover`, `defend`, `prepare`
+or `space_race`; crisis, war count, preparation and space-program flags expose
+the reasons. `projected_income` and `gold_reserve` are retained in full snapshots
+but omitted from lean changes to avoid routine financial noise. Strategy is a
+read-only current-state assessment, not a persisted commitment or a prediction
+of victory. Trait weights and pressure bonuses live in `content/strategy.toml`;
+both research and trade use the technology interests in `content/diplomacy.toml`.
+
+For example, list posture changes from a lean report:
+
+```sh
+jq -c '.turn as $turn | .changes[]
+  | select(.provider == "civilizations" and .after.strategy != null)
+  | select(.before.strategy.posture != .after.strategy.posture)
+  | {turn: $turn, nation: .key, strategy: .after.strategy}' report.json.changes.jsonl
+```
+
+Run `--scenario shared-strategy --turns 1` in release mode for controlled
+research/trade interest, wartime priority, reserve and recovery checks.
