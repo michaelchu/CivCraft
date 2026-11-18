@@ -170,6 +170,39 @@ fn ai_artillery_moves_toward_a_firing_position_when_no_shot_is_in_range() {
 }
 
 #[test]
+fn ai_artillery_moves_to_the_only_known_firing_position_one_step_away() {
+    let mut game = Simulation::new(crate::mapgen::generate(42));
+    game.units.clear();
+    game.cities.clear();
+    let start = (10, 20);
+    let firing = (11, 20);
+    let target = (13, 20);
+    for (x, y) in [start, firing, target] {
+        let tile = game.tile_mut(x, y);
+        tile.terrain = Terrain::Grassland;
+        tile.base = None;
+        tile.hut = false;
+        tile.owner = None;
+    }
+    game.sign_pact(1, HUMAN, Pact::War);
+    game.create_city(HUMAN, target.0, target.1);
+    game.cities.last_mut().unwrap().size = 4;
+    let id = game.spawn_unit(1, UnitKind::Artillery, start.0, start.1);
+    for tile in &mut game.tiles {
+        tile.known_by[1] = false;
+    }
+    for (x, y) in [start, firing, target] {
+        game.tile_mut(x, y).known_by[1] = true;
+    }
+
+    let gun = game.unit_by_id(id).unwrap().clone();
+    assert!(!game.can_bombard_tile(&gun, target.0, target.1));
+    assert!(game.run_ai_bombard_approach(&gun));
+    let gun = game.unit_by_id(id).unwrap();
+    assert_eq!((gun.x, gun.y), firing);
+}
+
+#[test]
 fn ai_bombard_does_not_use_remembered_visibility_to_find_hidden_units() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
     game.units.clear();

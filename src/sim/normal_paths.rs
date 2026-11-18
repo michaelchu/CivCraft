@@ -186,6 +186,13 @@ impl NormalPaths {
     pub(super) fn attack_map(sim: &Simulation, unit: &Unit) -> Self {
         Self::new(sim, unit, Style::Attack, TilePolicy::Default, true, false)
     }
+    pub(super) fn goto_sanity_map(sim: &Simulation, unit: &Unit) -> Self {
+        Self::new(sim, unit, Style::Attack, TilePolicy::Default, false, false)
+    }
+    pub(super) fn goto_map(sim: &Simulation, unit: &Unit, task: GotoTask) -> Self {
+        let (style, policy, risk, _) = sim.source_goto_profile(unit, task);
+        Self::new(sim, unit, style, policy, true, risk)
+    }
     pub(super) fn overlap_map(sim: &Simulation, unit: &Unit) -> Self {
         Self::new(sim, unit, Style::Overlap, TilePolicy::Default, true, false)
     }
@@ -756,9 +763,9 @@ impl Simulation {
         if let Some(mut map) = super::fuel_paths::FuelPaths::attack_sanity(self, unit) {
             return map.movement_cost(self, goal.0, goal.1).is_some();
         }
-        let mut sanity =
-            NormalPaths::new(self, unit, Style::Attack, TilePolicy::Default, false, false);
-        sanity.movement_cost(self, goal.0, goal.1).is_some()
+        NormalPaths::goto_sanity_map(self, unit)
+            .movement_cost(self, goal.0, goal.1)
+            .is_some()
     }
 
     pub(super) fn ai_goto_path(
@@ -787,8 +794,7 @@ impl Simulation {
             let cost = map.movement_cost(self, goal.0, goal.1)?;
             return Some((map.path(self, goal.0, goal.1)?, cost));
         }
-        let (style, policy, risk, _) = self.source_goto_profile(unit, task);
-        NormalPaths::new(self, unit, style, policy, true, risk).path(self, goal.0, goal.1)
+        NormalPaths::goto_map(self, unit, task).path(self, goal.0, goal.1)
     }
 
     pub(super) fn ai_goto_unit(

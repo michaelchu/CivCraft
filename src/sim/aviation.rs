@@ -1,5 +1,6 @@
 //! Aircraft, fuel, airlift, and paradrop rules.
 
+use super::normal_paths::{GotoTask, NormalPaths};
 use super::*;
 
 mod aircraft_ai;
@@ -554,11 +555,13 @@ impl Simulation {
             }
         }
 
-        type ScoredFiringPosition = (f64, i32, Vec<(i32, i32)>);
+        type ScoredFiringPosition = (f64, i32, (i32, i32));
         let mut best: Option<ScoredFiringPosition> = None;
+        let mut maps = None;
         for (tx, ty) in target_tiles {
             for (px, py, distance) in self.map_wrap.civ3_radius(tx, ty, range) {
                 if distance == 0
+                    || (px, py) == (unit.x, unit.y)
                     || !self.tile(px, py).known_by[unit.owner]
                     || self
                         .city_at(px, py)
@@ -581,23 +584,37 @@ impl Simulation {
                 if value <= 0.0 {
                     continue;
                 }
-                let Some((path, cost)) =
-                    self.ai_goto_path(unit, (px, py), super::normal_paths::GotoTask::Attack)
-                else {
-                    continue;
-                };
-                if path.len() <= 1 {
+                // Keep the known-map check and the task-specific route search
+                // for this unit until all firing positions have been ranked.
+                let (known, routes) = maps.get_or_insert_with(|| {
+                    self.trace.count_operation("bombard.shared_map_pairs", 1);
+                    (
+                        NormalPaths::goto_sanity_map(self, unit),
+                        NormalPaths::goto_map(self, unit, GotoTask::Attack),
+                    )
+                });
+                self.trace
+                    .count_operation("bombard.candidate_route_queries", 1);
+                if known.movement_cost(self, px, py).is_none() {
                     continue;
                 }
+                let Some(cost) = routes.movement_cost(self, px, py) else {
+                    continue;
+                };
                 let score = value / (1.0 + f64::from(cost) / f64::from(self.unit_move_rate(unit)));
                 if best.as_ref().is_none_or(|(best_score, best_cost, _)| {
                     score > *best_score || (score == *best_score && cost < *best_cost)
                 }) {
-                    best = Some((score, cost, path));
+                    best = Some((score, cost, (px, py)));
                 }
             }
         }
-        best.is_some_and(|(_, _, path)| self.follow_source_ai_path(unit.id, path).moved)
+        let (Some((_, _, (px, py))), Some((_, mut routes))) = (best, maps) else {
+            return false;
+        };
+        routes
+            .path(self, px, py)
+            .is_some_and(|(path, _)| self.follow_source_ai_path(unit.id, path).moved)
     }
 
     fn choose_city_bombard_target(
