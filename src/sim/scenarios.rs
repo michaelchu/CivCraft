@@ -7,6 +7,8 @@ use super::*;
 mod builder;
 pub(crate) mod diplomacy;
 #[cfg(any(test, feature = "scenarios"))]
+mod harbor_trade;
+#[cfg(any(test, feature = "scenarios"))]
 mod naval;
 pub(crate) mod regression;
 #[cfg(any(test, feature = "scenarios"))]

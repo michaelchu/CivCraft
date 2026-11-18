@@ -122,7 +122,21 @@ tracks diplomatic access, live sight of a remote capital, and route income
 at both endpoints over two campaign turns. The report also shows later
 government changes made by the AI.
 
-The naval assault is the first example in
+Use `world.tile(position, TilePreset::new(terrain, base_terrain))` to lay out
+a fixture map before placing cities and units. A tile preset can also specify a
+resource, river, road, railroad, or military base. A railroad includes a road,
+and the builder rebuilds reciprocal river edges when the map changes.
+`world.city_improvement(city_id, building)` places a regular improvement that
+satisfies the city's normal construction requirements.
+
+Run `--scenario harbor-trade-route --seed 42 --turns 1` to check that two
+coastal cities with harbors start without a trade route and establish one
+during normal turn processing. A third coastal city without a harbor serves
+as a control. The report shows the route's goods and income at both ports.
+The building catalog marks Harbor as infrastructure so the AI accounts for
+its trade network role before deciding which improvements to sell.
+
+The naval assault is defined in
 `src/sim/scenarios/naval/ai_assault.rs`. Run it with
 `--scenario naval-ai-assault --seed 42 --turns 30`. It starts with a blank sea
 map and an established war, then watches the original Galleon and its troops.

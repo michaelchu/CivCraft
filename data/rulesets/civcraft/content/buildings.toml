@@ -158,7 +158,8 @@ cost = 40
 upkeep = 1
 requirements = [{ kind = "Tech", present = true, target = "TECH_Map_Making" }, { kind = "Sea", present = true }]
 obsolete = []
-flags = []
+# Harbors connect the water trade network in CivCraft.
+flags = ["Infra"]
 id = "building_harbor"
 
 [[rules]]

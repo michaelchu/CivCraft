@@ -1,9 +1,9 @@
 //! Small typed helpers for constructing deterministic campaign fixtures.
 
 use crate::{
-    rules::{Tech, civilizations},
-    sim::{Government, MAX_CIVILIZATIONS, Pact, Simulation, UnitKind},
-    world::{GeneratedMap, GeneratedTile, Terrain, TerrainBase},
+    rules::{Building, Genus, Tech, civilizations},
+    sim::{Base, Government, MAX_CIVILIZATIONS, Pact, Simulation, UnitKind},
+    world::{GeneratedMap, GeneratedTile, Resource, Terrain, TerrainBase},
 };
 
 /// The stable catalog ID and starting knowledge for a civilization slot.
@@ -13,13 +13,42 @@ pub(crate) struct CivPreset<'a> {
     pub technologies: Option<&'a [Tech]>,
 }
 
+/// Terrain and infrastructure for one tile in the starting map.
+pub(crate) struct TilePreset {
+    pub terrain: Terrain,
+    pub base_terrain: TerrainBase,
+    pub resource: Option<Resource>,
+    pub river: bool,
+    pub road: bool,
+    pub railroad: bool,
+    pub base: Option<Base>,
+}
+
+impl TilePreset {
+    pub(crate) fn new(terrain: Terrain, base_terrain: TerrainBase) -> Self {
+        Self {
+            terrain,
+            base_terrain,
+            resource: None,
+            river: false,
+            road: false,
+            railroad: false,
+            base: None,
+        }
+    }
+}
+
 pub(crate) struct WorldBuilder<'a> {
     game: &'a mut Simulation,
+    river_edges_dirty: bool,
 }
 
 impl<'a> WorldBuilder<'a> {
     pub(crate) fn new(game: &'a mut Simulation) -> Self {
-        Self { game }
+        Self {
+            game,
+            river_edges_dirty: false,
+        }
     }
 
     /// Keep the seed and topology. Active slots match the requested order.
@@ -85,8 +114,28 @@ impl<'a> WorldBuilder<'a> {
 
     pub(crate) fn grassland(&mut self, position: (i32, i32)) {
         let tile = self.game.tile_mut(position.0, position.1);
+        self.river_edges_dirty |= tile.terrain.is_water();
         tile.terrain = Terrain::Grassland;
         tile.base_terrain = TerrainBase::Grassland;
+    }
+
+    /// Apply a starting tile preset before placing cities and units.
+    pub(crate) fn tile(&mut self, position: (i32, i32), preset: TilePreset) {
+        assert!(
+            !preset.terrain.is_water()
+                || !(preset.river || preset.road || preset.railroad || preset.base.is_some()),
+            "land infrastructure requires land at {position:?}"
+        );
+        let tile = self.game.tile_mut(position.0, position.1);
+        self.river_edges_dirty |=
+            tile.river != preset.river || tile.terrain.is_water() != preset.terrain.is_water();
+        tile.terrain = preset.terrain;
+        tile.base_terrain = preset.base_terrain;
+        tile.resource = preset.resource;
+        tile.river = preset.river;
+        tile.road = preset.road || preset.railroad;
+        tile.railroad = preset.railroad;
+        tile.base = preset.base;
     }
 
     pub(crate) fn mark_known(&mut self, owner: usize, position: (i32, i32)) {
@@ -115,6 +164,29 @@ impl<'a> WorldBuilder<'a> {
         city.size = size;
         city.specialists[2] = size;
         city.id
+    }
+
+    /// Install a regular city improvement already in place at the start.
+    pub(crate) fn city_improvement(&mut self, city_id: u32, building: Building) {
+        assert_eq!(
+            building.data().genus,
+            Genus::Improvement,
+            "expected a regular city improvement"
+        );
+        let index = self
+            .game
+            .city_index_by_id(city_id)
+            .expect("fixture city must exist");
+        if let Some(reason) = self
+            .game
+            .building_blocker(&self.game.cities[index], building)
+        {
+            panic!(
+                "cannot preset {} in city {city_id}: {reason}",
+                building.data().name
+            );
+        }
+        self.game.cities[index].buildings.push(building);
     }
 
     pub(crate) fn unit(&mut self, owner: usize, kind: UnitKind, position: (i32, i32)) -> u32 {
@@ -207,6 +279,12 @@ impl<'a> WorldBuilder<'a> {
 
     /// Make the assembled world ready for the runner's initial snapshot.
     pub(crate) fn finish(self) {
+        if self.river_edges_dirty {
+            crate::world::topology::rebuild_civ3_river_edges(
+                self.game.map_wrap,
+                &mut self.game.tiles,
+            );
+        }
         self.game.refresh_visibility();
         self.game.refresh_score_snapshot();
     }
