@@ -110,7 +110,7 @@ impl Simulation {
         self.create_city(1, home.0, home.1);
         self.create_city(HUMAN, target.0, target.1);
         self.cities.last_mut().unwrap().size = 2;
-        let guard = self.spawn_unit(1, UnitKind::Marine, home.0, home.1);
+        self.spawn_unit(1, UnitKind::Marine, home.0, home.1);
         let attacker = self.spawn_unit(1, UnitKind::Warrior, home.0, home.1);
         // The transport policy needs a legal assault force: one home guard
         // and enough attackers to satisfy the C2C3 capture odds against the
@@ -146,10 +146,12 @@ impl Simulation {
                 break;
             }
         }
-        let guarded = self
-            .units
-            .iter()
-            .any(|unit| unit.id == guard && (unit.x, unit.y) == home);
+        let guarded = self.units.iter().any(|unit| {
+            unit.owner == 1
+                && unit.kind == UnitKind::Marine
+                && unit.transport.is_none()
+                && (unit.x, unit.y) == home
+        });
         let captured = self
             .cities
             .iter()

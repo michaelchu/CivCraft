@@ -75,8 +75,9 @@ impl Simulation {
 
     #[cfg(test)]
     pub(crate) fn assault_transport_playtest_has_orders(&mut self, owner: usize) -> bool {
+        let defenders = self.assign_ai_city_defenders(owner);
         !self
-            .dispatch_assault_transports(owner, |_| false, |_| false)
+            .dispatch_assault_transports(owner, |_| false, |id| defenders.contains(&id))
             .is_empty()
     }
 
@@ -143,7 +144,6 @@ impl Simulation {
             cost: i32,
             port: u32,
             position: (i32, i32),
-            guard: u32,
             troops: Vec<u32>,
         }
         for boat in boats {
@@ -168,22 +168,15 @@ impl Simulation {
                             && !reserved(unit.id)
                     })
                     .collect();
-                if troops.len() <= 1 {
-                    continue;
-                }
                 troops.sort_by_key(|unit| {
                     (
                         std::cmp::Reverse(unit.kind.stats().defense * unit.hp),
                         unit.id,
                     )
                 });
-                let guard = troops.remove(0).id;
                 troops.retain(|unit| boat.kind.can_carry(unit.kind));
                 troops.truncate(boat.kind.transport_capacity());
                 if troops.is_empty() {
-                    continue;
-                }
-                if self.city_threats(port).next().is_some() {
                     continue;
                 }
                 let Some((_, pickup_cost)) =
@@ -211,7 +204,6 @@ impl Simulation {
                         cost,
                         port: port.id,
                         position,
-                        guard,
                         troops: troops
                             .into_iter()
                             .take(boat.kind.transport_capacity())
@@ -224,7 +216,6 @@ impl Simulation {
                 continue;
             };
             assigned.insert(boat.id);
-            assigned.insert(plan.guard);
             assigned.extend(plan.troops.iter().copied());
             self.unit_goto_tiles.insert(boat.id, plan.position);
             self.ai_goto_unit(boat.id, plan.position, GotoTask::None);
@@ -248,6 +239,15 @@ impl Simulation {
         assigned
     }
 
+    pub(super) fn passenger_assault_order(&self, boat: &Unit) -> Option<(&Unit, &City)> {
+        let passenger = self.unit_by_id(self.ferry_boss(boat.id)?)?;
+        let city = self.city_by_id(*self.ai_ground_targets.get(&passenger.id)?)?;
+        (passenger.transport == Some(boat.id)
+            && self.at_war(boat.owner, city.owner)
+            && self.unit_goto_tiles.get(&passenger.id) == Some(&(city.x, city.y)))
+        .then_some((passenger, city))
+    }
+
     pub(super) fn run_raider_transport(&mut self, boat: &Unit) {
         self.refresh_ferry_boss(boat.id);
         if !self.military_ferry_ready(boat.id) {
@@ -264,6 +264,36 @@ impl Simulation {
                 self.run_idle_ai_ferry(boat.id);
             }
             return;
+        }
+
+        // A passenger that booked this ferry to attack a city uses the
+        // same beachhead calculation that made its target feasible.
+        if let Some((passenger, city)) = self.passenger_assault_order(boat) {
+            let goal = (city.x, city.y);
+            let mut map = super::super::normal_paths::NormalPaths::overlap_map(self, boat);
+            if let Some((x, y, beach)) =
+                self.offensive_beachhead(&mut map, passenger.kind, boat.owner, goal.0, goal.1)
+            {
+                self.ai_ferry_goto_waypoint(boat.id, (x, y), goal);
+                if self
+                    .unit_by_id(boat.id)
+                    .is_some_and(|ship| (ship.x, ship.y) == (x, y))
+                    && let Some(direction) = CIV3_DIRS.iter().position(|&(dx, dy)| {
+                        self.map_wrap.civ3_offset(x, y, dx, dy) == Some(beach)
+                    })
+                {
+                    for id in cargo {
+                        self.try_move_unit_civ3(id, direction);
+                        if self
+                            .unit_by_id(id)
+                            .is_some_and(|unit| unit.transport.is_none())
+                        {
+                            self.release_ai_ferry(id);
+                        }
+                    }
+                }
+                return;
+            }
         }
 
         if let Some((direction, (dx, dy))) =

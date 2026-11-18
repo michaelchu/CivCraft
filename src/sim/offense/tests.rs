@@ -74,6 +74,7 @@ fn nearby_empty_city_retains_unbuilt_rank_zero_defender_type_with_zero_unit_bene
     let (mut game, _, seed, enemy) = island_fixture();
     game.players[HUMAN].known.push(Tech::BRONZE_WORKING);
     let target = OffensiveTarget {
+        path: Vec::new(),
         x: enemy.0,
         y: enemy.1,
         city: Some(game.cities[1].id),
@@ -177,6 +178,7 @@ fn combined_ferry_search_finds_remote_boat_but_seed_rejects_an_unreachable_rende
     // when its later per-type PF reaches neither boat nor target. The
     // stricter seed stage above prevents this from creating a seed job.
     let target = OffensiveTarget {
+        path: Vec::new(),
         x: enemy.0,
         y: enemy.1,
         city: Some(game.cities[1].id),
@@ -213,4 +215,17 @@ fn literal_c_kill_desire_and_amortization_vectors_preserve_float_assignments() {
 fn offensive_target_feedback_respects_visibility_and_ends_after_learning_the_tech() {
     let game = Simulation::new(crate::test_support::seeded_map());
     assert_eq!(game.offensive_research_playtest(), (true, true));
+}
+
+#[test]
+fn a_live_attacker_can_use_an_existing_ferry_but_cannot_plan_with_a_hypothetical_one() {
+    let (mut game, city, mut attacker, enemy) = island_fixture();
+    assert!(game.offensive_target(&city, &attacker).unwrap().new_ferry);
+    attacker.id = game.spawn_unit(1, attacker.kind, city.x, city.y);
+    assert!(game.offensive_target(&city, &attacker).is_none());
+    let ship = game.spawn_unit(1, UnitKind::Galleon, city.x, city.y);
+    let target = game.offensive_target(&city, &attacker).unwrap();
+    assert_eq!((target.x, target.y), enemy);
+    assert_eq!(target.ferry.unwrap().id, ship);
+    assert!(!target.new_ferry);
 }

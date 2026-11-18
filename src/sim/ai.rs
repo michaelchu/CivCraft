@@ -219,6 +219,26 @@ impl Simulation {
             .iter()
             .filter_map(|unit| self.run_ai_paratrooper(unit).then_some(unit.id))
             .collect();
+        // Paradrops execute before ground management. Replace defenders that
+        // actually left their post using the same city defense calculation.
+        let vacated: std::collections::HashSet<_> = drops
+            .iter()
+            .filter_map(|id| {
+                let home = city_defender_homes.get(id)?;
+                self.unit_by_id(*id)
+                    .is_none_or(|u| (u.x, u.y) != *home)
+                    .then_some(*home)
+            })
+            .collect();
+        if !vacated.is_empty() {
+            for id in self.assign_ai_city_defenders_where(owner, |c| vacated.contains(&(c.x, c.y)))
+            {
+                if let Some(unit) = self.unit_by_id(id) {
+                    city_defender_homes.insert(id, (unit.x, unit.y));
+                    city_defenders.insert(id);
+                }
+            }
+        }
         drop(_profile);
         let _profile = profiler.scope("ai.transports_and_settlement");
         self.prune_settlement_reservations(owner);
@@ -243,7 +263,7 @@ impl Simulation {
             .collect();
         drop(_profile);
         let _profile = profiler.scope("ai.ground_invasions");
-        self.refresh_ground_invasions(owner, &reserved);
+        let ground_missions = self.refresh_ground_invasions(owner, &reserved);
         let mut claimed_targets = std::collections::HashSet::new();
         let mut ferry_managed = std::collections::HashSet::new();
         drop(_profile);
@@ -380,48 +400,17 @@ impl Simulation {
                     self.run_auto_explorer(id);
                 }
                 _ => {
-                    let _profile = profiler.scope("ai.fallback.city_garrison_check");
-                    let on_city = self
-                        .cities
-                        .iter()
-                        .find(|c| c.owner == owner && c.x == unit.x && c.y == unit.y)
-                        .cloned();
-                    if let Some(city) = on_city {
-                        let defenders = self
-                            .units
-                            .iter()
-                            .filter(|u| {
-                                u.owner == owner
-                                    && u.x == city.x
-                                    && u.y == city.y
-                                    && u.kind.is_military()
-                            })
-                            .count();
-                        if defenders <= 1 || self.city_threats(&city).next().is_some() {
-                            self.unit_goto_tiles.insert(id, (city.x, city.y));
-                            self.fortify_unit(id);
-                            continue;
-                        }
-                    }
-                    drop(_profile);
                     if unit.kind.is_military()
                         && !unit.kind.is_aircraft()
                         && !unit.kind.is_naval()
                         && owner != BARBARIANS
                     {
                         let _profile = profiler.scope("ai.fallback.ground_mission");
-                        let mission = self
-                            .ai_ground_targets
+                        if !ground_missions
                             .get(&id)
-                            .and_then(|target| self.city_by_id(*target))
-                            .filter(|city| self.at_war(owner, city.owner))
-                            .and_then(|city| {
-                                self.ai_goto_path(&unit, (city.x, city.y), GotoTask::Attack)
-                            })
-                            .map(|(path, _)| path);
-                        if let Some(path) = mission {
-                            self.follow_ground_invasion_path(id, path);
-                        } else {
+                            .is_some_and(|target| self.run_ground_mission(&unit, target))
+                        {
+                            self.ai_ground_targets.remove(&id);
                             self.unit_goto_tiles.remove(&id);
                             self.run_auto_explorer(id);
                         }

@@ -9,13 +9,14 @@ use super::unit_catalog::{UnitAiStrategy, UnitFlag};
 use super::*;
 
 #[derive(Clone)]
-struct OffensiveTarget {
-    x: i32,
-    y: i32,
-    city: Option<u32>,
+pub(in crate::sim) struct OffensiveTarget {
+    pub(in crate::sim) x: i32,
+    pub(in crate::sim) y: i32,
+    pub(in crate::sim) city: Option<u32>,
+    pub(in crate::sim) path: Vec<(i32, i32)>,
     turns: i32,
     want: f32,
-    ferry: Option<Unit>,
+    pub(in crate::sim) ferry: Option<Unit>,
     new_ferry: bool,
 }
 
@@ -42,7 +43,15 @@ impl Simulation {
         if value <= 0.0 {
             return 0.0;
         }
-        let output = if self.ai_advisor_cache_enabled.get() {
+        Self::amortize_attack(value, delay, cost, self.cached_offensive_output(city))
+    }
+
+    fn amortize_attack(value: f32, delay: i32, cost: i32, output: i32) -> f32 {
+        (f64::from(value.max(0.0)) * (23.0_f64 / 24.0).powi(delay + cost / output)) as f32
+    }
+
+    fn cached_offensive_output(&self, city: &City) -> i32 {
+        if self.ai_advisor_cache_enabled.get() {
             self.ai_spatial_index
                 .borrow()
                 .offensive_outputs
@@ -60,8 +69,7 @@ impl Simulation {
                     .insert(city.id, output);
             }
             output
-        });
-        (f64::from(value) * (23.0_f64 / 24.0).powi(delay + cost / output)) as f32
+        })
     }
 
     fn offensive_production_output(&self, city: &City) -> i32 {
@@ -374,8 +382,11 @@ impl Simulation {
             };
             seed.hp = seed.max_hit_points();
             let assigned = self.assigned_attack_strength(&seed);
-            let Some(target) = self.offensive_target_with_assignments(city, &seed, &assigned)
-            else {
+            let Some(target) = self.offensive_target_with_assignments(
+                self.cached_offensive_output(city),
+                &seed,
+                &assigned,
+            ) else {
                 continue;
             };
             let enemy_city = target.city.and_then(|id| self.city_by_id(id));

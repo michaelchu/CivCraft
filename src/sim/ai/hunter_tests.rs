@@ -349,7 +349,7 @@ fn military_pickup_preserves_a_civilian_boss_until_released() {
     }
     game.create_city(1, home.0, home.1);
     game.create_city(HUMAN, target.0, target.1);
-    game.spawn_unit(1, UnitKind::Marine, home.0, home.1);
+    let guard = game.spawn_unit(1, UnitKind::Marine, home.0, home.1);
     let soldier = game.spawn_unit(1, UnitKind::Warrior, home.0, home.1);
     game.spawn_unit(1, UnitKind::Warrior, home.0, home.1);
     let reserved_passenger = game.spawn_unit(1, UnitKind::Settler, home.0, home.1);
@@ -358,7 +358,7 @@ fn military_pickup_preserves_a_civilian_boss_until_released() {
     game.refresh_ai_ferries();
     assert!(game.assign_ai_ferry(boat, reserved_passenger));
     assert!(
-        game.dispatch_assault_transports(1, |_| false, |_| false)
+        game.dispatch_assault_transports(1, |_| false, |id| id == guard)
             .is_empty()
     );
     assert!(
@@ -375,7 +375,7 @@ fn military_pickup_preserves_a_civilian_boss_until_released() {
     );
     game.release_ai_ferry(reserved_passenger);
     assert!(
-        game.dispatch_assault_transports(1, |_| false, |_| false)
+        game.dispatch_assault_transports(1, |_| false, |id| id == guard)
             .contains(&boat)
     );
     assert_eq!(
@@ -538,4 +538,47 @@ fn damaged_military_ferry_waits_in_city_until_recovered() {
     let unit = game.units.last_mut().unwrap();
     unit.hp = unit.kind.stats().hp;
     assert!(game.military_ferry_ready(boat));
+}
+
+#[test]
+fn surplus_city_attacker_can_pursue_a_field_unit() {
+    let mut game = Simulation::new(crate::test_support::seeded_map());
+    let (attacker, _, enemy_city) = game.ai_ground_invasion_playtest_setup();
+    game.cities.retain(|city| city.id != enemy_city);
+    let home = game.cities[0].clone();
+    let target = offset_native_by_map(home.x, home.y, 2, 0);
+    game.units.retain(|unit| unit.owner != HUMAN);
+    let enemy = game.spawn_unit(HUMAN, UnitKind::Warrior, target.0, target.1);
+    game.units
+        .iter_mut()
+        .find(|unit| unit.id == enemy)
+        .unwrap()
+        .hp = 1;
+    let marine = game
+        .units
+        .iter_mut()
+        .find(|unit| unit.id == attacker)
+        .unwrap();
+    (marine.x, marine.y) = (home.x, home.y);
+    let guard = game
+        .units
+        .iter()
+        .find(|unit| unit.kind == UnitKind::Warrior && unit.owner == 1)
+        .unwrap()
+        .id;
+    assert!(game.city_threats(&home).next().is_some());
+    let missions = game.refresh_ground_invasions(1, &[guard].into_iter().collect());
+    assert!(!missions.contains_key(&guard));
+    let order = &missions[&attacker];
+    assert_eq!((order.city, order.x, order.y), (None, target.0, target.1));
+    let marine = game.unit_by_id(attacker).unwrap().clone();
+    assert!(game.run_ground_mission(&marine, order));
+    assert_ne!(
+        game.unit_by_id(attacker).map(|u| (u.x, u.y)),
+        Some((home.x, home.y))
+    );
+    assert_eq!(
+        game.unit_by_id(guard).map(|u| (u.x, u.y)),
+        Some((home.x, home.y))
+    );
 }

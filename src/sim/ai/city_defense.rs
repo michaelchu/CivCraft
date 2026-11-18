@@ -16,6 +16,14 @@ impl Simulation {
         &mut self,
         owner: usize,
     ) -> std::collections::HashSet<u32> {
+        self.assign_ai_city_defenders_where(owner, |_| true)
+    }
+
+    pub(super) fn assign_ai_city_defenders_where(
+        &mut self,
+        owner: usize,
+        include: impl Fn(&City) -> bool,
+    ) -> std::collections::HashSet<u32> {
         let _profile = self.trace.profiler().scope("ai.city_defenders.assignment");
         let mut reserved = std::collections::HashSet::new();
         if owner == BARBARIANS {
@@ -29,7 +37,7 @@ impl Simulation {
         let city_ids: Vec<_> = self
             .cities
             .iter()
-            .filter(|city| city.owner == owner)
+            .filter(|city| city.owner == owner && include(city))
             .map(|city| city.id)
             .collect();
         for city_id in city_ids {

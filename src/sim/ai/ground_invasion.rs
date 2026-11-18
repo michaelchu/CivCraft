@@ -165,7 +165,8 @@ impl Simulation {
         &mut self,
         owner: usize,
         reserved: &std::collections::HashSet<u32>,
-    ) {
+    ) -> std::collections::HashMap<u32, super::super::offense::OffensiveTarget> {
+        let mut missions = std::collections::HashMap::new();
         let valid: std::collections::HashSet<_> = self
             .ai_ground_targets
             .iter()
@@ -183,6 +184,9 @@ impl Simulation {
             })
             .collect();
         self.ai_ground_targets.retain(|id, _| valid.contains(id));
+        if !(0..self.players.len()).any(|other| self.at_war(owner, other)) {
+            return missions;
+        }
         let boats: Vec<_> =
             self.units
                 .iter()
@@ -196,6 +200,10 @@ impl Simulation {
                 .cloned()
                 .collect();
         for boat in boats {
+            if let Some((_, city)) = self.passenger_assault_order(&boat) {
+                self.ai_ground_targets.insert(boat.id, city.id);
+                continue;
+            }
             let troops: Vec<_> = self
                 .units
                 .iter()
@@ -234,28 +242,9 @@ impl Simulation {
             .cloned()
             .collect();
         let production = std::cell::OnceCell::new();
-        let mut threatened = std::collections::HashMap::new();
+
         for unit in actors {
             if reserved.contains(&unit.id) {
-                self.ai_ground_targets.remove(&unit.id);
-                continue;
-            }
-            let guarding = self.cities.iter().any(|c| {
-                c.owner == owner
-                    && (c.x, c.y) == (unit.x, unit.y)
-                    && (self
-                        .units
-                        .iter()
-                        .filter(|u| {
-                            u.owner == owner && u.kind.is_military() && (u.x, u.y) == (c.x, c.y)
-                        })
-                        .count()
-                        <= 1
-                        || *threatened
-                            .entry(c.id)
-                            .or_insert_with(|| self.city_threats(c).next().is_some()))
-            });
-            if guarding {
                 self.ai_ground_targets.remove(&unit.id);
                 continue;
             }
@@ -267,12 +256,28 @@ impl Simulation {
                 let average = outputs.values().sum::<i32>() / outputs.len().max(1) as i32;
                 (outputs, average)
             });
-            if let Some(target) = self.ground_city_attack_choice(&unit, outputs, *average) {
-                self.ai_ground_targets.insert(unit.id, target);
+            let output = unit
+                .home_city
+                .and_then(|id| outputs.get(&id))
+                .copied()
+                .unwrap_or(0)
+                .max(*average)
+                .max(1);
+            let target = self.offensive_target_with_assignments(
+                output,
+                &unit,
+                &self.assigned_attack_strength(&unit),
+            );
+            if let Some(city) = target.as_ref().and_then(|target| target.city) {
+                self.ai_ground_targets.insert(unit.id, city);
             } else {
                 self.ai_ground_targets.remove(&unit.id);
             }
+            if let Some(target) = target {
+                missions.insert(unit.id, target);
+            }
         }
+        missions
     }
 
     pub(in crate::sim) fn ground_attack_is_my_turn(&self, actor: &Unit, defender: &Unit) -> bool {
@@ -311,30 +316,57 @@ impl Simulation {
         true
     }
 
-    pub(super) fn follow_ground_invasion_path(&mut self, id: u32, path: Vec<(i32, i32)>) {
-        let profiler = self.trace.profiler();
-        let _profile = profiler.scope("ai.ground_invasion.follow_path");
-        let Some(actor) = self.unit_by_id(id).cloned() else {
-            return;
-        };
-        let goal = path.iter().fold((actor.x, actor.y), |(x, y), &(dx, dy)| {
-            self.map_wrap
-                .civ3_offset(x, y, dx, dy)
-                .expect("planned step is real")
-        });
-        if goal == (actor.x, actor.y) {
-            return;
+    pub(super) fn run_ground_mission(
+        &mut self,
+        actor: &Unit,
+        target: &super::super::offense::OffensiveTarget,
+    ) -> bool {
+        let id = actor.id;
+        let goal = (target.x, target.y);
+        let hostile = target
+            .city
+            .and_then(|city| self.city_by_id(city))
+            .is_some_and(|city| self.at_war(actor.owner, city.owner))
+            || self
+                .tile_units_ordered(goal.0, goal.1)
+                .any(|enemy| self.at_war(actor.owner, enemy.owner));
+        if !hostile {
+            return false;
         }
-        let _profile = profiler.scope("ai.ground_invasion.destination_guard");
+        if let Some(ferry) = &target.ferry {
+            let Some(boat) = self.unit_by_id(ferry.id).cloned() else {
+                return false;
+            };
+            if !self.can_board_ship(actor, &boat) || !self.assign_ai_ferry(boat.id, id) {
+                return false;
+            }
+            if (boat.x, boat.y) == (ferry.x, ferry.y) {
+                self.unit_goto_tiles.insert(id, goal);
+                self.follow_ground_invasion_path(id, &target.path);
+            } else {
+                self.ai_ferry_goto_waypoint(id, (boat.x, boat.y), goal);
+            }
+            if self.board_specific_ship(id, boat.id)
+                || self.embark_adjacent_ship(id, boat.id)
+                || self
+                    .unit_by_id(id)
+                    .is_some_and(|unit| unit.transport == Some(boat.id))
+            {
+                self.run_raider_transport(&boat);
+            }
+            return true;
+        }
         self.ai_guard_for_destination(id, goal.0, goal.1);
-        drop(_profile);
         self.unit_goto_tiles.insert(id, goal);
-        let Some((path, _)) = self.ai_goto_path(&actor, goal, GotoTask::Attack) else {
-            return;
-        };
+        self.follow_ground_invasion_path(id, &target.path);
+        true
+    }
+
+    fn follow_ground_invasion_path(&mut self, id: u32, path: &[(i32, i32)]) {
+        let profiler = self.trace.profiler();
         let length = path.len();
         let _profile = profiler.scope("ai.ground_invasion.step_execution");
-        for (position, (dx, dy)) in path.into_iter().enumerate() {
+        for (position, (dx, dy)) in path.iter().copied().enumerate() {
             let Some(actor) = self.unit_by_id(id).cloned() else {
                 return;
             };
@@ -387,102 +419,5 @@ impl Simulation {
                 return;
             }
         }
-    }
-
-    pub(super) fn ground_city_attack_choice(
-        &self,
-        unit: &Unit,
-        outputs: &std::collections::HashMap<u32, i32>,
-        average: i32,
-    ) -> Option<u32> {
-        let mut best = None;
-        let mut best_value = 0.0;
-        let output = unit
-            .home_city
-            .and_then(|id| outputs.get(&id).copied())
-            .unwrap_or(1)
-            .max(average)
-            .max(1);
-        let rating = |actor: &Unit| {
-            Self::attack_power(actor) * actor.hp * actor.kind.stats().firepower / (POWER_FACTOR * 3)
-        };
-        // Freeciv initializes all city invasion markers and builds one PF map
-        // per unit, then asks it for each enemy city.
-        let targets: Vec<_> = self
-            .cities
-            .iter()
-            .filter(|city| {
-                self.at_war(unit.owner, city.owner)
-                    && self.tile(city.x, city.y).known_by[unit.owner]
-            })
-            .collect();
-        let invasion = self.invasion_support_many(unit.owner, &targets, unit.id);
-        let destinations: Vec<_> = targets.iter().map(|city| (city.x, city.y)).collect();
-        let assigned = self.assigned_attack_strength(unit);
-        let route_costs = self.route_costs_to_many(unit, &destinations);
-        for (city, route_cost) in targets.into_iter().zip(route_costs) {
-            let Some(cost) = route_cost else {
-                continue;
-            };
-            if cost == 0 {
-                continue;
-            }
-            let defenders = self
-                .units
-                .iter()
-                .filter(|defender| {
-                    (defender.x, defender.y) == (city.x, city.y)
-                        && !self.allied(unit.owner, defender.owner)
-                })
-                .count();
-            let (invasion_attacks, invasion_occupiers) =
-                invasion.get(&city.id).copied().unwrap_or_default();
-            let allowance = self.unit_move_rate(unit).max(1);
-            let turns = (cost + allowance - unit.moves_left.max(0)) / allowance;
-            if turns > 10 {
-                continue;
-            }
-            let (helper_attack, helper_cost) = self.offensive_helpers(unit, city, &assigned);
-            let attack = rating(unit) + helper_attack;
-            let attack = f64::from(attack).powi(2);
-            let loss = unit.kind.stats().cost + helper_cost;
-            let anticipated = self.anticipated_city_defender(city, unit, turns, false);
-            let defender = anticipated.as_ref();
-            let mut benefit = defender.map_or(0.0, |d| f64::from(d.kind.stats().cost));
-            let reserves = invasion_attacks - defenders as i32;
-            if reserves > 0 && (unit.kind.can_occupy_city() || invasion_occupiers > 0) {
-                benefit += f64::from(self.advisor_city_output(city, None).max(0) * reserves) / 5.0;
-            }
-            let vulnerability = defender.map_or(0.0, |d| {
-                let rating = self.defense_power_against(d, city.x, city.y, unit.kind)
-                    * d.hp
-                    * d.kind.stats().firepower
-                    / (POWER_FACTOR * 3);
-                f64::from(rating).powi(2)
-            });
-            let victims = defenders as f64 + 1.0;
-            let gain = if unit.kind.can_occupy_city()
-                && invasion_occupiers == 0
-                && (invasion_attacks > 0 || defenders == 0)
-            {
-                f64::from(unit.kind.stats().cost * 17)
-            } else if !unit.kind.can_occupy_city() && defender.is_none() {
-                0.0
-            } else if attack + vulnerability * victims > 0.0 {
-                (benefit * attack - f64::from(loss) * vulnerability) * victims * 17.0
-                    / (attack + vulnerability * victims)
-            } else {
-                0.0
-            };
-            let gain = gain - f64::from(turns * 17);
-            let stats = unit.kind.stats();
-            let balanced = 2 * stats.cost * stats.attack / (stats.attack + stats.defense).max(1);
-            let value = gain * (23.0_f64 / 24.0).powi(turns.max(1) + balanced / output);
-            if value > best_value {
-                best_value = value;
-                best = Some(city.id);
-            }
-        }
-        best
     }
 }

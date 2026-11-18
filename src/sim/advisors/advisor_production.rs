@@ -830,9 +830,12 @@ impl Simulation {
         let _profile = profiler.scope("advisor.build.military");
         let (_, military) = self.military_build_advice_with_wonder_city(city, wonder_city);
         drop(_profile);
-        if military.as_ref().is_some_and(|choice| {
-            self.ai_on_war_footing(city.owner) || choice.want >= MILITARY_EMERGENCY_WANT
-        }) {
+        let wartime_demand =
+            military.is_some_and(|choice| choice.want > 0.0) && self.ai_on_war_footing(city.owner);
+        if wartime_demand && wonder_city != Some(city.id)
+            || military.is_some_and(|choice| choice.want >= MILITARY_EMERGENCY_WANT)
+                && self.advisor_guard_city_assessment(city).urgency != 0
+        {
             return military;
         }
 
@@ -843,16 +846,18 @@ impl Simulation {
                 best = Some(AiBuildChoice { production, want });
             }
         };
-        let _profile = profiler.scope("advisor.build.worker");
-        if let Some((kind, want)) = self.worker_production_choice_in_place(city, worker_cache) {
-            consider(Production::Unit(kind), want);
+        if !wartime_demand {
+            let _profile = profiler.scope("advisor.build.worker");
+            if let Some((kind, want)) = self.worker_production_choice_in_place(city, worker_cache) {
+                consider(Production::Unit(kind), want);
+            }
+            drop(_profile);
+            let _profile = profiler.scope("advisor.build.settlement");
+            if let Some(choice) = self.cached_settlement_choice(city, wonder_city) {
+                consider(choice.production, choice.want);
+            }
+            drop(_profile);
         }
-        drop(_profile);
-        let _profile = profiler.scope("advisor.build.settlement");
-        if let Some(choice) = self.cached_settlement_choice(city, wonder_city) {
-            consider(choice.production, choice.want);
-        }
-        drop(_profile);
         let _profile = profiler.scope("advisor.build.stable");
         if let Some(choice) = self.cached_building_choice(city, wonder_city) {
             consider(choice.production, choice.want);

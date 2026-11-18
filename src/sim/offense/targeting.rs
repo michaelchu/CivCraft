@@ -3,23 +3,24 @@
 use super::*;
 
 impl super::Simulation {
-    pub(super) fn offensive_beachhead(
+    pub(in crate::sim) fn offensive_beachhead(
         &self,
         map: &mut NormalPaths,
         cargo: UnitKind,
         owner: usize,
         x: i32,
         y: i32,
-    ) -> Option<(i32, i32, bool)> {
+    ) -> Option<(i32, i32, (i32, i32))> {
         let mut best = None;
         let mut best_cost = i32::MAX;
         if cargo.has_marine_attack() {
+            let beach = (x, y);
             for (x, y) in self.map_wrap.civ3_neighbors(x, y) {
                 if let Some(cost) = map.movement_cost(self, x, y)
                     && cost < best_cost
                 {
                     best_cost = cost;
-                    best = Some((x, y, true));
+                    best = Some((x, y, beach));
                 }
             }
         } else {
@@ -40,7 +41,7 @@ impl super::Simulation {
                         && cost < best_cost
                     {
                         best_cost = cost;
-                        best = Some((sx, sy, (sx, sy) != (bx, by)));
+                        best = Some((sx, sy, (bx, by)));
                     }
                 }
             }
@@ -112,31 +113,46 @@ impl super::Simulation {
 
     #[cfg(test)]
     pub(super) fn offensive_target(&self, city: &City, seed: &Unit) -> Option<OffensiveTarget> {
-        self.offensive_target_with_assignments(city, seed, &self.assigned_attack_strength(seed))
+        self.offensive_target_with_assignments(
+            self.cached_offensive_output(city),
+            seed,
+            &self.assigned_attack_strength(seed),
+        )
     }
-    pub(super) fn offensive_target_with_assignments(
+    pub(in crate::sim) fn offensive_target_with_assignments(
         &self,
-        city: &City,
+        output: i32,
         seed: &Unit,
         assigned: &std::collections::HashMap<u32, (i32, i32)>,
     ) -> Option<OffensiveTarget> {
         let profiler = self.trace.profiler();
         let _profile = profiler.scope("offense.target_search");
         self.trace.count_operation("offensive.target_searches", 1);
+        let virtual_unit = seed.id == 0;
+        let rating = Self::offensive_attack_rating(seed);
+        let hostile = |owner| {
+            if virtual_unit {
+                self.ai_potentially_hostile(seed.owner, owner)
+            } else {
+                self.at_war(seed.owner, owner)
+            }
+        };
+        if rating == 0 || !(0..self.players.len()).any(hostile) {
+            return None;
+        }
         let mut map = NormalPaths::attack_map(self, seed);
         let target_cities: Vec<_> = (0..self.players.len())
-            .filter(|&owner| self.ai_potentially_hostile(seed.owner, owner))
+            .filter(|&owner| hostile(owner))
             .flat_map(|owner| self.player_cities_ordered(owner))
             .collect();
-        let invasion_support = self.invasion_support_many(seed.owner, &target_cities, 0);
+        let invasion_support = self.invasion_support_many(seed.owner, &target_cities, seed.id);
         let mut best: Option<OffensiveTarget> = None;
         let mut fallback = 0.0_f32;
-        let rating = Self::offensive_attack_rating(seed);
         let mut ferry_initialized = seed.kind.is_naval();
         let mut ferry = None;
         let mut ferry_map = None;
         for owner in 0..self.players.len() {
-            if !self.ai_potentially_hostile(seed.owner, owner) {
+            if !hostile(owner) {
                 continue;
             }
             for enemy in self.player_cities_ordered(owner) {
@@ -148,7 +164,11 @@ impl super::Simulation {
                 let mut by_boat = false;
                 let direct = map.position_turn(self, enemy.x, enemy.y);
                 if direct.is_none() && !ferry_initialized {
-                    ferry = self.offensive_ferry_candidate(seed);
+                    ferry = if virtual_unit {
+                        self.offensive_ferry_candidate(seed)
+                    } else {
+                        self.offensive_find_ferry(seed)
+                    };
                     ferry_map = ferry
                         .as_ref()
                         .map(|boat| NormalPaths::overlap_map(self, boat));
@@ -157,13 +177,14 @@ impl super::Simulation {
                 let turns = if let Some(turns) = direct {
                     turns
                 } else if let Some(fmap) = ferry_map.as_mut() {
-                    let Some((x, y, land)) =
+                    let Some((x, y, beach)) =
                         self.offensive_beachhead(fmap, seed.kind, seed.owner, enemy.x, enemy.y)
                     else {
                         continue;
                     };
                     by_boat = true;
-                    let mut turns = fmap.position_turn(self, x, y).unwrap() + i32::from(land);
+                    let mut turns =
+                        fmap.position_turn(self, x, y).unwrap() + i32::from((x, y) != beach);
                     if let Some(boat) = ferry.as_ref()
                         && boat.id != 0
                         && (boat.x, boat.y) != (seed.x, seed.y)
@@ -177,9 +198,9 @@ impl super::Simulation {
                 } else {
                     continue;
                 };
-                let defender = self.anticipated_city_defender(enemy, seed, turns, true);
+                let defender = self.anticipated_city_defender(enemy, seed, turns, virtual_unit);
                 let vulnerability = defender.as_ref().map_or(0, |d| {
-                    self.offensive_defense_squared(d, seed.kind, enemy.x, enemy.y, true)
+                    self.offensive_defense_squared(d, seed.kind, enemy.x, enemy.y, virtual_unit)
                 });
                 let mut benefit = defender
                     .as_ref()
@@ -189,7 +210,9 @@ impl super::Simulation {
                     invasion_support.get(&enemy.id).copied().unwrap_or_default();
                 let victims = self.tile_units_ordered(enemy.x, enemy.y).count() as i32;
                 let reserves = invaders - victims
-                    + if seed.kind.has_flag(UnitFlag::OneAttack) {
+                    + if !virtual_unit {
+                        0
+                    } else if seed.kind.has_flag(UnitFlag::OneAttack) {
                         1
                     } else {
                         seed.kind.stats().moves * campaign_move_fragments()
@@ -222,10 +245,12 @@ impl super::Simulation {
                     } else {
                         0
                     };
-                want = self.offensive_amortize(city, want, turns.max(1), cost);
-                let choose_fallback =
-                    want <= 0.0 && best.as_ref().is_none_or(|old| old.want <= 0.0) && {
-                        let bk = self.offensive_amortize(city, benefit * 17.0, turns.max(1), cost);
+                want = Self::amortize_attack(want, turns.max(1), cost, output);
+                let choose_fallback = virtual_unit
+                    && want <= 0.0
+                    && best.as_ref().is_none_or(|old| old.want <= 0.0)
+                    && {
+                        let bk = Self::amortize_attack(benefit * 17.0, turns.max(1), cost, output);
                         if bk > fallback {
                             fallback = bk;
                             true
@@ -235,6 +260,7 @@ impl super::Simulation {
                     };
                 if choose_fallback || want > best.as_ref().map_or(0.0, |old| old.want) {
                     best = Some(OffensiveTarget {
+                        path: Vec::new(),
                         x: enemy.x,
                         y: enemy.y,
                         city: Some(enemy.id),
@@ -248,7 +274,7 @@ impl super::Simulation {
             for enemy in self.player_units_ordered(owner) {
                 if !self.tile(enemy.x, enemy.y).known_by[seed.owner]
                     || self.cities.iter().any(|c| (c.x, c.y) == (enemy.x, enemy.y))
-                    || !enemy.kind.has_hostile_action()
+                    || virtual_unit && !enemy.kind.has_hostile_action()
                     || !self.offensive_can_attack(seed.kind, enemy.x, enemy.y)
                     || self.best_defender_id(seed, enemy.x, enemy.y) != Some(enemy.id)
                 {
@@ -257,8 +283,13 @@ impl super::Simulation {
                 let Some(turns) = map.position_turn(self, enemy.x, enemy.y) else {
                     continue;
                 };
-                let vulnerability =
-                    self.offensive_defense_squared(enemy, seed.kind, enemy.x, enemy.y, true);
+                let vulnerability = self.offensive_defense_squared(
+                    enemy,
+                    seed.kind,
+                    enemy.x,
+                    enemy.y,
+                    virtual_unit,
+                );
                 let mut want = if turns > 10 {
                     0.0
                 } else {
@@ -270,14 +301,15 @@ impl super::Simulation {
                         1,
                     ) - (turns * 17) as f32
                 };
-                want = self.offensive_amortize(
-                    city,
+                want = Self::amortize_attack(
                     want,
                     turns.max(1),
                     Self::offensive_balanced_cost(seed.kind),
+                    output,
                 );
                 if want > best.as_ref().map_or(0.0, |old| old.want) {
                     best = Some(OffensiveTarget {
+                        path: Vec::new(),
                         x: enemy.x,
                         y: enemy.y,
                         city: None,
@@ -288,6 +320,13 @@ impl super::Simulation {
                     });
                 }
             }
+        }
+        if !virtual_unit && let Some(target) = best.as_mut() {
+            let goal = target
+                .ferry
+                .as_ref()
+                .map_or((target.x, target.y), |boat| (boat.x, boat.y));
+            target.path = map.path(self, goal.0, goal.1)?.0;
         }
         best
     }
