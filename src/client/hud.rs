@@ -37,8 +37,8 @@ impl Game {
             11.0,
             Color::from_rgba(241, 223, 189, 255),
         );
-        actions.push((end, UiAction::EndTurn));
         actions.push((context, UiAction::BlockMapClick));
+        actions.push((end, UiAction::EndTurn));
         self.hud_elements_drawn += 1;
 
         let action_width = screen_width() - 2.0 * (Self::corner_width() + 2.0 * HUD_MARGIN);

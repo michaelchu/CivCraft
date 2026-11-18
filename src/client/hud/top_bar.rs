@@ -44,6 +44,12 @@ impl Game {
         let button_width = 38.0;
         let step = button_width + 4.0;
         let button_start = controls_start_x(width, status.is_some());
+        // Hit testing checks later entries first. Keep the map-click blocker
+        // behind the buttons so it only catches the gaps and margins.
+        actions.push((
+            controls_row_rect(button_start, width),
+            UiAction::BlockMapClick,
+        ));
 
         let mut controls = vec![
             (
@@ -125,11 +131,6 @@ impl Game {
         };
         draw_hud_icon(music_icon, music_center, 21.0, music_color);
         actions.push((music_rect, UiAction::ToggleMusicPanel));
-        // Listed after the buttons so they win; this only catches the gaps and margins.
-        actions.push((
-            controls_row_rect(button_start, width),
-            UiAction::BlockMapClick,
-        ));
         if music_rect.contains(ui_pointer()) {
             tooltip = Some((music_rect, "Audio controls".to_owned()));
         }
@@ -137,6 +138,9 @@ impl Game {
         if self.music_open {
             let panel = Rect::new(width - HUD_MARGIN - 190.0, CONTROLS_H + 4.0, 190.0, 132.0);
             draw_hud_card(panel);
+            // The panel blocks clicks through to the map, while its controls
+            // are added afterward so they remain clickable.
+            actions.push((panel, UiAction::BlockMapClick));
             draw_text("Music", panel.x + 10.0, panel.y + 19.0, 14.0, GOLD);
 
             let mute = Rect::new(panel.x + 9.0, panel.y + 25.0, 66.0, 30.0);
@@ -196,7 +200,6 @@ impl Game {
             if self.sfx_volume < 100 {
                 actions.push((sfx_up, UiAction::AdjustSfxVolume(1)));
             }
-            actions.push((panel, UiAction::BlockMapClick));
         }
         if let Some((button, label)) = tooltip {
             let width = measure_text(&label, None, 15, 1.0).width + 16.0;

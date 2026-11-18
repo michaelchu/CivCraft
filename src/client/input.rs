@@ -449,7 +449,6 @@ impl Game {
             return;
         }
 
-        self.update_edge_scroll(mouse, buttons);
         if is_mouse_button_pressed(MouseButton::Middle) {
             self.dragging = true;
             self.drag_last = mouse;
@@ -568,40 +567,6 @@ impl Game {
             Command::GoTo(active_id, x, y)
         };
         self.move_selected(command, active_id)
-    }
-
-    fn update_edge_scroll(&mut self, mouse: Vec2, buttons: &[(Rect, UiAction)]) {
-        let viewport = Self::viewport_rect();
-        if !viewport.contains(mouse)
-            || self.stack_menu.is_some()
-            || self.dragging
-            || self.minimap_rect().contains(mouse)
-            || self.context_rect().contains(mouse)
-            || Self::ui_action_at(mouse, buttons).is_some()
-        {
-            return;
-        }
-        let edge = 18.0;
-        let mut direction = vec2(0.0, 0.0);
-        if mouse.x < viewport.x + edge {
-            direction.x = -1.0;
-        } else if mouse.x > viewport.right() - edge {
-            direction.x = 1.0;
-        }
-        if mouse.y < viewport.y + edge {
-            direction.y = -1.0;
-        } else if mouse.y > viewport.bottom() - edge {
-            direction.y = 1.0;
-        }
-        if direction == Vec2::ZERO {
-            return;
-        }
-        let pixels = direction * (520.0 * get_frame_time().min(0.05));
-        let a = pixels.x / (TILE_W * 0.5 * self.zoom);
-        let b = pixels.y / (TILE_H * 0.5 * self.zoom);
-        self.camera.x += (a + b) * 0.5;
-        self.camera.y += (b - a) * 0.5;
-        self.normalize_camera();
     }
 
     pub(crate) fn select_at(&mut self, x: i32, y: i32) {
