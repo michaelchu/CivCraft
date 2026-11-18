@@ -371,6 +371,7 @@ impl Simulation {
                 })
     }
 
+    #[cfg(test)]
     fn technology_exchange_terms(
         &self,
         proposer: usize,
@@ -415,10 +416,7 @@ impl Simulation {
     pub(super) fn source_allied_offer(&self, owner: usize, other: usize) -> TreatyOffer {
         let key = Self::relation_key(owner, other);
         let side = usize::from(owner > other);
-        let mut offer = TreatyOffer {
-            terms: self.technology_exchange_terms(owner, other, Pact::Alliance),
-            ..TreatyOffer::default()
-        };
+        let mut offer = TreatyOffer::default();
         let existing = self.diplomacy[&key].vision;
         let mut gives_vision = existing[side];
         if !gives_vision && self.vision_safe(owner, other) {
@@ -545,7 +543,7 @@ impl Simulation {
                 self.diplomacy[&Self::relation_key(owner, other)].trust[usize::from(owner > other)]
             });
         for other in contacts {
-            if Some(other) == target
+            if (Some(other) == target && !self.allied(owner, other))
                 || self.ai_war_countdown(owner, other) >= 0
                 || !self.diplomatic_meeting_possible(owner, other)
             {
@@ -564,6 +562,14 @@ impl Simulation {
             memory.spam = memory.spam.saturating_sub(1).max(0);
             if let Some(warning) = self.ai_space_warnings.get_mut(&(owner, other)) {
                 *warning = warning.saturating_sub(1).max(0);
+            }
+            // A pending offer must not freeze unrelated diplomatic timers.
+            if !self.players[other].ai
+                && self.diplomacy[&Self::relation_key(owner, other)]
+                    .offer
+                    .is_some()
+            {
+                continue;
             }
             if memory.spam > 0 && self.players[other].ai {
                 continue;
@@ -670,5 +676,6 @@ impl Simulation {
         if vision_changed {
             self.refresh_visibility();
         }
+        self.advance_proactive_trades_for(owner);
     }
 }

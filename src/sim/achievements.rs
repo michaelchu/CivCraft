@@ -483,6 +483,7 @@ mod tests {
     #[test]
     fn multicultural_achievement_counts_nationalities_across_owned_cities() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
+        game.sign_pact(HUMAN, 1, Pact::War);
         game.create_city(HUMAN, 10, 20);
         let (attacker, target) = game.multicultural_playtest_setup();
         assert!(game.apply(Command::move_civ3_by_offset(&game, attacker, 1, 0)));

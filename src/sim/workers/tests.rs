@@ -226,6 +226,7 @@ fn unworked_candidates_compare_future_total_until_worked_tiles_compete() {
 #[test]
 fn worker_safety_uses_hostile_actions_native_terrain_and_civ3_radius() {
     let mut game = game();
+    game.sign_pact(HUMAN, 1, Pact::War);
     let position = (10, 20);
     let wrap = game.map_wrap;
     let step = |from: (i32, i32)| wrap.civ3_offset(from.0, from.1, 2, 0).unwrap();

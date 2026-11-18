@@ -1,6 +1,7 @@
 //! Diplomatic activity counts and end-of-turn relationship context.
 use crate::analytics::{AnalysisOutput, Analyzer, Descriptor};
 use crate::sim::{
+    Pact,
     observation::{DiplomacySnapshot, Snapshot},
     trace::Event,
 };
@@ -11,13 +12,15 @@ pub(crate) struct Diplomacy {
     counts: BTreeMap<String, u64>,
     dropped: u64,
     recent_activity: VecDeque<Value>,
+    trade_counts: BTreeMap<String, u64>,
+    recent_trades: VecDeque<Value>,
 }
 impl Analyzer for Diplomacy {
     fn descriptor(&self) -> Descriptor {
         Descriptor {
             id: "diplomacy",
-            version: 2,
-            events: vec!["diplomacy.transition"],
+            version: 4,
+            events: vec!["diplomacy.transition", "diplomacy.trade_decision"],
             providers: vec!["diplomacy"],
             configuration: json!({"scope":"activity_and_outcomes", "recent_activity_limit":32}),
         }
@@ -26,6 +29,19 @@ impl Analyzer for Diplomacy {
         self.on_boundary(snapshot, out);
     }
     fn on_event(&mut self, event: &Event, out: &mut AnalysisOutput) {
+        if event.kind == "diplomacy.trade_decision" {
+            if let Some(reason) = event.payload["reason"].as_str() {
+                *self.trade_counts.entry(reason.to_owned()).or_default() += 1;
+                self.recent_trades.push_back(json!({"turn":event.turn,
+                    "evidence":out.evidence(),"decision":event.payload}));
+                if self.recent_trades.len() > 8 {
+                    self.recent_trades.pop_front();
+                }
+                out.metric("trade_decisions", json!(self.trade_counts));
+                out.metric("recent_trade_decisions", json!(self.recent_trades));
+            }
+            return;
+        }
         if let Some(action) = event.payload["action"].as_str() {
             *self.counts.entry(action.to_owned()).or_default() += 1;
             out.metric("transitions", json!(self.counts));
@@ -64,8 +80,14 @@ impl Analyzer for Diplomacy {
                 "active_war_plans",
                 pairs
                     .iter()
+                    .filter(|p| {
+                        p.first_contact.is_some()
+                            && p.alive.iter().all(|&alive| alive)
+                            && p.pact.is_some_and(|pact| pact != Pact::War)
+                    })
                     .flat_map(|p| p.war_plans.iter())
                     .flatten()
+                    .filter(|plan| plan.countdown >= 0)
                     .count(),
             );
         }
@@ -117,5 +139,32 @@ mod tests {
         assert_eq!(out.metrics["diplomacy.transitions"]["offer_proposed"], 2);
         assert_eq!(out.metrics["diplomacy.transitions"]["offer_accepted"], 1);
         assert_eq!(out.metrics["diplomacy.event_counts_complete"], false);
+    }
+
+    #[test]
+    fn trade_decisions_have_separate_counts_and_bounded_evidence() {
+        let mut analyzer = Diplomacy::default();
+        let mut out = AnalysisOutput::default();
+        out.context("diplomacy", 1, None, Some((3, true)));
+        for turn in 1..=12 {
+            analyzer.on_event(&Event {
+                turn, sequence: turn as u64, phase: Phase::AiPlanning,
+                source: "diplomacy".into(), kind: "diplomacy.trade_decision".into(),
+                schema_version: 1, entities: vec![], cause: None,
+                payload: json!({"actor":1,"other":2,"reason":"no_viable_trade","selected":null}),
+            }, &mut out);
+        }
+        assert_eq!(
+            out.metrics["diplomacy.trade_decisions"]["no_viable_trade"],
+            12
+        );
+        assert_eq!(
+            out.metrics["diplomacy.recent_trade_decisions"]
+                .as_array()
+                .unwrap()
+                .len(),
+            8
+        );
+        assert!(!out.metrics.contains_key("diplomacy.transitions"));
     }
 }

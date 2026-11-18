@@ -12,6 +12,7 @@ mod offers;
 mod pacts;
 #[cfg(test)]
 mod scenarios;
+mod trade_policy;
 mod vision;
 mod war_planning;
 #[cfg(feature = "desktop")]
@@ -326,6 +327,7 @@ pub(super) struct Relation {
     failed_spy_plant_turn: [Option<i32>; 2],
     #[serde(default)]
     military_plans_until: [i32; 2],
+    /// Earliest turn for another proactive economic evaluation of this pair.
     offer_after: i32,
 }
 

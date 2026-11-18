@@ -33,6 +33,7 @@ fn carrier_path_fixture_uses_imported_attack_capability() {
 #[test]
 fn attack_sanity_omits_empty_city_attack_flag_but_default_map_treats_it_as_an_endpoint() {
     let mut game = world();
+    game.sign_pact(HUMAN, 1, Pact::War);
     let id = game.spawn_unit(HUMAN, UnitKind::Warrior, 10, 20);
     let city = civ3_east(&game, (10, 20), 1);
     let beyond = civ3_east(&game, (10, 20), 2);

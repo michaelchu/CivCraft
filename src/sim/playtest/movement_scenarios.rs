@@ -93,6 +93,7 @@ impl Simulation {
     }
 
     pub(crate) fn overseas_assault_playtest(&mut self, defended: bool) -> (bool, bool, bool) {
+        self.sign_pact(1, HUMAN, Pact::War);
         self.units.clear();
         for tile in &mut self.tiles {
             tile.terrain = Terrain::Sea;

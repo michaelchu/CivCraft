@@ -112,6 +112,7 @@ impl Simulation {
         self.tile_mut(capital_x, capital_y).terrain = Terrain::Grassland;
         // Use a fresh rival so the target is its primary capital.
         let rival = 1;
+        self.sign_pact(HUMAN, rival, Pact::War);
         for city in self.cities.iter_mut().filter(|city| city.owner == rival) {
             city.buildings
                 .retain(|&building| building != Building::PALACE);

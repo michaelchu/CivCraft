@@ -49,13 +49,39 @@ On 2026-11-18 the owner confirmed that the existing CivCraft espionage model is
 intentional. Preserve its player-to-player assets, missions, risk tiers and AI
 execution. This supersedes historical statements below that espionage remains
 deferred. Diplomat/Spy map-unit identities remain omitted; normal diplomacy
-continues to follow the pinned Freeciv mechanics.
+continues to follow the pinned Freeciv mechanics except for first contact below.
+
+### Recorded exception: peaceful first contact
+
+The owner requested Civ III-style peaceful first contact on 2026-11-18.
+Regular civilizations now meet at Peace with the existing low initial trust;
+no common ally is needed. Trade and friendly relations build trust through the
+existing model. Barbarians and other `No_Diplomacy` players remain hostile.
+Established treaties and wars, including those in saved campaigns, are retained.
+This intentionally overrides Freeciv's `get_default_diplstate` default of War;
+other treaty, attitude, and war mechanics retain the pinned authority.
+The headless `peaceful-first-contact` scenario covers initial status, trust,
+trade, attack legality, explicit war, contact refresh, and barbarians.
 
 The diplomacy parity follow-up restores civilian armistice exemptions, physical
 first-contact initialization, contact-gated effect embassies, map valuations,
 unknown owned city offers, multiple Advance clauses, and phase-begin AI actions.
 Campaign format 0x2B appends pending extra technology clauses while retaining
 readers for 0x26–0x2A. Pending offers expose all technologies in the treaty UI.
+
+### Proactive diplomacy policy exception
+
+The owner authorized a broader diplomacy AI policy on 2026-11-18. Peaceful
+nonallies and allies can proactively buy, sell and exchange technology; allies
+are not excluded by the legacy potential-enemy filter. Shared reservation
+values consider all eight verified Conquests traits, research goals/progress,
+wartime needs, existing gold reserves plus upkeep, and security of military
+and victory technology. Values and cadence are editable in content/diplomacy.toml.
+This supersedes the AI proposal/technology valuation parity claims below.
+The treaty engine still checks prerequisites, ownership, funds and clause
+legality before applying transfers. City/map clauses and custom espionage retain
+their existing implementations. The `proactive-trade` headless scenario covers
+an allied cash purchase, budget protection, priorities, security and conservation.
 
 ## Pinned reference
 

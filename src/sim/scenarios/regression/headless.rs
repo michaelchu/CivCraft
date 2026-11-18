@@ -15,7 +15,19 @@ pub(super) const SCENARIOS: &[Scenario] = &[
     Scenario::all_ai("combat-matrix", combat_matrix),
     Scenario::new("ai-paradrops", ai_paradrops),
     Scenario::new("diplomacy-parity", diplomacy_parity),
+    Scenario::new("peaceful-first-contact", peaceful_first_contact),
+    Scenario::new("proactive-trade", proactive_trade),
 ];
+
+fn proactive_trade(sim: &mut Simulation, checks: &mut Checks) {
+    checks.extend(sim.proactive_trade_scenario());
+}
+
+fn peaceful_first_contact(sim: &mut Simulation, checks: &mut Checks) {
+    checks.extend(crate::sim::scenarios::diplomacy::peaceful_first_contact(
+        sim,
+    ));
+}
 
 fn diplomacy_parity(sim: &mut Simulation, checks: &mut Checks) {
     checks.extend(crate::sim::scenarios::diplomacy::diplomacy_parity(sim));
