@@ -99,16 +99,16 @@ impl Game {
         }
     }
 
-    pub(super) fn draw_grid_layer(
-        &self,
-        assets: &Assets,
-        x: i32,
-        y: i32,
-        geometry: TileGeometry,
-        zoom: f32,
-    ) {
+    pub(super) fn draw_grid_layer(&self, assets: &Assets, x: i32, y: i32, geometry: TileGeometry) {
         if let Some(owner) = self.playback.tile_owner(&self.sim, x, y) {
-            self.draw_territory_border(assets, x, y, owner, geometry.center, zoom);
+            self.draw_territory_border(
+                assets,
+                x,
+                y,
+                owner,
+                geometry.center,
+                geometry.width / TILE_W,
+            );
         }
     }
 }

@@ -837,7 +837,7 @@ mod tests {
     }
 
     #[test]
-    fn city_map_labels_keep_last_seen_yields_until_the_tile_is_visible() {
+    fn city_map_updates_on_discovery_and_remembers_tiles_until_seen_again() {
         let mut sim = Simulation::new(crate::mapgen::generate(42));
         sim.create_city(HUMAN, 20, 24);
         let id = sim.cities.last().unwrap().id;
@@ -849,26 +849,35 @@ mod tests {
         tile.terrain = Terrain::Grassland;
         tile.resource = None;
         tile.river = false;
-        tile.seen = true;
-        tile.visible = true;
-        sim.remember_visible_human_tiles();
-        let label = |sim: &Simulation| {
+        tile.seen = false;
+        tile.visible = false;
+        let city_tile = |sim: &Simulation| {
             sim.city_manager_view(id)
                 .unwrap()
                 .map_tiles
                 .into_iter()
                 .find(|tile| (tile.x, tile.y) == (x, y))
                 .unwrap()
-                .yields
         };
-        let original = label(&sim);
+        assert!(!city_tile(&sim).seen);
+        assert!(!sim.render_tile_view(x, y).seen);
+        let tile = sim.tile_mut(x, y);
+        tile.seen = true;
+        tile.visible = true;
+        sim.remember_visible_human_tiles();
+        let discovered = city_tile(&sim);
+        assert!(discovered.seen);
+        assert!(sim.render_tile_view(x, y).visible);
         let tile = sim.tile_mut(x, y);
         tile.visible = false;
         tile.terrain = Terrain::Mountains;
         assert_eq!(sim.render_tile_view(x, y).terrain, Terrain::Grassland);
-        assert_eq!(label(&sim), original);
+        let remembered = city_tile(&sim);
+        assert!(remembered.seen);
+        assert_eq!(remembered.yields, discovered.yields);
         sim.tile_mut(x, y).visible = true;
-        assert_ne!(label(&sim), original);
+        assert_eq!(sim.render_tile_view(x, y).terrain, Terrain::Mountains);
+        assert_ne!(city_tile(&sim).yields, discovered.yields);
     }
 
     #[test]

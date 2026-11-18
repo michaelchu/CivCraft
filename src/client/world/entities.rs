@@ -36,49 +36,22 @@ impl Game {
             bounds.h,
             map_view::MAP_UNKNOWN,
         );
-        let radius: std::collections::HashSet<_> = city
+        // The simulation supplies the radius in staggered row (painter) order,
+        // including the wrapped world position used by worker assignments.
+        let tiles: Vec<_> = city
             .map_tiles
             .iter()
-            .map(|tile| (tile.dx, tile.dy))
+            .filter(|tile| tile.seen)
+            .map(|tile| (tile, layout.center(tile.dx, tile.dy)))
             .collect();
-        let span =
-            ((bounds.w / layout.tile_w + bounds.h / layout.tile_h).ceil() as i32 + 3).min(24);
-        let mut tiles = Vec::new();
-        for dy in -span..=span {
-            for dx in -span..=span {
-                let center = layout.center(dx, dy);
-                if center.x + layout.tile_w < bounds.x
-                    || center.x - layout.tile_w > bounds.right()
-                    || center.y + layout.tile_h < bounds.y
-                    || center.y - layout.tile_h * 2.0 > bounds.bottom()
-                {
-                    continue;
-                }
-                let (mx, my) = native_to_map(city.x, city.y);
-                let (x, y) = map_to_native(mx + dx, my + dy);
-                let normalized = self.sim.map_wrap().normalize(x, y);
-                let relevant = normalized.is_some() && radius.contains(&(dx, dy));
-                let (x, y) = normalized.unwrap_or((x.rem_euclid(self.sim.map_wrap().width()), y));
-                tiles.push((dx, dy, x, y, center, relevant));
-            }
-        }
-        tiles.sort_by(|a, b| a.4.y.total_cmp(&b.4.y));
         let painter = super::civ3::Civ3WorldPainter::new(self, assets);
-        for &(_, _, x, y, center, relevant) in &tiles {
-            if !relevant || !self.sim.render_tile_view(x, y).seen {
-                draw_diamond(center, layout.tile_w, layout.tile_h, BLACK);
-            } else {
-                painter.draw_map_base(x, y, center, layout.tile_w, layout.tile_h);
-            }
+        for &(tile, center) in &tiles {
+            painter.draw_map_base(tile.x, tile.y, center, layout.tile_w, layout.tile_h);
         }
         for layer in map_layers::MAP_LAYERS {
-            for &(_, _, x, y, center, relevant) in &tiles {
-                if !relevant || !self.sim.render_tile_view(x, y).seen {
-                    continue;
-                }
-                let is_city = (x, y) == (city.x, city.y);
+            for &(tile, center) in &tiles {
                 if layer == map_layers::MapLayer::City {
-                    if is_city {
+                    if tile.is_city {
                         self.draw_city_manager_at_scale(
                             assets,
                             city,
@@ -89,48 +62,52 @@ impl Game {
                 } else {
                     painter.draw_map_layer(
                         layer,
-                        x,
-                        y,
+                        tile.x,
+                        tile.y,
                         TileGeometry::new(center, layout.tile_w, layout.tile_h),
-                        is_city,
+                        tile.is_city,
                     );
                 }
             }
         }
-        for &(_, _, x, y, center, _) in &tiles {
-            let city_center = (city.x, city.y);
-            self.draw_fog_intersection(
+
+        // Include surrounding intersections so fog also covers overhanging art.
+        let seen: std::collections::HashSet<_> =
+            tiles.iter().map(|(tile, _)| (tile.x, tile.y)).collect();
+        let wrap = self.sim.map_wrap();
+        let columns = (bounds.w / (2.0 * layout.tile_w)).ceil() as i32 + 1;
+        let rows = (bounds.h / layout.tile_h).ceil() as i32 + 2;
+        for dy in -rows..=rows {
+            let y = city.y + dy;
+            for col in -columns..=columns {
+                let x = (city.x + col).rem_euclid(wrap.width());
+                let dx = 2 * col + y.rem_euclid(2) - city.y.rem_euclid(2);
+                self.draw_fog_intersection(
+                    assets,
+                    layout.center(dx, dy),
+                    layout.tile_w,
+                    layout.tile_h,
+                    (x, y),
+                    None,
+                    |nx, ny| {
+                        if seen.contains(&(nx, ny)) {
+                            self.fog_knowledge(nx, ny)
+                        } else {
+                            super::fog::Knowledge::Unknown
+                        }
+                    },
+                );
+            }
+        }
+        for &(tile, center) in &tiles {
+            self.draw_visible_base_foreground(
                 assets,
+                tile.x,
+                tile.y,
                 center,
                 layout.tile_w,
                 layout.tile_h,
-                (x, y),
-                None,
-                |nx, ny| {
-                    if self
-                        .sim
-                        .map_wrap()
-                        .civ3_distance(city_center.0, city_center.1, nx, ny)
-                        > 2
-                    {
-                        super::fog::Knowledge::Unknown
-                    } else {
-                        self.fog_knowledge(nx, ny)
-                    }
-                },
             );
-        }
-        for &(_, _, x, y, center, relevant) in &tiles {
-            if relevant {
-                self.draw_visible_base_foreground(
-                    assets,
-                    x,
-                    y,
-                    center,
-                    layout.tile_w,
-                    layout.tile_h,
-                );
-            }
         }
         unsafe {
             get_internal_gl().quad_gl.scissor(None);

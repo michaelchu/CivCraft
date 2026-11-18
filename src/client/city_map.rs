@@ -8,10 +8,10 @@ pub(super) struct CityMapLayout {
 }
 impl CityMapLayout {
     pub fn new(bounds: Rect) -> Self {
-        // The Civ III 21-square radius spans five tile widths and heights.
+        // Outer centers are three half-tiles away, plus half a tile to the tip.
         // Leave extra headroom for mountain and city sprites.
-        let zoom = ((bounds.w - 32.0) / (5.0 * TILE_W))
-            .min((bounds.h - 32.0) / (5.0 * TILE_H + 24.0))
+        let zoom = ((bounds.w - 32.0) / (4.0 * TILE_W))
+            .min((bounds.h - 32.0) / (4.0 * TILE_H + 24.0))
             .min(2.0);
         Self {
             bounds,
@@ -21,8 +21,8 @@ impl CityMapLayout {
     }
     pub fn center(&self, dx: i32, dy: i32) -> Vec2 {
         vec2(
-            self.bounds.x + self.bounds.w * 0.5 + (dx - dy) as f32 * self.tile_w * 0.5,
-            self.bounds.y + self.bounds.h * 0.5 + 8.0 + (dx + dy) as f32 * self.tile_h * 0.5,
+            self.bounds.x + self.bounds.w * 0.5 + dx as f32 * self.tile_w * 0.5,
+            self.bounds.y + self.bounds.h * 0.5 + 8.0 + dy as f32 * self.tile_h * 0.5,
         )
     }
     pub fn tile_rect(&self, dx: i32, dy: i32) -> Rect {
@@ -49,8 +49,7 @@ fn city_tile_edges(
 ) -> std::collections::BTreeMap<TileEdge, bool> {
     let mut edges = std::collections::BTreeMap::new();
     for (dx, dy, hovered) in tiles {
-        let (u, v) = (dx - dy, dx + dy);
-        let vertices = [(u, v - 1), (u + 1, v), (u, v + 1), (u - 1, v)];
+        let vertices = [(dx, dy - 1), (dx + 1, dy), (dx, dy + 1), (dx - 1, dy)];
         for index in 0..4 {
             let (a, b) = (vertices[index], vertices[(index + 1) % 4]);
             let key = if a < b { (a, b) } else { (b, a) };
@@ -141,16 +140,8 @@ impl Game {
         }
         // Draw after dimming all unworked tiles so shared edges keep one color
         // and thickness rather than accumulating two inset diamond outlines.
-        let origin = layout.center(0, 0);
-        let vertex = |(u, v): (i32, i32)| {
-            origin
-                + vec2(
-                    u as f32 * layout.tile_w * 0.5,
-                    v as f32 * layout.tile_h * 0.5,
-                )
-        };
-        for ((a, b), hovered) in city_tile_edges(outlined_tiles) {
-            let (a, b) = (vertex(a), vertex(b));
+        for (((ax, ay), (bx, by)), hovered) in city_tile_edges(outlined_tiles) {
+            let (a, b) = (layout.center(ax, ay), layout.center(bx, by));
             draw_line(a.x, a.y, b.x, b.y, 2.0, if hovered { WHITE } else { GOLD });
         }
         draw_rectangle_lines(
@@ -177,17 +168,40 @@ mod tests {
     use super::*;
     #[test]
     fn adjacent_worked_tiles_share_one_edge() {
-        let edges = city_tile_edges([(0, 0, false), (1, 0, false)]);
+        let edges = city_tile_edges([(0, 0, false), (1, 1, false)]);
         assert_eq!(edges.len(), 7);
         assert_eq!(edges.get(&((0, 1), (1, 0))), Some(&false));
-        // Diagonal diamonds meet at a vertex, not along an edge.
-        assert_eq!(city_tile_edges([(0, 0, false), (1, 1, false)]).len(), 8);
+        // Tiles in the same staggered row meet at a tip.
+        assert_eq!(city_tile_edges([(0, 0, false), (2, 0, false)]).len(), 8);
     }
     #[test]
     fn hover_highlight_owns_shared_edge_regardless_of_tile_order() {
-        let edges = city_tile_edges([(0, 0, false), (1, 0, true)]);
+        let edges = city_tile_edges([(0, 0, false), (1, 1, true)]);
         assert_eq!(edges.get(&((0, 1), (1, 0))), Some(&true));
-        assert_eq!(edges, city_tile_edges([(1, 0, true), (0, 0, false)]));
+        assert_eq!(edges, city_tile_edges([(1, 1, true), (0, 0, false)]));
+    }
+    #[test]
+    fn worked_tiles_match_world_positions_and_clicks_across_seams_and_poles() {
+        let wrap = MapWrap::with_dimensions(80, 80).unwrap();
+        let bounds = Rect::new(22.0, 201.0, 708.0, 275.0);
+        let layout = CityMapLayout::new(bounds);
+        let zoom = layout.tile_w / TILE_W;
+        for (cx, cy) in [(0, 0), (0, 21), (79, 20), (79, 79)] {
+            let camera = vec2((2 * cx + cy % 2) as f32, cy as f32);
+            let project =
+                |x, y| world::civ3_world_screen_position(wrap, bounds, camera, zoom, x, y);
+            let tiles: Vec<_> = wrap.city_radius(cx, cy).collect();
+            let actions: Vec<_> = tiles
+                .iter()
+                .map(|&(dx, dy, x, y)| (layout.tile_rect(dx, dy), UiAction::WorkCityTile(1, x, y)))
+                .collect();
+            for (dx, dy, x, y) in tiles {
+                let expected = layout.center(0, 0) + (project(x, y) - project(cx, cy));
+                assert!(layout.center(dx, dy).distance(expected) < 0.001);
+                assert!(matches!(Game::ui_action_at(expected, &actions),
+                    Some(UiAction::WorkCityTile(1, tx, ty)) if (tx, ty) == (x, y)));
+            }
+        }
     }
     #[test]
     fn city_radius_fits_compact_and_large_panels() {
