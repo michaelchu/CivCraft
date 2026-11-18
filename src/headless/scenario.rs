@@ -81,6 +81,12 @@ impl Run {
         }
     }
 
+    pub fn trace_kinds(&self) -> &'static [&'static str] {
+        self.playtest
+            .as_ref()
+            .map_or(&[], |playtest| playtest.trace_kinds())
+    }
+
     pub fn observe_turn(&mut self, completed_turns: u32) {
         if let Some(playtest) = &mut self.playtest {
             let state = playtest.observe_turn(&self.game, completed_turns);

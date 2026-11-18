@@ -58,6 +58,13 @@ pub(crate) struct CityGovernor {
     pub(crate) settings: GovernorSettings,
 }
 
+#[derive(serde::Serialize)]
+struct GovernorReleased {}
+
+impl trace::Payload for GovernorReleased {
+    const KIND: &'static str = "cities.governor_released";
+}
+
 impl Simulation {
     pub(in crate::sim) fn governor_controls(&self, id: u32) -> bool {
         self.city_governors
@@ -121,6 +128,11 @@ impl Simulation {
             } else {
                 self.city_governors.get_mut(&id).unwrap().active = false;
                 let name = city.name.clone();
+                self.trace.emit(
+                    self.turn,
+                    || vec![trace::Entity::City(id), trace::Entity::Civilization(HUMAN)],
+                    || GovernorReleased {},
+                );
                 self.add_event(format!("The governor could not meet the requirements for {name}. City returned to manual control."));
             }
             occupied.extend(self.cities[index].worked_tiles.iter().copied());

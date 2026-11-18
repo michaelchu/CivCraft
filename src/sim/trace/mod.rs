@@ -327,6 +327,11 @@ impl Collector {
         }
         self.phase = phase;
     }
+    #[cfg(any(test, feature = "scenarios"))]
+    pub(in crate::sim) fn pending_events(&self) -> &[Event] {
+        &self.pending
+    }
+
     pub fn drain(&mut self) -> Vec<Event> {
         std::mem::take(&mut self.pending)
     }

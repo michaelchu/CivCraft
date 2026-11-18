@@ -82,6 +82,10 @@ the campaign. Its structured observations appear under
 or a short turn budget, the runner asks the observer to evaluate all required
 outcomes. Only those assertions contribute to the scenario check totals.
 
+`Scenario::human_playtest` keeps the human seat active while the other
+civilizations run normally. Playtests can request trace kinds needed for their
+checks independently of the report's event filters.
+
 The world builder takes an ordered list of `CivPreset` entries. Each entry
 uses a stable catalog ID and optionally replaces the civilization's starting
 technologies. `None` uses the catalog defaults, and `Some(&[])` starts with
@@ -181,6 +185,62 @@ cargo run --offline --bin headless_sim -- \
 cargo run --offline --bin headless_sim -- \
   --scenario ai-paradrops --seed 3 --turns 1 --report /tmp/paradrops-seed-3.json
 ```
+
+### City governor campaign comparison
+
+`city-governor-campaign` founds two human cities on the generated map and
+advances the campaign with no further player commands. The paired
+`city-governor-control` starts with the same citizen assignments and releases
+governor control before turn one. Use the same seed and turn budget for both.
+The control measures what happens when existing assignments are left alone,
+including the simulation's ordinary assignment reconciliation.
+
+```sh
+cargo build --offline --release --bin headless_sim
+mkdir -p /tmp/civcraft-governor
+for seed in 42 101 202 303 404; do
+  case "$seed" in
+    42|202|404) turns=85 ;;
+    *) turns=35 ;;
+  esac
+  for scenario in city-governor-campaign city-governor-control; do
+    target/release/headless_sim --scenario "$scenario" --seed "$seed" \
+      --turns "$turns" --analytics none --trace-domains none \
+      --report "/tmp/civcraft-governor/$scenario-$seed.json"
+  done
+done
+```
+
+To test recovery directly, run `city-governor-food-shock` and
+`city-governor-food-shock-control` for one turn. Both start with the capital
+working tiles that have just lost their food yields. Replacement tiles
+remain available. The governed arm must apply nonnegative food in the
+first city turn, and the control must apply a deficit. This checks the
+actual city result after reassignment.
+
+To test unrest handling, run `city-governor-unrest-shock` and
+`city-governor-unrest-shock-control` with the same seed for one turn. Both
+start with two size-five human cities on grassland. The report records whether
+the target city forecasts disorder before turn processing and whether any city
+enters disorder after processing. The governed case must start with a disorder
+risk and finish without disorder; the control must exhibit disorder. This
+isolates citizen assignment's effect on city mood, without changing empire tax
+rates or adding military police.
+
+The governed run fails its intervention check if a city never activates,
+hands control back, has a food deficit or disorder, starves, or is destroyed
+by famine. A failed check still writes a report. Check coverage and city
+retention before comparing outcomes. Use each report's final
+`run.scenario.observations[-1].state.totals` for accumulated counts. Growth
+events record food applied during city processing. Each surviving city's
+disorder flag comes from the disorder update in that phase. Output forecasts
+describe the assignments at the end of each turn and list food, shields,
+trade, gold, luxury, and science in that order. The reports distinguish those
+forecasts from the food actually applied.
+
+This comparison measures unattended citizen assignment during the opening
+campaign. Production queues, military moves, empire policy, and a human
+player's possible interventions are outside the experiment.
 
 ## Add a game trace
 

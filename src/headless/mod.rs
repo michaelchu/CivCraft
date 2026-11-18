@@ -48,6 +48,7 @@ pub(crate) fn run(config: Config) -> Result<(), String> {
     } else {
         scenario::generated(config.seed, config.world)
     };
+    kinds.extend(scenario.trace_kinds().iter().map(|kind| (*kind).to_owned()));
     scenario.game.trace = Collector::enabled(kinds, config.buffer_events);
     if provider_ids.contains("lifecycle") {
         scenario.game.start_lifecycle_observation();
