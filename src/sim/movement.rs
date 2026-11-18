@@ -1282,8 +1282,11 @@ impl Simulation {
         if path.is_empty() && (unit.x, unit.y) != (x, y) {
             return false;
         }
-        self.units[index].order = None;
-        self.units[index].clear_work();
+        let unit = &mut self.units[index];
+        unit.automated = false;
+        unit.order = None;
+        unit.clear_work();
+        self.ai_worker_tasks.remove(&id);
         self.follow_player_goto(id, (x, y), path);
         true
     }

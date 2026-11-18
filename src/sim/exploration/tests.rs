@@ -25,6 +25,58 @@ fn human_warriors_and_ships_explore_but_fuelled_and_losing_hp_types_cannot_activ
 }
 
 #[test]
+fn manual_goto_replaces_exploration_even_when_movement_is_spent() {
+    let mut game = world();
+    let home = (10, 20);
+    game.create_city(HUMAN, home.0, home.1);
+    game.create_city(1, 25, 35);
+    let id = game.spawn_unit(HUMAN, UnitKind::Warrior, home.0, home.1);
+    game.refresh_visibility();
+    assert!(game.apply(Command::Automate(id)));
+    game.run_automated_unit(id);
+    let scout = game.unit_by_id(id).unwrap();
+    assert_ne!((scout.x, scout.y), home);
+    assert_eq!(scout.moves_left, 0);
+
+    assert!(!game.apply(Command::GoTo(id, home.0, -1)));
+    assert!(game.unit_by_id(id).unwrap().automated);
+    assert!(game.apply(Command::GoTo(id, home.0, home.1)));
+    assert!(!game.unit_by_id(id).unwrap().automated);
+    assert_eq!(game.unit_goto_tiles.get(&id), Some(&home));
+
+    let start_turn = game.turn();
+    for turn in 1..=2 {
+        assert!(game.apply(Command::EndTurn));
+        assert_eq!(game.turn(), start_turn + turn);
+        let scout = game.unit_by_id(id).unwrap();
+        assert_eq!((scout.x, scout.y), home);
+        assert!(!scout.automated);
+        assert!(!game.unit_goto_tiles.contains_key(&id));
+    }
+}
+
+#[test]
+fn group_goto_ends_automation_only_for_units_given_the_order() {
+    let mut game = world();
+    let first = game.spawn_unit(HUMAN, UnitKind::Horseman, 10, 20);
+    let second = game.spawn_unit(HUMAN, UnitKind::Horseman, 10, 20);
+    let other = game.spawn_unit(HUMAN, UnitKind::Warrior, 10, 20);
+    game.refresh_visibility();
+    for id in [first, second, other] {
+        assert!(game.apply(Command::Automate(id)));
+    }
+    let (x, y) = game.map_wrap.civ3_neighbor(10, 20, 2).unwrap();
+    assert!(game.apply(Command::GoToGroup(vec![first, second], x, y)));
+    for id in [first, second] {
+        let unit = game.unit_by_id(id).unwrap();
+        assert_eq!((unit.x, unit.y), (x, y));
+        assert!(unit.moves_left > 0);
+        assert!(!unit.automated);
+    }
+    assert!(game.unit_by_id(other).unwrap().automated);
+}
+
+#[test]
 fn idle_ai_military_and_ferries_use_frontier_exploration() {
     assert!(world().ai_idle_exploration_playtest());
 }
