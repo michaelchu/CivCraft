@@ -290,7 +290,7 @@ pub(crate) struct Simulation {
     ai_threat_route_cache_enabled: std::cell::Cell<bool>,
     ai_threat_arrival_cache:
         std::cell::RefCell<std::collections::BTreeMap<(u32, u32), Option<i32>>>,
-    ai_danger_route_cache: std::cell::RefCell<std::collections::BTreeMap<u32, Vec<i32>>>,
+    ai_danger_route_cache: std::cell::RefCell<advisors::DangerRouteCache>,
     movement_cache: pf_actions::MovementCache,
     visibility_refresh_deferred: bool,
     visibility_refresh_pending: bool,
@@ -316,6 +316,7 @@ struct AdvisorSpatialIndex {
     average_production: std::collections::BTreeMap<usize, i32>,
     offensive_outputs: std::collections::BTreeMap<u32, i32>,
     offensive_advice: std::collections::BTreeMap<u32, CachedOffensiveAdvice>,
+    invasion_support: std::collections::BTreeMap<usize, ai::SharedInvasionSupport>,
     guard_assessments: std::collections::BTreeMap<u32, advisors::GuardCityAssessment>,
     counter_defenders: std::collections::BTreeMap<(u32, usize), Option<(Tech, bool)>>,
     settlement_base: Option<Vec<i32>>,

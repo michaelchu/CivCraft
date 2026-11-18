@@ -680,6 +680,17 @@ that code has been added.
   used by `is_extra_req_active`. The index preserves ruleset load order for
   overlapping aliases.
 
+- Invasion scoring uses the attacking player's live unit and cargo lists
+  during unit planning, following `daiunit.c::find_something_to_kill`.
+  Virtual attackers share city markers for the unchanged army within an
+  advisor pass. The chosen ferry keeps its explored path map for subsequent
+  production candidates, as in Freeciv's `pferrymap` output. Within the
+  existing threat cache, matching owner, unit type, start tile and move rate
+  share one Rust forward search across targets. Freeciv's threat lookup
+  likewise keys its destination-specific searches by movement inputs. Rust
+  also shares resolved step costs across starting tiles within the same threat
+  cache. Step costs retain the owner and unit type as part of the key.
+
 ### P14 evidence (complete)
 
 - Added [`FREECIV_GAMEPLAY_PORT_MAINTENANCE.md`](FREECIV_GAMEPLAY_PORT_MAINTENANCE.md)

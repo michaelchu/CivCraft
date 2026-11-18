@@ -20,6 +20,12 @@ pub(in crate::sim) struct OffensiveTarget {
     new_ferry: bool,
 }
 
+struct OffensivePlan {
+    target: OffensiveTarget,
+    ferry_map: Option<NormalPaths>,
+    invasion: (i32, i32),
+}
+
 fn kill_desire(benefit: f32, attack: i32, loss: i32, vulnerability: i32, victims: i32) -> f32 {
     let denominator = attack + vulnerability * victims;
     if denominator == 0 {
@@ -382,11 +388,12 @@ impl Simulation {
             };
             seed.hp = seed.max_hit_points();
             let assigned = self.assigned_attack_strength(&seed);
-            let Some(target) = self.offensive_target_with_assignments(
-                self.cached_offensive_output(city),
-                &seed,
-                &assigned,
-            ) else {
+            let Some(OffensivePlan {
+                target,
+                ferry_map: mut ferry_path,
+                invasion: (enemy_attacks, occupiers),
+            }) = self.offensive_target_plan(self.cached_offensive_output(city), &seed, &assigned)
+            else {
                 continue;
             };
             let enemy_city = target.city.and_then(|id| self.city_by_id(id));
@@ -394,8 +401,6 @@ impl Simulation {
             let (helper, helper_cost) = enemy_city.map_or((0, 0), |enemy| {
                 self.offensive_helpers(&seed, enemy, &assigned)
             });
-            let (enemy_attacks, occupiers) =
-                enemy_city.map_or((0, 0), |enemy| self.invasion_support(city.owner, enemy, 0));
             let enemy_city_worth = enemy_city.map_or(0.0, |enemy| self.offensive_city_worth(enemy));
             let enemy_finishing_factor =
                 enemy_city.map_or(0.0, |enemy| self.offensive_finishing_factor(enemy));
@@ -411,10 +416,6 @@ impl Simulation {
                 production: Production::Unit(seed_kind),
                 want: f64::from(target.want),
             };
-            let mut ferry_path = target
-                .ferry
-                .as_ref()
-                .map(|boat| NormalPaths::overlap_map(self, boat));
             for kind in UnitKind::simple_military() {
                 self.trace.count_operation("offense.candidate_units", 1);
                 if kind.stats().attack <= 0

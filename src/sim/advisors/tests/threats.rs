@@ -176,6 +176,8 @@ fn scoped_threat_cache_preserves_arrivals_across_multiple_cities() {
     game.create_city(1, 10, 24);
     game.create_city(1, 18, 24);
     game.spawn_unit(HUMAN, UnitKind::Warrior, 13, 24);
+    game.spawn_unit(HUMAN, UnitKind::Warrior, 13, 24);
+    game.spawn_unit(HUMAN, UnitKind::Warrior, 14, 24);
     game.spawn_unit(HUMAN, UnitKind::Horseman, 15, 24);
 
     let arrivals = |simulation: &Simulation| {
@@ -193,6 +195,8 @@ fn scoped_threat_cache_preserves_arrivals_across_multiple_cities() {
     game.begin_ai_advisor_cache();
     let cached = arrivals(&game);
     let repeated = arrivals(&game);
+    // Stacked warriors share a map. Warriors at both positions share step costs.
+    assert_eq!(game.ai_danger_route_cache.borrow().sizes(), (3, 2));
     game.end_ai_advisor_cache();
 
     assert_eq!(cached, uncached);

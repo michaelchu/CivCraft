@@ -125,6 +125,16 @@ impl super::Simulation {
         seed: &Unit,
         assigned: &std::collections::HashMap<u32, (i32, i32)>,
     ) -> Option<OffensiveTarget> {
+        self.offensive_target_plan(output, seed, assigned)
+            .map(|plan| plan.target)
+    }
+
+    pub(super) fn offensive_target_plan(
+        &self,
+        output: i32,
+        seed: &Unit,
+        assigned: &std::collections::HashMap<u32, (i32, i32)>,
+    ) -> Option<OffensivePlan> {
         let profiler = self.trace.profiler();
         let _profile = profiler.scope("offense.target_search");
         self.trace.count_operation("offensive.target_searches", 1);
@@ -141,11 +151,19 @@ impl super::Simulation {
             return None;
         }
         let mut map = NormalPaths::attack_map(self, seed);
-        let target_cities: Vec<_> = (0..self.players.len())
-            .filter(|&owner| hostile(owner))
-            .flat_map(|owner| self.player_cities_ordered(owner))
-            .collect();
-        let invasion_support = self.invasion_support_many(seed.owner, &target_cities, seed.id);
+        let cached;
+        let live;
+        let invasion_support = if virtual_unit {
+            cached = self.offensive_invasion_support(seed.owner);
+            cached.as_ref()
+        } else {
+            let target_cities: Vec<_> = (0..self.players.len())
+                .filter(|&owner| hostile(owner))
+                .flat_map(|owner| self.player_cities_ordered(owner))
+                .collect();
+            live = self.invasion_support_many(seed.owner, &target_cities, seed.id);
+            &live
+        };
         let mut best: Option<OffensiveTarget> = None;
         let mut fallback = 0.0_f32;
         let mut ferry_initialized = seed.kind.is_naval();
@@ -328,7 +346,19 @@ impl super::Simulation {
                 .map_or((target.x, target.y), |boat| (boat.x, boat.y));
             target.path = map.path(self, goal.0, goal.1)?.0;
         }
-        best
+        best.map(|target| {
+            let invasion = target
+                .city
+                .and_then(|id| invasion_support.get(&id).copied())
+                .unwrap_or_default();
+            // Freeciv's pferrymap output preserves the search for production advice.
+            let ferry_map = ferry_map.filter(|_| virtual_unit && target.ferry.is_some());
+            OffensivePlan {
+                target,
+                ferry_map,
+                invasion,
+            }
+        })
     }
 
     pub(super) fn offensive_victim_count(&self, x: i32, y: i32) -> i32 {

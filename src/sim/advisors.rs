@@ -8,6 +8,7 @@ mod advisor_research;
 mod advisor_threats;
 #[cfg(test)]
 use advisor_buildings::DefenseEffectContext;
+pub(super) use advisor_threats::DangerRouteCache;
 
 use super::unit_catalog::{UnitClass, UnitFlag};
 use super::*;

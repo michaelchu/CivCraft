@@ -2,6 +2,9 @@
 
 use super::*;
 
+pub(in crate::sim) type SharedInvasionSupport =
+    std::sync::Arc<std::collections::BTreeMap<u32, (i32, i32)>>;
+
 impl Simulation {
     #[cfg(test)]
     pub(crate) fn ai_ground_invasion_playtest_setup(&mut self) -> (u32, u32, u32) {
@@ -56,14 +59,39 @@ impl Simulation {
             .unwrap_or_default()
     }
 
-    /// Calculate invasion markers for a set of cities while scanning the
-    /// army once, matching Freeciv's per-attacker initialization pass.
+    /// Production candidates share the same army and have no real attacker
+    /// to exclude. Keep their city markers within the advisor pass.
+    pub(in crate::sim) fn offensive_invasion_support(&self, owner: usize) -> SharedInvasionSupport {
+        let cached = self.ai_advisor_cache_enabled.get();
+        if cached && let Some(markers) = self.ai_spatial_index.borrow().invasion_support.get(&owner)
+        {
+            self.trace
+                .count_operation("ai.invasion_support.cache_hits", 1);
+            return markers.clone();
+        }
+        let cities: Vec<_> = self
+            .cities
+            .iter()
+            .filter(|city| self.at_war(owner, city.owner))
+            .collect();
+        let markers = std::sync::Arc::new(self.invasion_support_many(owner, &cities, 0));
+        if cached {
+            self.ai_spatial_index
+                .borrow_mut()
+                .invasion_support
+                .insert(owner, markers.clone());
+        }
+        markers
+    }
+
+    /// Calculate invasion markers for a set of cities from the owner's army.
     pub(in crate::sim) fn invasion_support_many(
         &self,
         owner: usize,
         target_cities: &[&City],
         except: u32,
     ) -> std::collections::BTreeMap<u32, (i32, i32)> {
+        let _profile = self.trace.profiler().scope("ai.invasion_support");
         let targets: Vec<_> = target_cities
             .iter()
             .copied()
@@ -86,74 +114,82 @@ impl Simulation {
                 u.kind.stats().defense > 0 && !self.allied(owner, u.owner)
             }));
         }
+        let indexed = self.list_order.planning_active();
+        let mut units_scanned = 0;
         let mut cargo_support = std::collections::BTreeMap::<u32, (i32, i32)>::new();
-        for cargo in self.units.iter().filter(|unit| unit.kind.is_military()) {
-            let Some(transport) = cargo.transport else {
-                continue;
-            };
-            let support = cargo_support.entry(transport).or_default();
-            support.0 += cargo.kind.stats().moves * campaign_move_fragments();
-            support.1 += i32::from(cargo.kind.can_occupy_city());
+        let add_cargo = |support: &mut (i32, i32), cargo: &Unit| {
+            if cargo.kind.is_military() {
+                support.0 += cargo.kind.stats().moves * campaign_move_fragments();
+                support.1 += i32::from(cargo.kind.can_occupy_city());
+            }
+        };
+        let mut army = Vec::new();
+        if indexed {
+            army.extend(self.player_units_ordered(owner));
+            units_scanned += army.len();
+        } else {
+            // Isolated callers may have no live player or cargo lists.
+            // Collect both from a single pass over the current units.
+            for unit in &self.units {
+                if unit.owner == owner {
+                    army.push(unit);
+                }
+                if let Some(transport) = unit.transport {
+                    add_cargo(cargo_support.entry(transport).or_default(), unit);
+                }
+            }
+            units_scanned += self.units.len();
         }
         self.trace
             .count_operation("ai.invasion_support.batch_calls", 1);
-        self.trace.count_operation(
-            "ai.invasion_support.units_scanned",
-            (self.units.len() * 3) as u64,
-        );
-        let add_actor_marker =
-            |result: &mut [(i32, i32)], index: usize, marks: i32, actor: &Unit| {
-                result[index].0 += marks
-                    * if actor.kind.bombard_rate() > 0 {
-                        1
-                    } else {
-                        actor.kind.stats().moves * campaign_move_fragments()
-                    };
-                result[index].1 += marks * i32::from(actor.kind.can_occupy_city());
-                if let Some(&(cargo_attacks, cargo_occupiers)) = cargo_support.get(&actor.id) {
-                    result[index].0 += marks * cargo_attacks;
-                    result[index].1 += marks * cargo_occupiers;
+        for actor in army {
+            if actor.id == except {
+                continue;
+            }
+            let military = actor.kind.is_military();
+            if (military && actor.transport.is_some()) || (!military && !actor.kind.is_naval()) {
+                continue;
+            }
+            let (mut attacks, mut occupiers) = if indexed {
+                let mut support = (0, 0);
+                for cargo in self.cargo_units_ordered(actor.id) {
+                    units_scanned += 1;
+                    add_cargo(&mut support, cargo);
                 }
+                support
+            } else {
+                cargo_support.get(&actor.id).copied().unwrap_or_default()
             };
-        for actor in self.units.iter().filter(|u| {
-            u.owner == owner && u.id != except && u.kind.is_military() && u.transport.is_none()
-        }) {
+            let radius = if military {
+                attacks += if actor.kind.bombard_rate() > 0 {
+                    1
+                } else {
+                    actor.kind.stats().moves * campaign_move_fragments()
+                };
+                occupiers += i32::from(actor.kind.can_occupy_city());
+                self.unit_move_rate(actor) / campaign_move_fragments()
+            } else if (attacks, occupiers) != (0, 0) {
+                2 // Nonattacking ferries still mark the contribution of their cargo.
+            } else {
+                continue;
+            };
             if let Some(&city_id) = self.ai_ground_targets.get(&actor.id)
                 && let Some(&index) = target_index.get(&city_id)
             {
-                add_actor_marker(&mut result, index, 1, actor);
+                result[index].0 += attacks;
+                result[index].1 += occupiers;
             }
-            let radius = self.unit_move_rate(actor) / campaign_move_fragments();
             for (x, y, _) in self.map_wrap.civ3_radius(actor.x, actor.y, radius) {
                 if let Some(index) = city_at[self.map_wrap.index(x, y)]
                     && undefended[index]
                 {
-                    add_actor_marker(&mut result, index, 1, actor);
+                    result[index].0 += attacks;
+                    result[index].1 += occupiers;
                 }
             }
         }
-        // Nonattacking ferries still carry occupation-capable reinforcements.
-        for boat in self.units.iter().filter(|u| {
-            u.owner == owner && u.id != except && !u.kind.is_military() && u.kind.is_naval()
-        }) {
-            let Some(&(cargo_attacks, cargo_occupiers)) = cargo_support.get(&boat.id) else {
-                continue;
-            };
-            if let Some(&city_id) = self.ai_ground_targets.get(&boat.id)
-                && let Some(&index) = target_index.get(&city_id)
-            {
-                result[index].0 += cargo_attacks;
-                result[index].1 += cargo_occupiers;
-            }
-            for (x, y, _) in self.map_wrap.civ3_radius(boat.x, boat.y, 2) {
-                if let Some(index) = city_at[self.map_wrap.index(x, y)]
-                    && undefended[index]
-                {
-                    result[index].0 += cargo_attacks;
-                    result[index].1 += cargo_occupiers;
-                }
-            }
-        }
+        self.trace
+            .count_operation("ai.invasion_support.units_scanned", units_scanned as u64);
         targets
             .into_iter()
             .zip(result)

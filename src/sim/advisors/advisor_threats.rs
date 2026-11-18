@@ -2,6 +2,37 @@
 
 use super::*;
 
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+struct DangerRouteKey {
+    owner: usize,
+    kind: usize,
+    start: usize,
+    allowance: i32,
+}
+
+const UNSAMPLED_STEP: i32 = -2;
+const BLOCKED_STEP: i32 = -1;
+
+#[derive(Clone, Default)]
+pub(in crate::sim) struct DangerRouteCache {
+    maps: std::collections::BTreeMap<DangerRouteKey, Vec<i32>>,
+    steps: std::collections::BTreeMap<(usize, usize), DangerStepCosts>,
+}
+
+type DangerStepCosts = std::collections::HashMap<usize, [i32; CIV3_DIRS.len()]>;
+
+impl DangerRouteCache {
+    #[cfg(test)]
+    pub(super) fn sizes(&self) -> (usize, usize) {
+        (self.maps.len(), self.steps.len())
+    }
+
+    fn clear(&mut self) {
+        self.maps.clear();
+        self.steps.clear();
+    }
+}
+
 impl Simulation {
     pub(in crate::sim) fn begin_ai_advisor_cache(&self) {
         self.ai_threat_arrival_cache.borrow_mut().clear();
@@ -22,6 +53,7 @@ impl Simulation {
         }
         let tile_unit_revision = self.list_order.tile_revision();
         let mut spatial = self.ai_spatial_index.borrow_mut();
+        spatial.invasion_support.clear();
         spatial.tile_unit_indices = Some(tile_unit_indices);
         spatial.tile_unit_revision = tile_unit_revision;
         spatial.unit_head.clear();
@@ -139,55 +171,86 @@ impl Simulation {
 
     pub(super) fn danger_route_turns(&self, unit: &Unit, city: &City) -> Option<i32> {
         if self.ai_threat_route_cache_enabled.get() && !unit.kind.is_naval() {
-            let goal = self.map_wrap.index(city.x, city.y);
-            if let Some(costs) = self.ai_danger_route_cache.borrow().get(&unit.id) {
-                let spent = costs[goal];
-                return (spent != i32::MAX).then_some(spent / self.unit_move_rate(unit));
+            let allowance = self.unit_move_rate(unit);
+            if allowance <= 0 {
+                return None;
             }
-            let costs = self.danger_route_costs(unit)?;
+            let goal = self.map_wrap.index(city.x, city.y);
+            let key = DangerRouteKey {
+                owner: unit.owner,
+                kind: unit.kind as usize,
+                start: self.map_wrap.index(unit.x, unit.y),
+                allowance,
+            };
+            let mut cache = self.ai_danger_route_cache.borrow_mut();
+            if let Some(costs) = cache.maps.get(&key) {
+                self.trace.count_operation("ai.danger_route.cache_hits", 1);
+                let spent = costs[goal];
+                return (spent != i32::MAX).then_some(spent / allowance);
+            }
+            self.trace.count_operation("ai.danger_route.maps_built", 1);
+            // Step costs depend on the owner, unit type and the current map.
+            // They can be shared across starting positions and allowances.
+            let steps = cache.steps.entry((key.owner, key.kind)).or_default();
+            let costs = self.danger_route_costs(unit, key.start, allowance, steps);
             let spent = costs[goal];
-            self.ai_danger_route_cache
-                .borrow_mut()
-                .insert(unit.id, costs);
-            return (spent != i32::MAX).then_some(spent / self.unit_move_rate(unit));
+            cache.maps.insert(key, costs);
+            return (spent != i32::MAX).then_some(spent / allowance);
         }
         self.danger_route_turns_uncached(unit, city)
     }
 
-    fn danger_route_costs(&self, unit: &Unit) -> Option<Vec<i32>> {
+    fn danger_route_costs(
+        &self,
+        unit: &Unit,
+        start: usize,
+        allowance: i32,
+        steps: &mut DangerStepCosts,
+    ) -> Vec<i32> {
         use std::{cmp::Reverse, collections::BinaryHeap};
-        let allowance = self.unit_move_rate(unit);
-        if allowance <= 0 {
-            return None;
-        }
         let limit = 4 * allowance - 1; // normal assess_danger horizon: turns0..3
-        let start = self.map_wrap.index(unit.x, unit.y);
         let mut distance = vec![i32::MAX; self.tiles.len()];
         let mut queue = BinaryHeap::from([Reverse((0, start))]);
         distance[start] = 0;
         let mut actor = unit.clone();
         actor.moves_left = allowance;
         let movement = self.step_movement_profile(unit.kind);
+        let mut looked_up = 0;
+        let mut computed = 0;
         while let Some(Reverse((spent, index))) = queue.pop() {
             if distance[index] != spent {
                 continue;
             }
             (actor.x, actor.y) = self.map_wrap.position(index);
             let remaining = allowance - spent % allowance;
-            for (x, y) in self.map_wrap.civ3_neighbors(actor.x, actor.y) {
-                let index = self.map_wrap.index(x, y);
-                let cost = self.movement_cost_with_profile(&actor, x, y, &movement);
-                let Some(cost) = cost else {
+            let steps = steps
+                .entry(index)
+                .or_insert([UNSAMPLED_STEP; CIV3_DIRS.len()]);
+            for (neighbor, (x, y)) in self.map_wrap.civ3_neighbors(actor.x, actor.y).enumerate() {
+                looked_up += 1;
+                let step = &mut steps[neighbor];
+                if *step == UNSAMPLED_STEP {
+                    computed += 1;
+                    *step = self
+                        .movement_cost_with_profile(&actor, x, y, &movement)
+                        .unwrap_or(BLOCKED_STEP);
+                }
+                if *step == BLOCKED_STEP {
                     continue;
-                };
-                let candidate = spent + cost.min(remaining);
+                }
+                let index = self.map_wrap.index(x, y);
+                let candidate = spent + (*step).min(remaining);
                 if candidate <= limit && candidate < distance[index] {
                     distance[index] = candidate;
                     queue.push(Reverse((candidate, index)));
                 }
             }
         }
-        Some(distance)
+        self.trace
+            .count_operation("ai.danger_route.steps_computed", computed);
+        self.trace
+            .count_operation("ai.danger_route.step_cache_hits", looked_up - computed);
+        distance
     }
 
     fn danger_route_turns_uncached(&self, unit: &Unit, city: &City) -> Option<i32> {

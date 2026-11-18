@@ -266,6 +266,45 @@ fn local_occupation_marks_only_undefended_cities_and_obeys_actual_movement_radiu
 }
 
 #[test]
+fn indexed_invasion_markers_keep_allied_cargo_and_exclude_the_live_attacker() {
+    let mut game = Simulation::new(crate::test_support::seeded_map());
+    let (_, _, city) = game.ai_ground_invasion_playtest_setup();
+    game.sign_pact(1, 2, Pact::Alliance);
+    let boat = game.spawn_unit(1, UnitKind::Transport, 10, 24);
+    let cargo = game.spawn_unit(2, UnitKind::Marine, 10, 24);
+    game.units
+        .iter_mut()
+        .find(|unit| unit.id == cargo)
+        .unwrap()
+        .transport = Some(boat);
+    game.ai_ground_targets.insert(boat, city);
+
+    let support = |game: &Simulation, except| {
+        game.invasion_support(1, game.city_by_id(city).unwrap(), except)
+    };
+    let expected = support(&game, 0);
+    let excluding_boat = support(&game, boat);
+    assert!(expected.1 > excluding_boat.1);
+    game.sync_list_order();
+    game.list_order.begin_planning(&game.units, &game.cities);
+    assert_eq!(support(&game, 0), expected);
+    assert_eq!(support(&game, boat), excluding_boat);
+
+    game.begin_ai_advisor_cache();
+    let production = game.offensive_invasion_support(1);
+    assert_eq!(production[&city], expected);
+    assert!(std::sync::Arc::ptr_eq(
+        &production,
+        &game.offensive_invasion_support(1)
+    ));
+    assert_eq!(support(&game, boat), excluding_boat);
+    game.end_ai_advisor_cache();
+    game.list_order.end_planning();
+    game.ai_ground_targets.remove(&boat);
+    assert_eq!(game.offensive_invasion_support(1)[&city], excluding_boat);
+}
+
+#[test]
 fn peace_and_defensive_reservations_cancel_ground_missions() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     let (infantry, _, city) = game.ai_ground_invasion_playtest_setup();

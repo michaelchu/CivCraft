@@ -17,6 +17,7 @@ mod assault_transports;
 mod city_defense;
 mod great_leader;
 mod ground_invasion;
+pub(super) use ground_invasion::SharedInvasionSupport;
 mod hunter;
 mod unit_automation;
 
