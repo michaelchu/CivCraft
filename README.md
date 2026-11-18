@@ -97,6 +97,9 @@ to the `.changes.jsonl` sidecar, events omit routine repetition, and full snapsh
 are retained at checkpoints and finding boundaries. Start with the report's
 `findings` and `analytics.metrics`, then follow evidence references. Use
 `--report-detail verbose` for full per-turn snapshots and every selected event.
+Verbose storage uses lossless deltas and shared payloads. Retrieve complete
+records with `cargo run --offline --bin report_read -- report.json --turn 80`
+or add `--stream events --sequence N` for an event. Keep report sidecars together.
 Both modes provide the same complete analyzer inputs. See
 [Headless analytics](docs/HEADLESS_ANALYTICS.md) for change-stream fields and coverage.
 

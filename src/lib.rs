@@ -23,6 +23,7 @@ mod world_setup;
 
 #[cfg(feature = "desktop")]
 pub use desktop::run_desktop;
+pub use headless::read_report::run as run_report_reader_cli;
 pub use headless::run_cli as run_headless_cli;
 
 /// Window configuration for the desktop executable's Macroquad entry point.
