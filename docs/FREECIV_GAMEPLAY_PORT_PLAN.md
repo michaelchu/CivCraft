@@ -670,6 +670,15 @@ that code has been added.
   the user's earlier decision. The C2C3 `Automobile` obsolescence requirement
   is tested through its mapped Civ III `Motorized Transportation` research
   state.
+- Pathfinding resolves fixed movement data before expanding threat routes,
+  following the loaded unit and terrain values used by `tile_move_cost_ptrs`.
+  The Rust step profile uses the per-unit city occupation binding for these
+  routes. Normal paths follow `pf_normal_map_iterate` by storing zone-of-control
+  state on each node. The cached classification uses CivCraft's live tile state,
+  allied-stack rule, and attack exception. Terrain-extra requirements use an
+  index of loaded records and tile predicates, following the resolved extras
+  used by `is_extra_req_active`. The index preserves ruleset load order for
+  overlapping aliases.
 
 ### P14 evidence (complete)
 

@@ -167,6 +167,7 @@ impl Simulation {
         distance[start] = 0;
         let mut actor = unit.clone();
         actor.moves_left = allowance;
+        let movement = self.step_movement_profile(unit.kind);
         while let Some(Reverse((spent, index))) = queue.pop() {
             if distance[index] != spent {
                 continue;
@@ -175,7 +176,7 @@ impl Simulation {
             let remaining = allowance - spent % allowance;
             for (x, y) in self.map_wrap.civ3_neighbors(actor.x, actor.y) {
                 let index = self.map_wrap.index(x, y);
-                let cost = self.movement_cost_for(&actor, x, y);
+                let cost = self.movement_cost_with_profile(&actor, x, y, &movement);
                 let Some(cost) = cost else {
                     continue;
                 };
@@ -205,6 +206,7 @@ impl Simulation {
         distance[start] = 0;
         let mut actor = unit.clone();
         actor.moves_left = allowance;
+        let movement = self.step_movement_profile(unit.kind);
         while let Some(Reverse((spent, index))) = queue.pop() {
             if distance[index] != spent {
                 continue;
@@ -216,11 +218,13 @@ impl Simulation {
             let remaining = allowance - spent % allowance;
             for (x, y) in self.map_wrap.civ3_neighbors(actor.x, actor.y) {
                 let index = self.map_wrap.index(x, y);
-                let cost = self.movement_cost_for(&actor, x, y).or_else(|| {
-                    // A ship's reverse attack map overlaps the coastal city,
-                    // even when the ship cannot enter its land tile normally.
-                    (index == goal && unit.kind.is_naval()).then_some(campaign_move_fragments())
-                });
+                let cost = self
+                    .movement_cost_with_profile(&actor, x, y, &movement)
+                    .or_else(|| {
+                        // A ship's reverse attack map can reach the city even
+                        // when the ship cannot enter its land tile normally.
+                        (index == goal && unit.kind.is_naval()).then(campaign_move_fragments)
+                    });
                 let Some(cost) = cost else {
                     continue;
                 };

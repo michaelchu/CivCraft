@@ -10,7 +10,7 @@
 //! and UI previews. Turn phase ordering can restore or consume movement at
 //! different points, so avoid treating `moves_left` as a simple per-frame cap.
 
-use super::movement_rules::{MovementRules, MovementTile};
+use super::movement_rules::{MovementRules, MovementTile, campaign_move_fragments};
 use super::*;
 use crate::rules::engine_rules::RulesetData;
 use std::collections::BTreeMap;
@@ -34,14 +34,44 @@ pub(super) struct WorkerRouteZoneCache {
 }
 
 #[derive(Clone, Copy)]
+pub(super) struct StepMovementProfile {
+    class: super::unit_catalog::UnitClass,
+    ignores_terrain: bool,
+    coast_strict: bool,
+    can_occupy_city: bool,
+}
+
+impl StepMovementProfile {
+    fn new(kind: UnitKind, class: super::unit_catalog::UnitClass, can_occupy_city: bool) -> Self {
+        Self {
+            class,
+            ignores_terrain: super::action_rules::freeciv_unit_type_flag(kind, "IgTer")
+                .expect("campaign C2C3 unit-type IgTer binding"),
+            coast_strict: super::action_rules::freeciv_unit_type_flag(kind, "CoastStrict")
+                .expect("campaign C2C3 unit-type CoastStrict binding"),
+            can_occupy_city,
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
 pub(super) struct WorkerRouteMovementProfile {
-    pub(super) class: super::unit_catalog::UnitClass,
-    pub(super) ignores_terrain: bool,
-    pub(super) coast_strict: bool,
-    pub(super) ignores_zoc: bool,
-    pub(super) can_occupy_city: bool,
-    pub(super) move_fragments: i32,
+    step: StepMovementProfile,
+    ignores_zoc: bool,
     pub(super) unknown_tile_cost: i32,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum PathZone {
+    Unrestricted,
+    AlliedStack,
+    Hostile,
+}
+
+impl PathZone {
+    pub(super) fn blocks_entry_from(self, source: Self) -> bool {
+        self == Self::Hostile && source != Self::Unrestricted
+    }
 }
 
 impl WorkerRouteZoneCache {
@@ -176,11 +206,7 @@ impl Simulation {
 
     pub(super) fn live_route_tile(&self, x: i32, y: i32) -> RouteTile {
         let mut tile = RouteTile::from(self.tile(x, y));
-        tile.city_owner = self
-            .cities
-            .iter()
-            .find(|city| (city.x, city.y) == (x, y))
-            .map(|city| city.owner);
+        tile.city_owner = self.city_at(x, y).map(|city| city.owner);
         tile
     }
 
@@ -321,6 +347,27 @@ impl Simulation {
         self.movement_cost_for_with_city_cache(unit, nx, ny, None, None)
     }
 
+    pub(super) fn step_movement_profile(&self, kind: UnitKind) -> StepMovementProfile {
+        let rules = MovementRules::campaign();
+        let class = rules
+            .unit_class_for_kind(kind)
+            .expect("campaign C2C3 unit class binding");
+        let class_data = rules
+            .unit_class_movement_data_for_kind(kind)
+            .expect("native unit movement data");
+        StepMovementProfile::new(kind, class, class_data.can_occupy_city)
+    }
+
+    pub(super) fn movement_cost_with_profile(
+        &self,
+        unit: &Unit,
+        nx: i32,
+        ny: i32,
+        profile: &StepMovementProfile,
+    ) -> Option<i32> {
+        self.movement_cost_for_with_city_cache(unit, nx, ny, None, Some(profile))
+    }
+
     pub(super) fn movement_cost_for_worker_route(
         &self,
         unit: &Unit,
@@ -329,7 +376,7 @@ impl Simulation {
         cache: &WorkerRouteZoneCache,
         profile: &WorkerRouteMovementProfile,
     ) -> Option<i32> {
-        self.movement_cost_for_with_city_cache(unit, nx, ny, Some(cache), Some(profile))
+        self.movement_cost_for_with_city_cache(unit, nx, ny, Some(cache), Some(&profile.step))
     }
 
     fn movement_cost_for_with_city_cache(
@@ -338,23 +385,14 @@ impl Simulation {
         nx: i32,
         ny: i32,
         city_cache: Option<&WorkerRouteZoneCache>,
-        profile: Option<&WorkerRouteMovementProfile>,
+        profile: Option<&StepMovementProfile>,
     ) -> Option<i32> {
-        let rules = MovementRules::campaign();
-        let fragments = profile.map_or_else(
-            || {
-                rules
-                    .move_fragments()
-                    .expect("campaign C2C3 movement fragment setting")
-            },
-            |profile| profile.move_fragments,
-        );
         if unit.kind.is_aircraft() {
-            return Some(fragments);
+            return Some(campaign_move_fragments());
         }
         let class = profile.map_or_else(
             || {
-                rules
+                MovementRules::campaign()
                     .unit_class_for_kind(unit.kind)
                     .expect("campaign C2C3 unit class binding")
             },
@@ -367,6 +405,19 @@ impl Simulation {
             },
             |profile| profile.ignores_terrain,
         );
+        self.movement_destination_accessible(unit, nx, ny, class, city_cache, profile)
+            .then(|| self.raw_move_cost_for_class(unit, nx, ny, class, ignores_terrain))
+    }
+
+    fn movement_destination_accessible(
+        &self,
+        unit: &Unit,
+        nx: i32,
+        ny: i32,
+        class: super::unit_catalog::UnitClass,
+        city_cache: Option<&WorkerRouteZoneCache>,
+        profile: Option<&StepMovementProfile>,
+    ) -> bool {
         let coast_strict = profile.map_or_else(
             || {
                 super::action_rules::freeciv_unit_type_flag(unit.kind, "CoastStrict")
@@ -386,18 +437,17 @@ impl Simulation {
         let city =
             city_cache.map_or_else(|| self.city_at(nx, ny), |cache| cache.city_at(self, nx, ny));
         if city.is_none() && coast_strict && !self.safe_ocean_at(nx, ny, None) {
-            return None;
+            return false;
         }
         if unit.kind.is_naval() {
-            return (destination_native
+            return destination_native
                 || city.is_some_and(|city| {
                     self.allied(city.owner, unit.owner) && self.naval_city_access(city, unit.kind)
-                }))
-            .then(|| self.raw_move_cost_for_class(unit, nx, ny, class, ignores_terrain));
+                });
         }
         let can_occupy_city = profile.map_or_else(
             || {
-                rules
+                MovementRules::campaign()
                     .unit_class_movement_data_for_kind(unit.kind)
                     .expect("native unit movement data")
                     .can_occupy_city
@@ -408,8 +458,7 @@ impl Simulation {
             self.allied(city.owner, unit.owner)
                 || self.at_war(city.owner, unit.owner) && can_occupy_city
         });
-        (destination_native || city_access)
-            .then(|| self.raw_move_cost_for_class(unit, nx, ny, class, ignores_terrain))
+        destination_native || city_access
     }
 
     pub(super) fn worker_route_movement_profile(
@@ -424,18 +473,8 @@ impl Simulation {
             .unit_class_movement_data(class)
             .expect("campaign C2C3 unit class data");
         WorkerRouteMovementProfile {
-            class,
-            ignores_terrain: super::action_rules::freeciv_unit_type_flag(kind, "IgTer")
-                .expect("campaign C2C3 unit-type IgTer binding"),
-            coast_strict: super::action_rules::freeciv_unit_type_flag(kind, "CoastStrict")
-                .expect("campaign C2C3 unit-type CoastStrict binding"),
-            ignores_zoc: !Self::unit_class_uses_zoc(kind)
-                || super::action_rules::freeciv_unit_type_flag(kind, "IgZOC")
-                    .expect("campaign C2C3 unit-type IgZOC binding"),
-            can_occupy_city: class_data.can_occupy_city,
-            move_fragments: rules
-                .move_fragments()
-                .expect("campaign C2C3 movement fragment setting"),
+            step: StepMovementProfile::new(kind, class, class_data.can_occupy_city),
+            ignores_zoc: Self::unit_ignores_zoc(kind),
             unknown_tile_cost: rules
                 .unknown_tile_move_cost(kind)
                 .expect("selected C2C3 unknown-tile movement cost"),
@@ -640,6 +679,25 @@ impl Simulation {
         })
     }
 
+    pub(super) fn unit_ignores_zoc(kind: UnitKind) -> bool {
+        !Self::unit_class_uses_zoc(kind)
+            || super::action_rules::freeciv_unit_type_flag(kind, "IgZOC")
+                .expect("campaign C2C3 unit-type IgZOC binding")
+    }
+
+    pub(super) fn live_path_zone(&self, owner: usize, x: i32, y: i32) -> PathZone {
+        if self.city_at(x, y).is_some()
+            || Self::terrain_has_no_zoc(self.tile(x, y).terrain)
+            || !self.enemy_zoc_controls_tile(owner, x, y, false)
+        {
+            PathZone::Unrestricted
+        } else if self.allied_unit_at(owner, x, y, false) {
+            PathZone::AlliedStack
+        } else {
+            PathZone::Hostile
+        }
+    }
+
     fn zone_blocks_step_with_observation(
         &self,
         unit: &Unit,
@@ -647,10 +705,7 @@ impl Simulation {
         to: (i32, i32),
         observed: bool,
     ) -> bool {
-        if !Self::unit_class_uses_zoc(unit.kind)
-            || super::action_rules::freeciv_unit_type_flag(unit.kind, "IgZOC")
-                .expect("campaign C2C3 unit-type IgZOC binding")
-        {
+        if Self::unit_ignores_zoc(unit.kind) {
             return false;
         }
         if self.allied_unit_at(unit.owner, to.0, to.1, observed) {

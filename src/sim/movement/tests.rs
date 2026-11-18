@@ -1470,7 +1470,41 @@ fn freeciv_zoc_blocks_a_step_between_two_enemy_controlled_tiles() {
 }
 
 #[test]
-fn worker_route_zoc_cache_matches_live_checks_for_every_map_step() {
+fn prepared_step_costs_match_direct_movement_for_land_sea_and_air() {
+    let mut game = Simulation::new(crate::test_support::seeded_map());
+    prepare_zoc_test_map(&mut game);
+    let start = (10, 20);
+    let neighbors: Vec<_> = game.map_wrap.civ3_neighbors(start.0, start.1).collect();
+    let (sea_x, sea_y) = neighbors[0];
+    game.tile_mut(sea_x, sea_y).terrain = Terrain::Sea;
+    let (city_x, city_y) = neighbors[1];
+    game.create_city(1, city_x, city_y);
+    game.tile_mut(city_x, city_y).terrain = Terrain::Sea;
+    let (road_x, road_y) = neighbors[2];
+    game.tile_mut(start.0, start.1).road = true;
+    game.tile_mut(road_x, road_y).road = true;
+    game.sign_pact(HUMAN, 1, Pact::War);
+
+    for kind in [
+        UnitKind::Worker,
+        UnitKind::Warrior,
+        UnitKind::Galley,
+        UnitKind::Fighter,
+    ] {
+        let unit = game.make_unit(0, HUMAN, kind, start.0, start.1);
+        let profile = game.step_movement_profile(kind);
+        for &(x, y) in &neighbors {
+            assert_eq!(
+                game.movement_cost_for(&unit, x, y),
+                game.movement_cost_with_profile(&unit, x, y, &profile),
+                "movement profile changed the cost for {kind:?} at ({x}, {y})"
+            );
+        }
+    }
+}
+
+#[test]
+fn route_zone_caches_match_live_checks_for_every_map_step() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     prepare_zoc_test_map(&mut game);
     let start = (10, 20);
@@ -1478,6 +1512,7 @@ fn worker_route_zoc_cache_matches_live_checks_for_every_map_step() {
     for (x, y) in [(12, 20), (14, 21), (18, 23)] {
         game.spawn_unit(1, UnitKind::Warrior, x, y);
     }
+    game.spawn_unit(HUMAN, UnitKind::Worker, 13, 21);
     game.create_city(1, 16, 20);
     game.tile_mut(21, 20).terrain = Terrain::Sea;
     let unit = game.unit_by_id(mover).unwrap().clone();
@@ -1489,10 +1524,17 @@ fn worker_route_zoc_cache_matches_live_checks_for_every_map_step() {
                     continue;
                 };
                 let from = (x, y);
+                let blocked = game.zone_blocks_step(&unit, from, destination);
                 assert_eq!(
-                    game.zone_blocks_step(&unit, from, destination),
+                    blocked,
                     game.zone_blocks_worker_route_step(&unit, from, destination, &mut cache),
-                    "ZOC mismatch for {from:?} -> {destination:?}"
+                    "worker ZOC mismatch for {from:?} -> {destination:?}"
+                );
+                assert_eq!(
+                    blocked,
+                    game.live_path_zone(unit.owner, destination.0, destination.1)
+                        .blocks_entry_from(game.live_path_zone(unit.owner, x, y)),
+                    "path ZOC mismatch for {from:?} -> {destination:?}"
                 );
             }
         }

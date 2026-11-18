@@ -47,6 +47,94 @@ pub(crate) struct SimulationRequirementContext<'a> {
     unbound_content_is_absent: bool,
 }
 
+struct CampaignExtra {
+    record: &'static RuleRecord,
+    present: fn(&Tile) -> bool,
+}
+
+impl CampaignExtra {
+    fn find(name: &str) -> Option<&'static Self> {
+        static EXTRAS: std::sync::OnceLock<Vec<(String, CampaignExtra)>> =
+            std::sync::OnceLock::new();
+        let extras = EXTRAS.get_or_init(|| {
+            let mut by_name = std::collections::BTreeMap::new();
+            for record in &RulesetData::campaign_default().rule_records {
+                let section_alias = record
+                    .section
+                    .get(..6)
+                    .filter(|prefix| prefix.eq_ignore_ascii_case("extra_"))
+                    .map(|_| &record.section[6..]);
+                for alias in [
+                    Some(record.rule_name.as_str()),
+                    section_alias,
+                    record.rule_name.strip_prefix("extra_"),
+                    record.display_name.as_deref(),
+                ]
+                .into_iter()
+                .flatten()
+                {
+                    let name = alias.to_ascii_lowercase();
+                    let present = Self::tile_test(&name);
+                    // Keep the first loaded record when names or aliases collide.
+                    by_name.entry(name).or_insert(Self { record, present });
+                }
+            }
+            by_name.into_iter().collect()
+        });
+        let index = extras
+            .binary_search_by(|(key, _)| {
+                key.bytes()
+                    .cmp(name.bytes().map(|byte| byte.to_ascii_lowercase()))
+            })
+            .ok()?;
+        Some(&extras[index].1)
+    }
+
+    fn tile_test(name: &str) -> fn(&Tile) -> bool {
+        match name {
+            "irrigation" => |state| state.irrigation,
+            "farmland" => |state| state.farmland,
+            "mine" => |state| state.mine,
+            "oil well" => |state| state.oil_well,
+            "oil platform" => |state| state.oil_platform,
+            "road" => |state| state.road,
+            "railroad" => |state| state.railroad,
+            "river" => |state| state.river,
+            "pollution" => |state| state.pollution,
+            "fallout" => |state| state.fallout,
+            "fort" => |state| {
+                state.base == Some(Base::Fort)
+                    || state.base.and_then(Base::underlying_after_removal) == Some(Base::Fort)
+            },
+            "fortress" => |state| state.base == Some(Base::Fortress),
+            "airstrip" => |state| {
+                state.base == Some(Base::Airstrip)
+                    || state.base.and_then(Base::underlying_after_removal) == Some(Base::Airstrip)
+            },
+            "airbase" => |state| state.base == Some(Base::Airbase),
+            "minor tribe village" | "ruins" => |state| state.hut,
+            "oasis" => |state| state.active_resource() == Some(Resource::Oasis),
+            "oil" => |state| state.active_resource() == Some(Resource::Oil),
+            "iron" => |state| state.active_resource() == Some(Resource::Iron),
+            "coal" => |state| state.active_resource() == Some(Resource::Coal),
+            "fish" => |state| state.active_resource() == Some(Resource::Fish),
+            "whales" => |state| state.active_resource() == Some(Resource::Whales),
+            "wheat" => |state| state.active_resource() == Some(Resource::Wheat),
+            "icy ivory" | "ivory" => |state| state.active_resource() == Some(Resource::Ivory),
+            "furs" => |state| state.active_resource() == Some(Resource::Furs),
+            "gems" => |state| state.active_resource() == Some(Resource::Gems),
+            "silk" => |state| state.active_resource() == Some(Resource::Silk),
+            "spice" => |state| state.active_resource() == Some(Resource::Spice),
+            "wine" => |state| state.active_resource() == Some(Resource::Wine),
+            "game" => |state| state.active_resource() == Some(Resource::Game),
+            "fruit" => |state| state.active_resource() == Some(Resource::TropicalFruit),
+            "buffalo" | "cattle" => |state| state.active_resource() == Some(Resource::Cattle),
+            // The tile model has no Buoy or other unmapped campaign extras.
+            _ => |_| false,
+        }
+    }
+}
+
 impl<'a> SimulationRequirementContext<'a> {
     pub(crate) fn for_unit(simulation: &'a Simulation, unit: &'a Unit) -> Self {
         Self::for_unit_at(simulation, unit, (unit.x, unit.y))
@@ -553,81 +641,8 @@ impl<'a> SimulationRequirementContext<'a> {
         }))
     }
 
-    fn extra_record(&self, name: &str) -> Option<&RuleRecord> {
-        self.ruleset.rule_records.iter().find(|record| {
-            record.rule_name.eq_ignore_ascii_case(name)
-                || record
-                    .section
-                    .eq_ignore_ascii_case(&format!("extra_{name}"))
-                || record
-                    .rule_name
-                    .strip_prefix("extra_")
-                    .is_some_and(|rule_name| rule_name.eq_ignore_ascii_case(name))
-                || record
-                    .display_name
-                    .as_deref()
-                    .is_some_and(|display| display.eq_ignore_ascii_case(name))
-        })
-    }
-
-    fn extra_present(
-        &self,
-        name: &str,
-        tile: (i32, i32),
-        _requirement: &Requirement,
-    ) -> Result<bool, RequirementEvaluationError> {
-        let Some(_record) = self.extra_record(name) else {
-            return Ok(false);
-        };
-        let state = self.tile_state(tile);
-        Ok(match name.to_ascii_lowercase().as_str() {
-            "irrigation" => state.irrigation,
-            "farmland" => state.farmland,
-            "mine" => state.mine,
-            "oil well" => state.oil_well,
-            "oil platform" => state.oil_platform,
-            "road" => state.road,
-            "railroad" => state.railroad,
-            "river" => state.river,
-            "pollution" => state.pollution,
-            "fallout" => state.fallout,
-            "fort" => {
-                state.base == Some(Base::Fort)
-                    || state.base.and_then(Base::underlying_after_removal) == Some(Base::Fort)
-            }
-            "fortress" => state.base == Some(Base::Fortress),
-            "airstrip" => {
-                state.base == Some(Base::Airstrip)
-                    || state.base.and_then(Base::underlying_after_removal) == Some(Base::Airstrip)
-            }
-            "airbase" => state.base == Some(Base::Airbase),
-            "minor tribe village" | "ruins" => state.hut,
-            // CivCraft's campaign tile model has no Buoy extra or source
-            // identity, so the selected C2C3 conflict is absent in current
-            // runtime state rather than an unresolved extra.
-            "buoy" => false,
-            "oasis" => state.active_resource() == Some(Resource::Oasis),
-            "oil" => state.active_resource() == Some(Resource::Oil),
-            "iron" => state.active_resource() == Some(Resource::Iron),
-            "coal" => state.active_resource() == Some(Resource::Coal),
-            "fish" => state.active_resource() == Some(Resource::Fish),
-            "whales" => state.active_resource() == Some(Resource::Whales),
-            "wheat" => state.active_resource() == Some(Resource::Wheat),
-            "icy ivory" => state.active_resource() == Some(Resource::Ivory),
-            "furs" => state.active_resource() == Some(Resource::Furs),
-            "gems" => state.active_resource() == Some(Resource::Gems),
-            "silk" => state.active_resource() == Some(Resource::Silk),
-            "spice" => state.active_resource() == Some(Resource::Spice),
-            "wine" => state.active_resource() == Some(Resource::Wine),
-            "ivory" => state.active_resource() == Some(Resource::Ivory),
-            "game" => state.active_resource() == Some(Resource::Game),
-            "fruit" => state.active_resource() == Some(Resource::TropicalFruit),
-            "buffalo" | "cattle" => state.active_resource() == Some(Resource::Cattle),
-            _ if self.unbound_content_is_absent => false,
-            _ => {
-                return Ok(false);
-            }
-        })
+    fn extra_present(&self, name: &str, tile: (i32, i32)) -> bool {
+        CampaignExtra::find(name).is_some_and(|extra| (extra.present)(self.tile_state(tile)))
     }
 
     fn player_has_technology_flag(
@@ -664,13 +679,13 @@ impl<'a> SimulationRequirementContext<'a> {
         tile: (i32, i32),
         requirement: &Requirement,
     ) -> Result<bool, RequirementEvaluationError> {
-        let Some(extra) = self.extra_record(extra_name) else {
+        let Some(extra) = CampaignExtra::find(extra_name) else {
             return Err(Self::unsupported(requirement));
         };
-        if self.extra_present(extra_name, tile, requirement)? {
+        if (extra.present)(self.tile_state(tile)) {
             return Ok(false);
         }
-        if !requirements_met(&extra.requirements, &self.at_tile(tile))? {
+        if !requirements_met(&extra.record.requirements, &self.at_tile(tile))? {
             return Ok(false);
         }
 
@@ -678,11 +693,12 @@ impl<'a> SimulationRequirementContext<'a> {
         // the player's technology flag, not Civ III Engineering. The selected
         // ruleset's tech binding resolves which Civ III tech grants that flag.
         let bridged_over = extra
+            .record
             .string_list_field("bridged_over")
             .map_err(|_| Self::unsupported(requirement))?
             .unwrap_or_default();
         for bridged_extra in bridged_over {
-            if self.extra_present(&bridged_extra, tile, requirement)?
+            if self.extra_present(&bridged_extra, tile)
                 && !self.player_has_technology_flag("Bridge", requirement)?
             {
                 return Ok(false);
@@ -716,7 +732,7 @@ impl<'a> SimulationRequirementContext<'a> {
             }
             known_flag = true;
             for tile in &positions {
-                if self.extra_present(&record.rule_name, *tile, requirement)? {
+                if self.extra_present(&record.rule_name, *tile) {
                     return Ok(true);
                 }
             }
@@ -1119,18 +1135,15 @@ impl RequirementContext for SimulationRequirementContext<'_> {
             }
             RequirementKind::Extra => {
                 let name = Self::string_name(requirement)?;
-                let positions = match requirement.range {
+                let extra = CampaignExtra::find(name);
+                let present =
+                    |tile| extra.is_some_and(|extra| (extra.present)(self.tile_state(tile)));
+                match requirement.range {
                     RequirementRange::Adjacent | RequirementRange::CAdjacent => {
-                        self.tile_positions(requirement)?
+                        Ok(self.tile_positions(requirement)?.into_iter().any(present))
                     }
-                    _ => vec![self.tile.ok_or_else(unsupported)?],
-                };
-                for tile in positions {
-                    if self.extra_present(name, tile, requirement)? {
-                        return Ok(true);
-                    }
+                    _ => Ok(present(self.tile.ok_or_else(unsupported)?)),
                 }
-                Ok(false)
             }
             RequirementKind::ExtraFlag
                 if matches!(
@@ -2323,6 +2336,37 @@ mod tests {
             SimulationRequirementContext::for_player_at(&game, crate::sim::HUMAN, Some(position));
         assert!(claimed.is_present(&requirement(true)).unwrap());
         assert!(!requirements_met(&[requirement(false)], &claimed).unwrap());
+    }
+
+    #[test]
+    fn campaign_extra_index_preserves_loaded_record_order_and_aliases() {
+        let records = &RulesetData::campaign_default().rule_records;
+        for name in [
+            "Road",
+            "RiVeR",
+            "buoy",
+            "Fortress",
+            "extra_road",
+            "missing_extra",
+        ] {
+            let section = format!("extra_{name}");
+            let expected = records.iter().find(|record| {
+                record.rule_name.eq_ignore_ascii_case(name)
+                    || record.section.eq_ignore_ascii_case(&section)
+                    || record
+                        .rule_name
+                        .strip_prefix("extra_")
+                        .is_some_and(|alias| alias.eq_ignore_ascii_case(name))
+                    || record
+                        .display_name
+                        .as_deref()
+                        .is_some_and(|alias| alias.eq_ignore_ascii_case(name))
+            });
+            assert_eq!(
+                CampaignExtra::find(name).map(|extra| extra.record),
+                expected
+            );
+        }
     }
 
     #[test]

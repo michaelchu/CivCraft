@@ -1,7 +1,8 @@
 //! Default-AI GOTO profiles and native PF_NORMAL iteration. Fuelled actors
 //! use PF_FUEL; human
 //! click routes deliberately remain a separate client policy.
-use super::movement_rules::MovementRules;
+use super::movement::PathZone;
+use super::movement_rules::{MovementRules, campaign_move_fragments};
 use super::pf_actions::PfAction;
 use super::*;
 
@@ -136,6 +137,7 @@ struct Node {
     known: bool,
     scope: u8,
     extra_tile: u16,
+    zone: Option<PathZone>,
 }
 impl Default for Node {
     fn default() -> Self {
@@ -149,6 +151,7 @@ impl Default for Node {
             known: false,
             scope: 0,
             extra_tile: 0,
+            zone: None,
         }
     }
 }
@@ -163,6 +166,7 @@ pub(super) struct NormalPaths {
     policy: TilePolicy,
     movement_class: super::unit_catalog::UnitClass,
     ignores_terrain: bool,
+    ignores_zoc: bool,
     coast_strict: bool,
     class_build_anywhere: bool,
     class_can_occupy_city: bool,
@@ -243,6 +247,7 @@ impl NormalPaths {
             policy,
             movement_class,
             ignores_terrain,
+            ignores_zoc: Simulation::unit_ignores_zoc(unit.kind),
             coast_strict,
             class_build_anywhere: class_rules.build_anywhere,
             class_can_occupy_city: class_rules.can_occupy_city,
@@ -474,9 +479,7 @@ impl NormalPaths {
             self.nodes[index].scope = NATIVE;
         }
         if self.style == Style::FerrySearch && sim.tile(x, y).terrain.is_water() {
-            let fragments = MovementRules::campaign()
-                .move_fragments()
-                .expect("selected C2C3 movement fragments");
+            let fragments = campaign_move_fragments();
             self.nodes[index].extra_tile = (fragments * TURN_FACTOR / 12) as u16;
         } else if self.risk {
             self.nodes[index].extra_tile = sim.explorer_stack_risk(&self.actor, x, y) as u16;
@@ -509,6 +512,13 @@ impl NormalPaths {
         } else {
             self.rate - cost % self.rate
         }
+    }
+
+    fn path_zone(&mut self, sim: &Simulation, index: usize) -> PathZone {
+        *self.nodes[index].zone.get_or_insert_with(|| {
+            let (x, y) = self.map_wrap.position(index);
+            sim.live_path_zone(self.actor.owner, x, y)
+        })
     }
 
     fn iterate(&mut self, sim: &Simulation) -> bool {
@@ -556,12 +566,13 @@ impl NormalPaths {
                     continue;
                 }
                 let dest = self.nodes[next].clone();
-                // PF_NORMAL and movement execution share the same C2C3 ZOC
-                // test, including class/type flags, city/terrain exceptions,
-                // and the direct-combat destination exception.
-                if dest.action != PfAction::Attack && {
+                // Freeciv PF_NORMAL classifies ZOC per node. Retain live
+                // occupancy and the attack exception for this stationary map.
+                if dest.action != PfAction::Attack && !self.ignores_zoc && {
                     sim.trace.count_operation("normal_paths.zoc_checks", 1);
-                    sim.zone_blocks_route(&actor, (x, y), (nx, ny), false)
+                    let from = self.path_zone(sim, current);
+                    from != PathZone::Unrestricted
+                        && self.path_zone(sim, next).blocks_entry_from(from)
                 } {
                     continue;
                 }
