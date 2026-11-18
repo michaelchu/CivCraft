@@ -227,12 +227,8 @@ impl NormalPaths {
         risk: bool,
     ) -> Self {
         let start = sim.map_wrap.index(unit.x, unit.y);
-        let class_rules = MovementRules::campaign()
-            .unit_class_movement_data_for_kind(unit.kind)
-            .expect("selected C2C3 unit-class movement data");
-        let movement_class = MovementRules::campaign()
-            .unit_class_for_kind(unit.kind)
-            .expect("selected C2C3 unit class");
+        let &(movement_class, ref class_rules) =
+            MovementRules::campaign_unit_movement_data(unit.kind);
         let ignores_terrain = super::action_rules::freeciv_unit_type_flag(unit.kind, "IgTer")
             .expect("campaign C2C3 unit-type IgTer binding");
         let coast_strict = super::action_rules::freeciv_unit_type_flag(unit.kind, "CoastStrict")

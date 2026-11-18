@@ -316,14 +316,6 @@ impl UnitKind {
         Self::Flak,
         Self::MobileSAM,
     ];
-    pub(in crate::sim) fn conquests_rule(self) -> &'static crate::sim::civ3_unit_rules::UnitRule {
-        crate::sim::civ3_unit_rules::get(
-            self.conquests_id()
-                .expect("campaign unit must have a Conquests identity"),
-        )
-        .expect("campaign unit must have an editable Conquests rule")
-    }
-
     pub(in crate::sim) fn simple_military() -> Vec<Self> {
         Self::ALL_NATIVE
             .into_iter()
@@ -358,7 +350,7 @@ impl UnitKind {
     }
 
     pub(in crate::sim) fn required_tech(self) -> Option<Tech> {
-        self.conquests_rule().required_tech()
+        self.metadata().tech
     }
 
     pub(in crate::sim) fn required_resources(self) -> Vec<crate::sim::Resource> {

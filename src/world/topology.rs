@@ -284,18 +284,57 @@ impl MapWrap {
         distances
     }
     pub(crate) fn civ3_radius(self, x: i32, y: i32, max_distance: i32) -> Vec<(i32, i32, i32)> {
+        // Most calls cover unit or city sight. In three steps a tile moves at
+        // most three columns and six rows, so one word can track visits.
+        const SMALL_RADIUS: i32 = 3;
+        if max_distance <= SMALL_RADIUS && self.width() > 2 * SMALL_RADIUS {
+            let center_x = x.rem_euclid(self.width());
+            let mut visited = 0_u128;
+            let mut mark = |nx: i32, ny: i32| {
+                let mut dx = nx - center_x;
+                if dx < -SMALL_RADIUS {
+                    dx += self.width();
+                } else if dx > SMALL_RADIUS {
+                    dx -= self.width();
+                }
+                let dy = ny - y;
+                let bit = (dy + 2 * SMALL_RADIUS) * (2 * SMALL_RADIUS + 1) + dx + SMALL_RADIUS;
+                let mask = 1_u128 << bit;
+                let first = visited & mask == 0;
+                visited |= mask;
+                first
+            };
+            self.index(x, y);
+            mark(center_x, y);
+            return self.civ3_radius_with_visited(x, y, max_distance, mark);
+        }
+
         let mut visited = HashSet::new();
-        let mut pending = VecDeque::from([(x, y, 0)]);
         visited.insert(self.index(x, y));
-        let mut tiles = Vec::new();
-        while let Some((cx, cy, distance)) = pending.pop_front() {
-            tiles.push((cx, cy, distance));
+        self.civ3_radius_with_visited(x, y, max_distance, |nx, ny| {
+            visited.insert(self.index(nx, ny))
+        })
+    }
+
+    fn civ3_radius_with_visited(
+        self,
+        x: i32,
+        y: i32,
+        max_distance: i32,
+        mut mark: impl FnMut(i32, i32) -> bool,
+    ) -> Vec<(i32, i32, i32)> {
+        let span = 2 * max_distance.clamp(0, 3) + 1;
+        let mut tiles = Vec::with_capacity((span * span) as usize);
+        tiles.push((x, y, 0));
+        let mut next = 0;
+        while let Some(&(cx, cy, distance)) = tiles.get(next) {
+            next += 1;
             if distance >= max_distance {
                 continue;
             }
             for (nx, ny) in self.civ3_neighbors(cx, cy) {
-                if visited.insert(self.index(nx, ny)) {
-                    pending.push_back((nx, ny, distance + 1));
+                if mark(nx, ny) {
+                    tiles.push((nx, ny, distance + 1));
                 }
             }
         }
@@ -568,21 +607,24 @@ mod wrap_tests {
 
     #[test]
     fn civ3_radius_matches_full_distance_field_at_edges_and_wraps() {
-        for wrap in [MapWrap::X] {
-            for origin in [(0, 0), (wrap.width() - 1, wrap.height() - 1)] {
-                let distances = wrap.civ3_distances_from(origin.0, origin.1);
-                let radius: HashSet<_> = wrap
-                    .civ3_radius(origin.0, origin.1, 4)
-                    .into_iter()
-                    .map(|(x, y, distance)| {
-                        assert_eq!(distance, distances[wrap.index(x, y)]);
-                        (x, y)
-                    })
-                    .collect();
-                for (index, &distance) in distances.iter().enumerate() {
-                    let (x, y) = wrap.position(index);
-                    assert_eq!(radius.contains(&(x, y)), distance <= 4);
-                }
+        let wrap = MapWrap::with_dimensions(16, 16).unwrap();
+        for origin in [(0, 0), (15, 1), (0, 8), (15, 15)] {
+            let distances = wrap.civ3_distances_from(origin.0, origin.1);
+            let wide = wrap.civ3_radius(origin.0, origin.1, 4);
+            let radius: HashSet<_> = wide
+                .iter()
+                .map(|&(x, y, distance)| {
+                    assert_eq!(distance, distances[wrap.index(x, y)]);
+                    (x, y)
+                })
+                .collect();
+            for (index, &distance) in distances.iter().enumerate() {
+                let (x, y) = wrap.position(index);
+                assert_eq!(radius.contains(&(x, y)), distance <= 4);
+            }
+            for small in 0..=3 {
+                let count = wide.partition_point(|&(_, _, distance)| distance <= small);
+                assert_eq!(wrap.civ3_radius(origin.0, origin.1, small), wide[..count]);
             }
         }
     }

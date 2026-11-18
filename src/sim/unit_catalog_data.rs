@@ -1,5 +1,6 @@
 //! Unit metadata types and the Conquests-backed unit metadata accessor.
 use super::*;
+use std::sync::OnceLock;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(super) enum UnitClass {
@@ -77,7 +78,6 @@ pub(super) struct UnitMetadata {
     pub(super) class: UnitClass,
     pub(super) flags: u64,
     pub(super) ai_strategies: u32,
-    #[allow(dead_code)] // Source unit prerequisite retained for research and advisor behavior.
     pub(super) tech: Option<Tech>,
     pub(super) government: Option<Government>,
     pub(super) capacity: usize,
@@ -109,13 +109,36 @@ impl UnitClass {
         matches!(self, Self::Missile | Self::Helicopter | Self::Air)
     }
 }
+struct RuntimeUnit {
+    rule: &'static super::civ3_unit_rules::UnitRule,
+    metadata: UnitMetadata,
+}
+
 impl UnitKind {
+    fn runtime_unit(self) -> &'static RuntimeUnit {
+        static UNITS: OnceLock<[RuntimeUnit; UnitKind::ALL_NATIVE.len()]> = OnceLock::new();
+        &UNITS.get_or_init(|| {
+            std::array::from_fn(|index| {
+                let kind = UnitKind::ALL_NATIVE[index];
+                assert_eq!(kind as usize, index, "campaign unit IDs are out of order");
+                let rule = super::civ3_unit_rules::get(
+                    kind.conquests_id()
+                        .expect("campaign unit must have a Conquests identity"),
+                )
+                .expect("campaign unit must have an editable Conquests rule");
+                RuntimeUnit {
+                    rule,
+                    metadata: rule.metadata(),
+                }
+            })
+        })[self as usize]
+    }
+
+    pub(super) fn conquests_rule(self) -> &'static super::civ3_unit_rules::UnitRule {
+        self.runtime_unit().rule
+    }
+
     pub(super) fn metadata(self) -> UnitMetadata {
-        crate::sim::civ3_unit_rules::get(
-            self.conquests_id()
-                .expect("campaign unit must have a Conquests identity"),
-        )
-        .expect("campaign unit must have an editable Conquests rule")
-        .metadata()
+        self.runtime_unit().metadata
     }
 }

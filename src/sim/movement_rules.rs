@@ -5,13 +5,15 @@
 //! ruleset records. It only reads data; movement callers can migrate to these
 //! validated accessors independently.
 
+use std::sync::OnceLock;
+
 use crate::rules::engine_rules::{ContentKind, ContentRecord, RuleRecord, RulesetData};
 
 use super::unit_catalog::UnitClass;
 use super::{Base, Terrain, UnitKind};
 
 pub(super) fn campaign_move_fragments() -> i32 {
-    static FRAGMENTS: std::sync::OnceLock<i32> = std::sync::OnceLock::new();
+    static FRAGMENTS: OnceLock<i32> = OnceLock::new();
     *FRAGMENTS.get_or_init(|| {
         MovementRules::campaign()
             .move_fragments()
@@ -31,6 +33,57 @@ impl<'a> MovementRules<'a> {
 
     pub(super) fn campaign() -> Self {
         Self::new(RulesetData::campaign_default())
+    }
+
+    pub(super) fn campaign_class_data(class: UnitClass) -> &'static UnitClassMovementData {
+        static CLASSES: [OnceLock<UnitClassMovementData>; UnitClass::Missile as usize + 1] =
+            [const { OnceLock::new() }; UnitClass::Missile as usize + 1];
+        CLASSES[class as usize].get_or_init(|| {
+            Self::campaign()
+                .unit_class_movement_data(class)
+                .expect("campaign C2C3 unit-class movement data")
+        })
+    }
+
+    pub(super) fn campaign_unit_class(kind: UnitKind) -> UnitClass {
+        Self::campaign_unit_movement_data(kind).0
+    }
+
+    pub(super) fn campaign_unit_movement_data(
+        kind: UnitKind,
+    ) -> &'static (UnitClass, UnitClassMovementData) {
+        type UnitMovement = (UnitClass, UnitClassMovementData);
+        static UNITS: [OnceLock<UnitMovement>; UnitKind::ALL_NATIVE.len()] =
+            [const { OnceLock::new() }; UnitKind::ALL_NATIVE.len()];
+        UNITS[kind as usize].get_or_init(|| {
+            let class = Self::campaign()
+                .unit_class_for_kind(kind)
+                .expect("campaign C2C3 unit class binding");
+            let data = Self::campaign_class_data(class).clone().with_unit(kind);
+            (class, data)
+        })
+    }
+
+    /// A lower bound for any allowed step, including moves that use only the
+    /// remaining fragments this turn. Zero-cost terrain or roads disable it.
+    pub(super) fn campaign_steps_cost_at_least_one() -> bool {
+        static POSITIVE: OnceLock<bool> = OnceLock::new();
+        *POSITIVE.get_or_init(|| {
+            let rules = Self::campaign();
+            Terrain::ALL.into_iter().all(|terrain| {
+                rules
+                    .terrain_movement_cost(terrain)
+                    .expect("campaign terrain movement cost")
+                    > 0
+            }) && [RoadType::Road, RoadType::Railroad, RoadType::River]
+                .into_iter()
+                .all(|road| {
+                    rules
+                        .road_move_cost(road)
+                        .expect("campaign road movement cost")
+                        != 0
+                })
+        })
     }
 
     /// Resolve all movement and worker activity times for the C2C3 terrain
@@ -294,12 +347,26 @@ impl<'a> MovementRules<'a> {
         terrain: Terrain,
         flag: &str,
     ) -> Result<bool, MovementRulesError> {
+        if std::ptr::eq(self.rules, RulesetData::campaign_default()) {
+            type TerrainFlags = Result<Vec<String>, MovementRulesError>;
+            static FLAGS: [OnceLock<TerrainFlags>; Terrain::ALL.len()] =
+                [const { OnceLock::new() }; Terrain::ALL.len()];
+            return FLAGS[terrain as usize]
+                .get_or_init(|| self.terrain_flags(terrain))
+                .as_ref()
+                .map(|flags| has_flag(flags, flag))
+                .map_err(Clone::clone);
+        }
+        self.terrain_flags(terrain)
+            .map(|flags| has_flag(&flags, flag))
+    }
+
+    fn terrain_flags(&self, terrain: Terrain) -> Result<Vec<String>, MovementRulesError> {
         let rule_name = terrain
             .c2c3_rule_name()
             .ok_or(MovementRulesError::UnsupportedTerrain(terrain))?;
         let record = unique_content_record(self.rules, ContentKind::Terrain, rule_name, "terrain")?;
-        let flags = required_content_string_values(record, "flags")?;
-        Ok(has_flag(&flags, flag))
+        required_content_string_values(record, "flags")
     }
 
     pub(super) fn terrain_class(&self, terrain: Terrain) -> Result<&'a str, MovementRulesError> {
@@ -599,14 +666,9 @@ impl<'a> MovementRules<'a> {
         &self,
         kind: UnitKind,
     ) -> Result<UnitClassMovementData, MovementRulesError> {
-        let mut data = self.unit_class_movement_data(self.unit_class_for_kind(kind)?)?;
-        let source = kind.conquests_rule();
-        if source.unit_type == 0 {
-            // Foot/wheeled flags restrict transport/terrain; they do not remove
-            // Civ III ground-unit pillage, occupation, or terrain defense.
-            data.can_occupy_city = source.attack > 0;
-        }
-        Ok(data)
+        Ok(self
+            .unit_class_movement_data(self.unit_class_for_kind(kind)?)?
+            .with_unit(kind))
     }
 
     /// Combine the selected ruleset's class behavior with an individual
@@ -704,6 +766,8 @@ pub(super) struct MovementTile {
 }
 
 impl MovementTile {
+    pub(super) const CACHE_BITS: u32 = 11;
+
     pub(super) const fn new(
         terrain: Terrain,
         road: bool,
@@ -718,6 +782,23 @@ impl MovementTile {
             river,
             base,
         }
+    }
+
+    pub(super) fn cache_index(self) -> u32 {
+        const TERRAIN_BITS: u32 = 5;
+        const BASE_BITS: u32 = 3;
+        const EXTRA_BITS: u32 = 3;
+        const { assert!((Terrain::GrasslandShield as u32) < 1 << TERRAIN_BITS) };
+        let base = match self.base {
+            None => 0,
+            Some(Base::Fort) => 1,
+            Some(Base::Fortress) => 2,
+            Some(Base::Airstrip) => 3,
+            Some(Base::Airbase) => 4,
+        };
+        let extras =
+            u32::from(self.road) | (u32::from(self.railroad) << 1) | (u32::from(self.river) << 2);
+        ((self.terrain as u32) << (BASE_BITS + EXTRA_BITS)) | (base << EXTRA_BITS) | extras
     }
 }
 
@@ -797,6 +878,18 @@ pub(super) struct UnitClassMovementData {
     pub(super) terrain_speed: bool,
     pub(super) zoc: bool,
     pub(super) damage_slows: bool,
+}
+
+impl UnitClassMovementData {
+    fn with_unit(mut self, kind: UnitKind) -> Self {
+        let source = kind.conquests_rule();
+        if source.unit_type == 0 {
+            // Foot/wheeled flags restrict transport/terrain; they do not remove
+            // Civ III ground-unit pillage, occupation, or terrain defense.
+            self.can_occupy_city = source.attack > 0;
+        }
+        self
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

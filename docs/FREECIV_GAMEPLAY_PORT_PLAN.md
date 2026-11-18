@@ -690,6 +690,16 @@ that code has been added.
   likewise keys its destination-specific searches by movement inputs. Rust
   also shares resolved step costs across starting tiles within the same threat
   cache. Step costs retain the owner and unit type as part of the key.
+- Freeciv's `pf_reverse_map_unit_position` runs a goal-directed path query.
+  CivCraft's uncached query orders candidates by elapsed movement plus the
+  unobstructed, wrapped step distance to the city. When the selected rules
+  guarantee that every step spends at least one fragment, this lower bound
+  rules out paths that cannot arrive in the existing horizon. Rules with a
+  zero-cost step use the original cost ordering. The bound also avoids
+  starting an unnecessary search when the city is out of range.
+- Small sight radii retain CivCraft's breadth-first tile order, wrapping and
+  polar clipping. A local bitset tracks visits without hashing coordinates
+  for every unit and city on each visibility refresh.
 
 ### P14 evidence (complete)
 

@@ -55,6 +55,26 @@ impl TerrainBase {
 }
 
 impl Terrain {
+    pub(crate) const ALL: [Self; Self::GrasslandShield as usize + 1] = [
+        Self::Sea,
+        Self::Ocean,
+        Self::Lake,
+        Self::Glacier,
+        Self::Jungle,
+        Self::Desert,
+        Self::Forest,
+        Self::Grassland,
+        Self::Hills,
+        Self::Mountains,
+        Self::Plains,
+        Self::Marsh,
+        Self::Tundra,
+        Self::Coast,
+        Self::FloodPlains,
+        Self::Volcano,
+        Self::GrasslandShield,
+    ];
+
     /// Fresh-tile yield before worker improvements, shared by generation's
     /// start-site scoring and campaign tile calculations.
     pub(crate) fn yields_with_resource(

@@ -204,6 +204,35 @@ fn scoped_threat_cache_preserves_arrivals_across_multiple_cities() {
 }
 
 #[test]
+fn danger_route_bound_keeps_rail_routes_at_the_horizon_across_wrap() {
+    let map = crate::mapgen::generate_for_civ3_size(42, crate::mapgen::Civ3MapSize::Tiny);
+    let mut game = Simulation::new(map);
+    game.units.clear();
+    game.cities.clear();
+    let home = (5, 24);
+    let point = |x: i32| ((home.0 - x).rem_euclid(game.map_wrap.width()), home.1);
+    let inside = point(23);
+    let outside = point(24);
+    for distance in 0..=24 {
+        let (x, y) = point(distance);
+        let tile = &mut game.tiles[game.map_wrap.index(x, y)];
+        tile.terrain = Terrain::Grassland;
+        tile.railroad = true;
+    }
+    game.create_city(HUMAN, home.0, home.1);
+    let city = &game.cities[0];
+    let inside = game.make_unit(0, HUMAN, UnitKind::Warrior, inside.0, inside.1);
+    let outside = game.make_unit(1, HUMAN, UnitKind::Warrior, outside.0, outside.1);
+
+    assert_eq!(game.danger_route_turns(&inside, city), Some(3));
+    assert_eq!(game.danger_route_turns(&outside, city), None);
+    game.begin_ai_advisor_cache();
+    assert_eq!(game.danger_route_turns(&inside, city), Some(3));
+    assert_eq!(game.danger_route_turns(&outside, city), None);
+    assert_eq!(game.ai_danger_route_cache.borrow().sizes(), (1, 1));
+}
+
+#[test]
 fn transported_troops_and_paradrops_enter_city_danger_without_illegal_moves() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     assert!(game.ai_embarked_paradrop_danger_playtest());

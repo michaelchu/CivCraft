@@ -178,18 +178,13 @@ impl Simulation {
     }
 
     pub(crate) fn unit_move_rate(&self, unit: &Unit) -> i32 {
-        let movement_rules = super::movement_rules::MovementRules::campaign();
-        let fragments = movement_rules
-            .move_fragments()
-            .expect("campaign C2C3 movement fragment setting");
+        let fragments = campaign_move_fragments();
         if unit.kind.conquests_rule().unit_type == 2 {
             // Aircraft execute a one-turn mission within their source range;
             // the planner's tile budget is not the PRTO action-count field.
             return unit.kind.operational_range().max(1) * fragments;
         }
-        let class = movement_rules
-            .unit_class_movement_data_for_kind(unit.kind)
-            .expect("campaign C2C3 unit-class movement data");
+        let (_, class) = MovementRules::campaign_unit_movement_data(unit.kind);
         let base = unit.kind.stats().moves * fragments + unit.veteran_move_bonus();
         let mut rate = if class.damage_slows {
             base * unit.hp / unit.max_hit_points()
@@ -348,14 +343,8 @@ impl Simulation {
     }
 
     pub(super) fn step_movement_profile(&self, kind: UnitKind) -> StepMovementProfile {
-        let rules = MovementRules::campaign();
-        let class = rules
-            .unit_class_for_kind(kind)
-            .expect("campaign C2C3 unit class binding");
-        let class_data = rules
-            .unit_class_movement_data_for_kind(kind)
-            .expect("native unit movement data");
-        StepMovementProfile::new(kind, class, class_data.can_occupy_city)
+        let (class, data) = MovementRules::campaign_unit_movement_data(kind);
+        StepMovementProfile::new(kind, *class, data.can_occupy_city)
     }
 
     pub(super) fn movement_cost_with_profile(
@@ -391,11 +380,7 @@ impl Simulation {
             return Some(campaign_move_fragments());
         }
         let class = profile.map_or_else(
-            || {
-                MovementRules::campaign()
-                    .unit_class_for_kind(unit.kind)
-                    .expect("campaign C2C3 unit class binding")
-            },
+            || MovementRules::campaign_unit_class(unit.kind),
             |profile| profile.class,
         );
         let ignores_terrain = profile.map_or_else(
@@ -434,6 +419,9 @@ impl Simulation {
             dest.base,
         );
         let destination_native = self.cached_movement_native_to_class(destination_movement, class);
+        if destination_native && !coast_strict {
+            return true;
+        }
         let city =
             city_cache.map_or_else(|| self.city_at(nx, ny), |cache| cache.city_at(self, nx, ny));
         if city.is_none() && coast_strict && !self.safe_ocean_at(nx, ny, None) {
@@ -447,9 +435,8 @@ impl Simulation {
         }
         let can_occupy_city = profile.map_or_else(
             || {
-                MovementRules::campaign()
-                    .unit_class_movement_data_for_kind(unit.kind)
-                    .expect("native unit movement data")
+                MovementRules::campaign_unit_movement_data(unit.kind)
+                    .1
                     .can_occupy_city
             },
             |profile| profile.can_occupy_city,
@@ -466,12 +453,8 @@ impl Simulation {
         kind: UnitKind,
     ) -> WorkerRouteMovementProfile {
         let rules = MovementRules::campaign();
-        let class = rules
-            .unit_class_for_kind(kind)
-            .expect("campaign C2C3 unit class binding");
-        let class_data = rules
-            .unit_class_movement_data(class)
-            .expect("campaign C2C3 unit class data");
+        let class = MovementRules::campaign_unit_class(kind);
+        let class_data = MovementRules::campaign_class_data(class);
         WorkerRouteMovementProfile {
             step: StepMovementProfile::new(kind, class, class_data.can_occupy_city),
             ignores_zoc: Self::unit_ignores_zoc(kind),
@@ -500,11 +483,11 @@ impl Simulation {
             .civ3_neighbors(x, y)
             .filter(|&(nx, ny)| self.movement_is_cardinal((x, y), (nx, ny)))
             .any(|(nx, ny)| {
-                let route = match observer {
-                    Some(owner) => self.route_tile_for(owner, nx, ny),
-                    None => Some(self.live_route_tile(nx, ny)),
+                let tile = match observer {
+                    Some(owner) => self.known_tile_for(owner, nx, ny),
+                    None => Some(self.tile(nx, ny)),
                 };
-                route.is_some_and(|tile| {
+                tile.is_some_and(|tile| {
                     match rules.terrain_has_flag(
                         tile.terrain,
                         super::movement_rules::TerrainFlag::UnsafeCoast,
@@ -520,9 +503,8 @@ impl Simulation {
     }
 
     fn class_can_occupy_city(&self, kind: UnitKind) -> bool {
-        MovementRules::campaign()
-            .unit_class_movement_data_for_kind(kind)
-            .expect("campaign C2C3 unit class data")
+        MovementRules::campaign_unit_movement_data(kind)
+            .1
             .can_occupy_city
     }
 
@@ -620,57 +602,23 @@ impl Simulation {
     }
 
     fn terrain_has_no_zoc(terrain: Terrain) -> bool {
-        match super::movement_rules::MovementRules::campaign()
-            .terrain_has_flag(terrain, super::movement_rules::TerrainFlag::NoZoc)
-        {
-            Ok(flag) => flag,
-            // Volcano has no C2C3 terrain record. Its movement-cost mapping
-            // does not imply any other terrain flags.
-            Err(super::movement_rules::MovementRulesError::UnsupportedTerrain(_)) => false,
-            Err(error) => panic!("campaign C2C3 terrain NoZoc data is invalid: {error:?}"),
-        }
+        const TERRAIN_COUNT: usize = Terrain::GrasslandShield as usize + 1;
+        static NO_ZOC: [OnceLock<bool>; TERRAIN_COUNT] = [const { OnceLock::new() }; TERRAIN_COUNT];
+        *NO_ZOC[terrain as usize].get_or_init(|| {
+            match MovementRules::campaign()
+                .terrain_has_flag(terrain, super::movement_rules::TerrainFlag::NoZoc)
+            {
+                Ok(flag) => flag,
+                // Volcano has no C2C3 terrain record. Its movement-cost mapping
+                // does not imply any other terrain flags.
+                Err(super::movement_rules::MovementRulesError::UnsupportedTerrain(_)) => false,
+                Err(error) => panic!("campaign C2C3 terrain NoZoc data is invalid: {error:?}"),
+            }
+        })
     }
 
     fn unit_class_uses_zoc(kind: UnitKind) -> bool {
-        use crate::sim::unit_catalog::UnitClass as C;
-
-        // Keep the ruleset flags authoritative and cache them because route
-        // expansion asks this question for every candidate step. Civ III's
-        // runtime catalog has no separate Merchant class crosswalk.
-        static CLASS_ZOC: OnceLock<[bool; 8]> = OnceLock::new();
-        let class_zoc = CLASS_ZOC.get_or_init(|| {
-            let rules = super::movement_rules::MovementRules::campaign();
-            [
-                C::Land,
-                C::SmallLand,
-                C::BigLand,
-                C::Sea,
-                C::Trireme,
-                C::Air,
-                C::Helicopter,
-                C::Missile,
-            ]
-            .map(|class| {
-                rules
-                    .unit_class_movement_data(class)
-                    .expect("C2C3 defines the mapped unit classes")
-                    .zoc
-            })
-        });
-        let class_index = match super::movement_rules::MovementRules::campaign()
-            .unit_class_for_kind(kind)
-            .expect("campaign C2C3 unit class binding")
-        {
-            C::Land => 0,
-            C::SmallLand => 1,
-            C::BigLand => 2,
-            C::Sea => 3,
-            C::Trireme => 4,
-            C::Air => 5,
-            C::Helicopter => 6,
-            C::Missile => 7,
-        };
-        class_zoc[class_index]
+        MovementRules::campaign_unit_movement_data(kind).1.zoc
     }
 
     fn allied_unit_at(&self, owner: usize, x: i32, y: i32, observed: bool) -> bool {

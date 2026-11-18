@@ -1,6 +1,7 @@
 //! Advisor assessment of military threats and urgency.
 
 use super::*;
+use crate::sim::movement_rules::MovementRules;
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct DangerRouteKey {
@@ -170,11 +171,24 @@ impl Simulation {
     }
 
     pub(super) fn danger_route_turns(&self, unit: &Unit, city: &City) -> Option<i32> {
-        if self.ai_threat_route_cache_enabled.get() && !unit.kind.is_naval() {
-            let allowance = self.unit_move_rate(unit);
-            if allowance <= 0 {
-                return None;
+        let allowance = self.unit_move_rate(unit);
+        if allowance <= 0 {
+            return None;
+        }
+        let limit = 4 * allowance - 1; // normal assess_danger horizon: turns 0..3
+        let positive_steps = MovementRules::campaign_steps_cost_at_least_one();
+        let lower_bound = |x, y| {
+            if positive_steps {
+                self.map_distance(x, y, city.x, city.y)
+            } else {
+                0
             }
+        };
+        let first_bound = lower_bound(unit.x, unit.y);
+        if first_bound > limit {
+            return None;
+        }
+        if self.ai_threat_route_cache_enabled.get() && !unit.kind.is_naval() {
             let goal = self.map_wrap.index(city.x, city.y);
             let key = DangerRouteKey {
                 owner: unit.owner,
@@ -192,12 +206,12 @@ impl Simulation {
             // Step costs depend on the owner, unit type and the current map.
             // They can be shared across starting positions and allowances.
             let steps = cache.steps.entry((key.owner, key.kind)).or_default();
-            let costs = self.danger_route_costs(unit, key.start, allowance, steps);
+            let costs = self.danger_route_costs(unit, key.start, allowance, limit, steps);
             let spent = costs[goal];
             cache.maps.insert(key, costs);
             return (spent != i32::MAX).then_some(spent / allowance);
         }
-        self.danger_route_turns_uncached(unit, city)
+        self.danger_route_turns_uncached(unit, city, allowance, limit, first_bound, lower_bound)
     }
 
     fn danger_route_costs(
@@ -205,10 +219,10 @@ impl Simulation {
         unit: &Unit,
         start: usize,
         allowance: i32,
+        limit: i32,
         steps: &mut DangerStepCosts,
     ) -> Vec<i32> {
         use std::{cmp::Reverse, collections::BinaryHeap};
-        let limit = 4 * allowance - 1; // normal assess_danger horizon: turns0..3
         let mut distance = vec![i32::MAX; self.tiles.len()];
         let mut queue = BinaryHeap::from([Reverse((0, start))]);
         distance[start] = 0;
@@ -253,24 +267,30 @@ impl Simulation {
         distance
     }
 
-    fn danger_route_turns_uncached(&self, unit: &Unit, city: &City) -> Option<i32> {
+    fn danger_route_turns_uncached(
+        &self,
+        unit: &Unit,
+        city: &City,
+        allowance: i32,
+        limit: i32,
+        first_bound: i32,
+        lower_bound: impl Fn(i32, i32) -> i32,
+    ) -> Option<i32> {
         use std::{cmp::Reverse, collections::BinaryHeap};
         // pft_fill_reverse_parameter uses a terrain-only reverse map: no
         // current movement, diplomacy, ZOC, fog or intervening-unit blockers.
-        let allowance = self.unit_move_rate(unit);
-        if allowance <= 0 {
-            return None;
-        }
-        let limit = 4 * allowance - 1;
         let start = self.map_wrap.index(unit.x, unit.y);
         let goal = self.map_wrap.index(city.x, city.y);
         let mut distance = vec![i32::MAX; self.tiles.len()];
-        let mut queue = BinaryHeap::from([Reverse((0, start))]);
+        // Keep Freeciv's goal-directed query. The unobstructed step count is
+        // admissible when every move spends at least one movement fragment.
+        let mut queue = BinaryHeap::from([Reverse((first_bound, 0, start))]);
         distance[start] = 0;
         let mut actor = unit.clone();
         actor.moves_left = allowance;
         let movement = self.step_movement_profile(unit.kind);
-        while let Some(Reverse((spent, index))) = queue.pop() {
+        let naval = unit.kind.is_naval();
+        while let Some(Reverse((_, spent, index))) = queue.pop() {
             if distance[index] != spent {
                 continue;
             }
@@ -286,15 +306,18 @@ impl Simulation {
                     .or_else(|| {
                         // A ship's reverse attack map can reach the city even
                         // when the ship cannot enter its land tile normally.
-                        (index == goal && unit.kind.is_naval()).then(campaign_move_fragments)
+                        (index == goal && naval).then(campaign_move_fragments)
                     });
                 let Some(cost) = cost else {
                     continue;
                 };
                 let candidate = spent + cost.min(remaining);
-                if candidate <= limit && candidate < distance[index] {
-                    distance[index] = candidate;
-                    queue.push(Reverse((candidate, index)));
+                if candidate < distance[index] {
+                    let estimate = candidate + lower_bound(x, y);
+                    if estimate <= limit {
+                        distance[index] = candidate;
+                        queue.push(Reverse((estimate, candidate, index)));
+                    }
                 }
             }
         }

@@ -1,16 +1,14 @@
 //! Shared default PF action policy from common/aicore/pf_tools.c. Planning
 //! capabilities deliberately differ from legal action execution.
-use super::movement_rules::{MovementRules, MovementTile};
+use super::movement_rules::{MovementRules, MovementTile, campaign_move_fragments};
 use super::unit_catalog::UnitClass;
 use super::*;
 use std::{cell::RefCell, collections::HashMap};
 
-type StepCostCacheKey = (MovementTile, MovementTile, UnitClass, bool, bool, bool);
-
 /// Derived movement data lives with the code that constructs its cache keys.
 #[derive(Clone, Default)]
 pub(super) struct MovementCache {
-    step_cost: RefCell<HashMap<StepCostCacheKey, i32>>,
+    step_cost: RefCell<HashMap<u32, i32>>,
     native: RefCell<Vec<i8>>,
 }
 
@@ -36,25 +34,8 @@ impl Simulation {
         tile: MovementTile,
         class: super::unit_catalog::UnitClass,
     ) -> bool {
-        const CLASS_COUNT: usize = 8;
-        const TERRAIN_COUNT: usize = 17;
-        const BASE_VARIANTS: usize = 5;
-        const EXTRA_COMBINATIONS: usize = 8;
-        let base = match tile.base {
-            None => 0,
-            Some(Base::Fort) => 1,
-            Some(Base::Fortress) => 2,
-            Some(Base::Airstrip) => 3,
-            Some(Base::Airbase) => 4,
-        };
-        let extras = usize::from(tile.road)
-            | (usize::from(tile.railroad) << 1)
-            | (usize::from(tile.river) << 2);
-        let index = (((class as usize * TERRAIN_COUNT + tile.terrain as usize) * BASE_VARIANTS
-            + base)
-            * EXTRA_COMBINATIONS)
-            + extras;
-        let cache_len = CLASS_COUNT * TERRAIN_COUNT * BASE_VARIANTS * EXTRA_COMBINATIONS;
+        let index = ((class as usize) << MovementTile::CACHE_BITS) | tile.cache_index() as usize;
+        let cache_len = (UnitClass::Missile as usize + 1) << MovementTile::CACHE_BITS;
         {
             let mut cache = self.movement_cache.native.borrow_mut();
             if cache.is_empty() {
@@ -79,19 +60,15 @@ impl Simulation {
     }
 
     fn pf_class_can_occupy_city(kind: UnitKind) -> bool {
-        MovementRules::campaign()
-            .unit_class_movement_data_for_kind(kind)
-            .expect("campaign C2C3 unit-class movement data")
+        MovementRules::campaign_unit_movement_data(kind)
+            .1
             .can_occupy_city
     }
 
     // tile_move_cost_ptrs: cost only; scopes/action callbacks decide legality.
     pub(super) fn raw_move_cost_for(&self, unit: &Unit, x: i32, y: i32) -> i32 {
         let kind = unit.kind;
-        let rules = MovementRules::campaign();
-        let class = rules
-            .unit_class_for_kind(kind)
-            .expect("campaign C2C3 unit class binding");
+        let class = MovementRules::campaign_unit_class(kind);
         let ignores = super::action_rules::freeciv_unit_type_flag(kind, "IgTer")
             .expect("campaign C2C3 unit-type IgTer binding");
         self.raw_move_cost_for_class(unit, x, y, class, ignores)
@@ -105,7 +82,6 @@ impl Simulation {
         class: super::unit_catalog::UnitClass,
         ignores: bool,
     ) -> i32 {
-        let rules = MovementRules::campaign();
         let source = self.tile(unit.x, unit.y);
         let dest = self.tile(x, y);
         let restricted = [source.owner, dest.owner]
@@ -127,18 +103,20 @@ impl Simulation {
             dest.base,
         );
         let cardinal = self.pf_move_is_cardinal((unit.x, unit.y), (x, y));
-        let key = (
-            source_movement,
-            destination_movement,
-            class,
-            cardinal,
-            restricted,
-            ignores,
-        );
+        const CLASS_BITS: u32 = 3;
+        const FLAG_BITS: u32 = 3;
+        const { assert!((UnitClass::Missile as u32) < 1 << CLASS_BITS) };
+        let tiles = (source_movement.cache_index() << MovementTile::CACHE_BITS)
+            | destination_movement.cache_index();
+        let key = (tiles << (CLASS_BITS + FLAG_BITS))
+            | ((class as u32) << FLAG_BITS)
+            | (u32::from(cardinal) << 2)
+            | (u32::from(restricted) << 1)
+            | u32::from(ignores);
         if let Some(cost) = self.movement_cache.step_cost.borrow().get(&key).copied() {
             return cost;
         }
-        let cost = rules
+        let cost = MovementRules::campaign()
             .step_cost(
                 source_movement,
                 destination_movement,
@@ -154,9 +132,7 @@ impl Simulation {
     pub(super) fn pf_native_tile(&self, kind: UnitKind, x: i32, y: i32) -> bool {
         let tile = self.tile(x, y);
         let rules = MovementRules::campaign();
-        let class = rules
-            .unit_class_for_kind(kind)
-            .expect("campaign C2C3 unit class binding");
+        let class = MovementRules::campaign_unit_class(kind);
         match rules.tile_native_to_class(
             tile.terrain,
             tile.road,
@@ -355,13 +331,8 @@ impl Simulation {
     }
 
     pub(super) fn pf_action_move_cost(kind: UnitKind, action: PfAction, rate: i32) -> i32 {
-        let rules = MovementRules::campaign();
-        let fragments = rules
-            .move_fragments()
-            .expect("campaign C2C3 movement fragments");
-        let class = rules
-            .unit_class_movement_data_for_kind(kind)
-            .expect("campaign C2C3 unit-class movement data");
+        let fragments = campaign_move_fragments();
+        let (_, class) = MovementRules::campaign_unit_movement_data(kind);
         let one_attack = super::action_rules::freeciv_unit_type_flag(kind, "OneAttack")
             .expect("campaign C2C3 unit-type OneAttack binding");
         // C2C3's Attack consumes the full move rate for OneAttack units and

@@ -24,7 +24,7 @@ impl UnitKind {
 
     pub(crate) fn stats(self) -> UnitStats {
         let rule = self.conquests_rule();
-        let metadata = rule.metadata();
+        let metadata = self.metadata();
         UnitStats {
             cost: rule.cost,
             pop_cost: rule.population_cost,
