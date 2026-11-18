@@ -23,6 +23,7 @@ struct Policy {
     military_minimum_power: i32,
     victory_technologies: Vec<String>,
     interests: BTreeMap<String, Vec<String>>,
+    relationships: super::relationships::Policy,
 }
 
 #[cfg(test)]
@@ -36,6 +37,7 @@ fn policy() -> &'static Policy {
         ))
         .expect("valid diplomacy policy");
         assert_eq!(policy.schema_version, 1);
+        policy.relationships.validate();
         assert!(policy.cadence_turns > 0 && (1..=16).contains(&policy.technologies_per_side));
         assert!((1..=100).contains(&policy.seller_percent));
         assert_eq!(
@@ -220,7 +222,8 @@ impl Simulation {
         let rules = policy();
         let civ = self.ai_civilization(owner);
         if giving {
-            if dangerous
+            if (self.military_technology(tech) && self.relationship_caution(owner, other))
+                || dangerous
                 || (self.military_technology(tech)
                     && !self.allied(owner, other)
                     && (self.tech_trade_partner_is_dangerous(owner, other)
@@ -253,9 +256,12 @@ impl Simulation {
             } else {
                 percent
             };
+            let percent =
+                (percent - i64::from(self.relationship_trade_adjustment(owner, other))).max(1);
             return Ok((base * percent / 100).max(1));
         }
-        let mut percent = self.strategic_technology_percent(owner, tech, strategy) as i64;
+        let mut percent = self.strategic_technology_percent(owner, tech, strategy) as i64
+            + i64::from(self.relationship_trade_adjustment(owner, other));
         let player = &self.players[owner];
         // An AI evaluates its own priorities privately. Human willingness is
         // only estimated from the market and public traits, never their queue.
@@ -468,4 +474,8 @@ impl Simulation {
             }
         }
     }
+}
+
+pub(super) fn relationship_policy() -> &'static super::relationships::Policy {
+    &policy().relationships
 }

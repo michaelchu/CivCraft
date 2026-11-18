@@ -94,6 +94,18 @@ that no forced sale, disband or debt writeoff occurred. Lean output retains
 funding policy/rate/outcome changes and every actual upkeep loss; use verbose
 mode when exact per-turn funding inputs are needed.
 
+The owner-authorized diplomacy policy also includes bounded directional memory
+of completed technology exchanges, unjustified pact breaches and actual ally
+war support. Pending offers, gifts and war plans do not earn cooperation.
+Memory decays and affects AI attitudes, trade margins, sensitive exports,
+alliance caution and optional wars. Supporting an existing ally's war is not an
+unjustified betrayal, even when it ends a ceasefire. Treaty legality, Senate
+checks and mandatory military obligations retain their existing rules.
+Validate with the `relationship-memory` release scenario. Inspect
+`diplomacy.relationship_memories`, `diplomacy.recent_relationship_memories` and
+each pair's directional `relationship_memory`; use event evidence to distinguish
+a completed action from an intention. Parameters live in `diplomacy.toml`.
+
 ## Comparison source checkout
 
 The Freeciv source submodule at `reference/freeciv` tracks the public upstream

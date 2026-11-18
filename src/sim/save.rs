@@ -1,7 +1,7 @@
 //! Current campaign persistence, input validation, and runtime restoration.
 //!
 //! Saves encode the durable part of [`Simulation`] with the current versioned
-//! binary format. Formats 0x26 through 0x2A are read and upgraded on save.
+//! binary format. Formats 0x26 through 0x2C are read and upgraded on save.
 //!
 //! When adding persistent fields, decide whether they belong in the save,
 //! update the round-trip and corruption checks. Runtime caches should remain excluded when
@@ -20,10 +20,11 @@ use std::{
 mod schema;
 use schema::{
     LegacyAiMap, LegacyCampaign, SavedCampaign, SavedCampaignV2A, SavedCampaignV2B,
-    SavedCampaignV2C,
+    SavedCampaignV2C, SavedCampaignV2D,
 };
 
-const HEADER: &[u8] = b"CIVCRAFT\0\x2C";
+const HEADER: &[u8] = b"CIVCRAFT\0\x2D";
+const V2C_HEADER: &[u8] = b"CIVCRAFT\0\x2C";
 const V2B_HEADER: &[u8] = b"CIVCRAFT\0\x2B";
 const V2A_HEADER: &[u8] = b"CIVCRAFT\0\x2A";
 const V29_HEADER: &[u8] = b"CIVCRAFT\0\x29";
@@ -70,7 +71,7 @@ impl Simulation {
 
     pub(in crate::sim) fn encode_campaign(&self) -> io::Result<Vec<u8>> {
         codec(MAX_PAYLOAD)
-            .serialize(&SavedCampaignV2C::from_game(
+            .serialize(&SavedCampaignV2D::from_game(
                 self,
                 Cow::Borrowed(&self.observed_map.partial_sites),
             ))
@@ -82,9 +83,8 @@ impl Simulation {
         let mut header = [0; HEADER.len()];
         file.read_exact(&mut header)?;
         let max_payload = match header.as_slice() {
-            HEADER | V2B_HEADER | V2A_HEADER | V29_HEADER | V28_HEADER | PACKED_LEGACY_HEADER => {
-                MAX_PAYLOAD
-            }
+            HEADER | V2C_HEADER | V2B_HEADER | V2A_HEADER | V29_HEADER | V28_HEADER
+            | PACKED_LEGACY_HEADER => MAX_PAYLOAD,
             LEGACY_HEADER => LEGACY_MAX_PAYLOAD,
             _ => return Err(invalid("Unsupported CivCraft save format")),
         };
@@ -142,8 +142,16 @@ impl Simulation {
                 let (game, partial_sites) = saved.into_game().map_err(invalid)?;
                 (game, None, LegacyAiMap::default(), partial_sites)
             }
-            _ => {
+            V2C_HEADER => {
                 let saved: SavedCampaignV2C<'_, observed_map::PartialCitySites> =
+                    codec(max_payload)
+                        .deserialize(&payload)
+                        .map_err(|error| invalid(error.to_string()))?;
+                let (game, partial_sites) = saved.into_game().map_err(invalid)?;
+                (game, None, LegacyAiMap::default(), partial_sites)
+            }
+            _ => {
+                let saved: SavedCampaignV2D<'_, observed_map::PartialCitySites> =
                     codec(max_payload)
                         .deserialize(&payload)
                         .map_err(|error| invalid(error.to_string()))?;
@@ -266,6 +274,9 @@ impl Simulation {
             })
         {
             return Err(invalid("Invalid AI settlement reservation"));
+        }
+        if !game.valid_relationship_memory() {
+            return Err(invalid("Invalid relationship history"));
         }
         if game.ai_diplomatic_memory.keys().any(|&(owner, rival)| {
             owner >= game.players.len()

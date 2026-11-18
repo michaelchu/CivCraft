@@ -214,6 +214,26 @@ impl<'a, S> SavedCampaignV2C<'a, S> {
     }
 }
 
+/// Format 0x2D appends bounded directional relationship history.
+#[derive(Serialize, Deserialize)]
+pub(super) struct SavedCampaignV2D<'a, S> {
+    campaign: SavedCampaignV2C<'a, S>,
+    relationships: Cow<'a, PairMemory<diplomacy::relationships::RelationshipMemory>>,
+}
+impl<'a, S> SavedCampaignV2D<'a, S> {
+    pub(super) fn from_game(game: &'a Simulation, partial_sites: S) -> Self {
+        Self {
+            campaign: SavedCampaignV2C::from_game(game, partial_sites),
+            relationships: Cow::Borrowed(&game.ai_relationship_memory),
+        }
+    }
+    pub(super) fn into_game(self) -> Result<(Simulation, S), &'static str> {
+        let (mut game, partial_sites) = self.campaign.into_game()?;
+        game.ai_relationship_memory = self.relationships.into_owned();
+        Ok((game, partial_sites))
+    }
+}
+
 #[derive(Deserialize)]
 pub(super) struct LegacyCampaign<'a> {
     core: SavedCore<'a>,

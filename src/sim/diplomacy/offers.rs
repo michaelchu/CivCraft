@@ -319,6 +319,7 @@ impl Simulation {
                 self.transfer_traded_city(city, receiver);
             }
         }
+        self.remember_completed_trade(a, b, offer);
         if offer.terms.iter().any(|terms| terms.shared_vision()) {
             self.refresh_visibility();
         }

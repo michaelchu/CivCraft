@@ -290,6 +290,9 @@ impl Simulation {
                 {
                     love -= desire.min(50);
                 }
+                if contacted {
+                    love += self.relationship_attitude_bonus(owner, other);
+                }
                 love = (f64::from(love) * 0.96) as i32;
                 self.diplomacy.get_mut(&(a, b)).unwrap().trust[side] = love.clamp(-1000, 1000) * 10;
             }

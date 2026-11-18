@@ -23,3 +23,20 @@ militaristic = ["Iron Working", "Feudalism", "Chivalry", "Military Tradition", "
 religious = ["Ceremonial Burial", "Mysticism", "Polytheism", "Monarchy", "Theology"]
 scientific = ["Writing", "Literature", "Education", "Theory of Gravity", "Scientific Method", "Computers"]
 seafaring = ["Map Making", "Navigation", "Magnetism", "Combustion"]
+
+# Directional history of completed acts; native pact mechanics remain unchanged.
+[relationships]
+trade_gain = 8
+support_gain = 20
+breach_grievance = 50
+rebuild_gain = 4
+trade_cooldown_turns = 6
+support_cooldown_turns = 12
+decay_turns = 12
+positive_decay = 10
+grievance_decay = 5
+caution_threshold = 40
+attitude_divisor = 5
+trade_score_divisor = 10
+maximum_trade_adjustment_percent = 10
+war_threshold_per_score = 20

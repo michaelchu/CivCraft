@@ -28,6 +28,7 @@ pub(super) const SCENARIOS: &[Scenario] = &[
     Scenario::new("proactive-trade", proactive_trade),
     Scenario::new("shared-strategy", shared_strategy),
     Scenario::new("wartime-funding", wartime_funding),
+    Scenario::new("relationship-memory", relationship_memory),
 ];
 
 fn wartime_funding(sim: &mut Simulation, checks: &mut Checks) {
@@ -122,4 +123,8 @@ fn ai_paradrops(sim: &mut Simulation, checks: &mut Checks) {
 
 fn research_history(sim: &mut Simulation, checks: &mut Checks) {
     checks.extend(sim.research_history_playtest());
+}
+
+fn relationship_memory(sim: &mut Simulation, checks: &mut Checks) {
+    checks.extend(sim.relationship_memory_scenario());
 }

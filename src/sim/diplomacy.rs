@@ -10,6 +10,7 @@ pub(crate) mod observation;
 mod observer;
 mod offers;
 mod pacts;
+pub(in crate::sim) mod relationships;
 #[cfg(test)]
 mod scenarios;
 mod trade_policy;
@@ -482,7 +483,11 @@ impl Simulation {
             .max_by_key(|&pact| Self::pact_rank(pact))
             .unwrap_or(Pact::War);
         for receiver in 0..self.players.len() {
-            if receiver == violator || receiver == BARBARIANS || !self.players[receiver].ai {
+            if receiver == violator
+                || receiver == BARBARIANS
+                || !self.players[receiver].ai
+                || self.benefits_from_ally_support(receiver, violator, victim)
+            {
                 continue;
             }
             let loss = 33

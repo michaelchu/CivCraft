@@ -13,6 +13,7 @@ pub(crate) struct DiplomacySnapshot {
     pub pact: Option<Pact>,
     pub until: i32,
     pub trust: [i32; 2],
+    pub relationship_memory: [super::relationships::RelationshipSnapshot; 2],
     pub shared_vision: [bool; 2],
     pub embassy: [bool; 2],
     pub offer: Option<TreatyOffer>,
@@ -66,6 +67,10 @@ impl Simulation {
                 pact: r.first_contact.map(|_| r.pact),
                 until: r.until,
                 trust: r.trust,
+                relationship_memory: [
+                    self.observe_relationship(a, b),
+                    self.observe_relationship(b, a),
+                ],
                 shared_vision: r.vision,
                 embassy: r.embassy,
                 offer: r.offer.clone(),
@@ -132,6 +137,7 @@ mod tests {
         let mut analyzer = Diplomacy::default();
         let mut out = AnalysisOutput::default();
         out.context("diplomacy", 30, None, None);
+        let game = Simulation::new(crate::mapgen::generate(42));
         for (contact, alive, pact, countdowns, expected) in [
             (Some(1), [true, true], Some(Pact::Peace), [3, 0], 2),
             (Some(1), [true, true], Some(Pact::Ceasefire), [0, -20], 1),
@@ -153,6 +159,7 @@ mod tests {
                 shared_vision: [false, false],
                 embassy: [false, false],
                 offer: None,
+                relationship_memory: std::array::from_fn(|_| game.observe_relationship(0, 1)),
                 war_plans: countdowns.map(|countdown| {
                     Some(WarPlanSnapshot {
                         countdown,

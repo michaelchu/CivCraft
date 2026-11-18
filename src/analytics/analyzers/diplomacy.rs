@@ -14,13 +14,19 @@ pub(crate) struct Diplomacy {
     recent_activity: VecDeque<Value>,
     trade_counts: BTreeMap<String, u64>,
     recent_trades: VecDeque<Value>,
+    memory_counts: BTreeMap<String, u64>,
+    recent_memories: VecDeque<Value>,
 }
 impl Analyzer for Diplomacy {
     fn descriptor(&self) -> Descriptor {
         Descriptor {
             id: "diplomacy",
-            version: 4,
-            events: vec!["diplomacy.transition", "diplomacy.trade_decision"],
+            version: 5,
+            events: vec![
+                "diplomacy.transition",
+                "diplomacy.trade_decision",
+                "diplomacy.relationship_memory",
+            ],
             providers: vec!["diplomacy"],
             configuration: json!({"scope":"activity_and_outcomes", "recent_activity_limit":32}),
         }
@@ -29,6 +35,20 @@ impl Analyzer for Diplomacy {
         self.on_boundary(snapshot, out);
     }
     fn on_event(&mut self, event: &Event, out: &mut AnalysisOutput) {
+        if event.kind == "diplomacy.relationship_memory" {
+            if let Some(reason) = event.payload["reason"].as_str() {
+                *self.memory_counts.entry(reason.to_owned()).or_default() += 1;
+                self.recent_memories.push_back(
+                    json!({"turn":event.turn,"evidence":out.evidence(),"memory":event.payload}),
+                );
+                if self.recent_memories.len() > 8 {
+                    self.recent_memories.pop_front();
+                }
+                out.metric("relationship_memories", json!(self.memory_counts));
+                out.metric("recent_relationship_memories", json!(self.recent_memories));
+            }
+            return;
+        }
         if event.kind == "diplomacy.trade_decision" {
             if let Some(reason) = event.payload["reason"].as_str() {
                 *self.trade_counts.entry(reason.to_owned()).or_default() += 1;
@@ -66,7 +86,7 @@ impl Analyzer for Diplomacy {
                         .filter(|p| p.first_contact.is_some())
                         .map(
                             |p| json!({"players":p.players,"names":p.names,"alive":p.alive,
-                    "pact":p.pact,"until":p.until,"trust":p.trust,"war_plans":p.war_plans,
+                    "pact":p.pact,"until":p.until,"trust":p.trust,"relationship_memory":p.relationship_memory,"war_plans":p.war_plans,
                     "pending_offer":p.offer,"evidence":{"snapshot_turn":snapshot.turn}})
                         )
                         .collect::<Vec<_>>()
@@ -107,6 +127,45 @@ impl Analyzer for Diplomacy {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn relationship_incidents_have_separate_counts_and_bounded_evidence() {
+        let mut analyzer = Diplomacy::default();
+        let mut out = AnalysisOutput::default();
+        out.context("diplomacy", 1, None, Some((3, true)));
+        for turn in 1..=12 {
+            analyzer.on_event(
+                &Event {
+                    turn,
+                    sequence: turn as u64,
+                    phase: Phase::AiPlanning,
+                    source: "diplomacy".into(),
+                    kind: "diplomacy.relationship_memory".into(),
+                    schema_version: 1,
+                    cause: None,
+                    entities: Vec::new(),
+                    payload: json!({"reason":"completed_trade","observer":1,"other":2}),
+                },
+                &mut out,
+            );
+        }
+        assert_eq!(
+            out.metrics["diplomacy.relationship_memories"]["completed_trade"],
+            12
+        );
+        assert_eq!(
+            out.metrics["diplomacy.recent_relationship_memories"]
+                .as_array()
+                .unwrap()
+                .len(),
+            8
+        );
+        assert_eq!(
+            out.metrics["diplomacy.recent_relationship_memories"][0]["turn"],
+            5
+        );
+        assert!(analyzer.counts.is_empty());
+    }
     use crate::sim::trace::Phase;
     #[test]
     fn counts_actions_and_marks_overflow_incomplete() {

@@ -271,6 +271,8 @@ pub(crate) struct Simulation {
     ai_tech_wants: std::collections::BTreeMap<usize, Vec<f32>>,
     ai_ground_targets: std::collections::BTreeMap<u32, u32>,
     ai_settlement_targets: std::collections::BTreeMap<u32, settlement::SettlementReservation>,
+    ai_relationship_memory:
+        std::collections::BTreeMap<(usize, usize), diplomacy::relationships::RelationshipMemory>,
     ai_diplomatic_memory: std::collections::BTreeMap<(usize, usize), diplomacy::DiplomaticMemory>,
     ai_diplomatic_intel: std::collections::BTreeMap<(usize, usize), diplomacy::DiplomaticIntel>,
     ai_pending_war_targets: std::collections::BTreeMap<usize, usize>,
@@ -606,6 +608,7 @@ impl Simulation {
             ai_tech_wants: Default::default(),
             ai_ground_targets: Default::default(),
             ai_settlement_targets: Default::default(),
+            ai_relationship_memory: Default::default(),
             ai_diplomatic_memory: Default::default(),
             ai_diplomatic_intel: Default::default(),
             ai_pending_war_targets: Default::default(),

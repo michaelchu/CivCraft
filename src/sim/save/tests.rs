@@ -3,6 +3,38 @@
 use super::*;
 use std::collections::BTreeMap;
 
+#[test]
+fn v2c_campaign_preserves_governors_with_neutral_relationship_history() {
+    let mut game = Simulation::new(crate::test_support::seeded_map());
+    game.create_city(HUMAN, 12, 24);
+    let id = game.cities[0].id;
+    game.city_governors.insert(
+        id,
+        CityGovernor {
+            active: true,
+            settings: GovernorSettings::PRESETS[4].1,
+        },
+    );
+    let mut bytes = V2C_HEADER.to_vec();
+    bytes.extend(
+        codec(MAX_PAYLOAD)
+            .serialize(&SavedCampaignV2C::from_game(
+                &game,
+                Cow::Borrowed(&game.observed_map.partial_sites),
+            ))
+            .unwrap(),
+    );
+    let path = temporary_save("v2c-relationship-upgrade");
+    fs::write(&path, bytes).unwrap();
+    let loaded = Simulation::load_campaign(&path).unwrap();
+    fs::remove_file(path).unwrap();
+    assert!(loaded.ai_relationship_memory.is_empty());
+    assert_eq!(
+        loaded.city_governors[&id].settings,
+        game.city_governors[&id].settings
+    );
+}
+
 pub(in crate::sim) fn temporary_save(name: &str) -> std::path::PathBuf {
     std::env::temp_dir().join(format!(
         "civcraft-{name}-{}-{}.save",

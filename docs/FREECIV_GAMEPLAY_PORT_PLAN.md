@@ -94,6 +94,18 @@ switching penalties, rate caps and treaty legality remain unchanged. This
 supersedes the corresponding advisor policy parity claims below, not their
 underlying mechanics. The `shared-strategy` scenario exercises these priorities.
 
+The owner authorized relationship memory and diplomatic coordination as the
+next AI policy phase. Completed mutual technology exchanges build commerce;
+joining an existing ally's war builds loyalty; unjustified pact breaches build
+grievance. Directional scores are bounded, credited with cooldowns and gradually
+decay. They influence attitude, canonical trade margins, military export/alliance
+caution and discretionary war targets. Supporting an ally's war is exempt from
+the custom breach penalty and that beneficiary's native third-party incident
+penalty. Other native incident consequences, treaty legality and Senate gates
+remain. Campaign format 0x2D appends this memory to 0x2C's governor schema;
+older supported campaigns load with neutral history. The `relationship-memory`
+scenario validates actual AI exchanges, ally support and betrayal handling.
+
 The owner requested a funding correction after multi-seed validation showed
 that mapping all ongoing wars to the native war-footing tax flag suppressed
 science even with funded treasuries. `ai_economy/funding.rs` now starts from the

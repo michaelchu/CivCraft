@@ -342,6 +342,15 @@ decisions. Lean mode suppresses identical repeated unsuccessful decisions;
 verbose mode retains them all. Use `--scenario proactive-trade --turns 1` for
 focused coverage. The policy is intentionally independent of Freeciv's AI;
 parameters and trait interests are in `content/diplomacy.toml`.
+Directional `relationship_memory` rows expose decayed commerce, loyalty and
+grievance scores, their last credited actions, and derived attitude/trade effects.
+`diplomacy.relationship_memory` events record completed mutual technology
+exchanges, actual support of an ally's existing war and unjustified pact breaches.
+The analyzer publishes reason counts in `diplomacy.relationship_memories` and
+the latest eight events in `diplomacy.recent_relationship_memories`. Counts are
+directional: a completed bilateral trade normally credits both partners.
+Cooldowns and caps limit repeated credit; passive decay creates no event.
+Use the release `relationship-memory` scenario for focused verification.
 Government and diplomacy event counts are run-local and marked
 incomplete after collector overflow. Output filters do not filter analyzer input.
 

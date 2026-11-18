@@ -124,6 +124,9 @@ impl Simulation {
         self.cancel_pact(HUMAN, 1);
         let preserved = self.diplomacy[&(HUMAN, 1)].vision[0];
 
+        // Test compensation independently of the preceding cancellation.
+        // Recent betrayal is covered by the relationship-memory scenario.
+        self.ai_relationship_memory.remove(&(1, HUMAN));
         let relation = self.diplomacy.get_mut(&(HUMAN, 1)).unwrap();
         relation.pact = Pact::Ceasefire;
         relation.until = self.turn + 16;

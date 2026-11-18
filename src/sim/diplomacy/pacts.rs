@@ -64,6 +64,9 @@ impl Simulation {
         {
             return Some("We cannot conduct diplomacy with you.");
         }
+        if proposed == Pact::Alliance && self.relationship_caution(receiver, proposer) {
+            return Some("We need to rebuild trust after the broken pact.");
+        }
         if self.players[receiver].ai
             && proposed != Pact::Ceasefire
             && self.ai_war_countdown(receiver, proposer) != -1
@@ -275,6 +278,7 @@ impl Simulation {
             }
             return false;
         }
+        let breach = self.relationship_breach(owner, other, pact, forced);
         if pact != Pact::Alliance {
             self.record_war_incident(owner, other, pact);
         }
@@ -306,6 +310,9 @@ impl Simulation {
             Some(pact),
             None,
         );
+        if breach {
+            self.remember_pact_breach(owner, other);
+        }
         if pact == Pact::Alliance {
             self.resolve_split_stacks(owner, other);
             self.refresh_visibility();
@@ -324,6 +331,9 @@ impl Simulation {
                 self.record_provocation(ally, owner);
                 self.cancel_pact_inner(ally, owner, true);
             }
+        }
+        if self.at_war(owner, other) {
+            self.remember_ally_support(owner, other);
         }
         self.add_event(format!(
             "{} ended the {} with {}.",
