@@ -169,6 +169,22 @@ fn native_start_ignore_can_leave_a_forbidden_start_without_entering_forbidden_de
 }
 
 #[test]
+fn explorer_rechecks_entry_when_a_foreign_unit_occupies_the_goal() {
+    let mut game = world();
+    let start = (10, 20);
+    let goal = offset_native_by_map(start.0, start.1, 1, 0);
+    let explorer = game.make_unit(0, HUMAN, UnitKind::Explorer, start.0, start.1);
+    for (x, y) in [start, goal] {
+        game.tile_mut(x, y).known_by[HUMAN] = true;
+    }
+    game.tile_mut(goal.0, goal.1).hut = true;
+    assert_eq!(game.explorer_search(&explorer, None).0, Some(goal));
+    game.spawn_unit(1, UnitKind::Warrior, goal.0, goal.1);
+    assert_eq!(game.explorer_search(&explorer, None).0, None);
+    assert_eq!(game.explorer_search(&explorer, Some(goal)).0, None);
+}
+
+#[test]
 fn explorer_and_ferries_cross_peace_borders_but_warriors_and_carriers_do_not() {
     let mut game = world();
     game.sign_pact(HUMAN, 1, Pact::Peace);

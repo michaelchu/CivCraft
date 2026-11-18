@@ -201,13 +201,13 @@ impl Simulation {
             && !self.any_city_at(x, y, |city| !self.allied(unit.owner, city.owner))
     }
 
+    // The search scores only tiles that passed its entry checks.
     fn explorer_desirable(&self, unit: &Unit, x: i32, y: i32) -> i32 {
-        if (unit.owner == BARBARIANS && self.tile(x, y).hut) || !self.explorer_may_visit(unit, x, y)
-        {
+        if unit.owner == BARBARIANS && self.tile(x, y).hut {
             return 0;
         }
         let radius_sq = self.unit_vision_radius_sq_for(unit.owner, unit.kind, x, y);
-        let radius = (radius_sq as f64).sqrt().ceil() as i32;
+        let radius = radius_sq.max(0).isqrt();
         let mut unknown = 0;
         let mut score = 0;
         for (nx, ny, distance) in self.map_wrap.civ3_radius(x, y, radius) {
@@ -266,9 +266,17 @@ impl Simulation {
         risk as i64
     }
 
-    fn explorer_step_cost(&self, unit: &Unit, x: i32, y: i32, known_only: bool) -> Option<i32> {
-        if !self.explorer_may_visit(unit, x, y)
-            || (known_only && !self.tile(x, y).known_by[unit.owner])
+    fn explorer_step_cost(
+        &self,
+        unit: &Unit,
+        destination: (i32, i32),
+        known_only: bool,
+        may_visit: &mut Option<bool>,
+        profile: &super::movement::StepMovementProfile,
+    ) -> Option<i32> {
+        let (x, y) = destination;
+        if (known_only && !self.tile(x, y).known_by[unit.owner])
+            || !*may_visit.get_or_insert_with(|| self.explorer_may_visit(unit, x, y))
             || self.zone_blocks_step(unit, (unit.x, unit.y), (x, y))
         {
             return None;
@@ -280,12 +288,13 @@ impl Simulation {
                     .expect("selected C2C3 unknown-tile movement cost"),
             );
         }
-        self.movement_cost_for(unit, x, y).or_else(|| {
-            let fragments = MovementRules::campaign()
-                .move_fragments()
-                .expect("selected C2C3 movement fragments");
-            self.boarding_target(unit, x, y).map(|_| fragments)
-        })
+        self.movement_cost_with_profile(unit, x, y, profile)
+            .or_else(|| {
+                let fragments = MovementRules::campaign()
+                    .move_fragments()
+                    .expect("selected C2C3 movement fragments");
+                self.boarding_target(unit, x, y).map(|_| fragments)
+            })
     }
 
     fn explorer_search(
@@ -301,6 +310,10 @@ impl Simulation {
             costs: vec![(i32::MAX, i64::MAX); self.tiles.len()],
             previous: vec![None; self.tiles.len()],
         };
+        let movement_profile = self.step_movement_profile(unit.kind);
+        let mut may_visit = vec![None; self.tiles.len()];
+        let priority =
+            |spent: i32, extra: i64| i64::from(spent) * PF_TURN_FACTOR + i64::from(rate) * extra;
         routes.costs[start] = (0, 0);
         let mut queue = IndexedExplorerQueue::new(self.tiles.len());
         queue.put(0, start);
@@ -311,7 +324,7 @@ impl Simulation {
         let mut actor = unit.clone();
         while let Some((combined, current)) = queue.pop() {
             let (spent, extra) = routes.costs[current];
-            if combined != i64::from(spent) * PF_TURN_FACTOR + i64::from(rate) * extra {
+            if combined != priority(spent, extra) {
                 continue;
             }
             self.trace
@@ -350,10 +363,27 @@ impl Simulation {
                 let Some((nx, ny)) = self.map_wrap.civ3_offset(x, y, dx, dy) else {
                     continue;
                 };
-                let Some(cost) = self.explorer_step_cost(&actor, nx, ny, goal.is_none()) else {
+                let index = self.map_wrap.index(nx, ny);
+                let (old_spent, old_extra) = routes.costs[index];
+                let old_priority = if old_spent == i32::MAX {
+                    i64::MAX
+                } else {
+                    priority(old_spent, old_extra)
+                };
+                // Movement and extra costs are nonnegative. An equal-cost route
+                // keeps its original predecessor and heap position.
+                if old_priority <= combined {
+                    continue;
+                }
+                let Some(cost) = self.explorer_step_cost(
+                    &actor,
+                    (nx, ny),
+                    goal.is_none(),
+                    &mut may_visit[index],
+                    &movement_profile,
+                ) else {
                     continue;
                 };
-                let index = self.map_wrap.index(nx, ny);
                 let movement = spent + cost.min(remaining);
                 let extra = extra
                     + if goal.is_some() {
@@ -363,20 +393,17 @@ impl Simulation {
                     } else {
                         0
                     };
-                let next = i64::from(movement) * PF_TURN_FACTOR + i64::from(rate) * extra;
-                let old = routes.costs[index];
-                if old.0 == i32::MAX
-                    || next < i64::from(old.0) * PF_TURN_FACTOR + i64::from(rate) * old.1
-                {
+                let next = priority(movement, extra);
+                if next < old_priority {
                     self.trace.count_operation(
-                        if old.0 == i32::MAX {
+                        if old_spent == i32::MAX {
                             "exploration.queue_inserts"
                         } else {
                             "exploration.queue_decrease_keys"
                         },
                         1,
                     );
-                    if old.0 != i32::MAX {
+                    if old_spent != i32::MAX {
                         self.trace.count_operation(
                             "exploration.queue_frontier_entries_at_decrease_key",
                             queue.frontier_len() as u64,
@@ -624,12 +651,14 @@ mod selected_unknown_cost_tests {
             .unknown_tile_move_cost(actor.kind)
             .unwrap();
 
+        let profile = sim.step_movement_profile(actor.kind);
+        let mut may_visit = None;
         assert_eq!(
-            sim.explorer_step_cost(&actor, target.0, target.1, false),
+            sim.explorer_step_cost(&actor, target, false, &mut may_visit, &profile),
             Some(expected)
         );
         assert_eq!(
-            sim.explorer_step_cost(&actor, target.0, target.1, true),
+            sim.explorer_step_cost(&actor, target, true, &mut may_visit, &profile),
             None
         );
         let rules = MovementRules::campaign();

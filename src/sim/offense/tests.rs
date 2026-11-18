@@ -142,6 +142,25 @@ fn fractional_ferry_override_survives_integer_conversion_below_the_discarded_pri
 }
 
 #[test]
+fn a_distant_city_remains_a_production_fallback_only() {
+    let (mut game, city, mut attacker, enemy) = island_fixture();
+    for tile in &mut game.tiles {
+        tile.terrain = Terrain::Grassland;
+        tile.road = false;
+        tile.railroad = false;
+    }
+    game.spawn_unit(HUMAN, UnitKind::Spearman, enemy.0, enemy.1);
+    (attacker.x, attacker.y) = offset_native_by_map(enemy.0, enemy.1, -16, 0);
+    let fallback = game.offensive_target(&city, &attacker).unwrap();
+    assert_eq!(fallback.city, Some(game.cities[1].id));
+    assert!(fallback.turns > 10);
+    assert_eq!(fallback.want, 0.0);
+
+    attacker.id = game.spawn_unit(attacker.owner, attacker.kind, attacker.x, attacker.y);
+    assert!(game.offensive_target(&city, &attacker).is_none());
+}
+
+#[test]
 fn virtual_ferry_stimulates_its_missing_technology_after_a_real_offensive_target() {
     let (game, city, seed, _) = island_fixture();
     assert!(game.offensive_find_ferry(&seed).is_none());

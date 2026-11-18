@@ -222,7 +222,7 @@ impl Simulation {
         let mut render_seen = vec![vec![false; self.tiles.len()]; self.players.len()];
         let _profile = profiler.scope("visibility.refresh.revealers");
         for (owner, x, y, radius_sq, stealth_sq) in revealers {
-            let radius = (radius_sq as f32).sqrt().ceil() as i32;
+            let radius = radius_sq.max(0).isqrt();
             for (visible_x, visible_y, distance) in self.map_wrap.civ3_radius(x, y, radius) {
                 if !self.within_vision_distance_sq(distance, radius_sq) {
                     continue;
@@ -284,7 +284,7 @@ impl Simulation {
         }
         for (x, y) in [from, to] {
             let radius_sq = self.unit_vision_radius_sq_for(unit.owner, unit.kind, x, y);
-            let radius = (radius_sq as f32).sqrt().ceil() as i32;
+            let radius = radius_sq.max(0).isqrt();
             for (tx, ty, distance) in self.map_wrap.civ3_radius(x, y, radius) {
                 if self.within_vision_distance_sq(distance, radius_sq) {
                     let index = self.map_wrap.index(tx, ty);
@@ -682,7 +682,7 @@ impl Simulation {
         if owner >= self.players.len() || owner == BARBARIANS {
             return;
         }
-        let radius = (radius_sq.max(0) as f64).sqrt().ceil() as i32;
+        let radius = radius_sq.max(0).isqrt();
         let mut indices = self
             .map_wrap
             .civ3_radius(x, y, radius)

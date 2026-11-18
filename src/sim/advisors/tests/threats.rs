@@ -204,6 +204,35 @@ fn scoped_threat_cache_preserves_arrivals_across_multiple_cities() {
 }
 
 #[test]
+fn naval_threat_map_can_attack_a_coastal_city_but_cannot_route_through_it() {
+    let mut game = Simulation::new(crate::test_support::seeded_map());
+    game.units.clear();
+    game.cities.clear();
+    for tile in &mut game.tiles {
+        tile.terrain = Terrain::Grassland;
+        tile.river = false;
+        tile.base = None;
+    }
+    let sea = (10, 24);
+    game.tile_mut(sea.0, sea.1).terrain = Terrain::Sea;
+    for steps in [1, 2] {
+        let (x, y) = offset_native_by_map(sea.0, sea.1, steps, 0);
+        game.create_city(1, x, y);
+    }
+    let ship = game.make_unit(0, HUMAN, UnitKind::Transport, sea.0, sea.1);
+    let arrivals = || {
+        game.cities
+            .iter()
+            .map(|city| game.danger_route_turns(&ship, city))
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(arrivals(), [Some(0), None]);
+    game.begin_ai_advisor_cache();
+    assert_eq!(arrivals(), [Some(0), None]);
+    assert_eq!(game.ai_danger_route_cache.borrow().sizes(), (1, 1));
+}
+
+#[test]
 fn danger_route_bound_keeps_rail_routes_at_the_horizon_across_wrap() {
     let map = crate::mapgen::generate_for_civ3_size(42, crate::mapgen::Civ3MapSize::Tiny);
     let mut game = Simulation::new(map);

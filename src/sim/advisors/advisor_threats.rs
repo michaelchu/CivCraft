@@ -188,7 +188,7 @@ impl Simulation {
         if first_bound > limit {
             return None;
         }
-        if self.ai_threat_route_cache_enabled.get() && !unit.kind.is_naval() {
+        if self.ai_threat_route_cache_enabled.get() {
             let goal = self.map_wrap.index(city.x, city.y);
             let key = DangerRouteKey {
                 owner: unit.owner,
@@ -229,6 +229,8 @@ impl Simulation {
         let mut actor = unit.clone();
         actor.moves_left = allowance;
         let movement = self.step_movement_profile(unit.kind);
+        let mut naval_attack_endpoints = Vec::new();
+        let naval = unit.kind.is_naval();
         let mut looked_up = 0;
         let mut computed = 0;
         while let Some(Reverse((spent, index))) = queue.pop() {
@@ -250,6 +252,12 @@ impl Simulation {
                         .unwrap_or(BLOCKED_STEP);
                 }
                 if *step == BLOCKED_STEP {
+                    if naval && self.any_city_at_cached(x, y) {
+                        let arrival = spent + campaign_move_fragments().min(remaining);
+                        if arrival <= limit {
+                            naval_attack_endpoints.push((self.map_wrap.index(x, y), arrival));
+                        }
+                    }
                     continue;
                 }
                 let index = self.map_wrap.index(x, y);
@@ -259,6 +267,11 @@ impl Simulation {
                     queue.push(Reverse((candidate, index)));
                 }
             }
+        }
+        // A ship can attack an otherwise inaccessible city as its final step.
+        // Merge those arrivals after traversal so a city cannot open a sea route through land.
+        for (city, arrival) in naval_attack_endpoints {
+            distance[city] = distance[city].min(arrival);
         }
         self.trace
             .count_operation("ai.danger_route.steps_computed", computed);

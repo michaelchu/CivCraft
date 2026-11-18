@@ -31,9 +31,7 @@ impl super::Simulation {
                 }
                 for (sx, sy) in self.map_wrap.civ3_neighbors(bx, by) {
                     if !checked.insert((sx, sy))
-                        || self
-                            .tile_units_ordered(sx, sy)
-                            .any(|u| !self.allied(owner, u.owner))
+                        || self.any_unit_at(sx, sy, |unit| !self.allied(owner, unit.owner))
                     {
                         continue;
                     }
@@ -216,6 +214,13 @@ impl super::Simulation {
                 } else {
                     continue;
                 };
+                // Beyond the attack horizon a city can only serve as the
+                // production advisor's fallback until it finds a positive target.
+                if turns > 10
+                    && (!virtual_unit || best.as_ref().is_some_and(|target| target.want > 0.0))
+                {
+                    continue;
+                }
                 let defender = self.anticipated_city_defender(enemy, seed, turns, virtual_unit);
                 let vulnerability = defender.as_ref().map_or(0, |d| {
                     self.offensive_defense_squared(d, seed.kind, enemy.x, enemy.y, virtual_unit)
@@ -291,7 +296,7 @@ impl super::Simulation {
             }
             for enemy in self.player_units_ordered(owner) {
                 if !self.tile(enemy.x, enemy.y).known_by[seed.owner]
-                    || self.cities.iter().any(|c| (c.x, c.y) == (enemy.x, enemy.y))
+                    || self.any_city_at_cached(enemy.x, enemy.y)
                     || virtual_unit && !enemy.kind.has_hostile_action()
                     || !self.offensive_can_attack(seed.kind, enemy.x, enemy.y)
                     || self.best_defender_id(seed, enemy.x, enemy.y) != Some(enemy.id)
@@ -301,6 +306,9 @@ impl super::Simulation {
                 let Some(turns) = map.position_turn(self, enemy.x, enemy.y) else {
                     continue;
                 };
+                if turns > 10 {
+                    continue;
+                }
                 let vulnerability = self.offensive_defense_squared(
                     enemy,
                     seed.kind,
@@ -308,18 +316,14 @@ impl super::Simulation {
                     enemy.y,
                     virtual_unit,
                 );
-                let mut want = if turns > 10 {
-                    0.0
-                } else {
-                    kill_desire(
-                        enemy.kind.stats().cost as f32,
-                        rating * rating,
-                        seed.kind.stats().cost,
-                        vulnerability,
-                        1,
-                    ) - (turns * 17) as f32
-                };
-                want = Self::amortize_attack(
+                let want = kill_desire(
+                    enemy.kind.stats().cost as f32,
+                    rating * rating,
+                    seed.kind.stats().cost,
+                    vulnerability,
+                    1,
+                ) - (turns * 17) as f32;
+                let want = Self::amortize_attack(
                     want,
                     turns.max(1),
                     Self::offensive_balanced_cost(seed.kind),
