@@ -130,7 +130,8 @@ enum Status {
 struct Node {
     cost: i32,
     extra: u32,
-    direction: Option<usize>,
+    // A predecessor is one of the eight CIV3_DIRS entries.
+    direction: Option<u8>,
     status: Status,
     behavior: Behavior,
     action: PfAction,
@@ -630,7 +631,7 @@ impl NormalPaths {
                 {
                     self.nodes[next].cost = cost;
                     self.nodes[next].extra = extra;
-                    self.nodes[next].direction = Some(direction);
+                    self.nodes[next].direction = Some(direction as u8);
                     if dest.status == Status::Init {
                         self.nodes[next].status = Status::New;
                         sim.trace.count_operation("normal_paths.queue_inserts", 1);
@@ -713,7 +714,7 @@ impl NormalPaths {
         let mut path = Vec::new();
         while cursor != self.start {
             let direction = self.nodes[cursor].direction?;
-            let (dx, dy) = CIV3_DIRS[direction];
+            let (dx, dy) = CIV3_DIRS[usize::from(direction)];
             path.push((dx, dy));
             let (x, y) = self.map_wrap.position(cursor);
             let (x, y) = self.map_wrap.civ3_offset(x, y, -dx, -dy)?;
