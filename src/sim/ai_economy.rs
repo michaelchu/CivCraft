@@ -1,6 +1,7 @@
 //! Implements ai economy behavior within the sim subsystem.
 
 use super::*;
+mod funding;
 
 #[cfg(test)]
 mod playtest;
@@ -177,6 +178,7 @@ impl Simulation {
         }
         let strategy = self.strategic_priorities(owner);
         let player = &self.players[owner];
+        let military = self.ai_military_funding_need(owner, strategy.preparing);
         let decision = native_tax_decision(TaxBudget {
             // AI_LEVEL_NORMAL explicitly sets H_RATES in ai/difficulty.c.
             maxrate: player.government.max_rate(),
@@ -192,9 +194,17 @@ impl Simulation {
             // No Tech_Parasite effects exist in Civ2Civ3; Future is the
             // only supported adv_wants_science=false condition.
             wants_science: player.researching != Tech::FUTURE,
-            war_footing: strategy.wars > 0 || strategy.preparing,
+            // Funding needs are bounded below using real forecasts. A war or
+            // a funded preparation does not maximize discretionary taxation.
+            war_footing: false,
         });
-        self.players[owner].rates = decision.rates;
+        let funding = self.ai_funding_decision(owner, decision.rates, &strategy, military);
+        self.players[owner].rates = funding.rates;
+        self.trace.emit(
+            self.turn,
+            || vec![trace::Entity::Civilization(owner)],
+            || funding,
+        );
     }
 }
 

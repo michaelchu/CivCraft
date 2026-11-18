@@ -94,6 +94,20 @@ switching penalties, rate caps and treaty legality remain unchanged. This
 supersedes the corresponding advisor policy parity claims below, not their
 underlying mechanics. The `shared-strategy` scenario exercises these priorities.
 
+The owner requested a funding correction after multi-seed validation showed
+that mapping all ongoing wars to the native war-footing tax flag suppressed
+science even with funded treasuries. `ai_economy/funding.rs` now starts from the
+literal native tax calculator with science-first discretionary allocation, then
+uses bounded actual-output forecasts to cover upkeep, a shared cash cushion,
+and concrete preparation/urgent-defense purchases. Routine purchases retain
+their spending reserve; urgent purchases retain their emergency override.
+Refills have a configured horizon rather than an unlimited war-duration cash
+preference. Ordinary reserve refills may not create research debt. This is AI
+policy under the existing exception; engine tax caps, city output formulas,
+upkeep debt settlement and the original 64 native tax vectors remain unchanged.
+The `wartime-funding` scenario covers funded war, purchases, upkeep, urgent
+defense and a read-only forecast.
+
 ## Pinned reference
 
 - Freeciv checkout: `../reference/freeciv`

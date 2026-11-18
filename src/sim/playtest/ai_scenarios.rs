@@ -56,12 +56,16 @@ impl Simulation {
         let baseline = self.players[1].rates[1];
         self.spend_ai_defense_gold(1);
         self.choose_ai_rates(1);
-        let refilling =
-            self.ai_gold_reserve(1) == price && self.players[1].rates[1] == baseline + 10;
-        self.players[1].gold = price * 2 + 1;
+        let refill_tax = self.players[1].rates[1];
+        let target = self.strategic_priorities(1).gold_reserve;
+        let refilling = self.ai_gold_reserve(1) == price
+            && target > self.players[1].gold
+            && refill_tax >= baseline;
+        // Fund both the actual upgrade and the operating cushion it must leave.
+        self.players[1].gold = price + target + 1;
         self.spend_ai_defense_gold(1);
         self.choose_ai_rates(1);
-        refilling && self.ai_gold_reserve(1) == 2 && self.players[1].rates[1] == baseline
+        refilling && self.ai_gold_reserve(1) == 2 && self.players[1].rates[1] <= refill_tax
     }
 
     pub(crate) fn civilian_upgrade_roster_playtest(&mut self) -> bool {

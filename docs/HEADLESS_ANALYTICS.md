@@ -912,3 +912,49 @@ jq -c '.turn as $turn | .changes[]
 
 Run `--scenario shared-strategy --turns 1` in release mode for controlled
 research/trade interest, wartime priority, reserve and recovery checks.
+
+
+### AI funding evidence
+
+`economy.funding_decision` records native advice and selected `[science, tax,
+luxury]` rates, the saved-rate income, reserve/target, concrete military purchase
+costs, required net income and the selected-rate forecast. Normal cash targets
+refill over `strategy.toml`'s `reserve_refill_turns`; `upkeep_buffer_turns` keeps
+operating cash behind discretionary purchases and trade. Routine preparation
+purchases include the cash floor enforced by spending. Only eligible selected
+purchases are quoted; an undefended city in grave danger can request the defense
+advisor's replacement. Discretionary refills retain a science share based on the
+common science versus economic/military priorities. Urgent tax funding can waive
+that share only when the next accounting phase can actually fund the purchase;
+ordinary upkeep can still take priority to avoid a deficit. War status alone is not a funding need.
+
+These forecasts use current workers, specialists, building modifiers, mood and
+unit upkeep, including homeless units. The operating cushion also covers the
+higher unit bill in anarchy or an available government, so a regime with free
+support cannot spend its transition cash on a routine upgrade. Emergency
+spending retains its existing override. Later growth, production, citizen
+rearrangement, combat or discoveries can change actual accounting. `target_met`
+means the selected rates meet the current forecast, not that an unaffordable
+purchase can be bought immediately. A search that cannot improve income keeps
+the original rates. Refilling discretionary reserves cannot create research
+debt; imminent treasury default or urgent defense retains the ability to
+prioritize survival.
+
+Lean compaction keeps changes in selected rates, reason or target satisfaction;
+verbose mode retains every collected decision and its financial inputs. Both
+modes retain every `economy.upkeep_shortfall` event: `building_sale`,
+`unit_upkeep_action`, or `treasury_writeoff`. These are important losses, not
+ordinary voluntary sales/upgrades. Events identify the nation and the affected
+city/building or unit where available. Debt settlement mechanics are unchanged.
+Include `economy` in trace domains when narrowing a run's coverage.
+
+```sh
+cargo run --offline --bin report_read -- report.json --stream events |
+  jq -c 'select(.kind == "economy.funding_decision"
+               or .kind == "economy.upkeep_shortfall")
+         | {turn, phase, sequence, kind, payload}'
+```
+
+Use the `wartime-funding` release scenario for a controlled policy regression;
+use verbose evidence for per-turn funding/crisis counts. Compacted lean events
+cannot establish those frequencies without their omitted observations.

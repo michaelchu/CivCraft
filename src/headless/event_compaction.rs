@@ -5,6 +5,7 @@ use std::collections::BTreeMap;
 #[derive(Default)]
 pub(super) struct EventCompaction {
     decisions: BTreeMap<usize, GovernmentDecision>,
+    funding: BTreeMap<u64, serde_json::Value>,
     trades: BTreeMap<(u64, u64), serde_json::Value>,
     pub counts: BTreeMap<String, usize>,
 }
@@ -22,6 +23,18 @@ struct Search {
     selected: bool,
 }
 impl EventCompaction {
+    fn funding_signature(event: &Event) -> Option<(u64, serde_json::Value)> {
+        if event.kind != "economy.funding_decision" {
+            return None;
+        }
+        Some((
+            event.payload["owner"].as_u64()?,
+            serde_json::json!({
+            "rates": event.payload.get("rates")?, "reason": event.payload.get("reason")?,
+            "target_met": event.payload.get("target_met")?}),
+        ))
+    }
+
     fn decision(event: &Event) -> Option<GovernmentDecision> {
         (event.kind == "government.decision")
             .then(|| serde_json::from_value(event.payload.clone()).ok())
@@ -32,6 +45,8 @@ impl EventCompaction {
             return false;
         }
         let routine = match event.kind.as_str() {
+            "economy.funding_decision" => Self::funding_signature(event)
+                .is_some_and(|(owner, signature)| self.funding.get(&owner) == Some(&signature)),
             "diplomacy.trade_decision" => {
                 event.payload.get("selected") == Some(&serde_json::Value::Null)
                     && event.payload["actor"]
@@ -73,6 +88,9 @@ impl EventCompaction {
     }
     /// Only successfully persisted events can serve as a compacted event's baseline.
     pub fn retained(&mut self, event: &Event) {
+        if let Some((owner, signature)) = Self::funding_signature(event) {
+            self.funding.insert(owner, signature);
+        }
         if event.kind == "diplomacy.trade_decision"
             && let Some(pair) = event.payload["actor"]
                 .as_u64()
@@ -91,7 +109,7 @@ mod tests {
     use super::*;
     use crate::sim::trace::Phase;
     use serde_json::json;
-    fn decision() -> Event {
+    pub(super) fn decision() -> Event {
         Event {
             sequence: 1,
             turn: 1,
@@ -182,5 +200,38 @@ mod tests {
             event.payload["outcome"] = json!(outcome);
             assert!(!policy.redundant(&event));
         }
+    }
+}
+
+#[cfg(test)]
+mod funding_tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn funding_compaction_keeps_rate_reason_and_outcome_changes_and_all_real_losses() {
+        let mut compactor = EventCompaction::default();
+        let mut event = super::tests::decision();
+        event.kind = "economy.funding_decision".into();
+        event.source = "economy".into();
+        event.payload =
+            json!({"owner":1,"rates":[70,30,0],"reason":"research","target_met":true,"gold":100});
+        assert!(!compactor.redundant(&event));
+        assert!(!compactor.redundant(&event)); // A dropped event cannot establish a baseline.
+        compactor.retained(&event);
+        event.payload["gold"] = json!(110);
+        assert!(compactor.redundant(&event));
+        for (key, value) in [
+            ("rates", json!([60, 40, 0])),
+            ("reason", json!("reserve_refill")),
+            ("target_met", json!(false)),
+        ] {
+            let mut changed = event.clone();
+            changed.payload[key] = value;
+            assert!(!compactor.redundant(&changed));
+        }
+        event.kind = "economy.upkeep_shortfall".into();
+        compactor.retained(&event);
+        assert!(!compactor.redundant(&event));
     }
 }

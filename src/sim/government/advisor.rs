@@ -38,7 +38,11 @@ impl GovernmentEvaluationFacts {
 }
 
 impl super::Simulation {
-    pub(super) fn government_available(&self, owner: usize, government: Government) -> bool {
+    pub(in crate::sim) fn government_available(
+        &self,
+        owner: usize,
+        government: Government,
+    ) -> bool {
         self.government_requirements_met(owner, government)
     }
 

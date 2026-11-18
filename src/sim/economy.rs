@@ -11,6 +11,7 @@
 //! production completion, or research even when displayed totals look close.
 
 use super::*;
+mod observation;
 
 mod city_manager;
 mod city_mood;
@@ -153,7 +154,32 @@ impl Simulation {
         city: &City,
         (food, shields, trade): (i32, i32, i32),
     ) -> CityForecast {
-        let [science, gold, luxury] = self.city_trade(city, trade);
+        self.city_forecast_from_outputs_at_rates(
+            city,
+            (food, shields, trade),
+            self.players[city.owner].rates,
+        )
+    }
+
+    pub(in crate::sim) fn city_forecast_at_rates(
+        &self,
+        city: &City,
+        rates: [i32; 3],
+    ) -> CityForecast {
+        self.city_forecast_from_outputs_at_rates(
+            city,
+            self.city_yields_with_tech(city, None),
+            rates,
+        )
+    }
+
+    fn city_forecast_from_outputs_at_rates(
+        &self,
+        city: &City,
+        (food, shields, trade): (i32, i32, i32),
+        rates: [i32; 3],
+    ) -> CityForecast {
+        let [science, gold, luxury] = self.split_city_trade(city, trade, rates);
         let (disorder, happy) = self.city_mood(city, luxury);
         CityForecast {
             food,
@@ -359,7 +385,9 @@ impl Simulation {
                 break;
             }
             let (index, building) = candidates[self.rand_below(candidates.len() as i32) as usize];
+            let before = self.players[owner].gold;
             let city = &mut self.cities[index];
+            let affected_city = city.id;
             city.buildings.retain(|&built| built != building);
             self.players[owner].gold += building.data().cost;
             if owner == HUMAN {
@@ -370,6 +398,13 @@ impl Simulation {
                 );
                 self.add_event(message);
             }
+            self.trace_upkeep_shortfall(
+                owner,
+                "building_sale",
+                Some(trace::Entity::City(affected_city)),
+                Some(building.data().name),
+                before,
+            );
         }
     }
 
