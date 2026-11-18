@@ -5,8 +5,8 @@ use crate::sim::{Base, RenderTileView, RenderedUnitView, UnitState, WorkKind};
 
 fn unit_animation_action(unit: &RenderedUnitView) -> super::super::tileset::Civ3UnitAction {
     use super::super::tileset::Civ3UnitAction as Action;
-    let pause = get_time().rem_euclid(3.0) >= 2.0;
     if let Some(work) = unit.work_kind {
+        let pause = get_time().rem_euclid(3.0) >= 2.0;
         return match work {
             WorkKind::Road | WorkKind::Railroad => {
                 if pause {
@@ -61,7 +61,7 @@ fn unit_animation_progress(
     use super::super::tileset::Civ3UnitAction as Action;
 
     if action == Action::Fortify {
-        return fortify_started_at.map_or((Action::Default, 0.0, None), |started_at| {
+        return fortify_started_at.map_or((Action::FortifyHold, 0.0, None), |started_at| {
             (
                 Action::Fortify,
                 (get_time() - started_at).max(0.0) as f32,
@@ -87,7 +87,7 @@ fn unit_animation_progress(
             Some(pacing.play_seconds),
         );
     }
-    if action == super::super::tileset::Civ3UnitAction::Default {
+    if matches!(action, Action::Default | Action::FortifyHold) {
         (action, 0.0, None)
     } else {
         const AMBIENT_CYCLE_SECONDS: f32 = 3.0;
@@ -677,6 +677,49 @@ impl Game {
 #[cfg(test)]
 mod tests {
     use super::{contamination_sprite_index, irrigation_sprite_index, route_sprite_index};
+
+    #[test]
+    fn fortify_order_plays_once_then_holds_across_turns() {
+        use super::{unit_animation_action, unit_animation_progress};
+        use crate::client::tileset::Civ3UnitAction::{Fortify, FortifyHold};
+        use crate::sim::{ClientSimulation, Command, HUMAN, PresentationEventView, Simulation};
+
+        let mut sim = ClientSimulation::new(Simulation::new(crate::test_support::seeded_map()));
+        let id = sim
+            .rendered_unit_views()
+            .into_iter()
+            .find(|unit| unit.owner == HUMAN && sim.unit_action_view(unit.id).unwrap().fortify)
+            .unwrap()
+            .id;
+        let action = |sim: &ClientSimulation| {
+            let unit = sim
+                .rendered_unit_views()
+                .into_iter()
+                .find(|unit| unit.id == id)
+                .unwrap();
+            unit_animation_action(&unit)
+        };
+        let fortify_events = |sim: &mut ClientSimulation| {
+            sim.take_presentation_event_views().into_iter().filter(|event| {
+                matches!(event, PresentationEventView::Fortify { unit, .. } if unit.id == id)
+            }).count()
+        };
+
+        assert!(sim.apply(Command::Fortify(id)));
+        assert_eq!(fortify_events(&mut sim), 1);
+        assert_eq!(action(&sim), Fortify);
+        for _ in 0..2 {
+            assert!(sim.apply(Command::EndTurn));
+            assert_eq!(fortify_events(&mut sim), 0);
+            assert_eq!(action(&sim), FortifyHold);
+            for selected in [false, true] {
+                assert_eq!(
+                    unit_animation_progress(action(&sim), selected, Default::default(), Some(0.0)),
+                    (FortifyHold, 0.0, None)
+                );
+            }
+        }
+    }
 
     #[test]
     fn irrigation_indices_follow_the_four_diagonal_source_flags() {

@@ -1197,6 +1197,16 @@ pub(super) enum Civ3UnitAction {
 }
 
 impl Civ3UnitAction {
+    fn fixed_frame(self, frame_count: usize, using_alternate_role: bool) -> Option<usize> {
+        match self {
+            // Without a dedicated hold clip, the fortify transition's final
+            // frame is the resting pose. Dedicated hold and idle art start in pose.
+            Self::FortifyHold if using_alternate_role => Some(frame_count.saturating_sub(1)),
+            Self::FortifyHold | Self::Default => Some(0),
+            _ => None,
+        }
+    }
+
     fn pacing_key(self) -> &'static str {
         match self {
             Self::Default => "default",
@@ -1880,8 +1890,11 @@ impl Civ3 {
         }
         let loaded_unit_art = self.unit_art.borrow();
         let art = loaded_unit_art.get(selected_role).unwrap();
-        let frame = if action == Civ3UnitAction::Default {
-            0
+        let frame = if let Some(still) = action.fixed_frame(
+            art.frame_count,
+            alternate_role.as_deref() == Some(selected_role),
+        ) {
+            still
         } else {
             let event_duration = playback_duration_seconds.unwrap_or(1.0).max(0.001);
             // Ambient fidgets are scheduled as one finite gesture by the world
@@ -2398,6 +2411,16 @@ fn draw_sprite(texture: &Texture2D, center: Vec2, size: Vec2, source: Rect) {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn fortified_units_hold_a_pose_for_each_available_clip() {
+        use super::Civ3UnitAction::{Fortify, FortifyHold};
+
+        assert_eq!(Fortify.fixed_frame(8, false), None);
+        assert_eq!(FortifyHold.fixed_frame(8, true), Some(7));
+        assert_eq!(FortifyHold.fixed_frame(1, true), Some(0));
+        assert_eq!(FortifyHold.fixed_frame(8, false), Some(0));
+    }
+
     #[test]
     fn campaign_ini_selection_uses_catalog_names_with_mixed_case_directories() {
         let install =
