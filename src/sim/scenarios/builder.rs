@@ -2,7 +2,7 @@
 
 use crate::{
     rules::{Tech, civilizations},
-    sim::{MAX_CIVILIZATIONS, Pact, Simulation, UnitKind},
+    sim::{Government, MAX_CIVILIZATIONS, Pact, Simulation, UnitKind},
     world::{GeneratedMap, GeneratedTile, Terrain, TerrainBase},
 };
 
@@ -176,6 +176,33 @@ impl<'a> WorldBuilder<'a> {
         );
         self.game
             .set_scenario_diplomacy(first, second, pact, first_contact, trust);
+    }
+
+    /// Start under an unlocked government without scheduling a revolution.
+    pub(crate) fn government(&mut self, owner: usize, government: Government) {
+        assert!(
+            owner < self.game.civilization_count,
+            "inactive scenario government owner {owner}"
+        );
+        self.game.set_scenario_government(owner, government);
+    }
+
+    /// The holder has an embassy with the host, independent of the reverse direction.
+    pub(crate) fn embassy(&mut self, holder: usize, host: usize) {
+        self.game.grant_scenario_embassy(holder, host);
+    }
+
+    /// The receiver sees the tiles currently visible to the giver.
+    pub(crate) fn shared_vision(&mut self, giver: usize, receiver: usize) {
+        self.game.grant_scenario_vision(giver, receiver);
+    }
+
+    /// Establish a route between two existing city IDs without a delivery bonus.
+    pub(crate) fn trade_route(&mut self, from: u32, to: u32, goods: &str) {
+        assert!(
+            self.game.establish_scenario_trade_route(from, to, goods),
+            "cannot preset trade route {from} -> {to} for goods {goods:?}"
+        );
     }
 
     /// Make the assembled world ready for the runner's initial snapshot.

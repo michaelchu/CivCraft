@@ -134,13 +134,7 @@ impl Simulation {
                 ) {
                     continue;
                 }
-                self.create_connected_trade_route(
-                    from_city_id,
-                    to_city_id,
-                    good,
-                    &continents,
-                    settings,
-                );
+                self.create_trade_route(from_city_id, to_city_id, good, &continents, settings);
             }
         }
     }
@@ -197,7 +191,7 @@ impl Simulation {
             .collect()
     }
 
-    fn create_connected_trade_route(
+    fn create_trade_route(
         &mut self,
         from_city_id: u32,
         to_city_id: u32,
@@ -214,11 +208,7 @@ impl Simulation {
             if capacity <= 0 {
                 return;
             }
-            let current = self
-                .trade_routes
-                .iter()
-                .filter(|route| route.from_city_id == city_id || route.to_city_id == city_id)
-                .count() as i32;
+            let current = self.city_route_count(city_id);
             if current >= capacity {
                 replace.extend(
                     self.trade_route_replacement_candidates(
@@ -393,6 +383,13 @@ impl Simulation {
         base * route_type.trade_percent / 100 / 12
     }
 
+    fn city_route_count(&self, city_id: u32) -> i32 {
+        self.trade_routes
+            .iter()
+            .filter(|route| route.from_city_id == city_id || route.to_city_id == city_id)
+            .count() as i32
+    }
+
     fn city_route_capacity(&self, city: &City) -> i32 {
         self.city_rule_effect(
             city,
@@ -453,6 +450,36 @@ impl Simulation {
             .cloned()
             .collect();
         self.trade_routes = retained;
+    }
+
+    /// Install an already established route. Use the normal goods and route
+    /// rules, with room at both endpoints so a preset cannot replace another.
+    #[cfg(any(test, feature = "scenarios"))]
+    pub(super) fn establish_scenario_trade_route(
+        &mut self,
+        from: u32,
+        to: u32,
+        goods: &str,
+    ) -> bool {
+        let settings = campaign_settings();
+        let Some(good) = settings.good(goods) else {
+            return false;
+        };
+        let continents = self.continent_labels();
+        if ![from, to].into_iter().all(|id| {
+            self.city_by_id(id)
+                .is_some_and(|city| self.city_route_count(id) < self.city_route_capacity(city))
+        }) || !self.can_establish_trade_route_with_continents(
+            from,
+            to,
+            good,
+            &continents,
+            settings,
+        ) {
+            return false;
+        }
+        self.create_trade_route(from, to, good, &continents, settings);
+        true
     }
 
     /// Source-compatible eligibility for a selected Good. The Civ III
@@ -561,11 +588,7 @@ impl Simulation {
         continents: &[usize],
         settings: &TradeRouteRulesetSettings,
     ) -> Vec<(i32, (u32, u32))> {
-        let route_count = self
-            .trade_routes
-            .iter()
-            .filter(|route| route.from_city_id == city_id || route.to_city_id == city_id)
-            .count() as i32;
+        let route_count = self.city_route_count(city_id);
         if route_count < capacity {
             return Vec::new();
         }

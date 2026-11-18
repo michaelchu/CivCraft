@@ -6,6 +6,7 @@ use super::*;
 pub(super) const SCENARIOS: &[Scenario] = &[
     Scenario::all_ai("city-healing", city_healing),
     Scenario::all_ai("settlement-ferry", settlement_ferry),
+    super::super::state_presets::SCENARIO,
     super::super::naval::ai_assault::SCENARIO,
     super::super::naval::ship_combat::SCENARIO,
     Scenario::all_ai("expansion-balance", expansion_balance),

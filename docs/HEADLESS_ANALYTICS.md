@@ -107,6 +107,21 @@ world.diplomacy(0, 1, Pact::Peace, 42, [3000, 5000]);
 world.finish();
 ```
 
+The builder also supports `government(owner, government)` for an unlocked
+starting government, `embassy(holder, host)` and
+`shared_vision(giver, receiver)` for directional access between contacted
+civilizations, and `trade_route(from_city_id, to_city_id, goods)` for an
+established route. Set governments, cities, and diplomacy before adding
+routes. Routes must be legal for their goods, endpoints, and current pact,
+and both cities must have a free route slot. Presetting a route does not pay
+a delivery bonus. Normal AI and route rules apply after setup.
+
+Run `--scenario campaign-state-presets --seed 42 --turns 2` to see the four
+presets in action. The check verifies the starting governments at setup and
+tracks diplomatic access, live sight of a remote capital, and route income
+at both endpoints over two campaign turns. The report also shows later
+government changes made by the AI.
+
 The naval assault is the first example in
 `src/sim/scenarios/naval/ai_assault.rs`. Run it with
 `--scenario naval-ai-assault --seed 42 --turns 30`. It starts with a blank sea

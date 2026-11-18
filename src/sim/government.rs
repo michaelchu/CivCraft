@@ -243,6 +243,21 @@ impl Simulation {
         (!available.is_empty()).then(|| available[self.rand_below(available.len() as i32) as usize])
     }
 
+    #[cfg(any(test, feature = "scenarios"))]
+    pub(super) fn set_scenario_government(&mut self, owner: usize, government: Government) {
+        assert!(
+            Government::targets().contains(&government)
+                && self.government_requirements_met(owner, government),
+            "scenario government {government:?} is unavailable to slot {owner}"
+        );
+        let player = &mut self.players[owner];
+        player.government = government;
+        player.revolution_target = None;
+        player.revolution_turn = None;
+        player.rates = rates_after_government_change(player.rates, government.max_rate());
+        self.ai_government_cache.remove(&owner);
+    }
+
     pub(crate) fn can_change_government(&self, owner: usize, target: Government) -> bool {
         target != self.players[owner].government && self.government_requirements_met(owner, target)
     }
