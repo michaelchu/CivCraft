@@ -188,6 +188,7 @@ impl Simulation {
     }
 
     pub(in crate::sim) fn sign_pact(&mut self, a: usize, b: usize, proposed: Pact) {
+        let previous = self.contacted_pact(a, b);
         let treaty_length = self.treaty_length(a, b, proposed);
         let relation = self.diplomacy.entry(Self::relation_key(a, b)).or_default();
         relation.pact = if proposed == Pact::Peace {
@@ -217,6 +218,7 @@ impl Simulation {
                 memory.strongest_pact = proposed;
             }
         }
+        self.trace_diplomacy(a, b, "pact_changed", "treaty_signed", previous, None);
         self.ai_war_plans.remove(&(a, b));
         self.ai_war_plans.remove(&(b, a));
         if proposed == Pact::Peace {
@@ -292,6 +294,18 @@ impl Simulation {
         };
         relation.offer = None;
         relation.cause_until[usize::from(owner > other)] = 0;
+        self.trace_diplomacy(
+            owner,
+            other,
+            "pact_changed",
+            if forced {
+                "forced_cancellation"
+            } else {
+                "cancellation"
+            },
+            Some(pact),
+            None,
+        );
         if pact == Pact::Alliance {
             self.resolve_split_stacks(owner, other);
             self.refresh_visibility();

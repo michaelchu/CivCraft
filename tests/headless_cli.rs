@@ -404,3 +404,41 @@ fn rejects_civcraft_only_options_in_freeciv_mode() {
     assert!(!output.status.success());
     assert!(String::from_utf8_lossy(&output.stderr).contains("unknown option --scenario"));
 }
+
+#[test]
+fn political_analytics_require_providers_and_publish_metrics_without_event_output() {
+    let directory = report_directory("politics");
+    let report = directory.join("report.json");
+    headless()
+        .args([
+            "--turns",
+            "1",
+            "--analytics",
+            "government,diplomacy",
+            "--snapshot-providers",
+            "none",
+            "--trace-domains",
+            "none",
+            "--report",
+        ])
+        .arg(&report)
+        .assert()
+        .success();
+    let summary = read_report(&report);
+    let providers = summary["coverage"]["effective_snapshot_providers"]
+        .as_array()
+        .unwrap();
+    assert!(providers.contains(&serde_json::json!("governments")));
+    assert!(providers.contains(&serde_json::json!("diplomacy")));
+    assert!(summary["analytics"]["metrics"]["government.decisions"].is_number());
+    assert_eq!(
+        summary["analytics"]["metrics"]["diplomacy.event_counts_complete"],
+        true
+    );
+    let snapshots = std::fs::read_to_string(report.with_extension("json.snapshots.jsonl")).unwrap();
+    let initial: serde_json::Value =
+        serde_json::from_str(snapshots.lines().next().unwrap()).unwrap();
+    assert!(initial["governments"].is_array());
+    assert!(initial["diplomacy"].is_array());
+    std::fs::remove_dir_all(directory).unwrap();
+}

@@ -1,4 +1,6 @@
 //! Typed, read-only providers. Snapshot construction never advances gameplay.
+pub(crate) use super::diplomacy::observation::DiplomacySnapshot;
+pub(crate) use super::government::observation::{GovernmentDecision, GovernmentSnapshot};
 use super::*;
 use serde::Serialize;
 

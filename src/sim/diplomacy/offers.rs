@@ -209,6 +209,28 @@ impl Simulation {
     }
 
     pub(super) fn execute_offer(&mut self, a: usize, b: usize, offer: &TreatyOffer) -> bool {
+        let previous = self.contacted_pact(a, b);
+        let accepted = self.execute_offer_inner(a, b, offer);
+        self.trace_diplomacy(
+            a,
+            b,
+            if accepted {
+                "offer_accepted"
+            } else {
+                "offer_rejected"
+            },
+            if accepted {
+                "terms_executed"
+            } else {
+                "validation_or_valuation_failed"
+            },
+            previous,
+            Some(offer),
+        );
+        accepted
+    }
+
+    fn execute_offer_inner(&mut self, a: usize, b: usize, offer: &TreatyOffer) -> bool {
         if offer
             .pact
             .is_some_and(|pact| self.pact_refusal(b, a, pact).is_some())
@@ -444,7 +466,18 @@ impl Simulation {
         let Some(relation) = self.diplomacy.get_mut(&Self::relation_key(HUMAN, other)) else {
             return false;
         };
-        relation.offer.take().is_some()
+        let offer = relation.offer.take();
+        if let Some(offer) = &offer {
+            self.trace_diplomacy(
+                HUMAN,
+                other,
+                "offer_declined",
+                "explicit_decline",
+                self.contacted_pact(HUMAN, other),
+                Some(offer),
+            );
+        }
+        offer.is_some()
     }
 }
 
@@ -606,6 +639,14 @@ impl Simulation {
                         }
                     }
                 }
+                self.trace_diplomacy(
+                    owner,
+                    other,
+                    "offer_proposed",
+                    "ai_negotiation",
+                    self.contacted_pact(owner, other),
+                    Some(&offer),
+                );
                 if other == HUMAN {
                     self.diplomacy.get_mut(&key).unwrap().offer = Some(offer.clone());
                     let what = if offer.bundled() {

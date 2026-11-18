@@ -157,6 +157,7 @@ impl Simulation {
                 }
             }
         }
+        self.trace_diplomacy(a, b, "contact", "first_contact", None, None);
         // dai_diplomacy_first_contact initializes each AI's own attitude once.
         for owner in [a, b] {
             if owner != BARBARIANS && self.players[owner].ai {

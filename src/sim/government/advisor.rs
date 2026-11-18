@@ -260,17 +260,48 @@ impl super::Simulation {
 
     pub(in crate::sim) fn choose_ai_government(&mut self, owner: usize) {
         self.refresh_government_advisor(owner);
+        let advice = self
+            .trace
+            .wants::<observation::GovernmentDecision>()
+            .then(|| self.observe_government(owner));
         if self.players[owner]
             .revolution_target
             .is_some_and(|target| target != Government::during_revolution())
             || !self.cities.iter().any(|city| city.owner == owner)
         {
+            if let Some(advice) = advice {
+                let selected = advice.revolution_target.unwrap_or(advice.current);
+                self.trace.emit(
+                    self.turn,
+                    || vec![trace::Entity::Civilization(owner)],
+                    || observation::GovernmentDecision {
+                        advice,
+                        selected,
+                        outcome: "deferred".into(),
+                    },
+                );
+            }
             return;
         }
         let (_, government, _) =
             self.government_goals(owner, &self.ai_government_cache[&owner].scores);
-        if government != self.players[owner].government {
-            self.change_government(owner, government);
+        let outcome = if government == self.players[owner].government {
+            "retained"
+        } else if self.change_government(owner, government) {
+            "revolution_started"
+        } else {
+            "rejected"
+        };
+        if let Some(advice) = advice {
+            self.trace.emit(
+                self.turn,
+                || vec![trace::Entity::Civilization(owner)],
+                || observation::GovernmentDecision {
+                    advice,
+                    selected: government,
+                    outcome: outcome.into(),
+                },
+            );
         }
     }
 

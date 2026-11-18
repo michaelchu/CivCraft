@@ -5,6 +5,7 @@ use super::*;
 mod attitude;
 mod contact;
 mod espionage;
+pub(crate) mod observation;
 mod observer;
 mod offers;
 mod pacts;
@@ -474,6 +475,7 @@ impl Simulation {
         let mut transitions = Vec::new();
         for (&(a, b), relation) in &mut self.diplomacy {
             if relation.until > 0 && relation.until <= self.turn {
+                let previous = relation.pact;
                 relation.pact = if relation.pact == Pact::Armistice {
                     Pact::Peace
                 } else {
@@ -481,10 +483,18 @@ impl Simulation {
                 };
                 relation.until = 0;
                 relation.offer = None;
-                transitions.push((a, b, relation.pact));
+                transitions.push((a, b, previous, relation.pact));
             }
         }
-        for (a, b, pact) in transitions {
+        for (a, b, previous, pact) in transitions {
+            self.trace_diplomacy(
+                a,
+                b,
+                "pact_changed",
+                "treaty_timer_expired",
+                Some(previous),
+                None,
+            );
             if pact == Pact::War {
                 self.break_mutual_alliances_after_war(a, b);
                 self.refresh_visibility();

@@ -63,17 +63,18 @@ Use the narrowest test path that exercises the behavior being changed:
   missing prerequisite, and do not describe the skipped review as passing. See
   `docs/UI_REVIEW.md`.
 
-Run the regular Rust suite with the repository's nextest profile:
+Run the regular Rust suite locally with Cargo:
 
 ```sh
-cargo nextest run --profile ci --all-targets
+cargo test --all-targets
 cargo test --doc
 ```
 
 Use focused test filters while iterating. Run the broader commands before
-hand-off when the change warrants it. Nextest does not run documentation tests,
-so keep the separate `cargo test --doc` step. CI uses the same commands and the
-configuration in `.config/nextest.toml`.
+hand-off when the change warrants it. Keep the separate `cargo test --doc` step
+because `--all-targets` does not run documentation tests. Nextest is for CI:
+CI runs `cargo nextest run --profile ci --all-targets` using
+`.config/nextest.toml`, followed by `cargo test --doc`.
 
 ### Headless scenarios and saved campaigns
 

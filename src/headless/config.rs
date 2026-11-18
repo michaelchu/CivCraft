@@ -91,9 +91,9 @@ impl Config {
         let mut providers = BTreeSet::new();
         // Minimap images need the desktop graphics dependencies.
         let default_providers = if cfg!(feature = "desktop") {
-            "cities,civilizations,units,lifecycle,research,minimap"
+            "cities,civilizations,units,lifecycle,research,governments,diplomacy,minimap"
         } else {
-            "cities,civilizations,units,lifecycle,research"
+            "cities,civilizations,units,lifecycle,research,governments,diplomacy"
         };
         for name in list(value("--snapshot-providers", default_providers)) {
             if !crate::analytics::providers::IDS.contains(&name.as_str()) {
@@ -158,7 +158,10 @@ impl Config {
             world,
             checkpoint_every: positive("--checkpoint-every", "10")?,
             report: value("--report", "headless-simulation.json").into(),
-            analyzers: list(value("--analytics", "growth,settlement,production")),
+            analyzers: list(value(
+                "--analytics",
+                "growth,settlement,production,government,diplomacy",
+            )),
             growth_stall_turns,
             settlement_every,
             trace_domains: list(value("--trace-domains", "all")).into_iter().collect(),
@@ -195,12 +198,12 @@ impl Config {
 pub(crate) const HELP: &str = "Headless AI simulator\n\
 --seed 42 --turns 30 --map-size tiny --report report.json\n\
 --engine freeciv [--freeciv-server PATH] (uses seed, turns, map size, and report options)\n\
---analytics growth,settlement,production (or none); --list-analyzers\n\
+--analytics growth,settlement,production,government,diplomacy (or none); --list-analyzers\n\
 --growth-stall-turns 2 --settlement-check-every 10\n\
 --trace-domains all|none|cities,production,settlement,lifecycle\n\
 --trace-entities all|city:1,unit:7,civilization:0\n\
 --trace-buffer-events 10000 --trace-max-events 50000 --trace-max-bytes 16777216\n\
---snapshot-providers cities,civilizations,territory,units,lifecycle,research[,minimap: desktop builds only] (or none; analyzer requirements are added)\n\
+--snapshot-providers cities,civilizations,territory,units,lifecycle,research,governments,diplomacy[,minimap: desktop builds only] (or none; analyzer requirements are added)\n\
 minimap is selected via snapshot providers and exports one final PNG only\n\
 --stop-on-finding none|any|invariant --checkpoint-every 10\n\
 --profile-turns true|false (records per-turn phase timings)\n\

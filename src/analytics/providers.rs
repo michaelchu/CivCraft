@@ -42,6 +42,24 @@ impl SnapshotProvider for Research {
         snapshot.insert(self.id(), game.observe_research());
     }
 }
+struct Governments;
+impl SnapshotProvider for Governments {
+    fn id(&self) -> &'static str {
+        "governments"
+    }
+    fn capture(&self, game: &Simulation, snapshot: &mut Snapshot) {
+        snapshot.insert(self.id(), game.observe_governments());
+    }
+}
+struct Diplomacy;
+impl SnapshotProvider for Diplomacy {
+    fn id(&self) -> &'static str {
+        "diplomacy"
+    }
+    fn capture(&self, game: &Simulation, snapshot: &mut Snapshot) {
+        snapshot.insert(self.id(), game.observe_diplomacy());
+    }
+}
 struct Territory;
 #[cfg(feature = "desktop")]
 struct Minimap;
@@ -78,6 +96,8 @@ pub(crate) const IDS: &[&str] = &[
     "units",
     "lifecycle",
     "research",
+    "governments",
+    "diplomacy",
     #[cfg(feature = "desktop")]
     "minimap",
 ];
@@ -91,6 +111,8 @@ pub(crate) fn build(ids: &BTreeSet<String>) -> Result<Vec<Box<dyn SnapshotProvid
                 "territory" => Box::new(Territory),
                 "lifecycle" => Box::new(Lifecycle),
                 "research" => Box::new(Research),
+                "governments" => Box::new(Governments),
+                "diplomacy" => Box::new(Diplomacy),
                 #[cfg(feature = "desktop")]
                 "minimap" => Box::new(Minimap),
                 _ => return Err(format!("unknown snapshot provider {id}")),

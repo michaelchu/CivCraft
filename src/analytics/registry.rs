@@ -1,10 +1,19 @@
 //! Explicit registration keeps plugins inspectable and deterministic.
 use super::{
     Analyzer, Registry,
-    analyzers::{growth::Growth, production::Production, settlement::Settlement},
+    analyzers::{
+        diplomacy::Diplomacy, government::Government, growth::Growth, production::Production,
+        settlement::Settlement,
+    },
 };
 
-pub(crate) const IDS: &[&str] = &["growth", "settlement", "production"];
+pub(crate) const IDS: &[&str] = &[
+    "growth",
+    "settlement",
+    "production",
+    "government",
+    "diplomacy",
+];
 pub(crate) fn build(
     names: &[String],
     growth_stall_turns: u32,
@@ -16,6 +25,8 @@ pub(crate) fn build(
             "growth" => Box::new(Growth::new(growth_stall_turns)),
             "settlement" => Box::new(Settlement::new(settlement_every)),
             "production" => Box::new(Production::default()),
+            "government" => Box::new(Government::default()),
+            "diplomacy" => Box::new(Diplomacy::default()),
             _ => {
                 return Err(format!(
                     "unknown analyzer {name}; available: {}",

@@ -140,6 +140,55 @@ Currently instrumented: actual city food/growth processing, production
 completion, city founding, and settlement-site selection. Growth traces describe
 observed behavior, not an expected Freeciv rules oracle.
 
+## Government and diplomacy evidence
+
+The default analyzers now include `government` and `diplomacy`. Their independent
+snapshot providers are `governments` and `diplomacy`; requesting either analyzer
+retains its required snapshots even with `--snapshot-providers none`.
+
+`governments` records each nation's current government, pending revolution,
+alive/AI status, city count, candidate availability and cached scores, best
+available choice, research goal, and evaluation/refresh turns. Missing advice
+has null scores and evaluation dates. Observation never populates or refreshes
+the advisor. Scores can be stale between the normal advisor refreshes; they
+measure the engine's heuristic, not proven long-term optimality.
+
+`government.decision` records the pre-decision advice, selected government and
+outcome (`retained`, `revolution_started`, `rejected`, or `deferred`). Deferred
+means an existing revolution or no cities prevented a selection.
+`government.changed` separately records revolution starts (including war-driven
+revolutions) and actual adoptions. The government analyzer counts decisions and
+changes, flags selections that differ from the published best available advice,
+and flags end-of-turn government/advice differences with no pending revolution.
+These are candidates for investigation; inspect score age and availability.
+
+`diplomacy` records sorted player pairs, first contact, pacts and expiry turns,
+directional trust, embassies, shared vision, pending offers, and war plans with
+countdowns and reasons. Directional arrays follow `players` order. A null pact
+means no contact, distinct from explicit War.
+
+`diplomacy.transition` records contact, treaty changes and expiry, AI offer
+proposals, treaty execution acceptance/rejection, explicit offer declines, war
+plans, war decisions, Senate deferrals, and declarations. It includes actor,
+counterparty, reason, prior/current pact and applicable treaty terms, including
+AI-to-AI interactions. Rejected execution identifies validation/valuation
+failure; it does not provide a full breakdown of every rejected clause or every
+candidate the AI considered. The diplomacy analyzer counts actions and reports
+contacted pairs and active war plans; these describe activity, not diplomatic
+optimality. Government and diplomacy event counts are run-local and marked
+incomplete after collector overflow. Output filters do not filter analyzer input.
+
+For a focused report:
+
+```sh
+cargo run --offline --release --bin headless_sim -- \
+  --turns 80 --analytics government,diplomacy \
+  --snapshot-providers governments,diplomacy --report /tmp/politics.json
+```
+
+Review `analytics.metrics`, `findings`, the snapshot sidecar, and the event
+sidecar. Profiling remains a separate opt-in measurement of computation cost.
+
 ## Opt-in simulation profiling
 
 With `--profile-turns true`, simulation code can create a scoped timing with a
@@ -337,7 +386,8 @@ I/O errors fail the runner rather than silently continuing without evidence.
 Sidecars:
 
 - `report.json.snapshots.jsonl`: initial snapshot plus one per completed step.
-  `cities`, `civilizations`, `units`, `lifecycle`, and `research` are independent provider sections.
+  `cities`, `civilizations`, `units`, `lifecycle`, `research`, `governments`,
+  and `diplomacy` are independent provider sections.
 - `report.json.minimap.png`: one final minimap, written when the run stops.
   It shows terrain, current territory and city markers without fog of war, using
   the in-game terrain/civilization palette and staggered, horizontally wrapped

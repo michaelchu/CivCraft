@@ -72,6 +72,14 @@ impl Simulation {
                 reason,
             },
         );
+        self.trace_diplomacy(
+            owner,
+            target,
+            "war_plan_started",
+            reason.observation_name(),
+            self.contacted_pact(owner, target),
+            None,
+        );
         if target == HUMAN {
             self.add_event(format!(
                 "{} is preparing for war with you in {delay} turns.",
@@ -265,6 +273,15 @@ impl Simulation {
             self.ai_war_plans.remove(&(owner, target));
             return;
         }
+        let previous = self.contacted_pact(owner, target);
+        self.trace_diplomacy(
+            owner,
+            target,
+            "war_decision",
+            reason.observation_name(),
+            previous,
+            None,
+        );
         let stubbornness = match reason {
             WarReason::Spoils | WarReason::Space => -10,
             WarReason::Hatred | WarReason::Excuse | WarReason::Behavior => -20,
@@ -288,6 +305,14 @@ impl Simulation {
             self.players[owner].government = Government::during_revolution();
             let revolution_helps = !self.senate_blocks_cancellation(owner, target);
             self.players[owner].government = government;
+            self.trace_diplomacy(
+                owner,
+                target,
+                "war_deferred",
+                "senate_blocks_cancellation",
+                self.contacted_pact(owner, target),
+                None,
+            );
             if revolution_helps && self.begin_ai_war_revolution(owner) {
                 // revolution_start runs inside the request above, before
                 // native dai_go_to_war assigns its transient war_target.
@@ -312,6 +337,7 @@ impl Simulation {
     }
 
     pub(super) fn declare_ai_war_now(&mut self, owner: usize, target: usize) {
+        let previous = self.contacted_pact(owner, target);
         while !self.at_war(owner, target) {
             if !self.cancel_pact(owner, target) {
                 self.ai_war_plans.remove(&(owner, target));
@@ -326,6 +352,14 @@ impl Simulation {
         let love = *trust / 10;
         *trust = (if love > 0 { -1 } else { love } - 125) * 10;
         relation.offer = None;
+        self.trace_diplomacy(
+            owner,
+            target,
+            "war_declared",
+            "prepared_ai_war",
+            previous,
+            None,
+        );
         if target == HUMAN {
             self.add_event(format!("{} declared war on you.", self.players[owner].name));
         }

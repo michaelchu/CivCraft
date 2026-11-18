@@ -1,4 +1,5 @@
 //! Government selection and government-dependent rules.
+pub(crate) mod observation;
 
 use super::*;
 use crate::rules::engine_rules::RulesetData;
@@ -275,12 +276,14 @@ impl Simulation {
             .revolution_turn
             .filter(|&finish| finish >= self.turn)
             .unwrap_or(self.turn);
+        let previous = self.players[owner].government;
         let player = &mut self.players[owner];
         player.government = temporary;
         player.revolution_target = Some(temporary);
         player.revolution_turn = Some(finish);
         // The caller assigns its pending war target AFTER this callback,
         // matching daidiplomacy.c's native ordering.
+        self.trace_government_change(owner, previous, "revolution_started");
         self.resume_ai_war_after_revolution(owner);
         true
     }
@@ -319,6 +322,7 @@ impl Simulation {
         }
         let temporary = Government::during_revolution();
         let finish = self.turn + turns;
+        let previous = self.players[owner].government;
         let player = &mut self.players[owner];
         player.government = temporary;
         player.revolution_target = Some(target);
@@ -330,6 +334,7 @@ impl Simulation {
                 finish - self.turn
             ));
         }
+        self.trace_government_change(owner, previous, "revolution_started");
         self.resume_ai_war_after_revolution(owner);
         true
     }
@@ -387,6 +392,7 @@ impl Simulation {
             if owner == BARBARIANS || !self.player_alive(owner) {
                 continue;
             }
+            let previous = self.players[owner].government;
             {
                 let player = &mut self.players[owner];
                 if player.revolution_turn.is_some_and(|turn| turn <= self.turn)
@@ -407,6 +413,9 @@ impl Simulation {
                 {
                     player.revolution_turn = None;
                 }
+            }
+            if previous != self.players[owner].government {
+                self.trace_government_change(owner, previous, "adopted");
             }
         }
     }
