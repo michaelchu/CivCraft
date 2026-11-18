@@ -73,7 +73,7 @@ impl Simulation {
     }
 
     pub(super) fn set_city_governor(&mut self, id: u32, state: CityGovernor) -> bool {
-        if !state.settings.valid() || !self.city_by_id(id).is_some_and(|city| city.owner == HUMAN) {
+        if !state.settings.valid() || self.city_by_id(id).is_none_or(|city| city.owner != HUMAN) {
             return false;
         }
         self.city_governors.insert(id, state);
