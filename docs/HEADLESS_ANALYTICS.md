@@ -184,10 +184,16 @@ countdowns between living, contacted players who are not already at war.
 Relationship rows retain all stored war-plan state, including negative cooldowns,
 the inactive `-1` sentinel, and zero countdowns left after a ceasefire expires
 into war. Those entries are not upcoming wars and do not count as active plans.
-The default AI preserves Freeciv's negotiation exclusions: a zero countdown
-left after treaty expiry suppresses that AI's outgoing offers, and the selected
-least-liked nonwar contact is excluded from offers even without a new war plan.
-These can explain stalled negotiations; they are not evidence of a port bug.
+Pact proposals still exclude the selected nonallied potential enemy, but an
+ally is never excluded by that ranking. Economic trade scans peaceful partners
+independently, with a persisted per-pair cooldown and a bounded candidate search.
+`diplomacy.trade_decision` records candidate counts, rejection categories,
+reserves and the selected offer's gains for both sides. The named metrics
+`diplomacy.trade_decisions` and `diplomacy.recent_trade_decisions` summarize these
+decisions. Lean mode suppresses identical repeated unsuccessful decisions;
+verbose mode retains them all. Use `--scenario proactive-trade --turns 1` for
+focused coverage. The policy is intentionally independent of Freeciv's AI;
+parameters and trait interests are in `content/diplomacy.toml`.
 Government and diplomacy event counts are run-local and marked
 incomplete after collector overflow. Output filters do not filter analyzer input.
 

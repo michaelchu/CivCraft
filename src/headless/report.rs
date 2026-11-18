@@ -275,7 +275,7 @@ impl Report {
                 "snapshot_boundaries_not_retained":self.observation_boundaries.saturating_sub(self.snapshot_records),
                 "analyzer_event_coverage_complete":dropped==0,
                 "effective_snapshot_providers":registry.providers().into_iter().map(str::to_owned).chain(config.providers.iter().cloned()).collect::<std::collections::BTreeSet<_>>(),
-                "note":"Trace output filters do not filter analyzer input. Collector overflow does. Lean output suppresses repeated government decisions and routine growth/search events; counts are separate under events_compacted_by_kind. Analyzer snapshots remain complete. No finding is not proof of correct gameplay."},
+                "note":"Trace output filters do not filter analyzer input. Collector overflow does. Lean output suppresses repeated government/unsuccessful trade decisions and routine growth/search events; counts are separate under events_compacted_by_kind. Analyzer snapshots remain complete. No finding is not proof of correct gameplay."},
             "technology_catalog":if last.research().is_some() {crate::sim::Simulation::technology_catalog()} else {Value::Null},
             "summary":{"research":last.research(),"lifecycle":last.lifecycle(),"finding_count":registry.output.findings.len(),"finding_observations":observations,
                 "open_findings":registry.output.findings.iter().filter(|f|f.status=="open").count(),

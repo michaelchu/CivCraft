@@ -1,0 +1,26 @@
+# CivCraft AI policy, intentionally independent of Freeciv's proposal policy.
+schema_version = 1
+cadence_turns = 6
+technologies_per_side = 8
+reserve_turns = 2
+seller_percent = 75
+commercial_margin_percent = 10
+liquidity_discount_percent = 10
+scientific_bonus_percent = 10
+trait_bonus_percent = 20
+research_goal_bonus_percent = 35
+military_need_bonus_percent = 25
+military_minimum_trust = 1000
+military_minimum_power = 3
+victory_technologies = ["Space Flight", "Satellites", "Superconductor"]
+
+# Interests change willingness to pay; they do not grant gameplay bonuses.
+[interests]
+agricultural = ["Pottery", "Construction", "Sanitation", "Refrigeration"]
+commercial = ["Currency", "Banking", "Economics", "The Corporation"]
+expansionist = ["Map Making", "Navigation", "Magnetism", "Steam Power"]
+industrious = ["Masonry", "Construction", "Engineering", "Steam Power", "Industrialization", "Replaceable Parts"]
+militaristic = ["Iron Working", "Feudalism", "Chivalry", "Military Tradition", "Nationalism", "Motorized Transportation", "Rocketry"]
+religious = ["Ceremonial Burial", "Mysticism", "Polytheism", "Monarchy", "Theology"]
+scientific = ["Writing", "Literature", "Education", "Theory of Gravity", "Scientific Method", "Computers"]
+seafaring = ["Map Making", "Navigation", "Magnetism", "Combustion"]

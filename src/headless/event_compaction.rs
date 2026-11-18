@@ -5,6 +5,7 @@ use std::collections::BTreeMap;
 #[derive(Default)]
 pub(super) struct EventCompaction {
     decisions: BTreeMap<usize, GovernmentDecision>,
+    trades: BTreeMap<(u64, u64), serde_json::Value>,
     pub counts: BTreeMap<String, usize>,
 }
 #[derive(serde::Deserialize)]
@@ -31,6 +32,13 @@ impl EventCompaction {
             return false;
         }
         let routine = match event.kind.as_str() {
+            "diplomacy.trade_decision" => {
+                event.payload.get("selected") == Some(&serde_json::Value::Null)
+                    && event.payload["actor"]
+                        .as_u64()
+                        .zip(event.payload["other"].as_u64())
+                        .is_some_and(|pair| self.trades.get(&pair) == Some(&event.payload))
+            }
             "cities.growth_applied" => serde_json::from_value::<Growth>(event.payload.clone())
                 .ok()
                 .is_some_and(|g| {
@@ -65,6 +73,13 @@ impl EventCompaction {
     }
     /// Only successfully persisted events can serve as a compacted event's baseline.
     pub fn retained(&mut self, event: &Event) {
+        if event.kind == "diplomacy.trade_decision"
+            && let Some(pair) = event.payload["actor"]
+                .as_u64()
+                .zip(event.payload["other"].as_u64())
+        {
+            self.trades.insert(pair, event.payload.clone());
+        }
         if let Some(decision) = Self::decision(event) {
             self.decisions.insert(decision.advice.owner, decision);
         }
@@ -92,6 +107,24 @@ mod tests {
                 "research_goal":"Monarchy","candidates":[{"government":"Monarchy","available":false,"score":100.0}]},
                 "selected":"Despotism","outcome":"retained"}),
         }
+    }
+
+    #[test]
+    fn unsuccessful_trade_decisions_compact_only_against_retained_identical_evidence() {
+        let mut compaction = EventCompaction::default();
+        let mut event = decision();
+        event.kind = "diplomacy.trade_decision".into();
+        event.payload = json!({"actor":1,"other":2,"reason":"no_viable_trade",
+            "candidates":2,"rejected":{"price_or_reserve":2},"reserve":10,"selected":null});
+        assert!(!compaction.redundant(&event));
+        assert!(!compaction.redundant(&event));
+        compaction.retained(&event);
+        assert!(compaction.redundant(&event));
+        event.payload["reserve"] = json!(20);
+        assert!(!compaction.redundant(&event));
+        event.payload["selected"] = json!({"actor_gain":10,"partner_gain":10});
+        compaction.retained(&event);
+        assert!(!compaction.redundant(&event));
     }
     #[test]
     fn compacts_only_successfully_persisted_unchanged_decisions() {

@@ -69,6 +69,20 @@ unknown owned city offers, multiple Advance clauses, and phase-begin AI actions.
 Campaign format 0x2B appends pending extra technology clauses while retaining
 readers for 0x26–0x2A. Pending offers expose all technologies in the treaty UI.
 
+### Proactive diplomacy policy exception
+
+The owner authorized a broader diplomacy AI policy on 2026-11-18. Peaceful
+nonallies and allies can proactively buy, sell and exchange technology; allies
+are not excluded by the legacy potential-enemy filter. Shared reservation
+values consider all eight verified Conquests traits, research goals/progress,
+wartime needs, existing gold reserves plus upkeep, and security of military
+and victory technology. Values and cadence are editable in content/diplomacy.toml.
+This supersedes the AI proposal/technology valuation parity claims below.
+The treaty engine still checks prerequisites, ownership, funds and clause
+legality before applying transfers. City/map clauses and custom espionage retain
+their existing implementations. The `proactive-trade` headless scenario covers
+an allied cash purchase, budget protection, priorities, security and conservation.
+
 ## Pinned reference
 
 - Freeciv checkout: `../reference/freeciv`

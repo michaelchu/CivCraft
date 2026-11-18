@@ -254,6 +254,8 @@ fn historical_alliance_increases_betrayal_loss_for_every_ai() {
 #[test]
 fn friendly_ui_fixture_has_a_real_alternate_target_for_peace_then_alliance() {
     let mut game = war_planning_game();
+    // Isolate pact cadence from independent economic proposals.
+    game.players[HUMAN].known = game.players[1].known.clone();
     game.sign_pact(HUMAN, 1, Pact::Ceasefire);
     game.diplomacy_playtest_friendship();
     game.diplomacy_playtest_tick(12);
@@ -438,28 +440,27 @@ fn treaty_map_and_city_clause_fixtures_use_negotiated_terms() {
 }
 
 #[test]
-fn allied_exchange_ui_fixture_consumes_a_retained_snapshot_and_accepts_the_real_offer() {
+fn allied_exchange_ui_fixture_consumes_retained_advice_and_accepts_policy_terms() {
     let mut game = war_planning_game();
     game.sign_pact(HUMAN, 1, Pact::Alliance);
     game.players[1].gold = 300;
     game.diplomacy_playtest_technologies(true);
     game.diplomacy_playtest_allied_sharing();
-    let sharing = game
-        .treaty_offer(1)
-        .expect("actual established-alliance sharing offer");
-    assert_eq!(sharing.terms[0].technology, Some(Tech::POTTERY));
-    assert_eq!(sharing.terms[1].technology.unwrap().name(), "Writing");
+    let sharing = game.treaty_offer(1).expect("allied sharing offer");
+    assert!(sharing.terms.iter().all(|terms| terms.shared_vision()));
     assert!(game.accept_offer(1, sharing));
     game.diplomacy_playtest_allied_exchange();
     let currency = Tech::all().find(|tech| tech.name() == "Currency").unwrap();
     let offer = game
         .treaty_offer(1)
-        .expect("actual subsequent allied trade offer");
-    let baseline = game.diplomacy_playtest_allied_trade_baseline().unwrap();
+        .expect("proactive economic offer after sharing");
     assert_eq!(offer.pact, None);
-    assert_eq!(offer.terms[0].technology, Some(currency));
-    assert_eq!(offer.terms[1].technology, Some(Tech::WARRIOR_CODE));
-    assert_eq!(offer.terms[1].gold, baseline + 1);
+    assert!(
+        offer
+            .terms
+            .iter()
+            .any(|terms| terms.technologies().next().is_some())
+    );
     let retained = game.ai_tech_wants.clone();
     let quoted = game.tech_sell_price(HUMAN, 1, currency).unwrap();
     let mut cold = game.clone();
@@ -468,8 +469,6 @@ fn allied_exchange_ui_fixture_consumes_a_retained_snapshot_and_accepts_the_real_
         cold.tech_sell_price(HUMAN, 1, currency).unwrap() + 1,
         quoted
     );
-    // Live economic conditions change, but no last-activities refresh
-    // occurred. Quote evaluation must consume the same retained vector.
     game.players[1].rates = [0, 100, 0];
     for city in game.cities.iter_mut().filter(|city| city.owner == 1) {
         city.size = 6;
@@ -478,10 +477,13 @@ fn allied_exchange_ui_fixture_consumes_a_retained_snapshot_and_accepts_the_real_
     assert_eq!(game.tech_sell_price(HUMAN, 1, currency), Some(quoted));
     assert_eq!(game.ai_tech_wants, retained);
     let human_gold = game.players[HUMAN].gold;
+    let gold_delta = offer.terms[1].gold - offer.terms[0].gold;
+    let received: Vec<_> = offer.terms[1].technologies().collect();
+    let given: Vec<_> = offer.terms[0].technologies().collect();
     assert!(game.accept_offer(1, offer));
-    assert_eq!(game.players[HUMAN].gold, human_gold + baseline + 1);
-    assert!(game.has_tech(HUMAN, Tech::WARRIOR_CODE));
-    assert!(game.has_tech(1, currency));
+    assert_eq!(game.players[HUMAN].gold, human_gold + gold_delta);
+    assert!(received.into_iter().all(|tech| game.has_tech(HUMAN, tech)));
+    assert!(given.into_iter().all(|tech| game.has_tech(1, tech)));
     assert_eq!(game.ai_tech_wants, retained);
 }
 
@@ -511,7 +513,7 @@ fn allied_trade_baseline_recomputes_embassy_leakage_before_advisor_premium() {
 }
 
 #[test]
-fn established_sharing_fixture_keeps_inventory_for_the_real_exchange() {
+fn established_sharing_keeps_inventory_until_human_accepts() {
     let mut game = war_planning_game();
     game.sign_pact(HUMAN, 1, Pact::Alliance);
     game.diplomacy_playtest_technologies(true);
@@ -524,15 +526,27 @@ fn established_sharing_fixture_keeps_inventory_for_the_real_exchange() {
     assert_eq!(game.players[1].known, before[1]);
     let offer = game.treaty_offer(1).unwrap();
     assert_eq!(offer.pact, None);
-    assert_eq!(offer.terms[0].technology, Some(Tech::POTTERY));
-    assert_eq!(offer.terms[1].technology.unwrap().name(), "Writing");
-    assert!(offer.terms[0].gold > 0);
     assert!(offer.terms.iter().all(|terms| terms.shared_vision()));
+    assert!(game.accept_offer(1, offer));
+    game.advance_proactive_trades_for(1);
+    let trade = game
+        .treaty_offer(1)
+        .expect("economic diplomacy resumes after the human answers");
+    assert!(
+        trade
+            .terms
+            .iter()
+            .any(|terms| terms.technologies().next().is_some())
+    );
+    assert_eq!(game.players[HUMAN].known, before[0]);
+    assert_eq!(game.players[1].known, before[1]);
 }
 
 #[test]
 fn automatic_alliance_origination_is_a_pact_then_trusted_allied_sharing() {
     let mut game = war_planning_game();
+    // This test exercises the sharing threshold, not technology demand.
+    game.players[HUMAN].known = game.players[1].known.clone();
     let relation = game.diplomacy.get_mut(&(HUMAN, 1)).unwrap();
     relation.first_contact = Some(game.turn);
     relation.trust[1] = 3000;
@@ -894,7 +908,7 @@ fn technology_price_discounts_allies_before_adding_leakage() {
 }
 
 #[test]
-fn low_science_can_make_a_balanced_offer_unacceptable_to_the_ai() {
+fn low_science_reduces_trade_value_and_negative_research_rejects() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     game.diplomacy_playtest_technologies(true);
     game.sign_pact(HUMAN, 1, Pact::Peace);
@@ -902,8 +916,15 @@ fn low_science_can_make_a_balanced_offer_unacceptable_to_the_ai() {
     let offer = game.build_offer(HUMAN, 1, None);
     assert!(offer.terms.iter().all(|term| term.technology.is_some()));
     assert!(game.ai_accepts_treaty_exchange(HUMAN, 1, &offer.terms, Pact::Peace));
+    let before = game
+        .diplomatic_technology_value(1, HUMAN, Tech::POTTERY, false)
+        .unwrap();
     game.players[1].last_science = 0;
-    assert!(!game.ai_accepts_treaty_exchange(HUMAN, 1, &offer.terms, Pact::Peace));
+    assert!(
+        game.diplomatic_technology_value(1, HUMAN, Tech::POTTERY, false)
+            .unwrap()
+            < before
+    );
     game.players[1].research = -1;
     assert!(!game.ai_accepts_treaty_exchange(HUMAN, 1, &offer.terms, Pact::Peace));
 }

@@ -226,6 +226,15 @@ impl Simulation {
         if give.shared_vision() && (after != Pact::Alliance || !self.vision_safe(owner, other)) {
             return None;
         }
+        let has_technology =
+            give.technologies().next().is_some() || receive.technologies().next().is_some();
+        if has_technology
+            && give.gold > receive.gold
+            && i64::from(self.players[owner].gold) - i64::from(give.gold) + i64::from(receive.gold)
+                < i64::from(self.diplomatic_trade_reserve(owner))
+        {
+            return None;
+        }
         let mut clauses = vec![-i64::from(give.gold), i64::from(receive.gold)];
         if give.embassy() {
             let love = self.diplomatic_love(owner, other);
@@ -258,22 +267,17 @@ impl Simulation {
             clauses.push(i64::from(self.city_gold_worth(city)));
         }
         for tech in give.technologies() {
-            clauses.push(-i64::from(self.tech_sell_price(owner, other, tech)?));
+            clauses.push(
+                -self
+                    .diplomatic_technology_value(owner, other, tech, true)
+                    .ok()?,
+            );
         }
         for tech in receive.technologies() {
-            // Native receiving valuation ignores the giver's danger flag;
-            // only an AI giver itself may refuse that concession.
-            let (mut price, _) = self.tech_trade_quote(other, owner, tech, true)?;
-            let player = &self.players[owner];
-            let researched = player.known.len() as i32 + player.future_techs + 1;
-            let minimum = (self.technology_upkeep(owner) / researched).max(1);
-            if player.last_science < minimum {
-                if player.research < 0 {
-                    return None;
-                }
-                price /= 2;
-            }
-            clauses.push(i64::from(price));
+            let price = self
+                .diplomatic_technology_value(owner, other, tech, false)
+                .ok()?;
+            clauses.push(price);
         }
         Some((
             clauses.iter().sum(),
