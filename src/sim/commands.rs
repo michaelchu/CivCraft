@@ -8,7 +8,8 @@
 //! rule methods after choosing their actions.
 
 use super::{
-    HUMAN, MoveResult, Production, Simulation, UnitKind, UnitState, WorkKind, WorklistEdit,
+    CityGovernor, HUMAN, MoveResult, Production, Simulation, UnitKind, UnitState, WorkKind,
+    WorklistEdit,
 };
 use crate::rules::{Building, Tech};
 
@@ -60,6 +61,10 @@ pub(crate) enum Command {
         city_id: u32,
         index: usize,
         delta: i32,
+    },
+    SetCityGovernor {
+        city_id: u32,
+        state: CityGovernor,
     },
     WorkCityTile {
         city_id: u32,
@@ -158,7 +163,7 @@ impl Simulation {
         if unit_id.is_some() && unit_index.is_none() {
             return false;
         }
-        match command {
+        let applied = match command {
             MoveCiv3(id, direction) => {
                 self.try_move_unit_civ3(id, direction) != MoveResult::Blocked
             }
@@ -252,6 +257,7 @@ impl Simulation {
                 self.perform_espionage(owner, mission, city, risk)
             }
             SetRates(rates) => self.set_rates(HUMAN, rates),
+            SetCityGovernor { city_id, state } => self.set_city_governor(city_id, state),
             WorkCityTile { city_id, x, y } => self.toggle_city_tile(city_id, x, y),
             Specialist {
                 city_id,
@@ -279,8 +285,12 @@ impl Simulation {
             }
             EndTurn => {
                 self.end_turn();
-                true
+                return true;
             }
+        };
+        if applied {
+            self.refresh_city_governors();
         }
+        applied
     }
 }

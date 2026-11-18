@@ -231,6 +231,9 @@ impl Simulation {
         }
         self.reconcile_trade_routes();
         self.reconcile_city_workers();
+        if owner == HUMAN {
+            self.refresh_city_governors();
+        }
         let mut science_income = 0;
         let mut gold_paid = Vec::new();
         while !city_ids.is_empty() {

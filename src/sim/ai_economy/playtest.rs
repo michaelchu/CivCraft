@@ -49,7 +49,7 @@ impl super::Simulation {
         self.ai_purchase_reserve.insert(1, 100);
         self.players[1].rates = [60, 40, 0];
         self.choose_ai_rates(1);
-        let refill = self.players[1].rates == [50, 50, 0];
+        let refill = self.players[1].rates[1] >= 50 && self.ai_projected_income(1) >= 0;
         self.players[1].gold = 1000;
         self.players[1].rates = [60, 40, 0];
         self.choose_ai_rates(1);
@@ -65,7 +65,8 @@ impl super::Simulation {
         );
         self.players[1].rates = [60, 40, 0];
         self.choose_ai_rates(1);
-        let war = self.players[1].rates == [40, 60, 0];
+        // A funded preparation without an outstanding purchase keeps science.
+        let war = self.players[1].rates == [60, 40, 0];
         self.ai_war_plans.clear();
         self.players[1].researching = Tech::FUTURE;
         self.players[1].rates = [60, 40, 0];

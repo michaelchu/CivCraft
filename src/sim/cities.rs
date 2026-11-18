@@ -113,11 +113,18 @@ impl Simulation {
         self.discard_unit_ai(unit_id);
         self.ai_settlement_targets.remove(&unit_id);
         let name = self.create_city(unit.owner, unit.x, unit.y);
-        self.cities
-            .last_mut()
-            .unwrap()
-            .add_citizen_nationality(unit.nationality, 1);
+        let city = self.cities.last_mut().unwrap();
+        city.add_citizen_nationality(unit.nationality, 1);
         if unit.owner == HUMAN {
+            if !self.players[HUMAN].ai {
+                self.city_governors.insert(
+                    city.id,
+                    CityGovernor {
+                        active: true,
+                        settings: GovernorSettings::FOUNDING,
+                    },
+                );
+            }
             self.add_event(format!(
                 "{name} founded. Its people begin training Warriors."
             ));
@@ -329,6 +336,7 @@ impl Simulation {
         let leaders = self.leaders_of(original);
         self.trace
             .city_transferred(self.turn, &self.cities[index], buyer, reason);
+        self.city_governors.remove(&id);
         self.cities[index].transfer_citizens(buyer);
         self.list_order.city(&self.cities[index]);
         self.cities[index]

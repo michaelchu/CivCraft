@@ -262,7 +262,7 @@ pub async fn run_desktop() {
                 );
             } else {
                 let started = std::time::Instant::now();
-                let result = game.step_ui_review(scene, phase, &buttons, &mut sequence);
+                let result = game.step_ui_review(scene, phase, &buttons, &assets, &mut sequence);
                 let profile = ui_profile.as_mut().unwrap();
                 profile.actions(scene, started.elapsed().as_secs_f64() * 1000.0);
                 for (label, ok) in sequence.checks.drain(..) {

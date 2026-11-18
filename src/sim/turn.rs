@@ -184,6 +184,7 @@ impl Simulation {
         let _profile = profiler.scope("turn.ai.gotos_and_indexes");
         self.continue_player_gotos();
         self.rebuild_city_ownership();
+        self.refresh_city_governors();
         // Historical field name is retained for save compatibility; hunter
         // interception needs previous positions of land and sea units alike.
         self.previous_naval_positions = self

@@ -8,6 +8,12 @@ pub(super) const SCENARIOS: &[Scenario] = &[
     Scenario::all_ai("settlement-ferry", settlement_ferry),
     super::super::state_presets::SCENARIO,
     super::super::campaign_readiness::SCENARIO,
+    super::super::city_governor::GOVERNED,
+    super::super::city_governor::CONTROL,
+    super::super::city_governor::FOOD_SHOCK,
+    super::super::city_governor::FOOD_SHOCK_CONTROL,
+    super::super::city_governor::UNREST_SHOCK,
+    super::super::city_governor::UNREST_SHOCK_CONTROL,
     super::super::harbor_trade::SCENARIO,
     super::super::naval::ai_assault::SCENARIO,
     super::super::naval::ship_combat::SCENARIO,
@@ -21,7 +27,12 @@ pub(super) const SCENARIOS: &[Scenario] = &[
     Scenario::new("peaceful-first-contact", peaceful_first_contact),
     Scenario::new("proactive-trade", proactive_trade),
     Scenario::new("shared-strategy", shared_strategy),
+    Scenario::new("wartime-funding", wartime_funding),
 ];
+
+fn wartime_funding(sim: &mut Simulation, checks: &mut Checks) {
+    checks.extend(sim.wartime_funding_scenario());
+}
 
 fn shared_strategy(sim: &mut Simulation, checks: &mut Checks) {
     checks.extend(sim.shared_strategy_scenario());

@@ -108,10 +108,28 @@ impl Simulation {
     /// city gold pays city-style unit upkeep, while mixed/nation styles charge
     /// the nation for paid unit upkeep. C2C3 selects Mixed.
     pub(in crate::sim) fn ai_projected_income(&self, owner: usize) -> i32 {
+        self.ai_projected_income_at_rates(owner, self.players[owner].rates)
+    }
+
+    pub(in crate::sim) fn ai_projected_income_at_rates(
+        &self,
+        owner: usize,
+        rates: [i32; 3],
+    ) -> i32 {
+        self.ai_projected_budget_at_rates(owner, rates).0
+    }
+
+    pub(in crate::sim) fn ai_projected_budget_at_rates(
+        &self,
+        owner: usize,
+        rates: [i32; 3],
+    ) -> (i32, i32) {
         let style = crate::sim::economy::ruleset::CityEconomySettings::campaign().gold_upkeep_style;
         let mut income = 0;
+        let mut science = 0;
         for city in self.cities.iter().filter(|city| city.owner == owner) {
-            let forecast = self.city_forecast(city);
+            let forecast = self.city_forecast_at_rates(city, rates);
+            science += forecast.science;
             income += forecast.gold - forecast.building_upkeep;
             if let Production::Building(building) = city.production {
                 let converts_to_gold =
@@ -135,7 +153,7 @@ impl Simulation {
                 .map(|(_, upkeep)| upkeep)
                 .sum::<i32>();
         }
-        income
+        (income, science)
     }
 
     fn ai_building_is_crucial(&self, city: &City, building: Building) -> bool {
@@ -315,7 +333,8 @@ impl Simulation {
             .iter()
             .map(|city| self.building_upkeep(city) + self.city_unit_upkeep(city).gold)
             .sum();
-        let reserve = self.ai_gold_reserve(owner);
+        let reserve = self.strategic_priorities(owner).gold_reserve;
+        let operating_buffer = self.strategic_upkeep_buffer(owner);
         let mut priorities: Vec<_> = owned
             .into_iter()
             .filter_map(|city| {
@@ -344,7 +363,13 @@ impl Simulation {
             let city = self.city_by_id(id).unwrap();
             let position = (city.x, city.y);
             let urgency = self.advisor_guard_city_assessment(city).urgency;
-            self.spend_ai_upgrade_gold(owner, Some(position), expenses);
+            let emergency_upgrade = urgency > 1 || self.city_grave_danger(city) > 0;
+            let upgrade_floor = if emergency_upgrade {
+                expenses
+            } else {
+                expenses.max(operating_buffer)
+            };
+            self.spend_ai_upgrade_gold(owner, Some(position), upgrade_floor);
             let city = self.city_by_id(id).unwrap();
             // Upgrading a garrison may change speculative new advice. Native
             // spending still uses its cached choice from city management.

@@ -82,6 +82,10 @@ the campaign. Its structured observations appear under
 or a short turn budget, the runner asks the observer to evaluate all required
 outcomes. Only those assertions contribute to the scenario check totals.
 
+`Scenario::human_playtest` keeps the human seat active while the other
+civilizations run normally. Playtests can request trace kinds needed for their
+checks independently of the report's event filters.
+
 The world builder takes an ordered list of `CivPreset` entries. Each entry
 uses a stable catalog ID and optionally replaces the civilization's starting
 technologies. `None` uses the catalog defaults, and `Some(&[])` starts with
@@ -181,6 +185,62 @@ cargo run --offline --bin headless_sim -- \
 cargo run --offline --bin headless_sim -- \
   --scenario ai-paradrops --seed 3 --turns 1 --report /tmp/paradrops-seed-3.json
 ```
+
+### City governor campaign comparison
+
+`city-governor-campaign` founds two human cities on the generated map and
+advances the campaign with no further player commands. The paired
+`city-governor-control` starts with the same citizen assignments and releases
+governor control before turn one. Use the same seed and turn budget for both.
+The control measures what happens when existing assignments are left alone,
+including the simulation's ordinary assignment reconciliation.
+
+```sh
+cargo build --offline --release --bin headless_sim
+mkdir -p /tmp/civcraft-governor
+for seed in 42 101 202 303 404; do
+  case "$seed" in
+    42|202|404) turns=85 ;;
+    *) turns=35 ;;
+  esac
+  for scenario in city-governor-campaign city-governor-control; do
+    target/release/headless_sim --scenario "$scenario" --seed "$seed" \
+      --turns "$turns" --analytics none --trace-domains none \
+      --report "/tmp/civcraft-governor/$scenario-$seed.json"
+  done
+done
+```
+
+To test recovery directly, run `city-governor-food-shock` and
+`city-governor-food-shock-control` for one turn. Both start with the capital
+working tiles that have just lost their food yields. Replacement tiles
+remain available. The governed arm must apply nonnegative food in the
+first city turn, and the control must apply a deficit. This checks the
+actual city result after reassignment.
+
+To test unrest handling, run `city-governor-unrest-shock` and
+`city-governor-unrest-shock-control` with the same seed for one turn. Both
+start with two size-five human cities on grassland. The report records whether
+the target city forecasts disorder before turn processing and whether any city
+enters disorder after processing. The governed case must start with a disorder
+risk and finish without disorder; the control must exhibit disorder. This
+isolates citizen assignment's effect on city mood, without changing empire tax
+rates or adding military police.
+
+The governed run fails its intervention check if a city never activates,
+hands control back, has a food deficit or disorder, starves, or is destroyed
+by famine. A failed check still writes a report. Check coverage and city
+retention before comparing outcomes. Use each report's final
+`run.scenario.observations[-1].state.totals` for accumulated counts. Growth
+events record food applied during city processing. Each surviving city's
+disorder flag comes from the disorder update in that phase. Output forecasts
+describe the assignments at the end of each turn and list food, shields,
+trade, gold, luxury, and science in that order. The reports distinguish those
+forecasts from the food actually applied.
+
+This comparison measures unattended citizen assignment during the opening
+campaign. Production queues, military moves, empire policy, and a human
+player's possible interventions are outside the experiment.
 
 ## Add a game trace
 
@@ -912,3 +972,49 @@ jq -c '.turn as $turn | .changes[]
 
 Run `--scenario shared-strategy --turns 1` in release mode for controlled
 research/trade interest, wartime priority, reserve and recovery checks.
+
+
+### AI funding evidence
+
+`economy.funding_decision` records native advice and selected `[science, tax,
+luxury]` rates, the saved-rate income, reserve/target, concrete military purchase
+costs, required net income and the selected-rate forecast. Normal cash targets
+refill over `strategy.toml`'s `reserve_refill_turns`; `upkeep_buffer_turns` keeps
+operating cash behind discretionary purchases and trade. Routine preparation
+purchases include the cash floor enforced by spending. Only eligible selected
+purchases are quoted; an undefended city in grave danger can request the defense
+advisor's replacement. Discretionary refills retain a science share based on the
+common science versus economic/military priorities. Urgent tax funding can waive
+that share only when the next accounting phase can actually fund the purchase;
+ordinary upkeep can still take priority to avoid a deficit. War status alone is not a funding need.
+
+These forecasts use current workers, specialists, building modifiers, mood and
+unit upkeep, including homeless units. The operating cushion also covers the
+higher unit bill in anarchy or an available government, so a regime with free
+support cannot spend its transition cash on a routine upgrade. Emergency
+spending retains its existing override. Later growth, production, citizen
+rearrangement, combat or discoveries can change actual accounting. `target_met`
+means the selected rates meet the current forecast, not that an unaffordable
+purchase can be bought immediately. A search that cannot improve income keeps
+the original rates. Refilling discretionary reserves cannot create research
+debt; imminent treasury default or urgent defense retains the ability to
+prioritize survival.
+
+Lean compaction keeps changes in selected rates, reason or target satisfaction;
+verbose mode retains every collected decision and its financial inputs. Both
+modes retain every `economy.upkeep_shortfall` event: `building_sale`,
+`unit_upkeep_action`, or `treasury_writeoff`. These are important losses, not
+ordinary voluntary sales/upgrades. Events identify the nation and the affected
+city/building or unit where available. Debt settlement mechanics are unchanged.
+Include `economy` in trace domains when narrowing a run's coverage.
+
+```sh
+cargo run --offline --bin report_read -- report.json --stream events |
+  jq -c 'select(.kind == "economy.funding_decision"
+               or .kind == "economy.upkeep_shortfall")
+         | {turn, phase, sequence, kind, payload}'
+```
+
+Use the `wartime-funding` release scenario for a controlled policy regression;
+use verbose evidence for per-turn funding/crisis counts. Compacted lean events
+cannot establish those frequencies without their omitted observations.

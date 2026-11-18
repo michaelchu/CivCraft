@@ -368,6 +368,7 @@ impl Game {
         scene: usize,
         phase: u32,
         buttons: &[(Rect, UiAction)],
+        assets: &Assets,
         sequence: &mut UiReviewSequence,
     ) -> Result<bool, &'static str> {
         if scene == 11 && phase == 1 {
@@ -698,9 +699,38 @@ impl Game {
                         && self.playback.pending(),
                 )?;
             }
-            if phase == 7 && scene == 14 && self.selected_city_index().is_some() {
+            if phase == 7
+                && scene == 14
+                && let Some(id) = self.selected_city
+            {
                 sequence.check("city_view_opened_after_build", true)?;
                 if !self.city_tiles {
+                    let city = self.sim.city_manager_view(id).unwrap();
+                    let mut city_buttons = Vec::new();
+                    if city.governor.active {
+                        sequence.click(self, buttons, "open_governor", |action| {
+                            matches!(action, UiAction::CityGovernorPage)
+                        })?;
+                        self.draw_city_manager(assets, &mut city_buttons);
+                        sequence.click(self, &city_buttons, "release_city", |action| {
+                            matches!(action, UiAction::SetCityGovernor(city_id, state)
+                                if city_id == id && !state.active)
+                        })?;
+                        sequence.check(
+                            "governor_released_city",
+                            !self.sim.city_manager_view(id).unwrap().governor.active,
+                        )?;
+                        sequence.click(self, &city_buttons, "close_governor", |action| {
+                            matches!(action, UiAction::CityGovernorPage)
+                        })?;
+                        city_buttons.clear();
+                        self.draw_city_manager(assets, &mut city_buttons);
+                    }
+                    let buttons = if city.governor.active {
+                        &city_buttons[..]
+                    } else {
+                        buttons
+                    };
                     sequence.click(self, buttons, "worked_tiles_control", |action| {
                         matches!(action, UiAction::CityTiles)
                     })?;

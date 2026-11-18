@@ -78,6 +78,22 @@ not guaranteed victory routes or mechanical bonuses. Read each civilization's
 financial inputs. Validate policy changes with `shared-strategy` and
 `proactive-trade` release scenarios.
 
+Military funding must follow concrete purchase needs and reserve shortfalls,
+not maximize tax for the duration of a war. `strategy.toml` owns the upkeep
+buffer and reserve refill horizon shared by taxes, routine spending and trade.
+Retain operating cash through routine purchases/upgrades, including support
+cost increases during anarchy or an available government. Keep the native tax
+calculation as the starting point; bounded forecasts may
+raise tax to cover actual upkeep and refill cash, while protecting research
+upkeep except during an imminent default or a fundable urgent defense. Ordinary
+reserve/purchase refills preserve a science share from the common priorities;
+quote only selected purchases or genuine emergency replacements. Validate with the
+`wartime-funding` release scenario. Inspect `economy.funding_decision` and
+`economy.upkeep_shortfall` evidence: a nonnegative treasury alone does not prove
+that no forced sale, disband or debt writeoff occurred. Lean output retains
+funding policy/rate/outcome changes and every actual upkeep loss; use verbose
+mode when exact per-turn funding inputs are needed.
+
 ## Comparison source checkout
 
 The Freeciv source submodule at `reference/freeciv` tracks the public upstream
@@ -125,7 +141,9 @@ Run headless simulations in release mode: use
 `target/release/headless_sim`. This applies to simulation analysis, scenario
 runs, and profiling. Use a debug build only when debug-specific diagnostics are
 needed; explain that choice before starting the run. The Cargo test commands
-above remain unchanged.
+above remain unchanged. Choose the shortest scenario or turn count that reaches
+the behavior under review. Use focused fixtures for late-game transitions;
+reserve 200-turn runs for questions that need long-term simulation evidence.
 
 For analytics review, start with `report.json` findings and the named summaries
 under `analytics.metrics` (`government.nations`, `government.recent_changes`,

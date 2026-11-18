@@ -21,6 +21,8 @@ struct Policy {
     preparation_military_bonus: i32,
     space_science_bonus: i32,
     deficit_reserve_turns: i32,
+    upkeep_buffer_turns: i32,
+    reserve_refill_turns: i32,
     research_interest_want: i32,
     traits: BTreeMap<String, TraitWeights>,
 }
@@ -39,10 +41,13 @@ fn policy() -> &'static Policy {
             policy.preparation_military_bonus,
             policy.space_science_bonus,
             policy.deficit_reserve_turns,
+            policy.upkeep_buffer_turns,
+            policy.reserve_refill_turns,
             policy.research_interest_want,
         ] {
             assert!((0..=100).contains(&value));
         }
+        assert!(policy.reserve_refill_turns > 0);
         assert_eq!(policy.traits.len(), 8);
         for (name, weights) in &policy.traits {
             assert!(ai_traits::TRAITS.contains(&name.as_str()));
@@ -89,6 +94,45 @@ impl StrategicPriorities {
 }
 
 impl Simulation {
+    pub(super) fn strategic_upkeep_buffer(&self, owner: usize) -> i32 {
+        let (buildings, city_support): (i32, i32) = self
+            .cities_owned_by(owner)
+            .map(|city| {
+                let forecast = self.city_forecast(city);
+                (forecast.building_upkeep, forecast.support.gold)
+            })
+            .fold((0, 0), |(buildings, units), (building, unit)| {
+                (buildings + building, units + unit)
+            });
+        let national_support: i32 = self
+            .national_unit_gold_upkeep(owner)
+            .paid
+            .iter()
+            .map(|(_, cost)| cost)
+            .sum();
+        // A government with generous free support must still retain cash for
+        // the transition and a newly available government's higher upkeep.
+        let transition_support = std::iter::once(Government::during_revolution())
+            .chain(
+                Government::targets()
+                    .iter()
+                    .copied()
+                    .filter(|&government| self.government_available(owner, government)),
+            )
+            .map(|government| {
+                self.national_unit_gold_upkeep_for_government(owner, government)
+                    .paid
+                    .iter()
+                    .map(|(_, cost)| cost)
+                    .sum::<i32>()
+            })
+            .max()
+            .unwrap_or(0);
+        buildings
+            .saturating_add(city_support.max(national_support).max(transition_support))
+            .saturating_mul(policy().upkeep_buffer_turns)
+    }
+
     pub(super) fn strategic_priorities(&self, owner: usize) -> StrategicPriorities {
         let rules = policy();
         let mut economy = 100;
@@ -105,12 +149,14 @@ impl Simulation {
         }
         let base_reserve = self.ai_gold_reserve(owner);
         let projected_income = self.ai_projected_income(owner);
-        let gold_reserve = base_reserve.saturating_add(
-            projected_income
-                .saturating_neg()
-                .max(0)
-                .saturating_mul(rules.deficit_reserve_turns),
-        );
+        let gold_reserve = base_reserve
+            .saturating_add(self.strategic_upkeep_buffer(owner))
+            .saturating_add(
+                projected_income
+                    .saturating_neg()
+                    .max(0)
+                    .saturating_mul(rules.deficit_reserve_turns),
+            );
         let economic_crisis = projected_income < 0 && self.players[owner].gold < gold_reserve;
         // An uncontacted player, a defeated rival or a barbarian's permanent
         // hostility does not turn a nation into a wartime economy.
@@ -188,6 +234,10 @@ impl Simulation {
                 0.0
             }
     }
+}
+
+pub(super) fn reserve_refill_turns() -> i32 {
+    policy().reserve_refill_turns
 }
 
 #[cfg(test)]

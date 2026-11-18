@@ -94,6 +94,20 @@ switching penalties, rate caps and treaty legality remain unchanged. This
 supersedes the corresponding advisor policy parity claims below, not their
 underlying mechanics. The `shared-strategy` scenario exercises these priorities.
 
+The owner requested a funding correction after multi-seed validation showed
+that mapping all ongoing wars to the native war-footing tax flag suppressed
+science even with funded treasuries. `ai_economy/funding.rs` now starts from the
+literal native tax calculator with science-first discretionary allocation, then
+uses bounded actual-output forecasts to cover upkeep, a shared cash cushion,
+and concrete preparation/urgent-defense purchases. Routine purchases retain
+their spending reserve; urgent purchases retain their emergency override.
+Refills have a configured horizon rather than an unlimited war-duration cash
+preference. Ordinary reserve refills may not create research debt. This is AI
+policy under the existing exception; engine tax caps, city output formulas,
+upkeep debt settlement and the original 64 native tax vectors remain unchanged.
+The `wartime-funding` scenario covers funded war, purchases, upkeep, urgent
+defense and a read-only forecast.
+
 ## Pinned reference
 
 - Freeciv checkout: `../reference/freeciv`
@@ -585,6 +599,27 @@ that code has been added.
   simulation tests. Espionage and spy/diplomat missions are explicitly deferred
   outside this milestone. P10 mechanics are complete; end-to-end UI validation
   remains part of P13.
+
+### Player city governor
+
+The city screen's Governor page uses the citizen assignment search from
+`common/aicore/cm.c`. It exposes the six output minimums and weights, the five
+built-in presets from `client/agents/cma_fec.c`, and the celebration and
+growth controls. Like `client/agents/cma_core.c`, it releases control and
+reports the failure when the search cannot satisfy the selected constraints.
+Manual citizen assignment is available when control is released. Culture is
+not an output of the Freeciv governor.
+
+CivCraft enables the Very happy preset when a human player founds a city.
+AI cities use their own automatic assignment and emergency logic. Campaign
+saves retain each city's settings and active flag. Cities from saves created
+before the governor was added start in manual mode. The simulation refreshes
+active cities after player commands, before human city processing, and after
+the world and unit updates for the next turn. Overlapping cities keep existing tile claims
+and governed cities are processed in stable city order. Freeciv runs the
+governor from client city updates, so packet timing and native search cutoff
+equivalence are not claimed. Client-wide named presets and city report
+shortcuts are outside the city screen implementation.
 
 ### P11 evidence (complete)
 

@@ -368,6 +368,11 @@ impl Simulation {
     fn rebuild_city_ownership_inner(&mut self, city_event: Option<u32>) {
         self.refresh_ai_ferries();
         self.refresh_ai_guards();
+        self.city_governors.retain(|id, _| {
+            self.cities
+                .iter()
+                .any(|city| city.id == *id && city.owner == HUMAN)
+        });
         self.city_rapture
             .retain(|id, _| self.cities.iter().any(|city| city.id == *id));
         self.ai_settlement_targets.retain(|id, reservation| {

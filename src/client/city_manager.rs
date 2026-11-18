@@ -46,7 +46,7 @@ impl Game {
             rect.x + 22.0,
             rect.y + 35.0,
             26.0,
-            rect.w - 100.0,
+            rect.w - 196.0,
             Color::from_rgba(248, 222, 139, 255),
         );
         let close_rect = Rect::new(rect.right() - 50.0, rect.y + 14.0, 28.0, 28.0);
@@ -108,6 +108,7 @@ impl Game {
                 (-1, 0.0, "-", count > 0),
                 (1, specialist_w - 36.0, "+", city.tile_workers > 0),
             ] {
+                let enabled = enabled && !city.governor.active;
                 let button = Rect::new(x + offset, rect.y + 118.0, 28.0, 26.0);
                 draw_ui_button(button, symbol, enabled, false);
                 if enabled {
@@ -131,6 +132,24 @@ impl Game {
             1.0,
             Color::from_rgba(105, 102, 86, 255),
         );
+        if city.owner == HUMAN {
+            let button = Rect::new(rect.right() - 167.0, rect.y + 14.0, 109.0, 28.0);
+            draw_ui_button(
+                button,
+                if city.governor.active {
+                    "Governor: On"
+                } else {
+                    "Governor"
+                },
+                true,
+                self.city_governor_page,
+            );
+            actions.push((button, UiAction::CityGovernorPage));
+            if self.city_governor_page {
+                self.draw_city_governor(&city, rect, actions);
+                return;
+            }
+        }
         if let Some(page) = self.worklist_page {
             self.draw_worklist(&city, rect, page, actions);
             return;
@@ -591,5 +610,204 @@ impl Game {
                 UiAction::EditWorklist(city.id, WorklistEdit::Append(target)),
             ));
         }
+    }
+}
+
+impl Game {
+    fn draw_city_governor(
+        &self,
+        city: &CityManagerView,
+        rect: Rect,
+        actions: &mut Vec<(Rect, UiAction)>,
+    ) {
+        let state = city.governor;
+        let x = rect.x + 22.0;
+        let right = rect.right() - 22.0;
+        let toggle = Rect::new(right - 126.0, rect.y + 166.0, 126.0, 26.0);
+        let can_control = state.active || self.city_governor_preview.is_some();
+        draw_ui_button(
+            toggle,
+            if state.active {
+                "Release city"
+            } else {
+                "Control city"
+            },
+            can_control,
+            state.active,
+        );
+        if can_control {
+            actions.push((
+                toggle,
+                UiAction::SetCityGovernor(
+                    city.id,
+                    crate::sim::CityGovernor {
+                        active: !state.active,
+                        ..state
+                    },
+                ),
+            ));
+        }
+        text_in(
+            if state.active {
+                "Automatic citizen assignments"
+            } else if self.city_governor_preview.is_none() {
+                "No assignment meets these requirements"
+            } else {
+                "Manual citizen assignments"
+            },
+            x,
+            rect.y + 185.0,
+            16.0,
+            (toggle.x - x - 8.0).max(0.0),
+            LIGHTGRAY,
+        );
+
+        let presets = crate::sim::GovernorSettings::PRESETS;
+        let preset_w = (right - x - 24.0) / presets.len() as f32;
+        for (i, (label, settings)) in presets.into_iter().enumerate() {
+            let button = Rect::new(
+                x + i as f32 * (preset_w + 6.0),
+                rect.y + 200.0,
+                preset_w,
+                25.0,
+            );
+            draw_ui_button(button, label, true, state.settings == settings);
+            actions.push((
+                button,
+                UiAction::SetCityGovernor(city.id, crate::sim::CityGovernor { settings, ..state }),
+            ));
+        }
+
+        let column = (right - x) / 4.0;
+        text_in(
+            "Projected",
+            x + 3.0 * column,
+            rect.y + 249.0,
+            15.0,
+            column,
+            LIGHTGRAY,
+        );
+        text_in(
+            "Minimum surplus",
+            x + column,
+            rect.y + 249.0,
+            15.0,
+            column,
+            LIGHTGRAY,
+        );
+        text_in(
+            "Priority",
+            x + 2.0 * column,
+            rect.y + 249.0,
+            15.0,
+            column,
+            LIGHTGRAY,
+        );
+        let row_h = ((rect.h - 270.0) / 8.0).clamp(16.0, 36.0);
+        for (i, label) in [
+            "Food",
+            "Production",
+            "Trade",
+            "Gold",
+            "Luxury",
+            "Science",
+            "Celebration",
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let y = rect.y + 255.0 + i as f32 * row_h;
+            let button_h = (row_h - 2.0).min(25.0);
+            text_in(label, x, y + 16.0, 15.0, column, LIGHTGRAY);
+            if i < 6 {
+                let projected = self
+                    .city_governor_preview
+                    .map_or_else(|| "—".to_owned(), |outputs| format!("{:+}", outputs[i]));
+                text_in(
+                    &projected,
+                    x + 3.0 * column,
+                    y + 16.0,
+                    15.0,
+                    column,
+                    LIGHTGRAY,
+                );
+            }
+            for (is_weight, cell_x) in [(false, x + column), (true, x + 2.0 * column)] {
+                if i == 6 && !is_weight {
+                    let button = Rect::new(cell_x, y, column.min(150.0) - 6.0, button_h);
+                    let mut next = state;
+                    next.settings.require_celebration = !state.settings.require_celebration;
+                    draw_ui_button(
+                        button,
+                        if state.settings.require_celebration {
+                            "Required"
+                        } else {
+                            "Optional"
+                        },
+                        true,
+                        state.settings.require_celebration,
+                    );
+                    actions.push((button, UiAction::SetCityGovernor(city.id, next)));
+                    continue;
+                }
+                let (value, min, max) = if i == 6 {
+                    (state.settings.celebration_weight, 0, 50)
+                } else if is_weight {
+                    (state.settings.weight[i], 0, 25)
+                } else {
+                    (state.settings.minimum[i], -20, 20)
+                };
+                let width = column.min(150.0) - 6.0;
+                let button_w = (width / 4.0).min(30.0);
+                for (delta, button_x, symbol) in
+                    [(-1, cell_x, "-"), (1, cell_x + width - button_w, "+")]
+                {
+                    let button = Rect::new(button_x, y, button_w, button_h);
+                    let changed = value + delta;
+                    let enabled = (min..=max).contains(&changed)
+                        && (i != 0 || is_weight || !state.settings.fastest_growth);
+                    draw_ui_button(button, symbol, enabled, false);
+                    if enabled {
+                        let mut next = state;
+                        if i == 6 {
+                            next.settings.celebration_weight = changed;
+                        } else if is_weight {
+                            next.settings.weight[i] = changed;
+                        } else {
+                            next.settings.minimum[i] = changed;
+                        }
+                        actions.push((button, UiAction::SetCityGovernor(city.id, next)));
+                    }
+                }
+                let label = if i == 0 && !is_weight && state.settings.fastest_growth {
+                    "Auto".to_owned()
+                } else {
+                    value.to_string()
+                };
+                text_in(
+                    &label,
+                    cell_x + button_w + 5.0,
+                    y + 16.0,
+                    15.0,
+                    width - 2.0 * button_w - 8.0,
+                    LIGHTGRAY,
+                );
+            }
+        }
+        let growth = Rect::new(
+            x,
+            rect.y + 255.0 + 7.0 * row_h,
+            175.0,
+            (row_h - 2.0).min(25.0),
+        );
+        let mut next = state;
+        next.settings.fastest_growth = !state.settings.fastest_growth;
+        draw_ui_button(
+            growth,
+            "Fastest growth",
+            true,
+            state.settings.fastest_growth,
+        );
+        actions.push((growth, UiAction::SetCityGovernor(city.id, next)));
     }
 }

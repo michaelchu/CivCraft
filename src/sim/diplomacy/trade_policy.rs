@@ -12,7 +12,6 @@ struct Policy {
     schema_version: u32,
     cadence_turns: i32,
     technologies_per_side: usize,
-    reserve_turns: i32,
     seller_percent: i64,
     commercial_margin_percent: i64,
     liquidity_discount_percent: i64,
@@ -38,7 +37,7 @@ fn policy() -> &'static Policy {
         .expect("valid diplomacy policy");
         assert_eq!(policy.schema_version, 1);
         assert!(policy.cadence_turns > 0 && (1..=16).contains(&policy.technologies_per_side));
-        assert!(policy.reserve_turns >= 0 && (1..=100).contains(&policy.seller_percent));
+        assert!((1..=100).contains(&policy.seller_percent));
         assert_eq!(
             policy.interests.len(),
             8,
@@ -155,26 +154,7 @@ impl Simulation {
     }
 
     pub(in crate::sim) fn diplomatic_trade_reserve(&self, owner: usize) -> i32 {
-        let (buildings, city_support): (i32, i32) = self
-            .cities_owned_by(owner)
-            .map(|city| {
-                let forecast = self.city_forecast(city);
-                (forecast.building_upkeep, forecast.support.gold)
-            })
-            .fold((0, 0), |(buildings, units), (building, unit)| {
-                (buildings + building, units + unit)
-            });
-        // Include national support, including units without a home city.
-        let national_support: i32 = self
-            .national_unit_gold_upkeep(owner)
-            .paid
-            .iter()
-            .map(|(_, cost)| cost)
-            .sum();
-        let upkeep = buildings.saturating_add(city_support.max(national_support));
-        self.strategic_priorities(owner)
-            .gold_reserve
-            .saturating_add(upkeep.saturating_mul(policy().reserve_turns))
+        self.strategic_priorities(owner).gold_reserve
     }
 
     fn trade_spendable(&self, owner: usize) -> i64 {

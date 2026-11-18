@@ -2,7 +2,6 @@
 schema_version = 1
 cadence_turns = 6
 technologies_per_side = 8
-reserve_turns = 2
 seller_percent = 75
 commercial_margin_percent = 10
 liquidity_discount_percent = 10

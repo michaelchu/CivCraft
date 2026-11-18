@@ -59,8 +59,15 @@ impl Simulation {
     /// Allocate national support slots once in stable unit-ID order. Home-city
     /// assignments are retained for save/UI compatibility, not for eligibility.
     pub(super) fn national_unit_gold_upkeep(&self, owner: usize) -> UnitGoldUpkeep {
-        let Some(government) = self.players[owner]
-            .government
+        self.national_unit_gold_upkeep_for_government(owner, self.players[owner].government)
+    }
+
+    pub(in crate::sim) fn national_unit_gold_upkeep_for_government(
+        &self,
+        owner: usize,
+        government: Government,
+    ) -> UnitGoldUpkeep {
+        let Some(government) = government
             .rule_name()
             .and_then(|name| crate::rules::native::governments().get(name))
         else {
@@ -157,7 +164,9 @@ impl Simulation {
                 .map(|unit| unit.id)
                 .collect();
             if candidates.is_empty() {
+                let before = self.players[owner].gold;
                 self.players[owner].gold = 0;
+                self.trace_upkeep_shortfall(owner, "unpaid_unit_upkeep", None, None, before);
                 break;
             }
             let count = candidates.len();
@@ -169,12 +178,28 @@ impl Simulation {
                 id = cargo.id;
             }
             let cost = paid.iter().find(|&&(paid_id, _)| paid_id == id).unwrap().1;
+            let before = self.players[owner].gold;
+            let kind = self.unit_by_id(id).map(|unit| unit.kind.name());
             if self.resolve_missing_unit_upkeep(id, UnitUpkeepOutput::Gold) {
                 self.players[owner].gold += cost;
+                self.trace_upkeep_shortfall(
+                    owner,
+                    "unit_upkeep_action",
+                    Some(trace::Entity::Unit(id)),
+                    kind,
+                    before,
+                );
             } else {
                 // Freeciv stops selecting units when the ruleset's gold
                 // protected/actions/wipe policy cannot remove the candidate.
                 self.players[owner].gold = 0;
+                self.trace_upkeep_shortfall(
+                    owner,
+                    "unpaid_unit_upkeep",
+                    Some(trace::Entity::Unit(id)),
+                    kind,
+                    before,
+                );
                 break;
             }
         }

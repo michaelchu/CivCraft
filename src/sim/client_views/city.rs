@@ -9,6 +9,11 @@ impl Simulation {
         let city_sprite = self.rendered_city_view_from_observed(&observed);
         let forecast = self.city_forecast(city);
         let support = &forecast.support;
+        let governor = self
+            .city_governors
+            .get(&city.id)
+            .copied()
+            .unwrap_or_default();
         let units = UnitKind::ALL_NATIVE
             .into_iter()
             .map(|kind| {
@@ -77,7 +82,8 @@ impl Simulation {
                     is_city,
                     seen: tile.is_some(),
                     worked,
-                    can_assign: !is_city
+                    can_assign: !governor.active
+                        && !is_city
                         && (worked
                             || (city.specialists.iter().any(|&n| n > 0)
                                 && self.can_assign_city_tile(city, x, y))),
@@ -121,6 +127,7 @@ impl Simulation {
             bought_production: city.bought_production,
             specialists: city.specialists,
             tile_workers: city.tile_workers(),
+            governor,
             worklist,
             food_net: forecast.food_surplus(city.size, support.food),
             shield_net: forecast.shield_surplus(),

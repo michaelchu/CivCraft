@@ -58,7 +58,21 @@ impl Game {
             UiAction::SetRates(rates) => {
                 self.sim.apply(Command::SetRates(rates));
             }
-            UiAction::CityTiles => self.city_tiles = !self.city_tiles,
+            UiAction::CityTiles => {
+                self.city_tiles = !self.city_tiles;
+                self.city_governor_page = false;
+            }
+            UiAction::CityGovernorPage => {
+                self.city_governor_page = !self.city_governor_page;
+                self.city_governor_preview = self
+                    .selected_city
+                    .filter(|_| self.city_governor_page)
+                    .and_then(|id| self.sim.city_governor_preview(id));
+            }
+            UiAction::SetCityGovernor(city_id, state) => {
+                self.sim.apply(Command::SetCityGovernor { city_id, state });
+                self.city_governor_preview = self.sim.city_governor_preview(city_id);
+            }
             UiAction::WorkCityTile(city, x, y) => {
                 self.sim.apply(Command::WorkCityTile {
                     city_id: city,

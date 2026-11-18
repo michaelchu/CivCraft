@@ -11,6 +11,9 @@ mod headless;
 
 /// A fresh observer for one playtest run. Only the runner advances the game.
 pub(crate) trait Playtest {
+    fn trace_kinds(&self) -> &'static [&'static str] {
+        &[]
+    }
     fn observe_turn(&mut self, game: &Simulation, completed_turns: u32) -> serde_json::Value;
     fn finish(self: Box<Self>, completed_turns: u32) -> Vec<Check>;
 }
@@ -99,6 +102,14 @@ impl Scenario {
             fixture: Fixture::AllAiCampaign,
             actions: None,
             playtest: Some(setup),
+        }
+    }
+
+    #[cfg(any(test, feature = "scenarios"))]
+    pub(super) const fn human_playtest(id: &'static str, setup: PlaytestSetup) -> Self {
+        Self {
+            fixture: Fixture::NewCampaign,
+            ..Self::playtest(id, setup)
         }
     }
 

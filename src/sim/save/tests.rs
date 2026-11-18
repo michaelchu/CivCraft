@@ -647,3 +647,39 @@ fn rejects_duplicate_extra_treaty_technologies() {
     assert!(Simulation::load_campaign(&path).is_err());
     fs::remove_file(path).unwrap();
 }
+
+#[test]
+fn governor_settings_round_trip_and_v2b_loads_without_a_governor() {
+    let mut game = Simulation::new(crate::test_support::seeded_map());
+    game.create_city(HUMAN, 12, 24);
+    let id = game.cities[0].id;
+    let settings = GovernorSettings::PRESETS[4].1;
+    game.city_governors.insert(
+        id,
+        CityGovernor {
+            active: true,
+            settings,
+        },
+    );
+
+    let path = temporary_save("governor-v2c");
+    game.save_campaign(&path).unwrap();
+    let loaded = Simulation::load_campaign(&path).unwrap();
+    fs::remove_file(&path).unwrap();
+    assert!(loaded.governor_controls(id));
+    assert_eq!(loaded.city_governors[&id].settings, settings);
+
+    let mut bytes = V2B_HEADER.to_vec();
+    bytes.extend(
+        codec(MAX_PAYLOAD)
+            .serialize(&SavedCampaignV2B::from_game(
+                &game,
+                Cow::Borrowed(&game.observed_map.partial_sites),
+            ))
+            .unwrap(),
+    );
+    fs::write(&path, bytes).unwrap();
+    let loaded = Simulation::load_campaign(&path).unwrap();
+    fs::remove_file(path).unwrap();
+    assert!(loaded.city_governors.is_empty());
+}
