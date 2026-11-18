@@ -165,6 +165,9 @@ impl super::Simulation {
         );
         for &government in Government::targets() {
             if has_available_preferred_government(self, owner, government) {
+                // Skipped governments must not retain a want from before their
+                // preferred replacement became available (advdata.c's ai.better).
+                scores[government as usize] = 0.0;
                 continue;
             }
             self.players[owner].government = government;
@@ -245,6 +248,11 @@ impl super::Simulation {
         let (mut goal, mut available) = (current, current);
         let (mut goal_value, mut available_value) = (0.0, 0.0);
         for &government in Government::targets() {
+            // Availability can change between cache refreshes, including when
+            // reading an older saved advisor cache. Apply ai.better here too.
+            if has_available_preferred_government(self, owner, government) {
+                continue;
+            }
             let value = scores[government as usize];
             if value > goal_value {
                 goal = government;
@@ -420,6 +428,42 @@ fn has_available_preferred_government(
 #[cfg(test)]
 mod ruleset_government_tests {
     use super::*;
+
+    #[test]
+    fn superseded_government_is_excluded_before_and_after_cache_refresh() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        game.units.clear();
+        game.create_city(1, 10, 20);
+        game.players[1].known.clear();
+        game.players[1].government = Government::Monarchy;
+        let mut scores = [0.0; 11];
+        scores[Government::Despotism as usize] = 4999.0;
+        scores[Government::Monarchy as usize] = 100.0;
+
+        // Without Monarchy's technology, the preference does not exclude it.
+        assert_eq!(game.government_goals(1, &scores).1, Government::Despotism);
+        game.players[1].known.push(Tech::MONARCHY);
+        game.ai_government_cache.insert(
+            1,
+            GovernmentAdvisorCache {
+                evaluated_turn: game.turn,
+                next_evaluation: game.turn + 20,
+                scores,
+            },
+        );
+        assert_eq!(game.government_goals(1, &scores).0, Government::Monarchy);
+        assert_eq!(game.government_goals(1, &scores).1, Government::Monarchy);
+        game.choose_ai_government(1);
+        assert_eq!(game.players[1].government, Government::Monarchy);
+        assert!(game.players[1].revolution_target.is_none());
+
+        let refreshed = game.calculate_government_scores(1, scores);
+        assert_eq!(refreshed[Government::Despotism as usize], 0.0);
+        assert_ne!(
+            game.government_goals(1, &refreshed).1,
+            Government::Despotism
+        );
+    }
 
     #[test]
     fn government_availability_uses_the_selected_ruleset_requirements() {

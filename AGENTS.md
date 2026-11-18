@@ -34,6 +34,15 @@ the odds are community-documented for Civ III patch 1.29f and live in
 `data/rulesets/civcraft/content/settlements.toml`. Keep other mechanics on the
 Freeciv authority above.
 
+### Recorded exception: custom espionage
+
+The owner confirmed on 2026-11-18 that the existing custom espionage system is
+intentional and must be preserved. Its player-to-player embassy/Spy assets,
+mission costs, risk tiers and AI use remain in `src/sim/diplomacy/espionage.rs`.
+Ordinary diplomatic contact, treaties, map/city clauses and war mechanics still
+follow Freeciv. Do not replace custom espionage with Freeciv Diplomat/Spy units
+as part of diplomacy parity work.
+
 ## Comparison source checkout
 
 The Freeciv source submodule at `reference/freeciv` tracks the public upstream
@@ -84,7 +93,33 @@ references into the sidecars instead of dumping full JSONL streams. Default
 and full snapshots at checkpoints and finding boundaries. Read
 `evidence.changes` for the change stream. Use `--report-detail verbose` for full
 per-boundary snapshots and every selected event. Analyzers receive all collected
-events and full snapshots in either mode.
+events and full snapshots in either mode. Verbose evidence uses lossless deltas
+and shared values. Retrieve full snapshots with
+`cargo run --offline --bin report_read -- report.json --turn N`;
+use `--stream events --sequence N` to retrieve an event. Do not parse encoded
+verbose sidecars as standalone snapshots/events; keep the report and all
+sidecars together.
+
+Use `jq` for entity, domain and turn-range queries, projections, grouping and
+comparisons. Decode verbose evidence with `report_read` first; query lean change
+streams directly. Prefer reusable `jq` recipes over adding a custom query layer
+unless a demonstrated need cannot be handled clearly with these tools. Match
+diplomatic events against any participant, not just the initiating player.
+For example, inspect government/diplomacy events involving civilization 2:
+
+```sh
+cargo run --offline --bin report_read -- report.json --stream events |
+  jq -c --argjson nation 2 --argjson start 90 --argjson end 160 '
+    select(.turn >= $start and .turn <= $end)
+    | select(.source == "government" or .source == "diplomacy")
+    | select(any(.entities[]?; .kind == "civilization" and .id == $nation))
+    | {turn, phase, sequence, kind, payload}'
+
+jq -c --arg owner "2" '
+  .turn as $turn | .changes[]
+  | select(.provider == "governments" and .key == $owner)
+  | {turn: $turn, before, after}' report.json.changes.jsonl
+```
 
 Start with lean mode for general reviews. Choose verbose mode when the question
 requires exact per-turn food, research progress, treasury, movement, work

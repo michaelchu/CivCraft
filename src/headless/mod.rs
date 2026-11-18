@@ -4,8 +4,10 @@ mod freeciv;
 #[cfg(feature = "desktop")]
 mod minimap;
 mod observation_changes;
+pub(crate) mod read_report;
 mod report;
 pub(crate) mod scenario;
+mod verbose_codec;
 
 use crate::{
     analytics,

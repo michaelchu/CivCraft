@@ -30,6 +30,7 @@ impl Game {
         );
         let pact = offer.pact.map_or("Exchange", Pact::name);
         draw_text(pact, x, panel.y + 60.0, 18.0, GOLD);
+        let mut actions = Vec::new();
         for (index, terms) in offer.terms.iter().enumerate() {
             let mut y = panel.y + 90.0;
             let column_w = (width - 54.0) / 2.0;
@@ -45,7 +46,7 @@ impl Game {
             if terms.gold > 0 {
                 lines.push(format!("{} gold", terms.gold));
             }
-            if let Some(tech) = terms.technology {
+            for tech in terms.technologies() {
                 lines.push(tech.name().to_owned());
             }
             if terms.shared_vision() {
@@ -67,10 +68,18 @@ impl Game {
             if lines.is_empty() {
                 lines.push("No concessions".to_owned());
             }
-            for line in lines {
+            let last_page = lines.len().saturating_sub(1) / 5;
+            let page = self.treaty_clause_page[index].min(last_page);
+            for line in lines.into_iter().skip(page * 5).take(5) {
                 y += 24.0;
                 text_in(&line, x, y, 17.0, column_w, LIGHTGRAY);
             }
+            actions.extend(self.draw_treaty_clause_pager(
+                Rect::new(x, panel.y + 90.0, column_w, 180.0),
+                index,
+                page,
+                last_page,
+            ));
         }
         let valid = self.sim.treaty_offer_current_view(owner, offer);
         let buttons = [
@@ -78,7 +87,6 @@ impl Game {
             ("Decline", UiAction::DeclineOffer(owner), valid),
             ("Back", UiAction::CloseOffer, true),
         ];
-        let mut actions = Vec::new();
         for (index, (label, action, enabled)) in buttons.into_iter().enumerate() {
             let rect = Rect::new(x + index as f32 * 91.0, panel.bottom() - 46.0, 85.0, 28.0);
             draw_ui_button(rect, label, enabled, index == 0);

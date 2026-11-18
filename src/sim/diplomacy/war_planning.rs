@@ -98,145 +98,153 @@ impl Simulation {
             })
     }
 
+    #[cfg(test)]
     pub(super) fn advance_ai_war_plans(&mut self) {
+        for owner in 0..self.players.len() {
+            self.advance_ai_war_plans_for(owner);
+        }
+    }
+
+    pub(super) fn advance_ai_war_plans_for(&mut self, owner: usize) {
         let map_size = self.map_size_factor();
         let space_leader = self.ai_space_race_leader();
         let pairs: Vec<_> = self.diplomacy.keys().copied().collect();
-        for owner in 0..self.players.len() {
-            if owner == BARBARIANS || !self.players[owner].ai || !self.player_alive(owner) {
-                continue;
-            }
-            let contacts: Vec<_> = pairs
-                .iter()
-                .filter_map(|&(a, b)| {
-                    let target = if a == owner {
-                        b
-                    } else if b == owner {
-                        a
-                    } else {
-                        return None;
-                    };
-                    (target != BARBARIANS
-                        && self.player_alive(target)
-                        && self.diplomacy[&(a, b)].first_contact.is_some())
-                    .then_some(target)
-                })
-                .collect();
+        if owner == BARBARIANS || !self.players[owner].ai || !self.player_alive(owner) {
+            return;
+        }
+        let contacts: Vec<_> = pairs
+            .iter()
+            .filter_map(|&(a, b)| {
+                let target = if a == owner {
+                    b
+                } else if b == owner {
+                    a
+                } else {
+                    return None;
+                };
+                (target != BARBARIANS
+                    && self.player_alive(target)
+                    && self.diplomacy[&(a, b)].first_contact.is_some())
+                .then_some(target)
+            })
+            .collect();
 
-            for &target in &contacts {
-                let relation = &self.diplomacy[&Self::relation_key(owner, target)];
-                let side = usize::from(owner > target);
-                if !self.at_war(owner, target)
-                    && relation.trust[side] < 0
-                    && relation.cause_until[side] - self.turn >= 2
-                {
-                    self.begin_ai_war_plan(owner, target, map_size, WarReason::Behavior);
-                }
+        for &target in &contacts {
+            let relation = &self.diplomacy[&Self::relation_key(owner, target)];
+            let side = usize::from(owner > target);
+            if !self.at_war(owner, target)
+                && relation.trust[side] < 0
+                && relation.cause_until[side] - self.turn >= 2
+            {
+                self.begin_ai_war_plan(owner, target, map_size, WarReason::Behavior);
             }
-            if space_leader != Some(owner) {
-                for &target in &contacts {
-                    if self.at_war(owner, target)
-                        || self.ai_war_countdown(owner, target) != -1
-                        || !self.spaceships[target].built.iter().any(|&n| n > 0)
+        }
+        if space_leader != Some(owner) {
+            for &target in &contacts {
+                if self.at_war(owner, target)
+                    || self.ai_war_countdown(owner, target) != -1
+                    || !self.spaceships[target].built.iter().any(|&n| n > 0)
+                {
+                    continue;
+                }
+                if !self.spaceships[target].launched() {
+                    if self
+                        .ai_space_warnings
+                        .get(&(owner, target))
+                        .copied()
+                        .unwrap_or(0)
+                        == 0
                     {
-                        continue;
-                    }
-                    if !self.spaceships[target].launched() {
-                        if self
-                            .ai_space_warnings
-                            .get(&(owner, target))
-                            .copied()
-                            .unwrap_or(0)
-                            == 0
-                        {
-                            let side = usize::from(owner > target);
-                            let relation = self
-                                .diplomacy
-                                .get_mut(&Self::relation_key(owner, target))
-                                .unwrap();
-                            relation.trust[side] = (relation.trust[side] - 1000).max(-10_000);
-                            let delay = 10 + self.rand_below(6);
-                            self.ai_space_warnings.insert((owner, target), delay);
-                            if target == HUMAN {
-                                self.add_event(format!("{} warns that continued spaceship construction may lead to war.", self.players[owner].name));
-                            }
-                        }
-                    } else if space_leader == Some(target) {
-                        let allied = self.allied(owner, target);
                         let side = usize::from(owner > target);
                         let relation = self
                             .diplomacy
                             .get_mut(&Self::relation_key(owner, target))
                             .unwrap();
-                        if allied {
-                            relation.trust[side] = -10_000;
-                            relation.vision[side] = false;
+                        relation.trust[side] = (relation.trust[side] - 1000).max(-10_000);
+                        let delay = 10 + self.rand_below(6);
+                        self.ai_space_warnings.insert((owner, target), delay);
+                        if target == HUMAN {
+                            self.add_event(format!(
+                                "{} warns that continued spaceship construction may lead to war.",
+                                self.players[owner].name
+                            ));
                         }
-                        relation.trust[side] = (relation.trust[side] - 5000).max(-10_000);
-                        if allied && !self.senate_blocks_cancellation(owner, target) {
-                            self.cancel_pact(owner, target);
-                        }
-                        self.begin_ai_war_plan(owner, target, 2, WarReason::Space);
                     }
+                } else if space_leader == Some(target) {
+                    let allied = self.allied(owner, target);
+                    let side = usize::from(owner > target);
+                    let relation = self
+                        .diplomacy
+                        .get_mut(&Self::relation_key(owner, target))
+                        .unwrap();
+                    if allied {
+                        relation.trust[side] = -10_000;
+                        relation.vision[side] = false;
+                    }
+                    relation.trust[side] = (relation.trust[side] - 5000).max(-10_000);
+                    if allied && !self.senate_blocks_cancellation(owner, target) {
+                        self.cancel_pact(owner, target);
+                    }
+                    self.begin_ai_war_plan(owner, target, 2, WarReason::Space);
                 }
             }
+        }
 
-            // Freeciv defaults traitdistribution to FIXED. CivCraft currently
-            // has no nation-specific trait overrides, so use the selected
-            // C2C3 `aggressive_default` rather than a compiled-in 50.
-            let war_threshold =
-                aggression_war_threshold(crate::sim::ai_traits::fixed_default("aggressive"));
-            let target = contacts
-                .iter()
-                .copied()
-                .filter(|&target| {
-                    let relation = &self.diplomacy[&Self::relation_key(owner, target)];
-                    !self.at_war(owner, target) && self.turn - relation.first_contact.unwrap() > 15
-                })
-                .min_by_key(|&target| {
-                    self.diplomacy[&Self::relation_key(owner, target)].trust
-                        [usize::from(owner > target)]
-                });
-            let already_at_war = contacts.iter().any(|&target| self.at_war(owner, target));
-            if !already_at_war
-                && let Some(target) = target
-                && self.diplomacy[&Self::relation_key(owner, target)].trust
-                    [usize::from(owner > target)]
-                    < war_threshold
-            {
+        // Freeciv defaults traitdistribution to FIXED. CivCraft currently
+        // has no nation-specific trait overrides, so use the selected
+        // C2C3 `aggressive_default` rather than a compiled-in 50.
+        let war_threshold =
+            aggression_war_threshold(crate::sim::ai_traits::fixed_default("aggressive"));
+        let target = contacts
+            .iter()
+            .copied()
+            .filter(|&target| {
                 let relation = &self.diplomacy[&Self::relation_key(owner, target)];
-                let reason = if relation.cause_until[usize::from(owner > target)] > self.turn {
-                    WarReason::Excuse
-                } else {
-                    WarReason::Hatred
-                };
-                self.begin_ai_war_plan(owner, target, 4 + map_size, reason);
-            }
+                !self.at_war(owner, target) && self.turn - relation.first_contact.unwrap() > 15
+            })
+            .min_by_key(|&target| {
+                self.diplomacy[&Self::relation_key(owner, target)].trust
+                    [usize::from(owner > target)]
+            });
+        let already_at_war = contacts.iter().any(|&target| self.at_war(owner, target));
+        if !already_at_war
+            && let Some(target) = target
+            && self.diplomacy[&Self::relation_key(owner, target)].trust[usize::from(owner > target)]
+                < war_threshold
+        {
+            let relation = &self.diplomacy[&Self::relation_key(owner, target)];
+            let reason = if relation.cause_until[usize::from(owner > target)] > self.turn {
+                WarReason::Excuse
+            } else {
+                WarReason::Hatred
+            };
+            self.begin_ai_war_plan(owner, target, 4 + map_size, reason);
+        }
 
-            // Unlike a shared enemy, an enemy of an ally supplies a specific
-            // obligation. Freeciv gives this a shorter preparation countdown.
-            for &target in &contacts {
-                if self.at_war(owner, target)
-                    || self.allied(owner, target)
-                    || self.ai_war_countdown(owner, target) != -1
-                {
-                    continue;
-                }
-                let intel = self.diplomatic_intel(owner, target);
-                let defended_ally = intel.at_war_with_ally;
-                let shared_ally = intel.allied_with_ally.is_some();
-                if defended_ally.is_some()
-                    && !shared_ally
-                    && (self.pact(owner, target) != Pact::Ceasefire || self.rand_below(5) == 0)
-                {
-                    self.begin_ai_war_plan(owner, target, 2 + map_size, WarReason::Alliance);
-                }
+        // Unlike a shared enemy, an enemy of an ally supplies a specific
+        // obligation. Freeciv gives this a shorter preparation countdown.
+        for &target in &contacts {
+            if self.at_war(owner, target)
+                || self.allied(owner, target)
+                || self.ai_war_countdown(owner, target) != -1
+            {
+                continue;
+            }
+            let intel = self.diplomatic_intel(owner, target);
+            let defended_ally = intel.at_war_with_ally;
+            let shared_ally = intel.allied_with_ally.is_some();
+            if defended_ally.is_some()
+                && !shared_ally
+                && (self.pact(owner, target) != Pact::Ceasefire || self.rand_below(5) == 0)
+            {
+                self.begin_ai_war_plan(owner, target, 2 + map_size, WarReason::Alliance);
             }
         }
 
         let plans: Vec<_> = self
             .ai_war_plans
             .iter()
+            .filter(|(pair, _)| pair.0 == owner)
             .map(|(&pair, &plan)| (pair, plan))
             .collect();
         for ((owner, target), plan) in plans {

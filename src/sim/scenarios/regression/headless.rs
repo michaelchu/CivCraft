@@ -14,7 +14,12 @@ pub(super) const SCENARIOS: &[Scenario] = &[
     Scenario::all_ai("research-history", research_history),
     Scenario::all_ai("combat-matrix", combat_matrix),
     Scenario::new("ai-paradrops", ai_paradrops),
+    Scenario::new("diplomacy-parity", diplomacy_parity),
 ];
+
+fn diplomacy_parity(sim: &mut Simulation, checks: &mut Checks) {
+    checks.extend(crate::sim::scenarios::diplomacy::diplomacy_parity(sim));
+}
 
 fn city_healing(sim: &mut Simulation, checks: &mut Checks) {
     checks.push((

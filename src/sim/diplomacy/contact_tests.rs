@@ -202,7 +202,7 @@ fn marco_polo_refreshes_global_contacts_before_turn_advance_and_leaves_grace() {
 }
 
 #[test]
-fn virtual_embassies_allow_meetings_without_manufacturing_physical_contact() {
+fn effect_embassies_require_the_have_contacts_phase_before_meetings() {
     let mut game = war_planning_game();
     game.cities
         .iter_mut()
@@ -211,11 +211,15 @@ fn virtual_embassies_allow_meetings_without_manufacturing_physical_contact() {
         .buildings
         .push(Building::MARCO_POLOS_EMBASSY);
     assert!(!game.diplomacy.contains_key(&(HUMAN, 2)));
+    assert!(!game.has_embassy(HUMAN, 2));
+    assert!(!game.can_negotiate(2));
+    game.refresh_diplomatic_contact_effects();
+    assert!(game.has_embassy(HUMAN, 2));
     assert!(game.can_negotiate(2));
     assert!(game.negotiate(2, Pact::Ceasefire));
     assert_eq!(game.pact(HUMAN, 2), Pact::Ceasefire);
-    assert!(!game.diplomatic_contact_until.contains_key(&(HUMAN, 2)));
-    assert_eq!(game.diplomacy[&(HUMAN, 2)].first_contact, Some(0));
+    assert!(game.diplomatic_contact_until.contains_key(&(HUMAN, 2)));
+    assert_eq!(game.diplomacy[&(HUMAN, 2)].first_contact, Some(game.turn));
 }
 
 #[test]

@@ -134,30 +134,6 @@ impl Simulation {
         }
         recipients
     }
-
-    pub(in crate::sim) fn remember_visible_rivals(&mut self) {
-        let visible_owners: Vec<_> = self
-            .units
-            .iter()
-            .filter(|unit| self.unit_visible_to_human(unit))
-            .map(|unit| unit.owner)
-            .chain(
-                self.cities
-                    .iter()
-                    .filter(|city| self.tiles[self.map_wrap.index(city.x, city.y)].visible)
-                    .map(|city| city.owner),
-            )
-            .collect();
-        for owner in visible_owners {
-            if owner != HUMAN && owner != BARBARIANS {
-                self.diplomacy
-                    .entry(Self::relation_key(HUMAN, owner))
-                    .or_default()
-                    .first_contact
-                    .get_or_insert(self.turn);
-            }
-        }
-    }
 }
 
 #[cfg(test)]

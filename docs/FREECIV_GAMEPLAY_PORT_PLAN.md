@@ -43,6 +43,20 @@ III's "a victorious army". See
 `docs/superpowers/specs/2026-11-17-great-leader-design.md`. The Leader has never
 carried Freeciv's `GameLoss` flag.
 
+### Recorded exception: custom espionage
+
+On 2026-11-18 the owner confirmed that the existing CivCraft espionage model is
+intentional. Preserve its player-to-player assets, missions, risk tiers and AI
+execution. This supersedes historical statements below that espionage remains
+deferred. Diplomat/Spy map-unit identities remain omitted; normal diplomacy
+continues to follow the pinned Freeciv mechanics.
+
+The diplomacy parity follow-up restores civilian armistice exemptions, physical
+first-contact initialization, contact-gated effect embassies, map valuations,
+unknown owned city offers, multiple Advance clauses, and phase-begin AI actions.
+Campaign format 0x2B appends pending extra technology clauses while retaining
+readers for 0x26–0x2A. Pending offers expose all technologies in the treaty UI.
+
 ## Pinned reference
 
 - Freeciv checkout: `../reference/freeciv`

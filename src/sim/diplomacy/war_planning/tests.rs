@@ -3,6 +3,36 @@
 use super::*;
 
 #[test]
+fn recent_contact_can_cease_fire_on_the_declaration_turn_as_in_freeciv() {
+    let mut game = war_planning_game();
+    game.players[HUMAN].ai = true;
+    game.diplomacy.get_mut(&(HUMAN, 1)).unwrap().first_contact = Some(game.turn - 10);
+    game.trace = trace::Collector::enabled(["*".to_owned()].into(), 1000);
+    game.declare_prepared_ai_war(1, HUMAN, WarReason::Hatred);
+    assert!(game.at_war(1, HUMAN));
+    assert_eq!(game.ai_war_countdown(1, HUMAN), -20);
+    // daidiplomacy.c's TURNS_BEFORE_TARGET grace values ceasefire at zero;
+    // negative stubbornness excludes Peace/Alliance, not Ceasefire.
+    assert_eq!(game.pact_clause_value(1, HUMAN, Pact::Ceasefire), 0);
+    game.ai_diplomatic_memory.get_mut(&(HUMAN, 1)).unwrap().spam = 10;
+    game.ai_diplomatic_memory.get_mut(&(1, HUMAN)).unwrap().spam = 0;
+    game.advance_diplomatic_offers();
+    assert_eq!(game.pact(HUMAN, 1), Pact::Ceasefire);
+    assert_eq!(game.ai_war_countdown(1, HUMAN), -1);
+    let events = game.trace.drain();
+    let war = events
+        .iter()
+        .find(|e| e.payload["action"] == "war_declared")
+        .unwrap();
+    let ceasefire = events
+        .iter()
+        .find(|e| e.payload["action"] == "offer_accepted")
+        .unwrap();
+    assert_eq!(war.turn, ceasefire.turn);
+    assert!(war.sequence < ceasefire.sequence);
+}
+
+#[test]
 fn fresh_casus_belli_starts_the_short_revenge_countdown() {
     let mut game = war_planning_game();
     game.diplomacy.get_mut(&(HUMAN, 1)).unwrap().trust[1] = -1;

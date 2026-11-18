@@ -157,6 +157,8 @@ impl Simulation {
         drop(_profile);
         // begin_turn() calculates score before begin-phase activities and AI.
         self.refresh_score_snapshot();
+        self.trace.phase(trace::Phase::AiPlanning);
+        self.begin_diplomatic_phase();
         // srv_main:begin_phase progresses activities with the previous
         // movement budget, then refills MP. Revolution completion is also
         // checked here, after activities (update_revolution at line 1381).
@@ -172,6 +174,7 @@ impl Simulation {
         self.refresh_visibility();
         drop(_profile);
         self.trace.phase(trace::Phase::AiPlanning);
+        self.run_begin_phase_diplomacy();
         let _profile = profiler.scope("turn.ai.civilizations");
         self.run_civilization_begin_phase_ai();
         drop(_profile);

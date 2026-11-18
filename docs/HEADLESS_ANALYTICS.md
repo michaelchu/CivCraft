@@ -254,10 +254,28 @@ refreshes, anomalies, growth/starvation, failed searches, government changes,
 production, settlement choices/founding, research, lifecycle and diplomacy events.
 Compaction happens only when writing output; analyzers still receive every event.
 
-Use `--report-detail verbose` for full snapshots at every boundary and every
-selected event (ordinary trace filters and limits still apply). Its changes
-stream is empty because the full streams carry the observations. Profiling is a
-separate opt-in measurement of computation cost.
+Use `--report-detail verbose` to preserve every exact snapshot and selected event
+(ordinary trace filters and limits still apply). Storage is lossless: verbose
+snapshots use field/array deltas between full baselines, and large event payload
+members share dictionary records. No per-turn values, decisions, entity details,
+array order or interval history are discarded. The changes stream stays empty.
+Profiling is a separate opt-in measurement of computation cost.
+
+Expand evidence before using ordinary JSON tools:
+
+```sh
+cargo run --offline --bin report_read -- report.json --turn 80
+cargo run --offline --bin report_read -- report.json --stream events --sequence 476
+cargo run --offline --bin report_read -- report.json --stream snapshots > expanded.snapshots.jsonl
+```
+
+`report_read` supports raw lean/older JSONL and verbose encoded streams. Optional
+`--turn`, `--phase` and event `--sequence` filters apply after reconstruction.
+Missing baselines, sequence gaps, malformed edits or unresolved shared references
+fail explicitly. The reader honors published record counts so unfinished tails
+from a running simulation do not invalidate its last checkpoint. Keep the report
+and its sidecars together; individual verbose
+lines can depend on earlier records or the shared-values sidecar.
 
 ## Opt-in simulation profiling
 
@@ -418,6 +436,10 @@ cargo run --offline --release --bin headless_sim -- \
   actual founding distance to the nearest existing city.
 - `--trace-buffer-events 10000` bounds requested events buffered per full turn.
   Overflow increments a counter and notifies analyzers. Payload sizes vary.
+  Zero dropped events establishes collector coverage only; it does not prove
+  every gameplay path emits an event. Diplomatic contact is initialized by
+  physical contact or a contact-granting effect; visibility alone does not
+  establish diplomatic contact.
 - `--trace-max-events 50000` and `--trace-max-bytes 16777216` bound persisted
   events for the whole run; these limits do not stop analyzer dispatch.
 - `--stop-on-finding none|any|invariant` optionally stops after a full turn.
@@ -434,7 +456,7 @@ size grows with requested turns and selected/required providers; event limits
 do not limit snapshots. The compact timeline and findings remain in memory.
 I/O errors fail the runner rather than silently continuing without evidence.
 
-## Report schema 9
+## Report schema 10
 
 `report.json` is the review entry point:
 
@@ -460,7 +482,9 @@ Sidecars:
 - `report.json.changes.jsonl`: lean entity changes and interval history; see the
   inspection projections above. Empty in verbose mode.
 - `report.json.snapshots.jsonl`: full snapshots at retained boundaries in lean
-  mode, or the initial snapshot plus every completed step in verbose mode.
+  mode. Verbose uses `jsonl_snapshot_delta_v1`: an initial/full baseline and exact
+  deltas for every completed step. Full baselines occur at least every 64 records
+  (or sooner when a full record is smaller). Use `report_read` for full JSONL.
   `cities`, `civilizations`, `units`, `lifecycle`, `research`, `governments`,
   and `diplomacy` are independent provider sections.
 - `report.json.minimap.png`: one final minimap, written when the run stops.
@@ -475,8 +499,13 @@ Sidecars:
   `--snapshot-providers` disables the export; `none` does so too. Builds using
   `--no-default-features --features scenarios` retain research analytics but omit
   minimap support and keep `evidence.minimap:null`.
-- `report.json.events.jsonl`: events selected for persistence. Sequences are
-  stable within the run but may have gaps after filtering or overflow.
+- `report.json.events.jsonl`: selected events, raw JSONL in lean mode or
+  `jsonl_events_shared_v1` wrappers in verbose mode. Every selected verbose event
+  has a record; sequence gaps can still arise from filtering or overflow.
+- `report.json.shared.jsonl`: verbose event payload members of at least 128
+  serialized bytes that are objects/arrays, stored once and referenced by ID.
+  Empty in lean mode. The event byte limit includes both event and shared-value
+  bytes; rejected/filtered events do not publish new dictionary entries.
 
 Finding evidence references use `snapshot_turn` or `event_sequence`. Event
 references omitted from disk are marked `available:false`. Snapshots referenced
@@ -488,8 +517,11 @@ All streams flush before a summary checkpoint is atomically published.
 limit, game over, or configured finding stop. A terminated run can leave its
 last valid `running` checkpoint. No findings is not proof of correct gameplay.
 
-Schema 9 adds lean/verbose output, the inspection change stream, sparse full
-snapshot retention, and separate compaction accounting. Schema 8 adds lifecycle accounting and each live unit's `home_city`. Schema 6
+Schema 10 adds lossless verbose encoding and `report_read`. Inspect each
+stream's `evidence.*.format` before parsing; encoded lines are not standalone
+snapshots/events. Schema 9 adds lean/verbose output, the inspection change stream,
+sparse full snapshot retention, and separate compaction accounting. Schema 8 adds
+lifecycle accounting and each live unit's `home_city`. Schema 6
 replaces implicit sequential step timings with scoped timing
 aggregates. Schema 5 replaced schema 4's history sidecar with independent
 snapshots/events, added the initial snapshot and analyzer metadata, and
@@ -592,8 +624,8 @@ changes are explicitly marked `unobserved`, counted separately, and set
 
 ```sh
 jq '.summary.lifecycle.unit_totals, .summary.lifecycle.city_totals' report.json
-jq -c '.lifecycle.changes[] | select(.event == "city_transferred" or .event == "city_destroyed")' \
-  report.json.snapshots.jsonl
+cargo run --offline --bin report_read -- report.json --stream snapshots | \
+  jq -c '.lifecycle.changes[] | select(.event == "city_transferred" or .event == "city_destroyed")'
 ```
 
 Run `--scenario lifecycle-history --turns 1` for a regression exercising actual

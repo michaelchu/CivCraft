@@ -5,6 +5,7 @@ use super::*;
 mod attitude;
 mod contact;
 mod espionage;
+pub(in crate::sim) mod legacy;
 pub(crate) mod observation;
 mod observer;
 mod offers;
@@ -63,6 +64,8 @@ impl TreatyMap {
 pub(crate) struct Concessions {
     pub(crate) gold: i32,
     pub(crate) technology: Option<Tech>,
+    #[serde(default)]
+    pub(in crate::sim) additional_technologies: Vec<Tech>,
     // Shared-vision, map, and embassy flags remain packed; city clauses are a
     // list because Freeciv permits several distinct cities in one treaty.
     access: u64,
@@ -87,8 +90,49 @@ impl Concessions {
     pub(crate) fn set_technology(&self, technology: Option<Tech>) -> Self {
         Self {
             technology,
+            additional_technologies: Vec::new(),
             ..self.clone()
         }
+    }
+
+    pub(crate) fn technologies(&self) -> impl Iterator<Item = Tech> + '_ {
+        self.technology
+            .into_iter()
+            .chain(self.additional_technologies.iter().copied())
+    }
+
+    pub(crate) fn add_technology(&self, tech: Tech) -> Self {
+        let mut changed = self.clone();
+        if !changed.technologies().any(|existing| existing == tech) {
+            if changed.technology.is_none() {
+                changed.technology = Some(tech);
+            } else {
+                changed.additional_technologies.push(tech);
+            }
+        }
+        changed
+    }
+
+    pub(crate) fn remove_technology(&self, tech: Tech) -> Self {
+        let mut changed = self.clone();
+        if changed.technology == Some(tech) {
+            changed.technology = if changed.additional_technologies.is_empty() {
+                None
+            } else {
+                Some(changed.additional_technologies.remove(0))
+            };
+        } else {
+            changed
+                .additional_technologies
+                .retain(|&candidate| candidate != tech);
+        }
+        changed
+    }
+
+    pub(in crate::sim) fn technologies_are_unique(&self) -> bool {
+        let mut seen = std::collections::BTreeSet::new();
+        self.technologies().all(|tech| seen.insert(tech.0))
+            && (self.technology.is_some() || self.additional_technologies.is_empty())
     }
 
     pub(crate) fn set_shared_vision(&self, enabled: bool) -> Self {
@@ -523,8 +567,15 @@ impl Simulation {
                     .units
                     .iter()
                     .filter(|unit| {
-                        unit.owner == a && self.tile(unit.x, unit.y).owner == Some(b)
-                            || unit.owner == b && self.tile(unit.x, unit.y).owner == Some(a)
+                        (unit.owner == a && self.tile(unit.x, unit.y).owner == Some(b)
+                            || unit.owner == b && self.tile(unit.x, unit.y).owner == Some(a))
+                            && !unit.kind.is_civilian()
+                            && !movement_rules::MovementRules::campaign()
+                                .terrain_has_named_flag(
+                                    self.tile(unit.x, unit.y).terrain,
+                                    "EnterBorders",
+                                )
+                                .expect("campaign terrain has valid flags")
                     })
                     .map(|unit| unit.id)
                     .collect();
@@ -554,13 +605,22 @@ impl Simulation {
                 ));
             }
         }
+    }
 
-        // daidata.c applies new-phase love against the preceding intelligence,
-        // then refreshes the relation pointers used by diplomatic actions.
+    pub(super) fn begin_diplomatic_phase(&mut self) {
+        // daidata.c runs phase-begin love against the preceding intelligence,
+        // then refreshes intelligence before unit activities progress.
         self.advance_ai_love();
         self.refresh_diplomatic_intelligence();
-        self.advance_ai_war_plans();
-        self.advance_diplomatic_offers();
+    }
+
+    pub(super) fn run_begin_phase_diplomacy(&mut self) {
+        // srv_main.c:begin_phase runs each player's complete diplomacy action
+        // pass after unit activities and revolutions, before unit planning.
+        for owner in 0..self.civilization_count {
+            self.advance_ai_war_plans_for(owner);
+            self.advance_diplomatic_offers_for(owner);
+        }
     }
 
     pub(super) fn treaty_blocks_move(&self, unit: &Unit, x: i32, y: i32) -> bool {
@@ -585,3 +645,6 @@ impl Simulation {
 #[cfg(test)]
 #[path = "diplomacy/tests.rs"]
 mod tests;
+
+#[cfg(test)]
+mod parity_tests;

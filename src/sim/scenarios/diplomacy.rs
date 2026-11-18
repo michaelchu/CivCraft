@@ -48,3 +48,72 @@ pub(crate) fn ui_review_contacts(sim: &mut Simulation) {
         relation.until = 0;
     }
 }
+
+/// Reusable headless coverage for the diplomacy parity repairs. The caller
+/// attaches tracing before this helper so treaty/war transitions remain visible.
+pub(crate) fn diplomacy_parity(sim: &mut Simulation) -> Vec<(&'static str, bool, String)> {
+    sim.units.clear();
+    sim.cities.clear();
+    sim.diplomacy.clear();
+    sim.ai_war_plans.clear();
+    for player in &mut sim.players {
+        player.ai = false;
+    }
+    for (owner, x, y) in [(HUMAN, 8, 20), (1, 12, 24), (2, 18, 30)] {
+        sim.tile_mut(x, y).terrain = Terrain::Grassland;
+        sim.create_city(owner, x, y);
+    }
+    sim.tile_mut(12, 23).terrain = Terrain::Grassland;
+    let worker = sim.spawn_unit(HUMAN, UnitKind::Worker, 12, 23);
+    let warrior = sim.spawn_unit(HUMAN, UnitKind::Warrior, 12, 23);
+    sim.sign_pact(HUMAN, 1, Pact::Peace);
+    sim.tile_mut(12, 23).owner = Some(1);
+    sim.diplomacy.get_mut(&(HUMAN, 1)).unwrap().until = sim.turn;
+    sim.advance_diplomacy();
+    let civilian_preserved = sim.unit_by_id(worker).is_some();
+    let military_removed = sim.unit_by_id(warrior).is_none();
+
+    sim.players[HUMAN].known.clear();
+    sim.players[1].known = vec![Tech::ALPHABET, Tech::POTTERY];
+    let mut offer = TreatyOffer::default();
+    offer.terms[1] = Concessions::default()
+        .add_technology(Tech::ALPHABET)
+        .add_technology(Tech::POTTERY);
+    let exchanged = sim.propose_treaty(1, offer)
+        && sim.has_tech(HUMAN, Tech::ALPHABET)
+        && sim.has_tech(HUMAN, Tech::POTTERY);
+
+    sim.players[1].ai = true;
+    sim.ai_war_plans.insert(
+        (1, HUMAN),
+        crate::sim::diplomacy::WarPlan {
+            countdown: 0,
+            reason: crate::sim::diplomacy::WarReason::Hatred,
+        },
+    );
+    let ending_turn = sim.turn;
+    sim.simulate_turn();
+    let declared = sim.turn == ending_turn + 1 && sim.pact(HUMAN, 1) == Pact::War;
+    vec![
+        (
+            "civilian_preserved",
+            civilian_preserved,
+            "Armistice expiry preserves a Worker on foreign territory".into(),
+        ),
+        (
+            "military_removed",
+            military_removed,
+            "Armistice expiry removes the Warrior on that tile".into(),
+        ),
+        (
+            "multiple_technologies",
+            exchanged,
+            "One treaty transfers Alphabet and Pottery".into(),
+        ),
+        (
+            "begin_phase_war",
+            declared,
+            "A prepared AI declaration executes in the following begin phase".into(),
+        ),
+    ]
+}

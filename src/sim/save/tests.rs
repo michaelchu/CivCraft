@@ -580,3 +580,70 @@ fn v29_save_loads_with_no_created_leaders() {
     fs::remove_file(path).unwrap();
     assert!(!loaded.unit_by_id(unit).unwrap().created_leader);
 }
+
+#[test]
+fn multiple_pending_technology_clauses_round_trip_and_v2a_migrates() {
+    let path = temporary_save("multi-tech-v2b");
+    let mut game = Simulation::new(crate::test_support::seeded_map());
+    let terms = diplomacy::Concessions::default()
+        .add_technology(Tech::ALPHABET)
+        .add_technology(Tech::POTTERY)
+        .add_technology(Tech::MONARCHY);
+    game.diplomacy.entry((HUMAN, 1)).or_default().offer = Some(TreatyOffer {
+        terms: [terms.clone(), diplomacy::Concessions::default()],
+        ..TreatyOffer::default()
+    });
+    game.save_campaign(&path).unwrap();
+    let loaded = Simulation::load_campaign(&path).unwrap();
+    assert_eq!(
+        loaded.diplomacy[&(HUMAN, 1)].offer.as_ref().unwrap().terms[0],
+        terms
+    );
+    assert_eq!(
+        loaded.encode_campaign().unwrap(),
+        game.encode_campaign().unwrap()
+    );
+
+    // The old payload contains the original first technology, without the
+    // new appended list. Every following field must still decode correctly.
+    let mut legacy = V2A_HEADER.to_vec();
+    legacy.extend(
+        codec(MAX_PAYLOAD)
+            .serialize(&SavedCampaignV2A::from_game(
+                &game,
+                Cow::Borrowed(&game.observed_map.partial_sites),
+            ))
+            .unwrap(),
+    );
+    fs::write(&path, legacy).unwrap();
+    let legacy_loaded = Simulation::load_campaign(&path).unwrap();
+    assert_eq!(legacy_loaded.turn, game.turn);
+    assert_eq!(
+        legacy_loaded.diplomacy[&(HUMAN, 1)]
+            .offer
+            .as_ref()
+            .unwrap()
+            .terms[0]
+            .technologies()
+            .collect::<Vec<_>>(),
+        [Tech::ALPHABET]
+    );
+    legacy_loaded.save_campaign(&path).unwrap();
+    assert!(fs::read(&path).unwrap().starts_with(HEADER));
+    fs::remove_file(path).unwrap();
+}
+
+#[test]
+fn rejects_duplicate_extra_treaty_technologies() {
+    let path = temporary_save("invalid-multi-tech");
+    let mut game = Simulation::new(crate::test_support::seeded_map());
+    let mut terms = diplomacy::Concessions::default().add_technology(Tech::ALPHABET);
+    terms.additional_technologies.push(Tech::ALPHABET);
+    game.diplomacy.entry((HUMAN, 1)).or_default().offer = Some(TreatyOffer {
+        terms: [terms, diplomacy::Concessions::default()],
+        ..TreatyOffer::default()
+    });
+    game.save_campaign(&path).unwrap();
+    assert!(Simulation::load_campaign(&path).is_err());
+    fs::remove_file(path).unwrap();
+}

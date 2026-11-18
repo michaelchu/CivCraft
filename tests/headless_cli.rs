@@ -216,7 +216,7 @@ fn lifecycle_snapshots_survive_disabled_event_output() {
         String::from_utf8_lossy(&output.stderr)
     );
     let report = read_report(&report);
-    assert_eq!(report["version"], 9);
+    assert_eq!(report["version"], 10);
     assert_eq!(report["summary"]["lifecycle"]["history_available"], true);
     assert_eq!(report["summary"]["lifecycle"]["complete_since_start"], true);
     let snapshots = directory.join(report["evidence"]["snapshots"]["path"].as_str().unwrap());
@@ -373,7 +373,7 @@ fn world_options_validate_against_the_generator_and_report_the_effective_inputs(
             String::from_utf8_lossy(&run.stderr)
         );
         let report = read_report(&report);
-        assert_eq!(report["version"], 9);
+        assert_eq!(report["version"], 10);
         let config = &report["run"]["configuration"];
         assert_eq!(config["map_generator"], "opensimplex");
         assert_eq!(
@@ -545,7 +545,16 @@ fn compact_events_preserve_analytics_and_snapshots_with_full_audit_opt_in() {
     );
     assert_eq!(compact["findings"], full["findings"]);
     let lean = std::fs::read_to_string(directory.join("lean.json.snapshots.jsonl")).unwrap();
-    let verbose = std::fs::read_to_string(directory.join("verbose.json.snapshots.jsonl")).unwrap();
+    let output = cargo_bin_cmd!("report_read")
+        .arg(directory.join("verbose.json"))
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let verbose = String::from_utf8(output.stdout).unwrap();
     assert_eq!(lean.lines().next(), verbose.lines().next());
     assert_eq!(lean.lines().last(), verbose.lines().last());
     assert!(lean.lines().count() < verbose.lines().count());
@@ -569,5 +578,90 @@ fn compact_events_preserve_analytics_and_snapshots_with_full_audit_opt_in() {
         compact["analytics"]["metrics"]["government.nations"][0]["name"],
         "Romans"
     );
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn report_reader_expands_verbose_events_and_filters_full_snapshots() {
+    let directory = report_directory("verbose-reader");
+    let report = directory.join("report.json");
+    headless()
+        .args(["--turns", "10", "--report-detail", "verbose", "--report"])
+        .arg(&report)
+        .assert()
+        .success();
+    let summary = read_report(&report);
+    assert_eq!(
+        summary["evidence"]["snapshots"]["format"],
+        "jsonl_snapshot_delta_v1"
+    );
+    assert!(
+        summary["evidence"]["shared_values"]["records"]
+            .as_u64()
+            .unwrap()
+            > 0
+    );
+    let output = cargo_bin_cmd!("report_read")
+        .arg(&report)
+        .args(["--stream", "events"])
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let text = String::from_utf8(output.stdout).unwrap();
+    let events: Vec<serde_json::Value> = text
+        .lines()
+        .map(|line| serde_json::from_str(line).unwrap())
+        .collect();
+    assert_eq!(
+        events.len() as u64,
+        summary["evidence"]["events"]["records"].as_u64().unwrap()
+    );
+    let decision = events
+        .iter()
+        .find(|event| event["kind"] == "government.decision")
+        .unwrap();
+    assert!(decision["payload"]["advice"]["candidates"].is_array());
+    let output = cargo_bin_cmd!("report_read")
+        .arg(&report)
+        .args(["--turn", "5", "--phase", "turn_end"])
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let text = String::from_utf8(output.stdout).unwrap();
+    assert_eq!(text.lines().count(), 1);
+    let snapshot: serde_json::Value = serde_json::from_str(&text).unwrap();
+    assert_eq!(snapshot["turn"], 5);
+    assert!(snapshot["cities"].is_array());
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn report_reader_handles_legacy_raw_streams_and_ignores_unpublished_tail() {
+    let directory = report_directory("reader-checkpoint");
+    let report = directory.join("report.json");
+    let stream = directory.join("events.jsonl");
+    let event = serde_json::json!({"turn":5,"phase":"ai_planning","sequence":1,"payload":{"score":105.95744323730469}});
+    std::fs::write(&stream, format!("{event}\n{{incomplete unpublished record")).unwrap();
+    std::fs::write(&report, serde_json::json!({"version":9,"evidence":{"events":{"format":"jsonl","path":"events.jsonl","records":1}}}).to_string()).unwrap();
+    let output = cargo_bin_cmd!("report_read")
+        .arg(&report)
+        .args(["--stream", "events", "--sequence", "1"])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        serde_json::from_slice::<serde_json::Value>(&output.stdout).unwrap(),
+        event
+    );
+    std::fs::write(&stream, "").unwrap();
+    cargo_bin_cmd!("report_read")
+        .arg(&report)
+        .args(["--stream", "events"])
+        .assert()
+        .failure();
     std::fs::remove_dir_all(directory).unwrap();
 }
