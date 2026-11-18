@@ -586,6 +586,27 @@ that code has been added.
   outside this milestone. P10 mechanics are complete; end-to-end UI validation
   remains part of P13.
 
+### Player city governor
+
+The city screen's Governor page uses the citizen assignment search from
+`common/aicore/cm.c`. It exposes the six output minimums and weights, the five
+built-in presets from `client/agents/cma_fec.c`, and the celebration and
+growth controls. Like `client/agents/cma_core.c`, it releases control and
+reports the failure when the search cannot satisfy the selected constraints.
+Manual citizen assignment is available when control is released. Culture is
+not an output of the Freeciv governor.
+
+CivCraft enables the Very happy preset when a human player founds a city.
+AI cities use their own automatic assignment and emergency logic. Campaign
+saves retain each city's settings and active flag. Cities from saves created
+before the governor was added start in manual mode. The simulation refreshes
+active cities after player commands, before human city processing, and after
+the world and unit updates for the next turn. Overlapping cities keep existing tile claims
+and governed cities are processed in stable city order. Freeciv runs the
+governor from client city updates, so packet timing and native search cutoff
+equivalence are not claimed. Client-wide named presets and city report
+shortcuts are outside the city screen implementation.
+
 ### P11 evidence (complete)
 
 - P11 compares the Rust AI with pinned Freeciv revision

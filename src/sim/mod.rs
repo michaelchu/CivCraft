@@ -143,6 +143,8 @@ pub(crate) use worklist::{WORKLIST_LIMIT, WorklistEdit};
 use crate::rules::engine_rules::EffectKind;
 use crate::rules::{Building, Tech};
 pub(crate) use model::*;
+mod governor;
+pub(crate) use governor::{CityGovernor, GovernorSettings};
 use topology::*;
 
 pub(crate) const PLAYER_COUNT: usize = crate::world::DEFAULT_CIVILIZATION_COUNT;
@@ -274,6 +276,7 @@ pub(crate) struct Simulation {
     ai_pending_war_targets: std::collections::BTreeMap<usize, usize>,
     ai_guard_targets: std::collections::BTreeMap<u32, guards::GuardTarget>,
     ai_unit_guards: std::collections::BTreeMap<u32, guards::GuardState>,
+    city_governors: std::collections::BTreeMap<u32, CityGovernor>,
     city_rapture: std::collections::BTreeMap<u32, i32>,
     unit_goto_tiles: std::collections::BTreeMap<u32, (i32, i32)>,
     list_order: list_order::ListOrder,
@@ -608,6 +611,7 @@ impl Simulation {
             ai_pending_war_targets: Default::default(),
             ai_guard_targets: Default::default(),
             ai_unit_guards: Default::default(),
+            city_governors: Default::default(),
             city_rapture: Default::default(),
             unit_goto_tiles: Default::default(),
             list_order: Default::default(),

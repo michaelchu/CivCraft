@@ -104,6 +104,10 @@ impl ClientSimulation {
         self.simulation.city_context_view(city_id)
     }
 
+    pub(crate) fn city_governor_preview(&self, city_id: u32) -> Option<[i32; 6]> {
+        self.simulation.city_governor_preview(city_id)
+    }
+
     pub(crate) fn city_manager_view(&self, city_id: u32) -> Option<CityManagerView> {
         self.simulation.city_manager_view(city_id)
     }

@@ -192,6 +192,28 @@ impl<'a, S> SavedCampaignV2B<'a, S> {
     }
 }
 
+/// Format 0x2C appends governor settings to the previous payload.
+#[derive(Serialize, Deserialize)]
+pub(super) struct SavedCampaignV2C<'a, S> {
+    campaign: SavedCampaignV2B<'a, S>,
+    governors: Cow<'a, BTreeMap<u32, CityGovernor>>,
+}
+
+impl<'a, S> SavedCampaignV2C<'a, S> {
+    pub(super) fn from_game(game: &'a Simulation, partial_sites: S) -> Self {
+        Self {
+            campaign: SavedCampaignV2B::from_game(game, partial_sites),
+            governors: Cow::Borrowed(&game.city_governors),
+        }
+    }
+
+    pub(super) fn into_game(self) -> Result<(Simulation, S), &'static str> {
+        let (mut game, partial_sites) = self.campaign.into_game()?;
+        game.city_governors = self.governors.into_owned();
+        Ok((game, partial_sites))
+    }
+}
+
 #[derive(Deserialize)]
 pub(super) struct LegacyCampaign<'a> {
     core: SavedCore<'a>,
@@ -345,6 +367,7 @@ impl<'a, A, S> SavedCampaign<'a, A, S> {
             climate_current: world.climate_current,
             ai_guard_targets: world.ai_guard_targets.into_owned(),
             ai_unit_guards: world.ai_unit_guards.into_owned(),
+            city_governors: Default::default(),
             city_rapture: world.city_rapture.into_owned(),
             unit_goto_tiles: world.unit_goto_tiles.into_owned(),
             list_order: world.list_order,

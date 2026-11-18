@@ -331,6 +331,7 @@ pub(crate) struct CityManagerView {
     pub(crate) bought_production: bool,
     pub(crate) specialists: [i32; 3],
     pub(crate) tile_workers: i32,
+    pub(crate) governor: CityGovernor,
     pub(crate) worklist: Vec<CityWorklistItemView>,
     pub(crate) food_net: i32,
     pub(crate) shield_net: i32,

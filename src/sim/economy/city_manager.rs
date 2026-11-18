@@ -97,7 +97,11 @@ pub(super) struct CmQueryResult {
 }
 
 impl Simulation {
-    pub(super) fn city_manager_surplus(&self, city: &City, forecast: &CityForecast) -> [i32; 6] {
+    pub(in crate::sim) fn city_manager_surplus(
+        &self,
+        city: &City,
+        forecast: &CityForecast,
+    ) -> [i32; 6] {
         [
             forecast.food_surplus(city.size, forecast.support.food),
             if forecast.disorder {
@@ -152,6 +156,25 @@ impl Simulation {
         city: &City,
         occupied: &std::collections::HashSet<(i32, i32)>,
     ) -> City {
+        self.arrange_city(city, occupied, None)
+            .unwrap_or_else(|| city.clone())
+    }
+
+    pub(in crate::sim) fn governor_assignment(
+        &self,
+        city: &City,
+        occupied: &std::collections::HashSet<(i32, i32)>,
+        settings: GovernorSettings,
+    ) -> Option<City> {
+        self.arrange_city(city, occupied, Some(settings))
+    }
+
+    fn arrange_city(
+        &self,
+        city: &City,
+        occupied: &std::collections::HashSet<(i32, i32)>,
+        governor: Option<GovernorSettings>,
+    ) -> Option<City> {
         let profiler = self.trace.profiler();
         let _profile = profiler.scope("city_manager.arrange");
         let citizens = city.size.max(0) as usize;
@@ -242,10 +265,14 @@ impl Simulation {
             self.city_output_bonus_percent(city, "Luxury", government, None),
             self.city_output_bonus_percent(city, "Science", government, None),
         ];
-        let rates = self.players[city.owner].rates;
+        let rates = if governor.is_some() && government == Government::during_revolution() {
+            [0, 0, 100]
+        } else {
+            self.players[city.owner].rates
+        };
         let orders: [Vec<usize>; 2] = std::array::from_fn(|emergency| {
             let factors = if emergency == 0 {
-                [food_factor, 5, 0, 2, 0, 2]
+                governor.map_or([food_factor, 5, 0, 2, 0, 2], |settings| settings.weight)
             } else {
                 [1; 6]
             };
@@ -335,8 +362,46 @@ impl Simulation {
             orders,
             by_stat,
         };
-        let original = self.city_manager_surplus(city, &self.city_forecast(city));
         let mut mood_cache = CityManagerMoodCache::new();
+        if let Some(mut settings) = governor {
+            if settings.fastest_growth {
+                // cm.c computes this from the free city center and raw tile food.
+                let center_surplus =
+                    self.city_manager_center_yields(city).0 - city.size * Self::citizen_food_cost();
+                let needed = Self::growth_box(city.size) - city.food;
+                settings.minimum[0] = if center_surplus <= 0 {
+                    center_surplus
+                } else if needed <= 0 {
+                    0
+                } else {
+                    let mut workers = citizens;
+                    let mut maximum = center_surplus;
+                    for &kind in &lattice.by_stat[0] {
+                        let count = workers.min(lattice.capacity[kind] as usize);
+                        maximum += count as i32 * lattice.production[kind][0];
+                        workers -= count;
+                        if workers == 0 {
+                            break;
+                        }
+                    }
+                    let turns = (needed + maximum - 1) / maximum;
+                    (needed + turns - 1) / turns
+                };
+            }
+            return self
+                .city_manager_query_with_mood_cache(
+                    city,
+                    &lattice,
+                    food_factor,
+                    settings.minimum,
+                    false,
+                    CM_MAX_LOOP,
+                    &mut mood_cache,
+                    Some(settings),
+                )
+                .city;
+        }
+        let original = self.city_manager_surplus(city, &self.city_forecast(city));
         for stage in 0..4 {
             let minima = match stage {
                 0 => [i32::from(!full), 1, 0, -CM_INFINITY, 0, 0],
@@ -359,14 +424,15 @@ impl Simulation {
                 stage == 3,
                 CM_MAX_LOOP,
                 &mut mood_cache,
+                None,
             );
             // cityturn.c deliberately checks validity, not the abort flag:
             // a sufficient incumbent from a truncated search is applied.
             if let Some(city) = result.city {
-                return city;
+                return Some(city);
             }
         }
-        city.clone()
+        None
     }
 
     fn city_manager_apply(&self, city: &City, lattice: &CmLattice, partial: &CmPartial) -> City {
@@ -454,6 +520,7 @@ impl Simulation {
             emergency,
             limit,
             &mut mood_cache,
+            None,
         )
     }
 
@@ -470,6 +537,7 @@ impl Simulation {
         emergency: bool,
         limit: usize,
         mood_cache: &mut CityManagerMoodCache,
+        governor: Option<GovernorSettings>,
     ) -> CmQueryResult {
         let profiler = self.trace.profiler();
         let _profile = profiler.scope("city_manager.query");
@@ -478,11 +546,16 @@ impl Simulation {
         for (position, &kind) in order.iter().enumerate() {
             rank[kind] = position;
         }
-        let factors = if emergency {
+        let factors = if let Some(settings) = governor {
+            settings.weight
+        } else if emergency {
             [1; 6]
         } else {
             [food_factor, 5, 0, 2, 0, 2]
         };
+        let celebration_weight =
+            governor.map_or(i32::from(emergency), |settings| settings.celebration_weight);
+        let require_celebration = governor.is_some_and(|settings| settings.require_celebration);
         let initial = self.city_forecast(city);
         let settings = CityEconomySettings::campaign();
         let unit_gold = if settings.gold_upkeep_style == GoldUpkeepStyle::City {
@@ -512,6 +585,7 @@ impl Simulation {
         };
         let mut best = current.clone();
         let mut best_fitness = (false, -i64::from(CM_INFINITY));
+        let mut best_is_celebrating = false;
         let mut min_luxury = -CM_INFINITY;
         let mut stack: Vec<usize> = Vec::new();
         let mut iterations = 0;
@@ -571,17 +645,19 @@ impl Simulation {
                         + 1;
                 }
                 let sufficient = (emergency || !output.disorder)
+                    && (!require_celebration || output.happy)
                     && (0..6).all(|index| surplus[index] >= minima[index]);
                 let fitness = (
                     sufficient,
                     (0..6)
                         .map(|index| i64::from(surplus[index]) * i64::from(factors[index]))
                         .sum::<i64>()
-                        + i64::from(emergency && output.happy),
+                        + i64::from(celebration_weight) * i64::from(output.happy),
                 );
                 if fitness > best_fitness {
                     best = current.clone();
                     best_fitness = fitness;
+                    best_is_celebrating = output.happy;
                 }
             }
             let mut promising = |partial: &CmPartial, kind: usize| {
@@ -631,9 +707,13 @@ impl Simulation {
                 drop(_output_profile);
                 let _prune_profile = profiler.scope("city_manager.query.bound_prune");
                 let meets_min = (0..6).all(|output| production[output] >= min_production[output]);
-                let beats_best = (0..6).any(|output| {
-                    factors[output] > 0 && production[output] > best.production[output]
-                });
+                // Output alone cannot bound the first feasible result or a
+                // celebration bonus the incumbent has not earned.
+                let beats_best = (governor.is_some()
+                    && (!best_fitness.0 || (celebration_weight > 0 && !best_is_celebrating)))
+                    || (0..6).any(|output| {
+                        factors[output] > 0 && production[output] > best.production[output]
+                    });
                 let specialists = partial.counts[lattice.groups.len()..].iter().sum::<i32>();
                 let luxury =
                     production[4] + happy_cost * (specialists + partial.idle - max_content).max(0);
@@ -880,6 +960,9 @@ impl Simulation {
         index: usize,
         delta: i32,
     ) -> bool {
+        if self.governor_controls(city_id) {
+            return false;
+        }
         let Some(city) = self
             .cities
             .iter_mut()
@@ -920,6 +1003,9 @@ impl Simulation {
     }
 
     pub(in crate::sim) fn toggle_city_tile(&mut self, id: u32, x: i32, y: i32) -> bool {
+        if self.governor_controls(id) {
+            return false;
+        }
         let Some(index) = self
             .cities
             .iter()

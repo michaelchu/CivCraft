@@ -18,9 +18,13 @@ use std::{
 };
 
 mod schema;
-use schema::{LegacyAiMap, LegacyCampaign, SavedCampaign, SavedCampaignV2A, SavedCampaignV2B};
+use schema::{
+    LegacyAiMap, LegacyCampaign, SavedCampaign, SavedCampaignV2A, SavedCampaignV2B,
+    SavedCampaignV2C,
+};
 
-const HEADER: &[u8] = b"CIVCRAFT\0\x2B";
+const HEADER: &[u8] = b"CIVCRAFT\0\x2C";
+const V2B_HEADER: &[u8] = b"CIVCRAFT\0\x2B";
 const V2A_HEADER: &[u8] = b"CIVCRAFT\0\x2A";
 const V29_HEADER: &[u8] = b"CIVCRAFT\0\x29";
 const V28_HEADER: &[u8] = b"CIVCRAFT\0\x28";
@@ -66,7 +70,7 @@ impl Simulation {
 
     pub(in crate::sim) fn encode_campaign(&self) -> io::Result<Vec<u8>> {
         codec(MAX_PAYLOAD)
-            .serialize(&SavedCampaignV2B::from_game(
+            .serialize(&SavedCampaignV2C::from_game(
                 self,
                 Cow::Borrowed(&self.observed_map.partial_sites),
             ))
@@ -78,7 +82,9 @@ impl Simulation {
         let mut header = [0; HEADER.len()];
         file.read_exact(&mut header)?;
         let max_payload = match header.as_slice() {
-            HEADER | V2A_HEADER | V29_HEADER | V28_HEADER | PACKED_LEGACY_HEADER => MAX_PAYLOAD,
+            HEADER | V2B_HEADER | V2A_HEADER | V29_HEADER | V28_HEADER | PACKED_LEGACY_HEADER => {
+                MAX_PAYLOAD
+            }
             LEGACY_HEADER => LEGACY_MAX_PAYLOAD,
             _ => return Err(invalid("Unsupported CivCraft save format")),
         };
@@ -128,8 +134,16 @@ impl Simulation {
                 let (game, partial_sites) = saved.into_game();
                 (game, None, LegacyAiMap::default(), partial_sites)
             }
-            _ => {
+            V2B_HEADER => {
                 let saved: SavedCampaignV2B<'_, observed_map::PartialCitySites> =
+                    codec(max_payload)
+                        .deserialize(&payload)
+                        .map_err(|error| invalid(error.to_string()))?;
+                let (game, partial_sites) = saved.into_game().map_err(invalid)?;
+                (game, None, LegacyAiMap::default(), partial_sites)
+            }
+            _ => {
+                let saved: SavedCampaignV2C<'_, observed_map::PartialCitySites> =
                     codec(max_payload)
                         .deserialize(&payload)
                         .map_err(|error| invalid(error.to_string()))?;
@@ -138,6 +152,15 @@ impl Simulation {
             }
         };
         game.validate_campaign()?;
+        if game.city_governors.iter().any(|(&id, state)| {
+            !state.settings.valid()
+                || !game
+                    .cities
+                    .iter()
+                    .any(|city| city.id == id && city.owner == HUMAN)
+        }) {
+            return Err(invalid("Invalid city governor settings"));
+        }
         if !game.valid_render_memory() {
             return Err(invalid("Invalid observed rendering map"));
         }

@@ -141,6 +141,8 @@ pub(crate) enum UiAction {
     SetRates([i32; 3]),
     Specialist(u32, usize, i32),
     CityTiles,
+    CityGovernorPage,
+    SetCityGovernor(u32, crate::sim::CityGovernor),
     WorkCityTile(u32, i32, i32),
     HomeCity,
     BoardOrDeboard,
@@ -244,6 +246,8 @@ pub(crate) struct Game {
     unit_production_page: usize,
     worklist_page: Option<usize>,
     city_tiles: bool,
+    city_governor_page: bool,
+    city_governor_preview: Option<[i32; 6]>,
     camera: Vec2,
     zoom: f32,
     targeting: TargetingMode,
@@ -332,6 +336,8 @@ impl Game {
             unit_production_page: 0,
             worklist_page: None,
             city_tiles: false,
+            city_governor_page: false,
+            city_governor_preview: None,
             camera: vec2(x as f32, y as f32),
             zoom: START_ZOOM,
             targeting: TargetingMode::None,
@@ -408,6 +414,7 @@ impl Game {
             self.unit_production_page = 0;
             self.worklist_page = None;
             self.city_tiles = false;
+            self.city_governor_page = false;
             self.selected_city = None;
             self.pending_city_view = self.sim.newest_city_id_view();
             true
@@ -474,6 +481,7 @@ impl Game {
         self.unit_production_page = 0;
         self.worklist_page = None;
         self.city_tiles = false;
+        self.city_governor_page = false;
         self.action_page = 0;
         self.selected_city = Some(city_id);
         self.set_unit_selection(Vec::new(), None);
