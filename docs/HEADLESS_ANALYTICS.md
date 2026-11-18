@@ -419,6 +419,10 @@ cargo run --offline --release --bin headless_sim -- \
   actual founding distance to the nearest existing city.
 - `--trace-buffer-events 10000` bounds requested events buffered per full turn.
   Overflow increments a counter and notifies analyzers. Payload sizes vary.
+  Zero dropped events establishes collector coverage only; it does not prove
+  every gameplay path emits an event. Visibility-based rival recognition emits
+  a `diplomacy.transition` contact with reason `visible_rival`, distinct from
+  physical first contact and its meeting timer.
 - `--trace-max-events 50000` and `--trace-max-bytes 16777216` bound persisted
   events for the whole run; these limits do not stop analyzer dispatch.
 - `--stop-on-finding none|any|invariant` optionally stops after a full turn.

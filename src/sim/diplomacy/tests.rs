@@ -269,6 +269,74 @@ fn friendly_ui_fixture_has_a_real_alternate_target_for_peace_then_alliance() {
 }
 
 #[test]
+fn allied_ai_slot_zero_checks_its_own_shared_vision_safety() {
+    let mut game = war_planning_game();
+    game.players[HUMAN].ai = true;
+    game.sign_pact(HUMAN, 1, Pact::Alliance);
+    game.sign_pact(1, 2, Pact::Alliance);
+    game.diplomacy.get_mut(&(1, 2)).unwrap().vision[0] = true;
+    game.initialize_diplomatic_contact(HUMAN, 2);
+    assert!(game.vision_safe(1, HUMAN));
+    assert!(!game.vision_safe(HUMAN, 1));
+    let offer = game.source_allied_offer(1, HUMAN);
+    assert!(offer.terms[1].shared_vision());
+    assert!(!offer.terms[0].shared_vision());
+
+    game.players[HUMAN].ai = false;
+    let offer = game.source_allied_offer(1, HUMAN);
+    assert!(offer.terms[0].shared_vision());
+}
+
+#[test]
+fn ai_controlled_slot_zero_executes_offers_without_human_prompt_or_cooldown() {
+    let mut game = war_planning_game();
+    game.players[HUMAN].ai = true;
+    game.sign_pact(HUMAN, 1, Pact::Ceasefire);
+    let relation = game.diplomacy.get_mut(&(HUMAN, 1)).unwrap();
+    relation.first_contact = Some(game.turn);
+    relation.until = game.turn + 4;
+    relation.trust = [2000; 2];
+    // Let player 1 originate the offer, not slot 0. Old human prompt memory
+    // must not suppress negotiation after switching the human seat to AI.
+    game.ai_diplomatic_memory.get_mut(&(HUMAN, 1)).unwrap().spam = 10;
+    let memory = game.ai_diplomatic_memory.get_mut(&(1, HUMAN)).unwrap();
+    memory.spam = 0;
+    memory.asked_peace = 12;
+    game.trace = trace::Collector::enabled(["*".to_owned()].into(), 1000);
+    game.advance_diplomatic_offers();
+    assert_eq!(game.pact(HUMAN, 1), Pact::Armistice);
+    assert!(game.treaty_offer(1).is_none());
+    let events = game.trace.drain();
+    assert!(
+        events
+            .iter()
+            .any(|event| event.payload["action"] == "offer_proposed"
+                && event.payload["actor"] == 1
+                && event.payload["other"] == HUMAN)
+    );
+    assert!(
+        events
+            .iter()
+            .any(|event| event.payload["action"] == "offer_accepted")
+    );
+}
+
+#[test]
+fn human_controlled_slot_zero_still_receives_pending_offers() {
+    let mut game = war_planning_game();
+    assert!(!game.players[HUMAN].ai);
+    game.sign_pact(HUMAN, 1, Pact::Ceasefire);
+    let relation = game.diplomacy.get_mut(&(HUMAN, 1)).unwrap();
+    relation.first_contact = Some(game.turn);
+    relation.until = game.turn + 4;
+    relation.trust = [2000; 2];
+    game.advance_diplomatic_offers();
+    assert_eq!(game.pact(HUMAN, 1), Pact::Ceasefire);
+    assert_eq!(game.treaty_offer(1).unwrap().pact, Some(Pact::Peace));
+    assert_eq!(game.ai_diplomatic_memory[&(1, HUMAN)].asked_peace, 12);
+}
+
+#[test]
 fn native_pair_spam_delays_first_ai_offer_without_delaying_human_offers() {
     let mut game = war_planning_game();
     game.sign_pact(1, 2, Pact::Ceasefire);

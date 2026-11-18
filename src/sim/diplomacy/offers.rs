@@ -424,7 +424,9 @@ impl Simulation {
             offer.terms[side].access |= 1;
             gives_vision = true;
         }
-        if gives_vision && !existing[1 - side] && (other == HUMAN || self.vision_safe(other, owner))
+        if gives_vision
+            && !existing[1 - side]
+            && (!self.players[other].ai || self.vision_safe(other, owner))
         {
             offer.terms[1 - side].access |= 1;
         }
@@ -615,7 +617,7 @@ impl Simulation {
                         Pact::Alliance => memory.asked_alliance,
                         _ => memory.asked_ceasefire,
                     };
-                    if other == HUMAN && asked > 0 {
+                    if !self.players[other].ai && asked > 0 {
                         continue;
                     }
                     (
@@ -631,7 +633,7 @@ impl Simulation {
                 }
                 if let Some(pact) = proposed {
                     let memory = self.ai_diplomatic_memory.get_mut(&(owner, other)).unwrap();
-                    if other == HUMAN {
+                    if !self.players[other].ai {
                         match pact {
                             Pact::Peace => memory.asked_peace = 12,
                             Pact::Alliance => memory.asked_alliance = 13,
@@ -647,7 +649,7 @@ impl Simulation {
                     self.contacted_pact(owner, other),
                     Some(&offer),
                 );
-                if other == HUMAN {
+                if !self.players[other].ai {
                     self.diplomacy.get_mut(&key).unwrap().offer = Some(offer.clone());
                     let what = if offer.bundled() {
                         "a treaty bundle".to_owned()

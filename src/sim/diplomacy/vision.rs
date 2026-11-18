@@ -150,11 +150,16 @@ impl Simulation {
             .collect();
         for owner in visible_owners {
             if owner != HUMAN && owner != BARBARIANS {
-                self.diplomacy
+                let relation = self
+                    .diplomacy
                     .entry(Self::relation_key(HUMAN, owner))
-                    .or_default()
-                    .first_contact
-                    .get_or_insert(self.turn);
+                    .or_default();
+                if relation.first_contact.is_none() {
+                    relation.first_contact = Some(self.turn);
+                    // Visual recognition does not renew the physical-contact
+                    // timer or initialize an adjacent-contact attitude roll.
+                    self.trace_diplomacy(HUMAN, owner, "contact", "visible_rival", None, None);
+                }
             }
         }
     }
@@ -163,6 +168,39 @@ impl Simulation {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn visible_rival_contact_is_traced_once_without_refreshing_physical_contact() {
+        let mut game = crate::sim::diplomacy::war_planning_game();
+        let city = game
+            .cities
+            .iter()
+            .find(|city| city.owner == 2)
+            .unwrap()
+            .clone();
+        game.diplomacy.remove(&(HUMAN, 2));
+        game.diplomatic_contact_until.remove(&(HUMAN, 2));
+        game.tile_mut(city.x, city.y).visible = true;
+        game.trace = trace::Collector::enabled(["*".to_owned()].into(), 1000);
+        game.remember_visible_rivals();
+        game.turn += 1;
+        game.remember_visible_rivals();
+        let contacts: Vec<_> = game
+            .trace
+            .drain()
+            .into_iter()
+            .filter(|event| event.payload["action"] == "contact" && event.payload["other"] == 2)
+            .collect();
+        assert_eq!(contacts.len(), 1);
+        assert_eq!(contacts[0].payload["reason"], "visible_rival");
+        assert_eq!(contacts[0].turn, game.turn - 1);
+        assert_eq!(
+            game.diplomacy[&(HUMAN, 2)].first_contact,
+            Some(game.turn - 1)
+        );
+        assert_eq!(game.diplomacy[&(HUMAN, 2)].trust, Relation::default().trust);
+        assert!(!game.diplomatic_contact_until.contains_key(&(HUMAN, 2)));
+    }
 
     #[test]
     fn sea_map_transfers_the_sellers_last_observation() {
