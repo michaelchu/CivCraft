@@ -181,7 +181,8 @@ List and run registered scenarios without creating a graphics context:
 ```sh
 cargo run --offline --release --bin headless_sim -- --list-scenarios
 cargo run --offline --release --bin headless_sim -- \
-  --scenario settlement-ferry --turns 1 --report /tmp/civcraft-ferry.json
+  --scenario campaign-readiness-presets --seed 42 --turns 1 \
+  --report /tmp/civcraft-readiness.json
 cargo run --offline --release --bin headless_sim -- \
   --load-campaign /path/to/campaign.save --turns 10 \
   --report /tmp/civcraft-campaign.json
@@ -190,10 +191,15 @@ cargo run --offline --release --bin headless_sim -- \
 Require a zero exit status and inspect `summary.scenario_checks_passed`,
 `summary.scenario_checks_total`, and every entry under `run.scenario.checks`.
 Failed scenario checks make the command fail after it publishes the report.
-The lifecycle is prepare, attach tracing/analyzers, execute scenario actions,
-capture the action boundary, simulate turns, then finish checks. Put reusable
-state mutation in simulation-level scenario helpers; compose those helpers in
-scenario definitions instead of reaching into desktop playtest code.
+Use `Scenario::playtest` for regressions that exercise normal campaign turns.
+Build the fixture with `WorldBuilder` before the initial snapshot, track the
+exact entities by ID, and let the headless runner advance the game. Observe
+state after each turn and evaluate required outcomes in `finish`, including
+when the run ends early. Inspect `run.scenario.observations` for diagnostics.
+Scripted command regressions can use scenario actions after tracing is attached.
+Keep reusable setup in simulation-level helpers. See
+[`docs/HEADLESS_ANALYTICS.md`](docs/HEADLESS_ANALYTICS.md#scenario-inputs) for
+the builder and registration examples.
 
 For focused screenshot galleries and visual review, see `docs/UI_REVIEW.md` and
 the `--ui-review` instructions in `README.md`. For a visual regression
