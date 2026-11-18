@@ -178,7 +178,8 @@ impl Simulation {
         owner != other
             && other != BARBARIANS
             && (self.has_real_embassy(owner, other)
-                || self.has_active_wonder(owner, Building::MARCO_POLOS_EMBASSY))
+                || (self.contacted_pact(owner, other).is_some()
+                    && self.player_effect(owner, EffectKind::HaveEmbassies) > 0))
     }
 
     pub(in crate::sim) fn clear_outgoing_embassies(&mut self, owner: usize) {

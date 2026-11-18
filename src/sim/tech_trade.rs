@@ -208,8 +208,8 @@ impl Simulation {
                 || !receive.cities().is_empty()
                 // C2C3 uses Linear tech costs, so the default AI does not
                 // classify advance clauses as harmless gifts while at war.
-                || give.technology.is_some()
-                || receive.technology.is_some())
+                || give.technologies().next().is_some()
+                || receive.technologies().next().is_some())
         {
             return None;
         }
@@ -257,10 +257,10 @@ impl Simulation {
                 .find(|city| city.id == id && city.owner == other)?;
             clauses.push(i64::from(self.city_gold_worth(city)));
         }
-        if let Some(tech) = give.technology {
+        for tech in give.technologies() {
             clauses.push(-i64::from(self.tech_sell_price(owner, other, tech)?));
         }
-        if let Some(tech) = receive.technology {
+        for tech in receive.technologies() {
             // Native receiving valuation ignores the giver's danger flag;
             // only an AI giver itself may refuse that concession.
             let (mut price, _) = self.tech_trade_quote(other, owner, tech, true)?;
@@ -298,8 +298,24 @@ impl Simulation {
             .filter(|city| city.owner == owner)
             .count() as i64;
         let base_cost = match map {
-            TreatyMap::Sea => 15 * city_count,
-            TreatyMap::World => 40 * city_count.max(1) * if after == Pact::War { 2 } else { 1 },
+            TreatyMap::Sea => {
+                15 * self
+                    .cities
+                    .iter()
+                    .filter(|city| city.owner == other)
+                    .count() as i64
+            }
+            TreatyMap::World => {
+                40 * city_count.max(1)
+                    * if matches!(
+                        self.pact(owner, other),
+                        Pact::Peace | Pact::Armistice | Pact::Alliance
+                    ) {
+                        1
+                    } else {
+                        2
+                    }
+            }
         };
         let love = i64::from(self.diplomatic_love(owner, other));
         let love_limit = match map {

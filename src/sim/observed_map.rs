@@ -261,9 +261,6 @@ impl Simulation {
         let _profile = profiler.scope("visibility.refresh.remember_borders");
         self.remember_visible_borders();
         drop(_profile);
-        let _profile = profiler.scope("visibility.refresh.remember_rivals");
-        self.remember_visible_rivals();
-        drop(_profile);
         let _profile = profiler.scope("visibility.refresh.remember_render_map");
         let render_scope = self.visibility_render_scope.take();
         self.remember_render_positions_with_sight(&render_seen, render_scope.as_deref(), true);

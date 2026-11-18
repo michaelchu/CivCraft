@@ -392,6 +392,7 @@ impl Game {
                 self.treaty_draft = None;
                 self.treaty_feedback = None;
                 self.treaty_item_page = [0; MAX_CIVILIZATIONS];
+                self.treaty_clause_page = [0; 2];
                 self.treaty_item_group = [0; MAX_CIVILIZATIONS];
                 self.diplomacy_page = 0;
                 self.reviewed_offer = None;
@@ -431,6 +432,11 @@ impl Game {
             UiAction::TreatyItemsPage(owner, page) => {
                 if owner < self.treaty_item_page.len() {
                     self.treaty_item_page[owner] = page;
+                }
+            }
+            UiAction::TreatyClausesPage(side, page) => {
+                if let Some(current) = self.treaty_clause_page.get_mut(side) {
+                    *current = page;
                 }
             }
             UiAction::TreatyItemGroup(side, group) => {
@@ -479,6 +485,7 @@ impl Game {
                 self.sim.apply(Command::CancelSharedVision(other));
             }
             UiAction::ReviewOffer(other, offer) => {
+                self.treaty_clause_page = [0; 2];
                 self.overlay = Overlay::Diplomacy;
                 self.diplomacy_target = Some(other);
                 self.treaty_draft = Some((other, offer));

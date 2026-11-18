@@ -26,6 +26,8 @@ impl Simulation {
         for _ in 0..turns {
             self.turn += 1;
             self.advance_diplomacy();
+            self.begin_diplomatic_phase();
+            self.run_begin_phase_diplomacy();
         }
     }
 

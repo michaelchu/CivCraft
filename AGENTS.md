@@ -34,6 +34,15 @@ the odds are community-documented for Civ III patch 1.29f and live in
 `data/rulesets/civcraft/content/settlements.toml`. Keep other mechanics on the
 Freeciv authority above.
 
+### Recorded exception: custom espionage
+
+The owner confirmed on 2026-11-18 that the existing custom espionage system is
+intentional and must be preserved. Its player-to-player embassy/Spy assets,
+mission costs, risk tiers and AI use remain in `src/sim/diplomacy/espionage.rs`.
+Ordinary diplomatic contact, treaties, map/city clauses and war mechanics still
+follow Freeciv. Do not replace custom espionage with Freeciv Diplomat/Spy units
+as part of diplomacy parity work.
+
 ## Comparison source checkout
 
 The Freeciv source submodule at `reference/freeciv` tracks the public upstream

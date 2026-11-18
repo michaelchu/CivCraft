@@ -207,11 +207,14 @@ impl Game {
                 ("Cities".to_owned(), Vec::new()),
             ];
             for (tech, name) in &side_view.technologies {
-                if offer.terms[side_index].technology == Some(*tech) {
+                if offer.terms[side_index]
+                    .technologies()
+                    .any(|existing| existing == *tech)
+                {
                     continue;
                 }
                 let mut changed = offer.clone();
-                changed.terms[side_index] = changed.terms[side_index].set_technology(Some(*tech));
+                changed.terms[side_index] = changed.terms[side_index].add_technology(*tech);
                 groups[0].1.push((name.clone(), changed));
             }
             for map in [TreatyMap::World, TreatyMap::Sea] {
@@ -567,9 +570,9 @@ impl Game {
             changed.terms[side] = terms.set_gold(0);
             rows.push((format!("{} gold", terms.gold), changed));
         }
-        if let Some(technology) = terms.technology {
+        for technology in terms.technologies() {
             let mut changed = offer.clone();
-            changed.terms[side] = terms.set_technology(None);
+            changed.terms[side] = terms.remove_technology(technology);
             rows.push((technology.name().to_owned(), changed));
         }
         for map in terms.maps() {
@@ -606,7 +609,15 @@ impl Game {
                 LIGHTGRAY,
             );
         }
-        for (index, (label, changed)) in rows.into_iter().enumerate() {
+        let per_page = ((rect.h - 60.0) / 23.0).floor().max(1.0) as usize;
+        let last_page = rows.len().saturating_sub(1) / per_page;
+        let page = self.treaty_clause_page[side].min(last_page);
+        for (index, (label, changed)) in rows
+            .into_iter()
+            .skip(page * per_page)
+            .take(per_page)
+            .enumerate()
+        {
             let y = rect.y + 35.0 + index as f32 * 23.0;
             text_in(&label, rect.x + 6.0, y + 11.0, 11.0, rect.w - 34.0, WHITE);
             let remove = Rect::new(rect.right() - 25.0, y - 4.0, 19.0, 20.0);
@@ -614,6 +625,39 @@ impl Game {
             if editable {
                 actions.push((remove, UiAction::EditTreatyDraft(target, changed)));
             }
+        }
+        actions.extend(self.draw_treaty_clause_pager(rect, side, page, last_page));
+        actions
+    }
+
+    pub(super) fn draw_treaty_clause_pager(
+        &self,
+        rect: Rect,
+        side: usize,
+        page: usize,
+        last_page: usize,
+    ) -> Vec<(Rect, UiAction)> {
+        let mut actions = Vec::new();
+        if last_page == 0 {
+            return actions;
+        }
+        let previous = Rect::new(rect.x + 4.0, rect.bottom() - 24.0, 42.0, 20.0);
+        let next = Rect::new(rect.right() - 46.0, rect.bottom() - 24.0, 42.0, 20.0);
+        draw_ui_button(previous, "Prev", page > 0, false);
+        draw_ui_button(next, "Next", page < last_page, false);
+        text_in(
+            &format!("{}/{}", page + 1, last_page + 1),
+            rect.x + 49.0,
+            rect.bottom() - 9.0,
+            11.0,
+            rect.w - 98.0,
+            LIGHTGRAY,
+        );
+        if page > 0 {
+            actions.push((previous, UiAction::TreatyClausesPage(side, page - 1)));
+        }
+        if page < last_page {
+            actions.push((next, UiAction::TreatyClausesPage(side, page + 1)));
         }
         actions
     }

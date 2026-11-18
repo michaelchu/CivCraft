@@ -31,7 +31,7 @@ impl Simulation {
             .iter()
             .filter(|city| {
                 city.owner == seller
-                    && self.tile(city.x, city.y).known_by[receiver]
+                    && (seller == HUMAN || self.tile(city.x, city.y).known_by[receiver])
                     && !city.has_building(Building::PALACE)
                     && !city.has_building(Building::ECCLESIASTICAL_PALACE)
             })
@@ -243,6 +243,7 @@ impl Simulation {
             let terms = &offer.terms[index];
             if !terms.valid_access()
                 || !terms.cities_are_unique()
+                || !terms.technologies_are_unique()
                 || terms.cities().iter().any(|&id| {
                     self.cities.iter().all(|city| {
                         city.id != id
@@ -253,9 +254,9 @@ impl Simulation {
                 })
                 || terms.gold < 0
                 || self.players[giver].gold < terms.gold
-                || terms.technology.is_some_and(|tech| {
-                    self.tech_trade_quote(giver, receiver, tech, true).is_none()
-                })
+                || terms
+                    .technologies()
+                    .any(|tech| self.tech_trade_quote(giver, receiver, tech, true).is_none())
                 || (terms.embassy() && self.has_real_embassy(receiver, giver))
             {
                 return false;
@@ -303,7 +304,7 @@ impl Simulation {
             self.players[receiver].gold += terms.gold;
         }
         for (index, (donor, receiver)) in [(key.0, key.1), (key.1, key.0)].into_iter().enumerate() {
-            if let Some(tech) = offer.terms[index].technology {
+            for tech in offer.terms[index].technologies() {
                 self.transfer_treaty_technology(donor, receiver, tech);
             }
         }
@@ -484,184 +485,188 @@ impl Simulation {
 }
 
 impl Simulation {
+    #[cfg(test)]
     pub(super) fn advance_diplomatic_offers(&mut self) {
-        let mut vision_changed = false;
         for owner in 0..self.players.len() {
-            if owner == BARBARIANS || !self.players[owner].ai || !self.player_alive(owner) {
+            self.advance_diplomatic_offers_for(owner);
+        }
+    }
+
+    pub(super) fn advance_diplomatic_offers_for(&mut self, owner: usize) {
+        let mut vision_changed = false;
+        if owner == BARBARIANS || !self.players[owner].ai || !self.player_alive(owner) {
+            return;
+        }
+        // This precedes target/countdown/contact spam exclusions in the
+        // source: an existing unsafe grant must still be withdrawn.
+        let revoke: Vec<_> = self
+            .diplomacy_neighbors(owner)
+            .filter_map(|(other, relation)| {
+                (relation.vision[usize::from(owner > other)]
+                    && (!self.allied(owner, other) || !self.vision_safe(owner, other)))
+                .then_some(other)
+            })
+            .collect();
+        for other in revoke {
+            self.diplomacy
+                .get_mut(&Self::relation_key(owner, other))
+                .unwrap()
+                .vision[usize::from(owner > other)] = false;
+            vision_changed = true;
+        }
+        let contacts: Vec<_> = (0..self.players.len())
+            .filter(|&other| {
+                other != owner
+                    && other != BARBARIANS
+                    && self.player_alive(other)
+                    && (self
+                        .diplomacy
+                        .get(&Self::relation_key(owner, other))
+                        .is_some_and(|relation| relation.first_contact.is_some())
+                        || self.has_embassy(owner, other)
+                        || self.has_embassy(other, owner))
+            })
+            .collect();
+        // dai_diplomacy_actions retains this target even if its love was
+        // above the war threshold. Its offer loop still skips that player.
+        let mut target = contacts
+            .iter()
+            .copied()
+            .filter(|&other| {
+                let Some(relation) = self.diplomacy.get(&Self::relation_key(owner, other)) else {
+                    return false;
+                };
+                relation.first_contact.is_some()
+                    && !self.diplomatic_at_war(owner, other)
+                    && self.turn - relation.first_contact.unwrap() > 15
+                    && relation.trust[usize::from(owner > other)] < 10_000
+            })
+            .min_by_key(|&other| {
+                self.diplomacy[&Self::relation_key(owner, other)].trust[usize::from(owner > other)]
+            });
+        for other in contacts {
+            if Some(other) == target
+                || self.ai_war_countdown(owner, other) >= 0
+                || !self.diplomatic_meeting_possible(owner, other)
+            {
                 continue;
             }
-            // This precedes target/countdown/contact spam exclusions in the
-            // source: an existing unsafe grant must still be withdrawn.
-            let revoke: Vec<_> = self
-                .diplomacy_neighbors(owner)
-                .filter_map(|(other, relation)| {
-                    (relation.vision[usize::from(owner > other)]
-                        && (!self.allied(owner, other) || !self.vision_safe(owner, other)))
-                    .then_some(other)
-                })
-                .collect();
-            for other in revoke {
-                self.diplomacy
-                    .get_mut(&Self::relation_key(owner, other))
-                    .unwrap()
-                    .vision[usize::from(owner > other)] = false;
-                vision_changed = true;
+            self.diplomacy
+                .entry(Self::relation_key(owner, other))
+                .or_default();
+            let memory = self
+                .ai_diplomatic_memory
+                .entry((owner, other))
+                .or_insert_with(|| DiplomaticMemory::for_pair(owner, other));
+            memory.asked_peace = memory.asked_peace.saturating_sub(1).max(0);
+            memory.asked_alliance = memory.asked_alliance.saturating_sub(1).max(0);
+            memory.asked_ceasefire = memory.asked_ceasefire.saturating_sub(1).max(0);
+            memory.spam = memory.spam.saturating_sub(1).max(0);
+            if let Some(warning) = self.ai_space_warnings.get_mut(&(owner, other)) {
+                *warning = warning.saturating_sub(1).max(0);
             }
-            let contacts: Vec<_> = (0..self.players.len())
-                .filter(|&other| {
-                    other != owner
-                        && other != BARBARIANS
-                        && self.player_alive(other)
-                        && (self
-                            .diplomacy
-                            .get(&Self::relation_key(owner, other))
-                            .is_some_and(|relation| relation.first_contact.is_some())
-                            || self.has_embassy(owner, other)
-                            || self.has_embassy(other, owner))
-                })
-                .collect();
-            // dai_diplomacy_actions retains this target even if its love was
-            // above the war threshold. Its offer loop still skips that player.
-            let mut target = contacts
-                .iter()
-                .copied()
-                .filter(|&other| {
-                    let Some(relation) = self.diplomacy.get(&Self::relation_key(owner, other))
-                    else {
-                        return false;
-                    };
-                    relation.first_contact.is_some()
-                        && !self.diplomatic_at_war(owner, other)
-                        && self.turn - relation.first_contact.unwrap() > 15
-                        && relation.trust[usize::from(owner > other)] < 10_000
-                })
-                .min_by_key(|&other| {
-                    self.diplomacy[&Self::relation_key(owner, other)].trust
-                        [usize::from(owner > other)]
+            if memory.spam > 0 && self.players[other].ai {
+                continue;
+            }
+            if memory.spam == 0 {
+                let spam = if self.allied(owner, other) {
+                    6 + self.rand_below(8)
+                } else {
+                    3 + self.rand_below(4)
+                };
+                self.ai_diplomatic_memory
+                    .get_mut(&(owner, other))
+                    .unwrap()
+                    .spam = spam;
+            }
+            let key = Self::relation_key(owner, other);
+            let (proposed, offer) = if self.allied(owner, other) {
+                let at_war_with_ally = self
+                    .diplomatic_intel(owner, other)
+                    .at_war_with_ally
+                    .is_some();
+                if at_war_with_ally {
+                    continue;
+                }
+                // The original reuses `target` while checking an ally's
+                // failure to fight our enemies. Preserve that loop effect.
+                target = (0..self.players.len()).find(|&third| {
+                    third != owner
+                        && third != BARBARIANS
+                        && self.player_alive(third)
+                        && self.diplomatic_at_war(owner, third)
+                        && !self.diplomatic_at_war(other, third)
                 });
-            for other in contacts {
-                if Some(other) == target
-                    || self.ai_war_countdown(owner, other) >= 0
-                    || !self.diplomatic_meeting_possible(owner, other)
+                if self.diplomacy[&key].trust[usize::from(owner > other)] <= 5000 {
+                    continue;
+                }
+                (None, self.source_allied_offer(owner, other))
+            } else {
+                if self.pact(owner, other) != Pact::War
+                    && self
+                        .diplomatic_intel(owner, other)
+                        .at_war_with_ally
+                        .is_some()
                 {
                     continue;
                 }
-                self.diplomacy
-                    .entry(Self::relation_key(owner, other))
-                    .or_default();
-                let memory = self
-                    .ai_diplomatic_memory
-                    .entry((owner, other))
-                    .or_insert_with(|| DiplomaticMemory::for_pair(owner, other));
-                memory.asked_peace = memory.asked_peace.saturating_sub(1).max(0);
-                memory.asked_alliance = memory.asked_alliance.saturating_sub(1).max(0);
-                memory.asked_ceasefire = memory.asked_ceasefire.saturating_sub(1).max(0);
-                memory.spam = memory.spam.saturating_sub(1).max(0);
-                if let Some(warning) = self.ai_space_warnings.get_mut(&(owner, other)) {
-                    *warning = warning.saturating_sub(1).max(0);
-                }
-                if memory.spam > 0 && self.players[other].ai {
+                let Some(pact) = self.next_pact(owner, other).filter(|&pact| {
+                    self.pact_refusal(owner, other, pact).is_none()
+                        && self.pact_clause_value(owner, other, pact) >= 0
+                }) else {
                     continue;
-                }
-                if memory.spam == 0 {
-                    let spam = if self.allied(owner, other) {
-                        6 + self.rand_below(8)
-                    } else {
-                        3 + self.rand_below(4)
-                    };
-                    self.ai_diplomatic_memory
-                        .get_mut(&(owner, other))
-                        .unwrap()
-                        .spam = spam;
-                }
-                let key = Self::relation_key(owner, other);
-                let (proposed, offer) = if self.allied(owner, other) {
-                    let at_war_with_ally = self
-                        .diplomatic_intel(owner, other)
-                        .at_war_with_ally
-                        .is_some();
-                    if at_war_with_ally {
-                        continue;
-                    }
-                    // The original reuses `target` while checking an ally's
-                    // failure to fight our enemies. Preserve that loop effect.
-                    target = (0..self.players.len()).find(|&third| {
-                        third != owner
-                            && third != BARBARIANS
-                            && self.player_alive(third)
-                            && self.diplomatic_at_war(owner, third)
-                            && !self.diplomatic_at_war(other, third)
-                    });
-                    if self.diplomacy[&key].trust[usize::from(owner > other)] <= 5000 {
-                        continue;
-                    }
-                    (None, self.source_allied_offer(owner, other))
-                } else {
-                    if self.pact(owner, other) != Pact::War
-                        && self
-                            .diplomatic_intel(owner, other)
-                            .at_war_with_ally
-                            .is_some()
-                    {
-                        continue;
-                    }
-                    let Some(pact) = self.next_pact(owner, other).filter(|&pact| {
-                        self.pact_refusal(owner, other, pact).is_none()
-                            && self.pact_clause_value(owner, other, pact) >= 0
-                    }) else {
-                        continue;
-                    };
-                    let memory = &self.ai_diplomatic_memory[&(owner, other)];
-                    let asked = match pact {
-                        Pact::Peace => memory.asked_peace,
-                        Pact::Alliance => memory.asked_alliance,
-                        _ => memory.asked_ceasefire,
-                    };
-                    if !self.players[other].ai && asked > 0 {
-                        continue;
-                    }
-                    (
-                        Some(pact),
-                        TreatyOffer {
-                            pact: Some(pact),
-                            ..TreatyOffer::default()
-                        },
-                    )
                 };
-                if offer.pact.is_none() && !offer.bundled() {
+                let memory = &self.ai_diplomatic_memory[&(owner, other)];
+                let asked = match pact {
+                    Pact::Peace => memory.asked_peace,
+                    Pact::Alliance => memory.asked_alliance,
+                    _ => memory.asked_ceasefire,
+                };
+                if !self.players[other].ai && asked > 0 {
                     continue;
                 }
-                if let Some(pact) = proposed {
-                    let memory = self.ai_diplomatic_memory.get_mut(&(owner, other)).unwrap();
-                    if !self.players[other].ai {
-                        match pact {
-                            Pact::Peace => memory.asked_peace = 12,
-                            Pact::Alliance => memory.asked_alliance = 13,
-                            _ => memory.asked_ceasefire = 9,
-                        }
-                    }
-                }
-                self.trace_diplomacy(
-                    owner,
-                    other,
-                    "offer_proposed",
-                    "ai_negotiation",
-                    self.contacted_pact(owner, other),
-                    Some(&offer),
-                );
+                (
+                    Some(pact),
+                    TreatyOffer {
+                        pact: Some(pact),
+                        ..TreatyOffer::default()
+                    },
+                )
+            };
+            if offer.pact.is_none() && !offer.bundled() {
+                continue;
+            }
+            if let Some(pact) = proposed {
+                let memory = self.ai_diplomatic_memory.get_mut(&(owner, other)).unwrap();
                 if !self.players[other].ai {
-                    self.diplomacy.get_mut(&key).unwrap().offer = Some(offer.clone());
-                    let what = if offer.bundled() {
-                        "a treaty bundle".to_owned()
-                    } else {
-                        proposed.unwrap().name().to_lowercase()
-                    };
-                    self.add_event(format!("{} offers {what}.", self.players[owner].name));
-                } else {
-                    self.execute_offer(key.0, key.1, &offer);
+                    match pact {
+                        Pact::Peace => memory.asked_peace = 12,
+                        Pact::Alliance => memory.asked_alliance = 13,
+                        _ => memory.asked_ceasefire = 9,
+                    }
                 }
             }
+            self.trace_diplomacy(
+                owner,
+                other,
+                "offer_proposed",
+                "ai_negotiation",
+                self.contacted_pact(owner, other),
+                Some(&offer),
+            );
+            if !self.players[other].ai {
+                self.diplomacy.get_mut(&key).unwrap().offer = Some(offer.clone());
+                let what = if offer.bundled() {
+                    "a treaty bundle".to_owned()
+                } else {
+                    proposed.unwrap().name().to_lowercase()
+                };
+                self.add_event(format!("{} offers {what}.", self.players[owner].name));
+            } else {
+                self.execute_offer(key.0, key.1, &offer);
+            }
         }
+
         if vision_changed {
             self.refresh_visibility();
         }

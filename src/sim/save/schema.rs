@@ -51,6 +51,7 @@ struct SavedCore<'a> {
     nation_scores: Cow<'a, [NationScore]>,
     hunter_targets: BTreeMap<u32, u32>,
     previous_naval_positions: BTreeMap<u32, (i32, i32)>,
+    #[serde(with = "diplomacy::legacy")]
     diplomacy: Cow<'a, BTreeMap<(usize, usize), diplomacy::Relation>>,
     apollo_completed: bool,
     global_advances: Cow<'a, [Tech]>,
@@ -137,6 +138,57 @@ impl<'a, S> SavedCampaignV2A<'a, S> {
             unit.created_leader = self.created_leader.contains(&unit.id);
         }
         (game, partial_sites)
+    }
+}
+
+/// Format 0x2B retains the frozen 0x2A records and appends the extra Advance
+/// clauses of pending treaties. Earlier readers remain layout-independent.
+#[derive(Serialize, Deserialize)]
+pub(super) struct SavedCampaignV2B<'a, S> {
+    campaign: SavedCampaignV2A<'a, S>,
+    extra_treaty_technologies: BTreeMap<(usize, usize), [Vec<Tech>; 2]>,
+}
+
+impl<'a, S> SavedCampaignV2B<'a, S> {
+    pub(super) fn from_game(game: &'a Simulation, partial_sites: S) -> Self {
+        Self {
+            campaign: SavedCampaignV2A::from_game(game, partial_sites),
+            extra_treaty_technologies: game
+                .diplomacy
+                .iter()
+                .filter_map(|(&pair, relation)| {
+                    let offer = relation.offer.as_ref()?;
+                    offer
+                        .terms
+                        .iter()
+                        .any(|terms| !terms.additional_technologies.is_empty())
+                        .then(|| {
+                            (
+                                pair,
+                                offer
+                                    .terms
+                                    .each_ref()
+                                    .map(|terms| terms.additional_technologies.clone()),
+                            )
+                        })
+                })
+                .collect(),
+        }
+    }
+
+    pub(super) fn into_game(self) -> Result<(Simulation, S), &'static str> {
+        let (mut game, partial_sites) = self.campaign.into_game();
+        for (pair, technologies) in self.extra_treaty_technologies {
+            let offer = game
+                .diplomacy
+                .get_mut(&pair)
+                .and_then(|r| r.offer.as_mut())
+                .ok_or("Extra technologies without a pending treaty")?;
+            for (terms, extra) in offer.terms.iter_mut().zip(technologies) {
+                terms.additional_technologies = extra;
+            }
+        }
+        Ok((game, partial_sites))
     }
 }
 
@@ -302,5 +354,19 @@ impl<'a, A, S> SavedCampaign<'a, A, S> {
             ..Simulation::default()
         };
         (game, ai.legacy_ai_map, partial_sites)
+    }
+}
+
+#[cfg(test)]
+mod treaty_schema_tests {
+    use super::*;
+    #[test]
+    fn extra_technology_clauses_require_an_existing_pending_offer() {
+        let game = Simulation::new(crate::test_support::seeded_map());
+        let mut saved = SavedCampaignV2B::from_game(&game, ());
+        saved
+            .extra_treaty_technologies
+            .insert((HUMAN, 1), [vec![Tech::POTTERY], Vec::new()]);
+        assert!(saved.into_game().is_err());
     }
 }
