@@ -49,7 +49,19 @@ On 2026-11-18 the owner confirmed that the existing CivCraft espionage model is
 intentional. Preserve its player-to-player assets, missions, risk tiers and AI
 execution. This supersedes historical statements below that espionage remains
 deferred. Diplomat/Spy map-unit identities remain omitted; normal diplomacy
-continues to follow the pinned Freeciv mechanics.
+continues to follow the pinned Freeciv mechanics except for first contact below.
+
+### Recorded exception: peaceful first contact
+
+The owner requested Civ III-style peaceful first contact on 2026-11-18.
+Regular civilizations now meet at Peace with the existing low initial trust;
+no common ally is needed. Trade and friendly relations build trust through the
+existing model. Barbarians and other `No_Diplomacy` players remain hostile.
+Established treaties and wars, including those in saved campaigns, are retained.
+This intentionally overrides Freeciv's `get_default_diplstate` default of War;
+other treaty, attitude, and war mechanics retain the pinned authority.
+The headless `peaceful-first-contact` scenario covers initial status, trust,
+trade, attack legality, explicit war, contact refresh, and barbarians.
 
 The diplomacy parity follow-up restores civilian armistice exemptions, physical
 first-contact initialization, contact-gated effect embassies, map valuations,

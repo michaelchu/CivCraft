@@ -231,6 +231,7 @@ fn refuel_callback_keeps_enemy_base_and_omniscient_known_map_quirks() {
 #[test]
 fn initialized_action_nodes_retain_native_cached_endpoints_when_the_live_stack_changes() {
     let mut sim = world();
+    sim.sign_pact(HUMAN, 1, Pact::War);
     sim.create_city(HUMAN, 10, 20);
     let plane = actor(&mut sim, UnitKind::CruiseMissile, (10, 20));
     let target = offset_native_by_map(10, 20, 1, 0);
@@ -261,6 +262,7 @@ fn initialized_action_nodes_retain_native_cached_endpoints_when_the_live_stack_c
 #[test]
 fn full_allied_carrier_is_a_possible_refuel_point_and_unreachable_aircraft_do_not_shield_a_ship() {
     let mut sim = world();
+    sim.sign_pact(HUMAN, 1, Pact::War);
     sim.tile_mut(10, 20).terrain = Terrain::Sea;
     let plane = actor(&mut sim, UnitKind::Bomber, (10, 20));
     let carrier = sim.spawn_unit(HUMAN, UnitKind::Carrier, 10, 20);

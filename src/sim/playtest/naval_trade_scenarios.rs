@@ -4,6 +4,7 @@ use super::*;
 
 impl Simulation {
     pub(crate) fn hunter_production_playtest_setup(&mut self) -> (u32, u32) {
+        self.sign_pact(1, HUMAN, Pact::War);
         let (x, y) = (10, 20);
         let (tx, ty) = offset_native_by_map(x, y, 1, 0);
         self.tile_mut(x, y).terrain = Terrain::Grassland;

@@ -132,19 +132,13 @@ impl Simulation {
         {
             return;
         }
-        let common_ally = (0..self.players.len()).any(|third| {
-            third != a
-                && third != b
-                && third != BARBARIANS
-                && self.player_alive(third)
-                && self.allied(a, third)
-                && self.allied(b, third)
-        });
+        // Owner-approved Civ III-style exception: regular nations meet at
+        // peace, with the existing low initial trust, rather than at war.
+        // No_Diplomacy players (including barbarians) remain hostile.
+        let peaceful_contact = !self.player_has_no_diplomacy(a) && !self.player_has_no_diplomacy(b);
         let relation = self.diplomacy.entry(key).or_default();
         relation.first_contact = Some(self.turn);
-        if common_ally && relation.pact == Pact::War {
-            // plrhand.c:get_default_diplstate sets immediate Peace, without
-            // an armistice, when both newly met players share an ally.
+        if peaceful_contact && relation.pact == Pact::War {
             relation.pact = Pact::Peace;
             relation.until = 0;
             for pair in [(a, b), (b, a)] {

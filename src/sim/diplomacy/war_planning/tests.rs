@@ -3,6 +3,33 @@
 use super::*;
 
 #[test]
+fn expired_ceasefire_retains_zero_countdown_and_suppresses_offers_as_in_freeciv() {
+    let mut game = war_planning_game();
+    game.players[HUMAN].ai = true;
+    let relation = game.diplomacy.get_mut(&(HUMAN, 1)).unwrap();
+    relation.pact = Pact::Ceasefire;
+    relation.until = game.turn;
+    relation.trust = [10_000; 2];
+    game.begin_ai_war_plan(1, HUMAN, 1, WarReason::Hatred);
+    game.advance_diplomacy();
+    assert!(game.at_war(1, HUMAN));
+    game.advance_ai_war_plans_for(1);
+    assert_eq!(game.ai_war_countdown(1, HUMAN), 0);
+    game.advance_ai_war_plans_for(1);
+    // daidiplomacy.c only consumes zero by declaring war when not already at
+    // war; its offer loop then excludes this nonnegative countdown.
+    assert_eq!(game.ai_war_countdown(1, HUMAN), 0);
+    game.advance_diplomatic_offers_for(1);
+    assert!(game.at_war(1, HUMAN));
+
+    // Establish that the stored countdown is what prevents a new offer.
+    game.ai_war_plans.remove(&(1, HUMAN));
+    game.ai_diplomatic_memory.get_mut(&(1, HUMAN)).unwrap().spam = 0;
+    game.advance_diplomatic_offers_for(1);
+    assert_eq!(game.pact(1, HUMAN), Pact::Ceasefire);
+}
+
+#[test]
 fn recent_contact_can_cease_fire_on_the_declaration_turn_as_in_freeciv() {
     let mut game = war_planning_game();
     game.players[HUMAN].ai = true;

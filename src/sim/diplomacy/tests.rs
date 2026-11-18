@@ -578,6 +578,8 @@ fn unsafe_vision_is_revoked_even_when_target_spam_processing_is_skipped() {
 fn positive_most_hated_target_still_suppresses_source_offer_cadence() {
     let mut game = war_planning_game();
     game.diplomacy.get_mut(&(HUMAN, 1)).unwrap().trust[1] = 5000;
+    // The offer exclusion is independent of whether a war is being prepared.
+    assert_eq!(game.ai_war_countdown(1, HUMAN), -1);
     let spam = game.ai_diplomatic_memory[&(1, HUMAN)].spam;
     game.advance_diplomatic_offers();
     assert_eq!(game.pact_offer(1), None);

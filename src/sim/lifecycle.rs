@@ -655,7 +655,7 @@ impl Simulation {
         self.create_city(1, 28, 12);
         let enemy = self.cities.last().unwrap().id;
         self.cities.last_mut().unwrap().size = 3;
-        self.diplomacy.remove(&Self::relation_key(0, 1));
+        self.sign_pact(0, 1, Pact::War);
         let attacker = self.spawn_unit(0, UnitKind::Warrior, 28, 12);
         self.capture_city_if_needed(attacker, 28, 12);
         self.create_city(1, 20, 24);

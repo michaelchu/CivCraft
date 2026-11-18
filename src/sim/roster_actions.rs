@@ -25,6 +25,7 @@ mod tests {
         {
             let kind = UnitKind::Marine;
             let mut game = Simulation::new(crate::mapgen::generate(42));
+            game.sign_pact(HUMAN, 1, Pact::War);
             game.units.clear();
             game.cities.clear();
             let origin = (10, 20);

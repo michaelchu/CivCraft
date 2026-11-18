@@ -39,9 +39,20 @@ Freeciv authority above.
 The owner confirmed on 2026-11-18 that the existing custom espionage system is
 intentional and must be preserved. Its player-to-player embassy/Spy assets,
 mission costs, risk tiers and AI use remain in `src/sim/diplomacy/espionage.rs`.
-Ordinary diplomatic contact, treaties, map/city clauses and war mechanics still
-follow Freeciv. Do not replace custom espionage with Freeciv Diplomat/Spy units
-as part of diplomacy parity work.
+Other diplomatic treaties, map/city clauses and war mechanics still follow
+Freeciv, except for first contact below. Do not replace custom espionage with
+Freeciv Diplomat/Spy units as part of diplomacy parity work.
+
+### Recorded exception: peaceful first contact (Civ III-style)
+
+The owner requested on 2026-11-18 that regular civilizations meet at Peace,
+with low initial trust rather than automatic War. Apply this equally to human
+and AI nations; a common ally is not required. First contact does not grant an
+alliance, embassy, shared vision or a trust bonus beyond the existing small AI
+attitude variation. Trade and friendly relations build trust through the
+existing diplomacy system. Barbarians and other `No_Diplomacy` players remain
+hostile. Preserve established relationships when contact is refreshed or a
+campaign is loaded; do not reset an existing war to peace.
 
 ## Comparison source checkout
 
@@ -84,6 +95,13 @@ hand-off when the change warrants it. Keep the separate `cargo test --doc` step
 because `--all-targets` does not run documentation tests. Nextest is for CI:
 CI runs `cargo nextest run --profile ci --all-targets` using
 `.config/nextest.toml`, followed by `cargo test --doc`.
+
+Run headless simulations in release mode: use
+`cargo run --offline --release --bin headless_sim -- ...` or a freshly built
+`target/release/headless_sim`. This applies to simulation analysis, scenario
+runs, and profiling. Use a debug build only when debug-specific diagnostics are
+needed; explain that choice before starting the run. The Cargo test commands
+above remain unchanged.
 
 For analytics review, start with `report.json` findings and the named summaries
 under `analytics.metrics` (`government.nations`, `government.recent_changes`,

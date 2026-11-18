@@ -166,6 +166,10 @@ These are candidates for investigation; inspect score age and availability.
 directional trust, embassies, shared vision, pending offers, and war plans with
 countdowns and reasons. Directional arrays follow `players` order. A null pact
 means no contact, distinct from explicit War.
+Regular civilizations intentionally start first contact at Peace with low trust
+(the owner-approved Civ III-style exception); barbarians remain at War.
+Run `--scenario peaceful-first-contact --turns 1` to check peaceful contact,
+trade-driven trust, explicit war declarations and barbarian hostility.
 
 `diplomacy.transition` records contact, treaty changes and expiry, AI offer
 proposals, treaty execution acceptance/rejection, explicit offer declines, war
@@ -175,7 +179,16 @@ AI-to-AI interactions. Rejected execution identifies validation/valuation
 failure; it does not provide a full breakdown of every rejected clause or every
 candidate the AI considered. The diplomacy analyzer counts actions and reports
 contacted pairs and active war plans; these describe activity, not diplomatic
-optimality. Government and diplomacy event counts are run-local and marked
+optimality. `diplomacy.active_war_plans` counts nonnegative preparation
+countdowns between living, contacted players who are not already at war.
+Relationship rows retain all stored war-plan state, including negative cooldowns,
+the inactive `-1` sentinel, and zero countdowns left after a ceasefire expires
+into war. Those entries are not upcoming wars and do not count as active plans.
+The default AI preserves Freeciv's negotiation exclusions: a zero countdown
+left after treaty expiry suppresses that AI's outgoing offers, and the selected
+least-liked nonwar contact is excluded from offers even without a new war plan.
+These can explain stalled negotiations; they are not evidence of a port bug.
+Government and diplomacy event counts are run-local and marked
 incomplete after collector overflow. Output filters do not filter analyzer input.
 
 For a focused report:

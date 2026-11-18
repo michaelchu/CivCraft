@@ -27,6 +27,7 @@ fn selected_no_diplomacy_effect_blocks_barbarian_meetings_and_contact_timers() {
             .contains_key(&(HUMAN, BARBARIANS))
     );
     assert!(!game.diplomatic_meeting_possible(HUMAN, BARBARIANS));
+    assert!(game.at_war(HUMAN, BARBARIANS));
     assert!(
         game.pact_refusal(HUMAN, BARBARIANS, Pact::Ceasefire)
             .is_some()
@@ -216,8 +217,7 @@ fn effect_embassies_require_the_have_contacts_phase_before_meetings() {
     game.refresh_diplomatic_contact_effects();
     assert!(game.has_embassy(HUMAN, 2));
     assert!(game.can_negotiate(2));
-    assert!(game.negotiate(2, Pact::Ceasefire));
-    assert_eq!(game.pact(HUMAN, 2), Pact::Ceasefire);
+    assert_eq!(game.pact(HUMAN, 2), Pact::Peace);
     assert!(game.diplomatic_contact_until.contains_key(&(HUMAN, 2)));
     assert_eq!(game.diplomacy[&(HUMAN, 2)].first_contact, Some(game.turn));
 }
@@ -278,6 +278,7 @@ fn first_contact_randomizes_each_ai_once_without_changing_human_attitude() {
     game.make_diplomatic_contact(1, 2);
     let relation = &game.diplomacy[&(1, 2)];
     assert_eq!(relation.first_contact, Some(game.turn));
+    assert_eq!(relation.pact, Pact::Peace);
     assert!(
         relation
             .trust
@@ -292,14 +293,22 @@ fn first_contact_randomizes_each_ai_once_without_changing_human_attitude() {
 }
 
 #[test]
-fn first_contact_notifies_the_human_once_and_diplomacy_exposes_war_status() {
+fn first_contact_starts_at_peace_without_granting_trust_or_access() {
     let mut game = war_planning_game();
     game.events.clear();
     game.diplomacy.remove(&(HUMAN, 2));
 
     game.make_diplomatic_contact(HUMAN, 2);
 
-    assert_eq!(game.pact(HUMAN, 2), Pact::War);
+    assert_eq!(game.pact(HUMAN, 2), Pact::Peace);
+    assert!(!game.at_war(HUMAN, 2));
+    let relation = &game.diplomacy[&(HUMAN, 2)];
+    assert_eq!(relation.until, 0);
+    assert_eq!(relation.trust[0], 0);
+    assert!((-20..=20).contains(&relation.trust[1]));
+    assert_eq!(relation.embassy, [false; 2]);
+    assert_eq!(relation.vision, [false; 2]);
+    assert!(!game.allied(HUMAN, 2));
     assert_eq!(game.events.len(), 1);
     assert!(game.events[0].contains("You have made contact with the"));
     assert!(game.events[0].contains(&game.players[2].name));
@@ -307,6 +316,13 @@ fn first_contact_notifies_the_human_once_and_diplomacy_exposes_war_status() {
 
     game.make_diplomatic_contact(2, HUMAN);
     assert_eq!(game.events.len(), 1);
+
+    // Peaceful contact does not prevent a later explicit declaration, and
+    // refreshing contact must not silently end that war.
+    assert!(game.cancel_pact(HUMAN, 2));
+    assert!(game.at_war(HUMAN, 2));
+    game.make_diplomatic_contact(2, HUMAN);
+    assert!(game.at_war(HUMAN, 2));
 }
 
 #[test]

@@ -203,6 +203,7 @@ fn injured_charge_speed_uses_native_current_unit_rate() {
 #[test]
 fn destination_danger_requests_a_guard_and_safe_destination_releases_it() {
     let mut game = game();
+    game.sign_pact(HUMAN, 1, Pact::War);
     let charge = game.spawn_unit(1, UnitKind::Settler, 10, 20);
     let enemy = game.spawn_unit(HUMAN, UnitKind::Swordsman, 11, 20);
     assert!(game.ai_guard_for_destination(charge, 11, 20));
@@ -250,6 +251,7 @@ fn guard_city_assessment_uses_integer_vulnerability_and_quadratic_defense() {
 #[test]
 fn movement_waits_for_guard_follows_it_and_attacks_before_waiting() {
     let mut game = game();
+    game.sign_pact(HUMAN, 1, Pact::War);
     // A Swordsman is a source-backed combat charge (3/2/1); Catapults have
     // attack 0 in Conquests and cannot perform the attack this fixture asserts.
     let charge = game.spawn_unit(1, UnitKind::Swordsman, 10, 20);

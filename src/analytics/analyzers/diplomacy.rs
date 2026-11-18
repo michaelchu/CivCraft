@@ -1,6 +1,7 @@
 //! Diplomatic activity counts and end-of-turn relationship context.
 use crate::analytics::{AnalysisOutput, Analyzer, Descriptor};
 use crate::sim::{
+    Pact,
     observation::{DiplomacySnapshot, Snapshot},
     trace::Event,
 };
@@ -16,7 +17,7 @@ impl Analyzer for Diplomacy {
     fn descriptor(&self) -> Descriptor {
         Descriptor {
             id: "diplomacy",
-            version: 2,
+            version: 3,
             events: vec!["diplomacy.transition"],
             providers: vec!["diplomacy"],
             configuration: json!({"scope":"activity_and_outcomes", "recent_activity_limit":32}),
@@ -64,8 +65,14 @@ impl Analyzer for Diplomacy {
                 "active_war_plans",
                 pairs
                     .iter()
+                    .filter(|p| {
+                        p.first_contact.is_some()
+                            && p.alive.iter().all(|&alive| alive)
+                            && p.pact.is_some_and(|pact| pact != Pact::War)
+                    })
                     .flat_map(|p| p.war_plans.iter())
                     .flatten()
+                    .filter(|plan| plan.countdown >= 0)
                     .count(),
             );
         }

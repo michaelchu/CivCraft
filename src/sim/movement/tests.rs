@@ -77,6 +77,7 @@ fn stealth_bombing_does_not_grant_native_air_interception() {
 #[test]
 fn ordinary_attackers_keep_their_normal_defender_eligibility() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
+    game.sign_pact(HUMAN, 1, Pact::War);
     game.units.clear();
     game.cities.clear();
     let attacker = game.spawn_unit(HUMAN, UnitKind::Warrior, 10, 24);
@@ -267,6 +268,7 @@ fn tired_attack_scales_power_by_selected_ruleset_setting() {
 #[test]
 fn defender_reachability_uses_c2c3_target_classes_and_city_exception() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
+    game.sign_pact(HUMAN, 1, Pact::War);
     game.units.clear();
     game.cities.clear();
     let (x, y) = (10, 24);
@@ -1715,6 +1717,7 @@ fn a_winning_attacker_cannot_occupy_a_city_with_a_second_defender() {
 #[test]
 fn defeating_a_stack_defender_kills_all_reachable_hostile_units() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
+    game.sign_pact(HUMAN, 1, Pact::War);
     let (x, y) = (12, 12);
     let (nx, ny) = offset_native_by_map(x, y, 1, 0);
     game.tile_mut(nx, ny).terrain = Terrain::Grassland;

@@ -883,6 +883,7 @@ fn ordinary_food_surplus_grows_city_and_food_deficit_shrinks_it() {
 #[test]
 fn overlapping_cities_reserve_worked_tiles_and_release_them_on_reassignment() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
+    game.sign_pact(HUMAN, 1, Pact::War);
     game.units.clear();
     let second = offset_native_by_map(10, 20, 3, 0);
     game.create_city(HUMAN, 10, 20);

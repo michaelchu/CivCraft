@@ -123,6 +123,60 @@ impl WarReason {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn active_war_plan_metric_excludes_cooldowns_and_existing_wars() {
+        use crate::analytics::{AnalysisOutput, Analyzer, analyzers::diplomacy::Diplomacy};
+        use crate::sim::observation::Snapshot;
+
+        let mut analyzer = Diplomacy::default();
+        let mut out = AnalysisOutput::default();
+        out.context("diplomacy", 30, None, None);
+        for (contact, alive, pact, countdowns, expected) in [
+            (Some(1), [true, true], Some(Pact::Peace), [3, 0], 2),
+            (Some(1), [true, true], Some(Pact::Ceasefire), [0, -20], 1),
+            (Some(1), [true, true], Some(Pact::Peace), [-20, -1], 0),
+            // Both stale zero and still-positive timers can outlive a treaty.
+            (Some(1), [true, true], Some(Pact::War), [0, 3], 0),
+            (Some(1), [false, true], Some(Pact::Peace), [3, 0], 0),
+            (Some(1), [true, false], Some(Pact::Peace), [3, 0], 0),
+            (None, [true, true], None, [3, 0], 0),
+        ] {
+            let pair = DiplomacySnapshot {
+                players: [0, 1],
+                names: ["Romans".into(), "Inca".into()],
+                alive,
+                first_contact: contact,
+                pact,
+                until: 0,
+                trust: [0, 0],
+                shared_vision: [false, false],
+                embassy: [false, false],
+                offer: None,
+                war_plans: countdowns.map(|countdown| {
+                    Some(WarPlanSnapshot {
+                        countdown,
+                        reason: "hatred".into(),
+                    })
+                }),
+            };
+            let mut snapshot = Snapshot::new(30, trace::Phase::TurnEnd, 2);
+            snapshot.insert("diplomacy", vec![pair]);
+            analyzer.on_boundary(&snapshot, &mut out);
+            assert_eq!(
+                out.metrics["diplomacy.active_war_plans"], expected,
+                "contact={contact:?}, alive={alive:?}, pact={pact:?}, timers={countdowns:?}"
+            );
+            if contact.is_some() {
+                // Filtering the summary must not remove diagnostic memory.
+                assert_eq!(
+                    out.metrics["diplomacy.relationships"][0]["war_plans"][0]["countdown"],
+                    countdowns[0]
+                );
+            }
+        }
+    }
+
     #[test]
     fn ai_pairs_capture_contact_treaty_and_expiry_without_player_messages() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
