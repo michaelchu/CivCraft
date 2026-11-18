@@ -7,7 +7,7 @@ const END_TURN_RESERVED: f32 = 38.0;
 /// Space between the info block's bottom row and the End Turn button.
 const INFO_END_TURN_GAP: f32 = 7.0;
 /// Where the info block starts on an empty-selection card.
-const EMPTY_INFO_TOP: f32 = 6.0;
+const EMPTY_INFO_TOP: f32 = 10.0;
 /// Card height when nothing is selected.
 pub(in crate::client) const EMPTY_CARD_H: f32 =
     EMPTY_INFO_TOP + info_block::INFO_GRID_H + INFO_END_TURN_GAP + END_TURN_RESERVED;
