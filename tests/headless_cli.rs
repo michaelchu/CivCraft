@@ -121,6 +121,75 @@ fn failed_scenario_publishes_its_checks_and_exits_unsuccessfully() {
 }
 
 #[test]
+fn completed_playtest_publishes_only_required_checks_in_its_totals() {
+    let directory = report_directory("completed-playtest");
+    let path = directory.join("report.json");
+    let output = headless()
+        .args([
+            "--scenario",
+            "naval-ai-assault",
+            "--turns",
+            "30",
+            "--report",
+        ])
+        .arg(&path)
+        .output()
+        .unwrap();
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let report = read_report(&path);
+    assert_eq!(report["run"]["status"], "completed");
+    assert_eq!(report["summary"]["scenario_checks_total"], 4);
+    assert_eq!(report["summary"]["scenario_checks_passed"], 4);
+    let turns = report["run"]["turns_simulated"].as_u64().unwrap();
+    assert!(turns > 1);
+    assert_eq!(
+        report["run"]["scenario"]["observations"]
+            .as_array()
+            .unwrap()
+            .len() as u64,
+        turns,
+    );
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn shortened_playtest_publishes_unmet_milestones_and_fails() {
+    let directory = report_directory("shortened-playtest");
+    let path = directory.join("report.json");
+    let output = headless()
+        .args(["--scenario", "naval-ai-assault", "--turns", "1", "--report"])
+        .arg(&path)
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("naval_assault_captured_target"));
+    let report = read_report(&path);
+    assert_eq!(report["run"]["status"], "failed");
+    assert_eq!(report["run"]["stop_reason"], "scenario_check");
+    assert_eq!(
+        report["run"]["scenario"]["observations"][0]["completed_turns"],
+        1
+    );
+    assert_eq!(report["summary"]["scenario_checks_total"], 4);
+    assert!(
+        report["run"]["scenario"]["checks"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|check| {
+                check["name"] == "naval_assault_captured_target" && check["passed"] == false
+            })
+    );
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
 fn lifecycle_snapshots_survive_disabled_event_output() {
     let directory = report_directory("lifecycle");
     let report = directory.join("report.json");

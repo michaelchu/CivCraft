@@ -3,6 +3,10 @@
 
 use super::*;
 
+#[cfg(any(test, feature = "scenarios"))]
+mod builder;
 pub(crate) mod diplomacy;
+#[cfg(any(test, feature = "scenarios"))]
+mod naval;
 pub(crate) mod regression;
 pub(crate) mod ui_review;

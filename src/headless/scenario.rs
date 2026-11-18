@@ -12,7 +12,7 @@ use crate::{
 use serde::Serialize;
 use std::path::Path;
 
-use crate::sim::scenarios::regression::{self, Check, Fixture, Scenario};
+use crate::sim::scenarios::regression::{self, Check, Fixture, Playtest, Scenario};
 
 pub(crate) fn names() -> impl Iterator<Item = &'static str> {
     regression::all().map(|scenario| scenario.id)
@@ -24,8 +24,17 @@ pub(crate) struct Provenance {
     pub name: String,
     pub version: u16,
     pub checks: Vec<Check>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub observations: Vec<Observation>,
     #[serde(skip)]
     pub world: WorldProvenance,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub(crate) struct Observation {
+    completed_turns: u32,
+    campaign_turn: i32,
+    state: serde_json::Value,
 }
 
 #[derive(Clone, Debug)]
@@ -57,6 +66,7 @@ pub(crate) struct Run {
     pub game: Simulation,
     pub provenance: Provenance,
     scenario: Option<&'static Scenario>,
+    playtest: Option<Box<dyn Playtest>>,
 }
 
 impl Run {
@@ -68,6 +78,25 @@ impl Run {
         if let Some(scenario) = self.scenario.take() {
             self.provenance.checks = scenario.run(&mut self.game);
             self.game.enable_all_civilizations_as_ai();
+        }
+    }
+
+    pub fn observe_turn(&mut self, completed_turns: u32) {
+        if let Some(playtest) = &mut self.playtest {
+            let state = playtest.observe_turn(&self.game, completed_turns);
+            self.provenance.observations.push(Observation {
+                completed_turns,
+                campaign_turn: self.game.turn(),
+                state,
+            });
+        }
+    }
+
+    pub fn finish(&mut self, completed_turns: u32) {
+        if let Some(playtest) = self.playtest.take() {
+            self.provenance
+                .checks
+                .extend(playtest.finish(completed_turns));
         }
     }
 }
@@ -82,10 +111,12 @@ pub(crate) fn load(path: &Path) -> Result<Run, String> {
             name: path.display().to_string(),
             version: 1,
             checks: vec![],
+            observations: vec![],
             world: WorldProvenance::for_campaign(&game, None, None),
         },
         game,
         scenario: None,
+        playtest: None,
     })
 }
 
@@ -96,36 +127,40 @@ pub(crate) fn build(name: &str, seed: u64, setup: WorldSetup) -> Result<Run, Str
             names().collect::<Vec<_>>().join(",")
         )
     })?;
-    let (mut game, size, generator) = match scenario.fixture {
-        Fixture::Generated => (
-            Simulation::new(setup.generate(seed)),
-            Some(setup.size),
-            setup.generator,
-        ),
+    let (map, size, generator) = match scenario.fixture {
+        Fixture::Generated => (setup.generate(seed), Some(setup.size), setup.generator),
         Fixture::NewCampaign | Fixture::AllAiCampaign => {
             if setup.specified {
                 return Err(format!(
                     "scenario {name} uses a fixed map and takes no world setup options"
                 ));
             }
-            (
-                Simulation::new(mapgen::generate(seed)),
-                None,
-                Generator::Fractal,
-            )
+            (mapgen::generate(seed), None, Generator::Fractal)
         }
+    };
+    let (mut game, playtest) = if let Some(setup) = scenario.playtest {
+        let (game, playtest) = setup(map);
+        (game, Some(playtest))
+    } else {
+        (Simulation::new(map), None)
     };
     scenario.prepare(&mut game);
     Ok(Run {
         provenance: Provenance {
             kind: "named",
             name: name.into(),
-            version: 1,
+            version: if playtest.is_some() { 2 } else { 1 },
             checks: vec![],
-            world: WorldProvenance::for_campaign(&game, size, Some(generator)),
+            observations: vec![],
+            world: WorldProvenance::for_campaign(
+                &game,
+                size,
+                playtest.is_none().then_some(generator),
+            ),
         },
         game,
         scenario: Some(scenario),
+        playtest,
     })
 }
 
@@ -138,10 +173,12 @@ pub(crate) fn generated(seed: u64, setup: WorldSetup) -> Run {
             name: "default".into(),
             version: 1,
             checks: vec![],
+            observations: vec![],
             world: WorldProvenance::for_campaign(&game, Some(setup.size), Some(setup.generator)),
         },
         game,
         scenario: None,
+        playtest: None,
     }
 }
 

@@ -2,12 +2,20 @@
 //!
 //! Each scenario mutates a freshly generated campaign through
 //! simulation-level helpers and records named pass/fail checks. The headless
-//! simulator runs one by its identifier, and a unit test runs them all.
+//! simulator runs them by identifier, and scripted scenarios also run in unit tests.
 
-use crate::sim::Simulation;
+use crate::{sim::Simulation, world::GeneratedMap};
 
 #[cfg(any(test, feature = "scenarios"))]
 mod headless;
+
+/// A fresh observer for one playtest run. Only the runner advances the game.
+pub(crate) trait Playtest {
+    fn observe_turn(&mut self, game: &Simulation, completed_turns: u32) -> serde_json::Value;
+    fn finish(self: Box<Self>, completed_turns: u32) -> Vec<Check>;
+}
+
+pub(crate) type PlaytestSetup = fn(GeneratedMap) -> (Simulation, Box<dyn Playtest>);
 
 /// One named assertion made by a scenario.
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
@@ -60,6 +68,7 @@ pub(crate) struct Scenario {
     pub(crate) id: &'static str,
     pub(crate) fixture: Fixture,
     actions: Option<fn(&mut Simulation, &mut Checks)>,
+    pub(crate) playtest: Option<PlaytestSetup>,
 }
 
 impl Scenario {
@@ -69,6 +78,7 @@ impl Scenario {
             id,
             fixture: Fixture::NewCampaign,
             actions: Some(actions),
+            playtest: None,
         }
     }
 
@@ -78,6 +88,17 @@ impl Scenario {
             id,
             fixture: Fixture::AllAiCampaign,
             actions: Some(actions),
+            playtest: None,
+        }
+    }
+
+    #[cfg(any(test, feature = "scenarios"))]
+    pub(super) const fn playtest(id: &'static str, setup: PlaytestSetup) -> Self {
+        Self {
+            id,
+            fixture: Fixture::AllAiCampaign,
+            actions: None,
+            playtest: Some(setup),
         }
     }
 
@@ -105,6 +126,7 @@ const GENERATED: &[Scenario] = &[Scenario {
     id: "generated-ai",
     fixture: Fixture::Generated,
     actions: None,
+    playtest: None,
 }];
 
 const GROUPS: &[&[Scenario]] = &[
@@ -142,7 +164,7 @@ mod tests {
     }
 
     #[test]
-    fn registered_scenarios_pass_on_the_reference_campaign() {
+    fn scripted_scenarios_pass_on_the_reference_campaign() {
         let mut names = BTreeSet::new();
         for scenario in all().filter(|scenario| scenario.has_actions()) {
             let mut campaign = Simulation::new(crate::test_support::seeded_map());

@@ -52,9 +52,9 @@ runner to UI code.
 
 ### Registering a scenario
 
-Scenarios are defined once in `src/sim/scenarios/regression/` and listed in
-that group's `SCENARIOS` table. A definition is a function over a newly
-generated campaign that records named checks:
+The `SCENARIOS` table in `src/sim/scenarios/regression/headless.rs`
+registers scripted scenarios and playtests. A scripted definition is a
+function over a newly generated campaign that records named checks:
 
 ```rust
 fn ai_paradrops(sim: &mut Simulation, checks: &mut Checks) {
@@ -66,17 +66,34 @@ fn ai_paradrops(sim: &mut Simulation, checks: &mut Checks) {
 Registration makes it available as `--scenario ai-paradrops` with no runner
 change. `Scenario::new` starts from a new campaign with the human seat intact
 and enables all-AI play only after the actions run; `Scenario::all_ai` enables
-it first. Regression scenarios always use the reference map generator for the
+it first. Scripted scenarios use the reference map generator for the
 requested seed and report that map's effective settings. The
 `generated-ai` scenario accepts generation options. Fixed scenarios and
 loaded campaigns reject world setup flags. Saved campaigns report their
 seed and dimensions and leave generator settings empty.
 
-The regression suite runs the same registry and asserts unique scenario
-and check names. The previously detached registry referenced retired desktop
-fixtures. The migrated registry carries forward the runnable headless cases
-and the AI paradrop regression. Existing subsystem tests still cover their
-own fixtures.
+For a playtest that spans normal campaign turns, use `Scenario::playtest`.
+Its setup receives the generated map and returns a starting campaign and an
+observer for that run. Use the shared world builder to construct fixtures and
+keep the returned city and unit IDs in the observer. Setup runs before the
+initial snapshot. The observer receives each completed turn and cannot mutate
+the campaign. Its structured observations appear under
+`run.scenario.observations`. At every normal stop, including early game over
+or a short turn budget, the runner asks the observer to evaluate all required
+outcomes. Only those assertions contribute to the scenario check totals.
+
+The naval assault is the first example in
+`src/sim/scenarios/naval/ai_assault.rs`. Run it with
+`--scenario naval-ai-assault --seed 42 --turns 30`. It starts with a blank sea
+map and an established war, then watches the original Galleon and its troops.
+The short run path is covered in the CLI integration tests. The registry unit
+test checks scenario names and exercises the scripted cases.
+
+The ship combat playtest in `src/sim/scenarios/naval/ship_combat.rs` uses the
+same API. Run it with `--scenario naval-ship-combat --seed 42 --turns 1`.
+An elite Submarine intercepts a damaged Battleship on open water. The
+observer tracks both ships by ID and requires a combat kill credited to
+the Submarine's civilization and survival of the original Submarine.
 
 The reference checks use seed 42. Two scenarios also reproduce seed-sensitive
 failures in the original `e1123c9` fixture code. Use the commands below to

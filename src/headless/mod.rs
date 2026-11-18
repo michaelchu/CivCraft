@@ -92,34 +92,27 @@ pub(crate) fn run(config: Config) -> Result<(), String> {
         scenario.game.game_over(),
         scenario.game.trace.dropped(),
     )?;
-    let failed_scenario_checks = scenario
-        .provenance
-        .checks
-        .iter()
-        .filter(|check| !check.passed)
-        .map(|check| check.name)
-        .collect::<Vec<_>>();
-    let game = &mut scenario.game;
     let mut turns = 0;
     let mut reason = "turn_limit";
     while turns < config.turns as usize {
-        if game.game_over().is_some() {
+        if scenario.game.game_over().is_some() {
             reason = "game_over";
             break;
         }
-        game.simulate_turn();
-        game.reconcile_lifecycle_observation();
-        game.reconcile_research_observation();
-        report.turn_profiles(game.trace.drain_profiles());
+        scenario.game.simulate_turn();
+        scenario.game.reconcile_lifecycle_observation();
+        scenario.game.reconcile_research_observation();
+        report.turn_profiles(scenario.game.trace.drain_profiles());
         turns += 1;
-        let dropped = game.trace.dropped();
+        scenario.observe_turn(turns as u32);
+        let dropped = scenario.game.trace.dropped();
         registry.gap(dropped - previous_dropped);
         previous_dropped = dropped;
-        for event in game.trace.drain() {
+        for event in scenario.game.trace.drain() {
             let retained = report.event(&event, &config)?;
             registry.event(&event, retained);
         }
-        snapshot = analytics::providers::capture(game, &providers, Phase::TurnEnd);
+        snapshot = analytics::providers::capture(&scenario.game, &providers, Phase::TurnEnd);
         registry.boundary(&snapshot);
         let required = registry.output.findings.iter().any(|finding| {
             finding
@@ -128,8 +121,8 @@ pub(crate) fn run(config: Config) -> Result<(), String> {
                 .any(|evidence| evidence.snapshot_turn == Some(snapshot.turn))
         });
         report.snapshot(&snapshot, &config, required)?;
-        game.trace.clear_lifecycle_changes();
-        game.trace.clear_research_changes();
+        scenario.game.trace.clear_lifecycle_changes();
+        scenario.game.trace.clear_research_changes();
         if config.stop_on_finding != "none"
             && registry.output.findings.iter().any(|f| {
                 f.status == "open"
@@ -141,33 +134,47 @@ pub(crate) fn run(config: Config) -> Result<(), String> {
             break;
         }
         if turns % config.checkpoint_every == 0 {
+            report.scenario(scenario.provenance.clone());
             report.checkpoint(
                 &config,
                 &registry,
                 &snapshot,
                 turns,
                 None,
-                game.game_over(),
-                game.trace.dropped(),
+                scenario.game.game_over(),
+                scenario.game.trace.dropped(),
             )?;
             println!(
                 "Simulated {}/{} turns (game turn {}, {} cities, {} findings)",
                 turns,
                 config.turns,
-                game.turn(),
+                scenario.game.turn(),
                 snapshot.city_count,
                 registry.output.findings.len()
             );
             std::io::stdout().flush().map_err(|e| e.to_string())?;
         }
     }
-    if game.game_over().is_some() {
+    if scenario.game.game_over().is_some() {
         reason = "game_over";
     }
+    scenario.finish(turns as u32);
+    report.scenario(scenario.provenance.clone());
+    let failed_scenario_checks = scenario
+        .provenance
+        .checks
+        .iter()
+        .filter(|check| !check.passed)
+        .map(|check| check.name)
+        .collect::<Vec<_>>();
     registry.finish();
     #[cfg(feature = "desktop")]
     if final_minimap {
-        report.final_minimap(snapshot.turn, snapshot.phase, &game.observe_minimap())?;
+        report.final_minimap(
+            snapshot.turn,
+            snapshot.phase,
+            &scenario.game.observe_minimap(),
+        )?;
     }
     report.checkpoint(
         &config,
@@ -175,8 +182,8 @@ pub(crate) fn run(config: Config) -> Result<(), String> {
         &snapshot,
         turns,
         Some(reason),
-        game.game_over(),
-        game.trace.dropped(),
+        scenario.game.game_over(),
+        scenario.game.trace.dropped(),
     )?;
     println!(
         "Completed {turns} turns; stop reason: {reason}. Report: {}",

@@ -286,6 +286,25 @@ pub(super) struct Relation {
 }
 
 impl Simulation {
+    #[cfg(any(test, feature = "scenarios"))]
+    pub(in crate::sim) fn set_scenario_diplomatic_history(
+        &mut self,
+        first: usize,
+        second: usize,
+        first_contact: i32,
+        mut trust: [i32; 2],
+    ) {
+        let relation = self
+            .diplomacy
+            .entry(Self::relation_key(first, second))
+            .or_default();
+        relation.first_contact = Some(first_contact);
+        if first > second {
+            trust.swap(0, 1);
+        }
+        relation.trust = trust;
+    }
+
     /// Returns a treaty only after first contact. Freeciv's no-contact
     /// diplomatic state is distinct from an explicit war despite both using
     /// `Pact::War` as this model's default storage value.
