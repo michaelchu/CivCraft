@@ -75,10 +75,39 @@ pub(crate) struct RulesetData {
     pub(crate) effects: EffectSet,
     pub(crate) actions: Vec<ActionRecord>,
     pub(crate) action_enablers: Vec<ActionEnabler>,
+    action_index: RuleNameIndex,
     pub(crate) content: Vec<ContentRecord>,
     /// Ordered records from Freeciv namespaces that do not have a dedicated
     /// CivCraft adapter yet (extras, resources, roads, disasters, and others).
     pub(crate) rule_records: Vec<RuleRecord>,
+}
+
+/// Immutable name-to-record positions, built in file order at load time.
+/// Query comparison folds ASCII without allocating a lowercase string.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct RuleNameIndex(Vec<(String, Vec<usize>)>);
+
+impl RuleNameIndex {
+    fn new(names: impl IntoIterator<Item = (String, usize)>) -> Self {
+        let mut entries = std::collections::BTreeMap::<String, Vec<usize>>::new();
+        for (name, index) in names {
+            let positions = entries.entry(name.to_ascii_lowercase()).or_default();
+            if positions.last() != Some(&index) {
+                positions.push(index);
+            }
+        }
+        Self(entries.into_iter().collect())
+    }
+
+    fn get(&self, name: &str) -> &[usize] {
+        self.0
+            .binary_search_by(|(key, _)| {
+                key.bytes()
+                    .cmp(name.bytes().map(|byte| byte.to_ascii_lowercase()))
+            })
+            .map(|index| self.0[index].1.as_slice())
+            .unwrap_or_default()
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -906,6 +935,32 @@ impl std::fmt::Display for LoadError {
 impl std::error::Error for LoadError {}
 
 impl RulesetData {
+    fn build_lookup_indexes(&mut self) {
+        self.action_index = RuleNameIndex::new(
+            self.action_enablers
+                .iter()
+                .enumerate()
+                .map(|(index, enabler)| (enabler.action.clone(), index)),
+        );
+    }
+
+    pub(crate) fn action_enabled<A: RequirementContext, T: RequirementContext>(
+        &self,
+        action: &str,
+        actor: &A,
+        target: &T,
+    ) -> Result<bool, ActionEvaluationError> {
+        evaluate_action_enablers(
+            self.action_index
+                .get(action)
+                .iter()
+                .map(|&index| &self.action_enablers[index]),
+            action,
+            actor,
+            target,
+        )
+    }
+
     /// Load the generic engine layer from the CivCraft campaign package.
     /// Native content catalogs construct independently, without import bindings.
     #[cfg(test)]
@@ -2056,6 +2111,7 @@ pub(crate) fn requirements_met(
 
 /// Freeciv enablers are alternatives: one matching enabler enables an action.
 /// Within each enabler, actor and target requirement lists are both required.
+#[cfg(test)]
 pub(crate) fn action_enabled<A, T>(
     enablers: &[ActionEnabler],
     action: &str,
@@ -2066,6 +2122,15 @@ where
     A: RequirementContext,
     T: RequirementContext,
 {
+    evaluate_action_enablers(enablers.iter(), action, actor_context, target_context)
+}
+
+fn evaluate_action_enablers<'a, A: RequirementContext, T: RequirementContext>(
+    enablers: impl IntoIterator<Item = &'a ActionEnabler>,
+    action: &str,
+    actor_context: &A,
+    target_context: &T,
+) -> Result<bool, ActionEvaluationError> {
     if !identifiers::ACTION_NAMES
         .iter()
         .any(|known| known.eq_ignore_ascii_case(action))
@@ -2742,6 +2807,27 @@ mod tests {
     }
 
     #[test]
+    fn indexed_campaign_actions_preserve_linear_lookup_results() {
+        let rules = RulesetData::campaign_default();
+        let context = Context {
+            present: vec![],
+            multiplier: None,
+        };
+        for action in super::identifiers::ACTION_NAMES
+            .iter()
+            .copied()
+            .chain(["not an action"])
+        {
+            for name in [action.to_owned(), action.to_ascii_uppercase()] {
+                assert_eq!(
+                    rules.action_enabled(&name, &context, &context),
+                    action_enabled(&rules.action_enablers, &name, &context, &context)
+                );
+            }
+        }
+    }
+
+    #[test]
     fn action_enablers_are_alternatives_with_actor_and_target_conjunctions() {
         let enablers = vec![
             ActionEnabler {
@@ -2759,6 +2845,9 @@ mod tests {
                 fields: vec![],
             },
         ];
+        let mut indexed = RulesetData::campaign_default().clone();
+        indexed.action_enablers = enablers.clone();
+        indexed.build_lookup_indexes();
         let actor = Context {
             present: vec![(
                 "Tech".to_owned(),
@@ -2771,6 +2860,12 @@ mod tests {
             present: vec![],
             multiplier: None,
         };
+        for action in ["found city", "Build Road", "Not an action"] {
+            assert_eq!(
+                indexed.action_enabled(action, &actor, &target),
+                action_enabled(&enablers, action, &actor, &target)
+            );
+        }
         assert_eq!(
             action_enabled(&enablers, "found city", &actor, &target),
             Ok(true)

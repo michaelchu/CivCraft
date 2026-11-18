@@ -15,7 +15,7 @@ use crate::rules::engine_rules::effect_value;
 use crate::rules::engine_rules::{
     ActionEvaluationError, EffectContext, EffectKind, Requirement, RequirementContext,
     RequirementEvaluationError, RequirementRange, RequirementValue, ResolvedRequirementValue,
-    RuleRecord, RulesetData, action_enabled, campaign_effect, requirements_met,
+    RuleRecord, RulesetData, campaign_effect, requirements_met,
 };
 use crate::rules::{Building, Genus, Requirement as BuildingRequirement, Tech};
 use crate::world::{Resource, Terrain};
@@ -1567,12 +1567,7 @@ impl Simulation {
         } else {
             target_context
         };
-        action_enabled(
-            &RulesetData::campaign_default().action_enablers,
-            action,
-            &actor_context,
-            &target_context,
-        )
+        RulesetData::campaign_default().action_enabled(action, &actor_context, &target_context)
     }
 
     /// Select the C2C3 disembark enabler for movement. The cargo and carrier

@@ -1,7 +1,7 @@
 //! Civil war and civilization split resolution.
 
 use super::*;
-use crate::rules::engine_rules::{RulesetData, action_enabled};
+use crate::rules::engine_rules::RulesetData;
 
 impl Simulation {
     pub(super) fn capital_loss_triggers_civil_war(&mut self, owner: usize) -> bool {
@@ -50,13 +50,9 @@ impl Simulation {
             super::action_rules::SimulationRequirementContext::for_player_at(self, owner, None)
                 .with_action("Civil War")
                 .with_relation_target(Some(owner));
-        let action_enabled = action_enabled(
-            &rules.action_enablers,
-            "Civil War",
-            &player_context,
-            &player_context,
-        )
-        .expect("campaign C2C3 Civil War action requirements are supported");
+        let action_enabled = rules
+            .action_enabled("Civil War", &player_context, &player_context)
+            .expect("campaign C2C3 Civil War action requirements are supported");
         if !action_enabled {
             return false;
         }

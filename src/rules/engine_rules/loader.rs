@@ -157,11 +157,13 @@ impl RulesetData {
             effects: effects.into(),
             actions,
             action_enablers,
+            action_index: Default::default(),
             content,
             rule_records,
         };
         validate_requirement_values(&rules)?;
         resolve_requirement_values(&mut rules);
+        rules.build_lookup_indexes();
         Ok(rules)
     }
 }
