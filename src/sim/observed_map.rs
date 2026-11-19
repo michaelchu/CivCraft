@@ -263,6 +263,14 @@ impl Simulation {
         drop(_profile);
         let _profile = profiler.scope("visibility.refresh.remember_render_map");
         let render_scope = self.visibility_render_scope.take();
+        self.trace.count_operation(
+            if render_scope.is_some() {
+                "visibility.refresh.scoped"
+            } else {
+                "visibility.refresh.unscoped"
+            },
+            1,
+        );
         self.remember_render_positions_with_sight(&render_seen, render_scope.as_deref(), true);
         drop(_profile);
         let _profile = profiler.scope("visibility.refresh.share_render_memory");
