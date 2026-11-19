@@ -219,7 +219,7 @@ mod tests {
 
     #[test]
     fn named_actions_are_deferred_until_the_runner_executes_them() {
-        let mut run = build("settlement-ferry", 42, world()).unwrap();
+        let mut run = build("city-healing", 42, world()).unwrap();
         assert!(run.has_actions());
         assert!(run.provenance.checks.is_empty());
         run.execute_actions();

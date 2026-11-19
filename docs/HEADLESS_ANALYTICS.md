@@ -188,21 +188,24 @@ An elite Submarine intercepts a damaged Battleship on open water. The
 observer tracks both ships by ID and requires a combat kill credited to
 the Submarine's civilization and survival of the original Submarine.
 
-The reference checks use seed 42. Two scenarios also reproduce seed-sensitive
-failures in the original `e1123c9` fixture code. Use the commands below to
-inspect the failed checks and their details in the published reports.
+The reference checks use seed 42. `settlement-ferry` version 2 uses fixed Rome/Inca
+slots, an isolated coastal home and a fertile overseas island. Run it with
+`--scenario settlement-ferry --seed 42 --turns 16`. The AI selects and funds
+production through normal turns; the observer checks `ferry_queued`,
+`settler_sequenced` and `island_founded`. It tracks the home-built ferry and founder
+by ID, requires that founder aboard the ferry at sea, and matches its founding
+removal to the new island city. Outcomes must occur within 16 completed turns;
+a run that stops before completing the milestones publishes unmet checks and fails.
+Setup runs before the initial snapshot, with no scripted action boundary or
+mid-run fixture mutations. Generator metadata is omitted for this custom world.
+Seeds 1 and 18, which exposed roster-dependent failures in the old script, now
+use the same controlled roster and geometry. The normal-turn test also repeats
+seed 42 to check deterministic observations.
 
-| Scenario and seed | Failed checks |
-| --- | --- |
-| `settlement-ferry`, 1 | `ferry_queued`, `settler_sequenced`, `island_founded` |
-| `ai-paradrops`, 3 | `ai_paradrops` fails its threatened-city reinforcement check. The defended landing refusal and undefended-city capture both succeed. |
-
-```sh
-cargo run --offline --bin headless_sim -- \
-  --scenario settlement-ferry --seed 1 --turns 1 --report /tmp/ferry-seed-1.json
-cargo run --offline --bin headless_sim -- \
-  --scenario ai-paradrops --seed 3 --turns 1 --report /tmp/paradrops-seed-3.json
-```
+`ai-paradrops` seed 3 reproduces a threatened-city reinforcement failure in the
+original `e1123c9` fixture code; its landing-refusal and undefended-city checks
+succeed. Inspect the named checks in its report when comparing that historical
+case with the current engine.
 
 ### City governor campaign comparison
 

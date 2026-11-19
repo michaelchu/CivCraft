@@ -60,3 +60,11 @@ with private access (compiled only under `cfg(test)`, no registry or runner); th
 
 See [`HEADLESS_ANALYTICS.md`](HEADLESS_ANALYTICS.md) for running scenarios and reading
 reports.
+
+`settlement-ferry` is a normal-turn example: version 2 watches AI-selected ferry
+and founder production, transport of that exact founder, and island founding
+within 16 turns. Use `--scenario settlement-ferry --seed 42 --turns 16`.
+
+CI builds `civcraft` with `--no-default-features --features desktop-audio` to keep
+the desktop build working without the scenario catalog, fixtures or `Drive`.
+Default feature selection is unchanged.

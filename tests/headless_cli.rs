@@ -62,7 +62,7 @@ fn runs_a_named_scenario_and_publishes_its_checks() {
             "--scenario",
             "settlement-ferry",
             "--turns",
-            "1",
+            "16",
             "--report",
             report.to_str().unwrap(),
         ])
@@ -74,6 +74,19 @@ fn runs_a_named_scenario_and_publishes_its_checks() {
         String::from_utf8_lossy(&output.stderr)
     );
     let report_json = read_report(&report);
+    assert_eq!(report_json["run"]["scenario"]["version"], 2);
+    assert!(
+        report_json["run"]["scenario"]["observations"]
+            .as_array()
+            .is_some_and(|rows| rows.len() == 16)
+    );
+    assert!(
+        report_json["timeline"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|row| row["phase"] != "scenario_actions")
+    );
     assert_eq!(report_json["summary"]["scenario_checks_passed"], 3);
     assert_eq!(report_json["summary"]["scenario_checks_total"], 3);
     assert!(
@@ -90,9 +103,8 @@ fn runs_a_named_scenario_and_publishes_its_checks() {
 fn failed_scenario_publishes_its_checks_and_exits_unsuccessfully() {
     let directory = report_directory("failing");
     let report = directory.join("report.json");
-    // Seed 18 reproduces a pre-existing failure in the ferry fixture. Seed 1
-    // used to fail only because France could not build units (civilization
-    // masks were matched against display names), so it no longer applies.
+    // A short normal-turn budget must publish unmet milestones and fail,
+    // independent of incidental civilization selection or seed-specific AI wants.
     let output = headless()
         .args([
             "--scenario",
@@ -111,12 +123,18 @@ fn failed_scenario_publishes_its_checks_and_exits_unsuccessfully() {
     let report = read_report(&report);
     assert_eq!(report["run"]["status"], "failed");
     assert_eq!(report["run"]["stop_reason"], "scenario_check");
-    assert_eq!(report["summary"]["scenario_checks_passed"], 0);
+    assert!(
+        report["summary"]["scenario_checks_passed"]
+            .as_u64()
+            .unwrap()
+            < 3
+    );
     assert_eq!(report["summary"]["scenario_checks_total"], 3);
     assert_eq!(
         report["run"]["scenario"]["checks"][0]["name"],
         "ferry_queued"
     );
+    assert_eq!(report["run"]["scenario"]["checks"][2]["passed"], false);
     std::fs::remove_dir_all(directory).unwrap();
 }
 

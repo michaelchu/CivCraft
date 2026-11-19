@@ -26,7 +26,6 @@ pub(crate) trait Drive {
     fn found_city(&mut self, unit_id: u32) -> bool;
     fn make_diplomatic_contact(&mut self, a: usize, b: usize);
     fn manage_ai_taxes(&mut self, owner: usize);
-    fn process_cities(&mut self);
     fn process_player_cities(&mut self, owner: usize) -> (i32, Vec<(u32, i32)>);
     fn propose_treaty(&mut self, other: usize, offer: TreatyOffer) -> bool;
     fn reconcile_city_workers(&mut self);
@@ -52,7 +51,6 @@ pub(crate) trait Drive {
     fn transfer_traded_city(&mut self, index: usize, buyer: usize);
     fn transfer_treaty_technology(&mut self, donor: usize, receiver: usize, tech: Tech) -> bool;
     fn try_move_unit_civ3(&mut self, unit_id: u32, direction: usize) -> MoveResult;
-    fn update_activities_and_restore(&mut self);
 }
 
 impl Drive for Simulation {
@@ -91,9 +89,6 @@ impl Drive for Simulation {
     }
     fn manage_ai_taxes(&mut self, owner: usize) {
         Simulation::manage_ai_taxes(self, owner)
-    }
-    fn process_cities(&mut self) {
-        Simulation::process_cities(self)
     }
     fn process_player_cities(&mut self, owner: usize) -> (i32, Vec<(u32, i32)>) {
         Simulation::process_player_cities(self, owner)
@@ -155,8 +150,5 @@ impl Drive for Simulation {
     }
     fn try_move_unit_civ3(&mut self, unit_id: u32, direction: usize) -> MoveResult {
         Simulation::try_move_unit_civ3(self, unit_id, direction)
-    }
-    fn update_activities_and_restore(&mut self) {
-        Simulation::update_activities_and_restore(self)
     }
 }

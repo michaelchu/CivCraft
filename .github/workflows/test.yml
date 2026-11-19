@@ -34,6 +34,15 @@ jobs:
       - name: Test documentation
         run: cargo test --doc
 
+  desktop:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Build desktop without scenario support
+        run: cargo build --locked --no-default-features --features desktop-audio --bin civcraft
+
   headless:
     runs-on: ubuntu-latest
     steps:

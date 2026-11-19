@@ -7,6 +7,11 @@ use crate::{
 };
 
 impl WorldBuilder<'_> {
+    /// Assign citizens through the normal city worker reconciler during setup.
+    pub(crate) fn reconcile_workers(&mut self) {
+        self.game.reconcile_city_workers();
+    }
+
     pub(crate) fn city_food(&mut self, city_id: u32, food: i32) {
         assert!(food >= 0);
         let index = self
