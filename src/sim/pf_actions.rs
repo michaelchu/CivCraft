@@ -194,8 +194,8 @@ impl Simulation {
             seen,
             city_attack,
         );
-        if self.ai_advisor_cache_enabled.get()
-            && let Some(action) = self.ai_spatial_index.borrow().pf_actions.get(&key).copied()
+        if self.advisor_cache.active()
+            && let Some(action) = self.advisor_cache.memos().pf_action(key)
         {
             self.trace.count_operation("pf_actions.cache_hits", 1);
             return action;
@@ -223,11 +223,8 @@ impl Simulation {
                 PfAction::None
             }
         };
-        if self.ai_advisor_cache_enabled.get() {
-            self.ai_spatial_index
-                .borrow_mut()
-                .pf_actions
-                .insert(key, action);
+        if self.advisor_cache.active() {
+            self.advisor_cache.memos().remember_pf_action(key, action);
         }
         action
     }

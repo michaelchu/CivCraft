@@ -291,46 +291,11 @@ pub(crate) struct Simulation {
     diplomatic_contact_until: std::collections::BTreeMap<(usize, usize), i32>,
     founder_phase: bool,
     planning: ai::PlanningCaches,
-    ai_advisor_cache_enabled: std::cell::Cell<bool>,
-    ai_threat_route_cache_enabled: std::cell::Cell<bool>,
-    ai_threat_arrival_cache:
-        std::cell::RefCell<std::collections::BTreeMap<(u32, u32), Option<i32>>>,
-    ai_danger_route_cache: std::cell::RefCell<advisors::DangerRouteCache>,
+    advisor_cache: advisors::AdvisorCaches,
     visibility_refresh_deferred: bool,
     visibility_refresh_pending: bool,
     visibility_pending_render_tiles: Vec<bool>,
     visibility_render_scope: Option<Vec<usize>>,
-    ai_spatial_index: std::cell::RefCell<AdvisorSpatialIndex>,
-}
-
-type CachedOffensiveAdvice = (Option<advisors::AiBuildChoice>, Vec<(Tech, f32)>, bool);
-type VirtualCityTileYieldCache = (Government, Vec<Option<(i32, i32, i32)>>);
-type RouteZoneCache = [Vec<Option<bool>>; 2];
-
-#[derive(Clone, Default)]
-struct AdvisorSpatialIndex {
-    unit_head: Vec<Option<usize>>,
-    unit_next: Vec<Option<usize>>,
-    tile_unit_indices: Option<Vec<Vec<usize>>>,
-    tile_unit_revision: u64,
-    city_at: Vec<Option<usize>>,
-    continent_labels: std::sync::Arc<[usize]>,
-    unit_class_totals:
-        std::collections::BTreeMap<usize, std::collections::BTreeMap<Option<String>, i32>>,
-    average_production: std::collections::BTreeMap<usize, i32>,
-    offensive_outputs: std::collections::BTreeMap<u32, i32>,
-    offensive_advice: std::collections::BTreeMap<u32, CachedOffensiveAdvice>,
-    invasion_support: std::collections::BTreeMap<usize, ai::SharedInvasionSupport>,
-    guard_assessments: std::collections::BTreeMap<u32, advisors::GuardCityAssessment>,
-    counter_defenders: std::collections::BTreeMap<(u32, usize), Option<(Tech, bool)>>,
-    settlement_base: Option<Vec<i32>>,
-    settlement_spacing: Option<std::sync::Arc<[bool]>>,
-    virtual_city_sites:
-        std::collections::BTreeMap<usize, Vec<Option<Option<settlement::CitySite>>>>,
-    virtual_city_tile_yields: std::collections::BTreeMap<usize, VirtualCityTileYieldCache>,
-    route_zone_control: std::collections::BTreeMap<usize, RouteZoneCache>,
-    pf_actions:
-        std::collections::HashMap<(usize, usize, usize, bool, bool, bool), pf_actions::PfAction>,
 }
 
 fn percent_of(value: i32, percent: i32) -> i32 {
@@ -597,15 +562,11 @@ impl Simulation {
             diplomatic_contact_until: Default::default(),
             founder_phase: false,
             planning: Default::default(),
-            ai_advisor_cache_enabled: Default::default(),
-            ai_threat_route_cache_enabled: Default::default(),
-            ai_threat_arrival_cache: Default::default(),
-            ai_danger_route_cache: Default::default(),
+            advisor_cache: Default::default(),
             visibility_refresh_deferred: false,
             visibility_refresh_pending: false,
             visibility_pending_render_tiles: Default::default(),
             visibility_render_scope: None,
-            ai_spatial_index: Default::default(),
         };
         for owner in 0..civilization_count {
             game.players[owner].researching = game.choose_research_target(owner);

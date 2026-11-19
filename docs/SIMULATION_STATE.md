@@ -40,6 +40,27 @@ active planning context with independent cache storage. Ending planning on the
 clone does not clear the original. Normal turn ordering and saved AI decisions
 remain unchanged.
 
+## Advisor caches and reinforcement routes
+
+`sim/advisors::AdvisorCaches` owns advisor activation, spatial snapshots, typed
+memoizations and threat-route lifetime. Systems cannot borrow its storage maps
+or change activation flags directly. Location queries preserve native tile-list
+order, and ordered unit lookups fall back to the live list when its revision
+changes. Research class counts are immutable shared values, so their callers
+do not hold a mutable cache borrow while evaluating effects.
+
+The advisor pass starts by rebuilding locations and clearing threat routes and
+invasion support. Other memoizations retain their existing selective lifetime.
+A normal finish clears all advisor and threat data. Reinforcement uses a separate
+finish: it drops locations and assessments before moving friendly garrisons,
+retains hostile arrival routes during those moves, then explicitly clears routes.
+Threat data is private to the threat evaluator; the owner controls its lifetime.
+
+Settlement base maps, city spacing and virtual tile yields also serve the
+worker/founder phase. Its city-count and phase-end invalidations go through the
+same owner and clear only those maps. Clone storage remains independent, saves
+omit the entire advisor-cache group, and loading starts with it inactive.
+
 ## Durable knowledge and scheduled decisions
 
 `observed_map` contains remembered player knowledge and remains in campaign
@@ -54,6 +75,6 @@ existing persistence contracts.
 The trace collector already owns transient instrumentation and lifecycle/research
 ledgers. It remains separate from both query memoization and saved knowledge.
 
-Advisor spatial/threat-route caches and visibility batching still live on `Simulation`.
-Their phase boundaries and invalidation rules should be extracted in subsequent
-slices, preserving phase order, deterministic decisions and save compatibility.
+Visibility batching still lives directly on `Simulation`. Its phase boundaries
+and invalidation rules should be extracted in a subsequent slice, preserving
+phase order, deterministic decisions and save compatibility.

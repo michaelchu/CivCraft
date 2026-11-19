@@ -413,18 +413,13 @@ impl Simulation {
                 .collect::<Vec<_>>()
                 .into_iter();
         }
-        let indexed_units = if self.ai_advisor_cache_enabled.get() {
+        let indexed_units = if self.advisor_cache.active() {
             let tile_index = self.map_wrap.index(x, y);
-            let spatial = self.ai_spatial_index.borrow();
-            (spatial.tile_unit_revision == self.list_order.tile_revision())
-                .then(|| spatial.tile_unit_indices.as_ref())
-                .flatten()
-                .map(|tiles| {
-                    tiles[tile_index]
-                        .iter()
-                        .map(|&unit_index| &self.units[unit_index])
-                        .collect::<Vec<_>>()
-                })
+            self.advisor_cache.ordered_tile_units(
+                tile_index,
+                self.list_order.tile_revision(),
+                &self.units,
+            )
         } else {
             None
         };

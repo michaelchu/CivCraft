@@ -51,14 +51,8 @@ impl Simulation {
     ) -> Option<(Tech, i32)> {
         let cache_key = (city.id, attacker as usize);
         self.trace.count_operation("counter_defender.calls", 1);
-        let cache_enabled = self.ai_advisor_cache_enabled.get();
-        if cache_enabled
-            && let Some(goal) = self
-                .ai_spatial_index
-                .borrow()
-                .counter_defenders
-                .get(&cache_key)
-                .copied()
+        let cache_enabled = self.advisor_cache.active();
+        if cache_enabled && let Some(goal) = self.advisor_cache.memos().counter_defender(cache_key)
         {
             self.trace.count_operation("counter_defender.cache_hit", 1);
             return goal.map(|(tech, halve)| (tech, if halve { want / 2 } else { want }));
@@ -110,11 +104,10 @@ impl Simulation {
         // No supplied unit has a building prerequisite: the native
         // utype_needs_improvement branch cannot run for this fixed ruleset.
         let goal = choose_counter_goal(&candidates);
-        if self.ai_advisor_cache_enabled.get() {
-            self.ai_spatial_index
-                .borrow_mut()
-                .counter_defenders
-                .insert(cache_key, goal);
+        if self.advisor_cache.active() {
+            self.advisor_cache
+                .memos()
+                .remember_counter_defender(cache_key, goal);
         }
         goal.map(|(tech, halve)| (tech, if halve { want / 2 } else { want }))
     }
