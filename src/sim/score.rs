@@ -3,7 +3,7 @@
 use super::*;
 use crate::rules::Genus;
 
-pub(super) const TURN_LIMIT: i32 = 5000;
+pub(super) const TURN_LIMIT: i32 = 540;
 
 #[derive(Clone, Default, serde::Serialize, serde::Deserialize)]
 pub(super) struct NationScore {
@@ -221,6 +221,19 @@ mod tests {
 
         game.refresh_score_snapshot();
         assert_eq!(game.civilization_score(HUMAN), score + 10);
+    }
+
+    #[test]
+    fn score_ending_follows_the_540th_completed_turn() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        game.turn = 539;
+
+        game.simulate_turn();
+        assert_eq!(game.turn(), 540);
+        assert!(game.game_over().is_none());
+
+        game.simulate_turn();
+        assert!(game.game_over().unwrap().starts_with("Turn limit reached."));
     }
 
     #[test]
