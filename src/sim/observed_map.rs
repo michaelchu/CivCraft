@@ -465,8 +465,13 @@ impl Simulation {
         let _profile = profiler.scope("observed_city.mood");
         let disorder = self.city_in_disorder(city, luxury);
         drop(_profile);
+        let mut observed_city = city.clone();
+        // Culture-building ages belong to the live city and the appended
+        // campaign record. Fog-of-war snapshots use the frozen City wire
+        // layout, so keep this gameplay-only history out of remembered copies.
+        observed_city.culture_buildings.clear();
         ObservedCity {
-            city: city.clone(),
+            city: observed_city,
             // Civ III supplies five cultural sheets; the default mapping is
             // data on each civilization and can be overridden by its theme.
             civ3_style: self.players[city.owner]
