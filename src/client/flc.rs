@@ -335,10 +335,20 @@ pub(super) fn decode_flic(bytes: &[u8]) -> Result<Flic, String> {
 
 impl Flic {
     /// Create normal-color and team-tint layers from one indexed animation frame.
+    #[cfg(test)]
     fn image_layers_with_palette(
         &self,
         indices: &[u8],
         palette: &[[u8; 3]; 256],
+    ) -> Result<(Image, Image), String> {
+        self.image_layers_with_team_palette(indices, palette, None)
+    }
+
+    fn image_layers_with_team_palette(
+        &self,
+        indices: &[u8],
+        palette: &[[u8; 3]; 256],
+        team_palette: Option<&[[u8; 3]; 256]>,
     ) -> Result<(Image, Image), String> {
         if indices.len() != self.width * self.height {
             return Err("FLC frame pixel count does not match its dimensions".to_owned());
@@ -356,7 +366,13 @@ impl Flic {
         for (index, &palette_index) in indices.iter().enumerate() {
             let color = palette[usize::from(palette_index)];
             if palette_index < 16 || (palette_index < 64 && palette_index % 2 == 0) {
-                tint.get_image_data_mut()[index] = [255, 255, 255, 255];
+                if let Some(team_palette) = team_palette {
+                    let team_color = team_palette[usize::from(palette_index)];
+                    base.get_image_data_mut()[index] =
+                        [team_color[0], team_color[1], team_color[2], 255];
+                } else {
+                    tint.get_image_data_mut()[index] = [255, 255, 255, 255];
+                }
             } else if (224..=239).contains(&palette_index) {
                 let alpha = ((u16::from(palette_index - 224) * 255) / 15) as u8;
                 base.get_image_data_mut()[index] = [255, 255, 255, alpha];
@@ -372,6 +388,20 @@ impl Flic {
 
     /// Pack direction rows and their frames into two GPU-friendly image atlases.
     pub(super) fn image_atlases(&self) -> Result<(Image, Image), String> {
+        self.image_atlases_with_team_palette(None)
+    }
+
+    /// Bake a Civ III team palette into its marked unit pixels while retaining
+    /// the FLC's own colors, smoke and shadow ranges everywhere else.
+    pub(super) fn team_color_atlas(&self, team_palette: &[[u8; 3]; 256]) -> Result<Image, String> {
+        self.image_atlases_with_team_palette(Some(team_palette))
+            .map(|(base, _)| base)
+    }
+
+    fn image_atlases_with_team_palette(
+        &self,
+        team_palette: Option<&[[u8; 3]; 256]>,
+    ) -> Result<(Image, Image), String> {
         let frame_count = self.animations.first().map_or(0, Vec::len);
         if frame_count == 0 || self.animations.is_empty() {
             return Err("FLC contains no animation frames".to_owned());
@@ -420,7 +450,8 @@ impl Flic {
                     .get(direction)
                     .and_then(|palettes| palettes.get(frame_index))
                     .unwrap_or(&self.palette);
-                let (frame_base, frame_tint) = self.image_layers_with_palette(frame, palette)?;
+                let (frame_base, frame_tint) =
+                    self.image_layers_with_team_palette(frame, palette, team_palette)?;
                 for y in 0..self.height {
                     let src_start = y * self.width;
                     let src_end = src_start + self.width;

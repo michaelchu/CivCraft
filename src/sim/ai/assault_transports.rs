@@ -145,6 +145,7 @@ impl Simulation {
             port: u32,
             position: (i32, i32),
             troops: Vec<u32>,
+            reinforcement: Option<(i32, i32)>,
         }
         for boat in boats {
             let mut best: Option<Pickup> = None;
@@ -193,17 +194,26 @@ impl Simulation {
                     (boat.moves_left + pickup_turns * allowance - pickup_cost).max(0);
                 let labels = labels.get_or_init(|| self.continent_labels());
                 let origin = labels[self.map_wrap.index(port.x, port.y)];
-                let Some((distance, _, _, _)) =
+                let reinforcement = self.reinforcement_port(&staged, labels, origin);
+                let (distance, destination) = if let Some((position, turns)) = reinforcement {
+                    (turns, Some(position))
+                } else if let Some((turns, _, _, _)) =
                     self.raider_landing(&staged, Some((labels, origin)), Some(&troops), &[])
-                else {
+                {
+                    (turns, None)
+                } else {
                     continue;
                 };
                 let cost = pickup_turns + distance;
-                if best.as_ref().is_none_or(|previous| cost < previous.cost) {
+                if best.as_ref().is_none_or(|previous| {
+                    (destination.is_none(), cost)
+                        < (previous.reinforcement.is_none(), previous.cost)
+                }) {
                     best = Some(Pickup {
                         cost,
                         port: port.id,
                         position,
+                        reinforcement: destination,
                         troops: troops
                             .into_iter()
                             .take(boat.kind.transport_capacity())
@@ -231,12 +241,109 @@ impl Simulation {
                         if unit.home_city.is_none() {
                             unit.home_city = Some(plan.port);
                         }
+                        if let Some(destination) = plan.reinforcement {
+                            self.unit_goto_tiles.insert(id, destination);
+                            self.unit_goto_tiles.insert(boat.id, destination);
+                            self.ai_ground_targets.remove(&id);
+                        }
                     }
                 }
                 self.run_raider_transport(&staged);
             }
         }
         assigned
+    }
+
+    fn reinforcement_port(
+        &self,
+        staged: &Unit,
+        labels: &[usize],
+        origin: usize,
+    ) -> Option<((i32, i32), i32)> {
+        let mut ports: Vec<_> = self
+            .cities_owned_by(staged.owner)
+            .filter(|city| {
+                let destination = (city.x, city.y);
+                labels[self.map_wrap.index(city.x, city.y)] != origin
+                    && self.naval_city_access(city, staged.kind)
+                    && self.city_founders.get(&city.id).is_some_and(|&founder| {
+                        founder != staged.owner && self.diplomatic_at_war(staged.owner, founder)
+                    })
+                    && self
+                        .units_owned_by(staged.owner)
+                        .filter(|unit| {
+                            unit.kind.is_military()
+                                && !unit.kind.is_naval()
+                                && !unit.kind.is_aircraft()
+                                && ((unit.transport.is_none() && (unit.x, unit.y) == destination)
+                                    || (unit.transport.is_some()
+                                        && self.unit_goto_tiles.get(&unit.id)
+                                            == Some(&destination)))
+                        })
+                        .take(2)
+                        .count()
+                        < 2
+            })
+            .map(|city| (city.x, city.y))
+            .collect();
+        ports.sort_unstable();
+        let costs = self.route_costs_to_many(staged, &ports);
+        let allowance = self.unit_move_rate(staged).max(1);
+        ports
+            .into_iter()
+            .zip(costs)
+            .filter_map(|(port, cost)| {
+                Some((
+                    port,
+                    ((cost? - staged.moves_left).max(0) + allowance - 1) / allowance,
+                ))
+            })
+            .min_by_key(|&(port, turns)| (turns, port))
+    }
+
+    fn deliver_port_reinforcements(&mut self, boat: &Unit, cargo: &[u32]) -> bool {
+        let Some(&destination) = self.unit_goto_tiles.get(&boat.id) else {
+            return false;
+        };
+        let passengers: Vec<_> = cargo
+            .iter()
+            .copied()
+            .filter(|id| {
+                self.unit_goto_tiles.get(id) == Some(&destination)
+                    && !self.ai_ground_targets.contains_key(id)
+                    && self.unit_by_id(*id).is_some_and(|unit| {
+                        unit.kind.is_military() && !unit.kind.is_naval() && !unit.kind.is_aircraft()
+                    })
+            })
+            .collect();
+        if passengers.is_empty() {
+            return false;
+        }
+        if !self
+            .cities_owned_by(boat.owner)
+            .any(|city| (city.x, city.y) == destination)
+        {
+            for id in passengers {
+                self.unit_goto_tiles.remove(&id);
+            }
+            return false;
+        }
+
+        self.ai_ferry_goto_waypoint(boat.id, destination, destination);
+        if self
+            .unit_by_id(boat.id)
+            .is_some_and(|ship| (ship.x, ship.y) == destination)
+        {
+            for id in passengers {
+                if self.board_or_deboard(id) {
+                    self.unit_goto_tiles.remove(&id);
+                }
+            }
+            if self.cargo_count(boat.id) == 0 {
+                self.unit_goto_tiles.remove(&boat.id);
+            }
+        }
+        true
     }
 
     pub(super) fn passenger_assault_order(&self, boat: &Unit) -> Option<(&Unit, &City)> {
@@ -294,6 +401,10 @@ impl Simulation {
                 }
                 return;
             }
+        }
+
+        if self.deliver_port_reinforcements(boat, &cargo) {
+            return;
         }
 
         if let Some((direction, (dx, dy))) =

@@ -524,7 +524,7 @@ fn grave_home_danger_keeps_its_strong_defender_even_with_a_threatened_neighbor()
     assert!(game.city_grave_danger(&game.cities[0]) > 0);
     assert!(
         !game
-            .reinforce_ai_cities(1, &std::collections::HashSet::new())
+            .reinforce_ai_cities(1, &std::collections::HashSet::new(), None)
             .contains(&marine)
     );
     assert!(

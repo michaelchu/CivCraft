@@ -68,11 +68,11 @@ pub(crate) struct Run {
     runtime: Option<Box<dyn ScenarioRun>>,
 }
 
-fn advance_companion_campaigns(runtime: &mut dyn ScenarioRun) {
-    for game in runtime.companion_campaigns() {
-        if game.game_over().is_none() {
-            game.simulate_turn();
-        }
+fn advance_comparison_game(runtime: &mut dyn ScenarioRun) {
+    if let Some(game) = runtime.comparison_game()
+        && game.game_over().is_none()
+    {
+        game.simulate_turn();
     }
 }
 
@@ -94,7 +94,7 @@ impl Run {
                 let before = self.game.turn();
                 self.game.simulate_turn();
                 if self.game.turn() != before {
-                    advance_companion_campaigns(runtime.as_mut());
+                    advance_comparison_game(runtime.as_mut());
                 }
             }
             self.provenance
@@ -109,9 +109,16 @@ impl Run {
             .map_or(&[], |campaign| campaign.trace_kinds())
     }
 
-    pub fn advance_companions(&mut self) {
+    pub fn simulate_turn(&mut self, completed_turns: u32) {
+        if let Some(campaign) = &mut self.runtime {
+            self.game
+                .trace
+                .phase(crate::sim::trace::Phase::ScenarioActions);
+            campaign.before_turn(&mut self.game, completed_turns);
+        }
+        self.game.simulate_turn();
         if let Some(runtime) = &mut self.runtime {
-            advance_companion_campaigns(runtime.as_mut());
+            advance_comparison_game(runtime.as_mut());
         }
     }
 
@@ -215,6 +222,8 @@ mod tests {
     struct Paired {
         companion: Simulation,
         actions_pending: bool,
+        before_calls: usize,
+        before: Option<(u32, i32)>,
     }
 
     impl ScenarioRun for Paired {
@@ -228,11 +237,18 @@ mod tests {
         fn action_turns(&self) -> u32 {
             2
         }
-        fn companion_campaigns(&mut self) -> &mut [Simulation] {
-            std::slice::from_mut(&mut self.companion)
+        fn before_turn(&mut self, game: &mut Simulation, completed_turns: u32) {
+            self.before_calls += 1;
+            self.before = Some((completed_turns, game.turn()));
+        }
+        fn comparison_game(&mut self) -> Option<&mut Simulation> {
+            Some(&mut self.companion)
         }
         fn observe_turn(&mut self, game: &Simulation, _turns: u32) -> serde_json::Value {
-            serde_json::json!({"primary": game.turn(), "companion": self.companion.turn()})
+            serde_json::json!({
+                "primary": game.turn(), "companion": self.companion.turn(),
+                "before_calls": self.before_calls, "before": self.before,
+            })
         }
     }
 
@@ -252,6 +268,8 @@ mod tests {
         run.runtime = Some(Box::new(Paired {
             companion: run.game.clone(),
             actions_pending: true,
+            before_calls: 0,
+            before: None,
         }));
         run.observe_turn(0);
         assert_eq!(
@@ -265,17 +283,22 @@ mod tests {
             initial + 2
         );
         assert_eq!(run.game.turn(), initial + 2);
+        assert_eq!(
+            run.provenance.observations.last().unwrap().state["before_calls"],
+            0
+        );
         run.execute_actions();
         assert_eq!(run.game.turn(), initial + 2);
-        run.game.simulate_turn();
-        run.advance_companions();
+        run.simulate_turn(0);
         run.observe_turn(1);
         let state = run.provenance.observations.last().unwrap().state.clone();
         assert_eq!(state["primary"], initial + 3);
         assert_eq!(state["companion"], initial + 3);
+        assert_eq!(state["before_calls"], 1);
+        assert_eq!(state["before"], serde_json::json!([0, initial + 2]));
         run.observe_turn(1);
         assert_eq!(run.provenance.observations.last().unwrap().state, state);
-        let peer = &run.runtime.as_mut().unwrap().companion_campaigns()[0];
+        let peer = run.runtime.as_mut().unwrap().comparison_game().unwrap();
         assert_eq!(
             run.game.encode_campaign().unwrap(),
             peer.encode_campaign().unwrap()
@@ -286,13 +309,22 @@ mod tests {
     fn observing_a_paired_trait_campaign_does_not_advance_or_mutate_campaign_state() {
         let mut run = build("trait-campaign", 42, world()).unwrap();
         let primary = run.game.encode_campaign().unwrap();
-        let companion = run.runtime.as_mut().unwrap().companion_campaigns()[0]
+        let companion = run
+            .runtime
+            .as_mut()
+            .unwrap()
+            .comparison_game()
+            .unwrap()
             .encode_campaign()
             .unwrap();
         run.observe_turn(0);
         assert_eq!(run.game.encode_campaign().unwrap(), primary);
         assert_eq!(
-            run.runtime.as_mut().unwrap().companion_campaigns()[0]
+            run.runtime
+                .as_mut()
+                .unwrap()
+                .comparison_game()
+                .unwrap()
                 .encode_campaign()
                 .unwrap(),
             companion

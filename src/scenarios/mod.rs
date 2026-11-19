@@ -36,13 +36,15 @@ pub(crate) trait ScenarioRun {
     fn complete_actions(&mut self, _game: &mut Simulation) -> Vec<Check> {
         vec![]
     }
+    /// Apply scripted changes before the next ordinary campaign turn.
+    fn before_turn(&mut self, _game: &mut Simulation, _completed_turns: u32) {}
+    /// Optional comparison state advanced by the runner alongside the primary run,
+    /// including preparatory turns. Observers never advance campaign clocks.
+    fn comparison_game(&mut self) -> Option<&mut Simulation> {
+        None
+    }
     fn records_turns(&self) -> bool {
         true
-    }
-    /// Additional campaigns advanced by the runner before observing each turn.
-    /// Scenarios lend their state here; observers never advance campaign clocks.
-    fn companion_campaigns(&mut self) -> &mut [Simulation] {
-        &mut []
     }
     fn observe_turn(&mut self, _game: &Simulation, _completed_turns: u32) -> serde_json::Value {
         serde_json::Value::Null
@@ -211,12 +213,11 @@ mod tests {
             for _ in 0..runtime.action_turns() {
                 let before = campaign.turn();
                 campaign.simulate_turn();
-                if campaign.turn() != before {
-                    for companion in runtime.companion_campaigns() {
-                        if companion.game_over().is_none() {
-                            companion.simulate_turn();
-                        }
-                    }
+                if campaign.turn() != before
+                    && let Some(comparison) = runtime.comparison_game()
+                    && comparison.game_over().is_none()
+                {
+                    comparison.simulate_turn();
                 }
             }
             checks.extend(runtime.complete_actions(&mut campaign));

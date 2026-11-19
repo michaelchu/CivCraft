@@ -208,7 +208,12 @@ impl Simulation {
         }
     }
 
-    pub(super) fn execute_offer(&mut self, a: usize, b: usize, offer: &TreatyOffer) -> bool {
+    pub(in crate::sim) fn execute_offer(
+        &mut self,
+        a: usize,
+        b: usize,
+        offer: &TreatyOffer,
+    ) -> bool {
         let previous = self.contacted_pact(a, b);
         let accepted = self.execute_offer_inner(a, b, offer);
         self.trace_diplomacy(

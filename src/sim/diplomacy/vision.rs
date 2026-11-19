@@ -89,16 +89,17 @@ impl Simulation {
 
     pub(crate) fn unit_visible_to_human(&self, unit: &Unit) -> bool {
         let tile = self.tile(unit.x, unit.y);
-        if !tile.visible
-            || self
-                .cities
-                .iter()
-                .any(|city| (city.x, city.y) == (unit.x, unit.y) && !self.allied(HUMAN, city.owner))
+        let allied = self.allied(HUMAN, unit.owner);
+        if self
+            .cities
+            .iter()
+            .any(|city| (city.x, city.y) == (unit.x, unit.y) && !self.allied(HUMAN, city.owner))
         {
             return false;
         }
-        self.allied(HUMAN, unit.owner)
-            || (unit.transport.is_none()
+        allied
+            || (tile.visible
+                && unit.transport.is_none()
                 && (!self.unit_vision_layer_for(unit.kind).requires_detection()
                     || tile.stealth_visible))
     }

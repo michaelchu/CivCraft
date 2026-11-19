@@ -102,12 +102,11 @@ pub(crate) fn run(config: Config) -> Result<(), String> {
             reason = "game_over";
             break;
         }
-        scenario.game.simulate_turn();
+        scenario.simulate_turn(turns as u32);
         scenario.game.reconcile_lifecycle_observation();
         scenario.game.reconcile_research_observation();
         report.turn_profiles(scenario.game.trace.drain_profiles());
         turns += 1;
-        scenario.advance_companions();
         scenario.observe_turn(turns as u32);
         let dropped = scenario.game.trace.dropped();
         registry.gap(dropped - previous_dropped);

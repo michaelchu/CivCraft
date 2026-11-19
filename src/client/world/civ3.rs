@@ -606,10 +606,6 @@ impl<'a> Civ3WorldPainter<'a> {
             }
         }
         for &(x, y, center) in &order {
-            let tile = game.sim.render_tile_view(x, y);
-            if !tile.visible {
-                continue;
-            }
             if let Some((unit, count)) = stacks.get(&(x, y)) {
                 // Ordinary city garrisons are hidden, but fortifying units
                 // remain visible above the city. Focused units have a later
@@ -645,8 +641,7 @@ impl<'a> Civ3WorldPainter<'a> {
             }
         }
         for &(x, y, center) in &order {
-            if game.sim.render_tile_view(x, y).visible
-                && let Some((unit, count)) = stacks.get(&(x, y))
+            if let Some((unit, count)) = stacks.get(&(x, y))
                 && Some(unit.id) == game.selected_unit
                 && !game.playback.is_active(unit.id)
             {

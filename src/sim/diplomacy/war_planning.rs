@@ -108,14 +108,26 @@ impl Simulation {
     }
 
     pub(in crate::sim) fn war_muster_has_garrison(&self, city: &City) -> bool {
-        self.tile_units_ordered(city.x, city.y).any(|unit| {
-            unit.owner == city.owner
-                && unit.transport.is_none()
-                && unit.kind.is_military()
-                && !unit.kind.is_naval()
-                && !unit.kind.is_aircraft()
-                && unit.kind.stats().defense > 0
-        })
+        self.war_muster_garrison(city).is_some()
+    }
+
+    pub(in crate::sim) fn war_muster_garrison(&self, city: &City) -> Option<u32> {
+        self.tile_units_ordered(city.x, city.y)
+            .filter(|unit| {
+                unit.owner == city.owner
+                    && unit.transport.is_none()
+                    && unit.kind.is_military()
+                    && !unit.kind.is_naval()
+                    && !unit.kind.is_aircraft()
+                    && unit.kind.stats().defense > 0
+            })
+            .max_by_key(|unit| {
+                (
+                    unit.kind.stats().defense * unit.hp,
+                    std::cmp::Reverse(unit.id),
+                )
+            })
+            .map(|unit| unit.id)
     }
 
     pub(in crate::sim) fn can_join_ground_offensive(kind: UnitKind) -> bool {
@@ -144,12 +156,28 @@ impl Simulation {
                     && Self::can_join_ground_offensive(unit.kind)
             })
             .collect();
-        // Rival garrisons are concealed. Budget against a fortified defender
-        // and require a second attacker so one good unit cannot start a war.
+        if troops.len() < 2 {
+            return false;
+        }
+        // Cities conceal their garrison. Estimate that garrison separately
+        // from troops that can visibly reinforce it from surrounding tiles.
         let mut expected = self.make_unit(0, city.owner, UnitKind::Spearman, city.x, city.y);
         expected.state = UnitState::Fortified;
-        troops.len() >= 2
-            && self.assault_capture_chance_against(city, &troops, &[&expected]) >= 0.70
+        let mut defenders = vec![&expected];
+        for (x, y, distance) in self.map_wrap.civ3_radius(city.x, city.y, 3) {
+            if distance == 0 {
+                continue;
+            }
+            defenders.extend(self.tile_units_ordered(x, y).filter(|unit| {
+                unit.owner == city.owner
+                    && unit.kind.is_military()
+                    && !unit.kind.is_aircraft()
+                    && !unit.kind.is_naval()
+                    && unit.kind.stats().defense > 0
+                    && self.unit_visible_to(owner, unit)
+            }));
+        }
+        self.assault_capture_chance_against(city, &troops, &defenders) >= 0.70
     }
 
     pub(super) fn map_size_factor(&self) -> i32 {

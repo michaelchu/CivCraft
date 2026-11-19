@@ -198,8 +198,8 @@ impl ScenarioRun for Comparison {
         EVENTS
     }
 
-    fn companion_campaigns(&mut self) -> &mut [Simulation] {
-        std::slice::from_mut(&mut self.scientific)
+    fn comparison_game(&mut self) -> Option<&mut Simulation> {
+        Some(&mut self.scientific)
     }
 
     fn observe_turn(&mut self, game: &Simulation, turn: u32) -> Value {

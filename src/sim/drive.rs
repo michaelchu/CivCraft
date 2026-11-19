@@ -23,6 +23,7 @@ pub(crate) trait Drive {
     fn capture_city_if_needed(&mut self, unit_id: u32, x: i32, y: i32);
     fn declare_ai_war_now(&mut self, owner: usize, target: usize);
     fn disband_unit(&mut self, id: u32, city_id: Option<u32>) -> bool;
+    fn execute_offer(&mut self, a: usize, b: usize, offer: &TreatyOffer) -> bool;
     fn found_city(&mut self, unit_id: u32) -> bool;
     fn make_diplomatic_contact(&mut self, a: usize, b: usize);
     fn manage_ai_taxes(&mut self, owner: usize);
@@ -78,6 +79,9 @@ impl Drive for Simulation {
     }
     fn disband_unit(&mut self, id: u32, city_id: Option<u32>) -> bool {
         Simulation::disband_unit(self, id, city_id)
+    }
+    fn execute_offer(&mut self, a: usize, b: usize, offer: &TreatyOffer) -> bool {
+        Simulation::execute_offer(self, a, b, offer)
     }
     fn found_city(&mut self, unit_id: u32) -> bool {
         Simulation::found_city(self, unit_id)

@@ -741,13 +741,32 @@ impl Simulation {
                 });
             }
             if let Some(objective) = self.coordinated_war_objective(city.owner)
-                && objective.muster_city == city.id
-                && self.advisor_guard_city_assessment(city).urgency <= 1
-                && !military.is_some_and(|choice| choice.want >= MILITARY_EMERGENCY_WANT)
+                && (objective.muster_city == city.id
+                    || (self.war_muster_has_garrison(city)
+                        && self.map_distance(
+                            city.x,
+                            city.y,
+                            objective.staging.0,
+                            objective.staging.1,
+                        ) <= 8
+                        && {
+                            let regions = self.continent_labels();
+                            regions[self.map_wrap.index(city.x, city.y)]
+                                == regions[self
+                                    .map_wrap
+                                    .index(objective.staging.0, objective.staging.1)]
+                        }))
+                && self.city_grave_danger(city) == 0
                 && !self.war_force_ready(city.owner, objective)
-                && self
-                    .strategic_priorities(city.owner)
-                    .can_start_optional_war()
+                && {
+                    let strategy = self.strategic_priorities(city.owner);
+                    !strategy.economic_crisis
+                        && (strategy.can_start_optional_war()
+                            || (!strategy.space_program
+                                && self
+                                    .city_by_id(objective.city)
+                                    .is_some_and(|target| self.at_war(city.owner, target.owner))))
+                }
             {
                 let kind = if self.war_muster_has_garrison(city) {
                     UnitKind::ALL_NATIVE
