@@ -236,5 +236,4 @@ Private rule assertions live in source-adjacent `tests` modules. Shared simulati
 checks enter through `sim::tests::gameplay`; subsystem helpers stay under the
 owning `tests` module. The root `tests/` directory covers CLI contracts.
 Reusable typed setup lives in the domain modules under `src/sim/fixtures/`.
-See [scenario boundaries and coverage](docs/SCENARIO_REFACTOR.md) for the
-architecture and the helper migration inventory.
+See [scenario architecture](docs/SCENARIOS.md) for ownership, lifecycle and fixtures.

@@ -230,7 +230,7 @@ Scenarios reach state-mutating rule steps only through the `sim::drive::Drive`
 trait (import it explicitly); keep those `Simulation` methods `pub(in crate::sim)`
 and add a wrapper there rather than widening them to `pub(crate)`. Read-only
 queries may stay `pub(crate)`.
-See `docs/SCENARIO_REFACTOR.md` for the boundary and coverage inventory.
+See `docs/SCENARIOS.md` for the scenario architecture.
 
 
 List and run registered scenarios without creating a graphics context:
