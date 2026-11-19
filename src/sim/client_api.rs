@@ -148,6 +148,19 @@ impl ClientSimulation {
         self.simulation.diplomacy_meeting_view(owner, draft)
     }
 
+    pub(crate) fn vassal_offer_label(&self, terms: super::VassalTerms) -> String {
+        self.simulation.vassal_offer_label(terms)
+    }
+
+    pub(crate) fn vassal_war_preview(
+        &self,
+        a: usize,
+        b: usize,
+        terms: super::VassalTerms,
+    ) -> String {
+        self.simulation.vassal_war_preview(a, b, terms)
+    }
+
     pub(crate) fn treaty_offer_current_view(&self, owner: usize, offer: &TreatyOffer) -> bool {
         self.simulation.treaty_offer_current_view(owner, offer)
     }
@@ -168,8 +181,8 @@ impl ClientSimulation {
         self.simulation.goto_preview_view(unit_id, x, y)
     }
 
-    pub(crate) fn displayed_tile_owner_view(&self, x: i32, y: i32) -> Option<usize> {
-        self.simulation.displayed_tile_owner_view(x, y)
+    pub(crate) fn territory_border_owner_view(&self, x: i32, y: i32) -> Option<usize> {
+        self.simulation.territory_border_owner_view(x, y)
     }
 
     pub(crate) fn render_tile_view(&self, x: i32, y: i32) -> RenderTileView {

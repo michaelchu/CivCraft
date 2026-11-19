@@ -198,10 +198,11 @@ impl ScenarioRun for Comparison {
         EVENTS
     }
 
+    fn comparison_game(&mut self) -> Option<&mut Simulation> {
+        Some(&mut self.scientific)
+    }
+
     fn observe_turn(&mut self, game: &Simulation, turn: u32) -> Value {
-        if self.scientific.game_over().is_none() {
-            self.scientific.simulate_turn();
-        }
         self.synchronized &= game.turn() == self.scientific.turn();
         self.reached_game_over = game.game_over().is_some();
         let rome = self.rome.observe(game, turn);

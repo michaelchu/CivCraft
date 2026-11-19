@@ -42,6 +42,8 @@ mod terms {
 #[derive(Serialize, Deserialize)]
 #[serde(remote = "TreatyOffer")]
 struct LegacyOffer {
+    #[serde(skip)]
+    vassalage: Option<VassalTerms>,
     pact: Option<Pact>,
     #[serde(with = "terms")]
     terms: [Concessions; 2],

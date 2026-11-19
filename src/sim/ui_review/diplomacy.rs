@@ -26,6 +26,7 @@ pub(crate) fn ui_review_offer(sim: &mut Simulation) -> TreatyOffer {
         .set_embassy(true)
         .set_city(Some(city));
     let offer = TreatyOffer {
+        vassalage: None,
         pact: Some(Pact::Alliance),
         terms: [terms.clone(), terms],
     };

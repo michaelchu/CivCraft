@@ -343,16 +343,24 @@ impl Simulation {
             self.game_over = Some("Your civilization has passed into history.".to_owned());
             return;
         }
+        self.advance_vassalage();
         let living = (0..self.civilization_count)
-            .filter(|&owner| self.player_alive(owner))
+            .filter(|&owner| self.player_alive(owner) && self.vassal_master(owner).is_none())
             .count();
         if (ai_only && living <= 1)
             || (!ai_only
-                && !(0..self.civilization_count)
-                    .any(|owner| owner != HUMAN && self.player_alive(owner)))
+                && !(0..self.civilization_count).any(|owner| {
+                    owner != HUMAN
+                        && self.player_alive(owner)
+                        && self.vassal_master(owner).is_none()
+                }))
         {
             self.game_over = Some(if ai_only {
-                "One civilization remains.".to_owned()
+                if self.vassalage.agreements.is_empty() {
+                    "One civilization remains.".to_owned()
+                } else {
+                    "One independent civilization remains.".to_owned()
+                }
             } else {
                 "The world is united beneath your banner.".to_owned()
             });
@@ -415,11 +423,11 @@ mod tests {
     }
 
     #[test]
-    fn campaign_victory_flags_match_the_explicit_c2c3_defaults() {
+    fn campaign_victory_flags_match_the_selected_ruleset() {
         let game = Simulation::new(crate::mapgen::generate(42));
         assert!(game.victory_enabled(VictoryCondition::SpaceRace));
         assert!(game.victory_enabled(VictoryCondition::Allied));
-        assert!(!game.victory_enabled(VictoryCondition::Culture));
+        assert!(game.victory_enabled(VictoryCondition::Culture));
         assert!(!game.victory_enabled(VictoryCondition::WorldPeace));
     }
 

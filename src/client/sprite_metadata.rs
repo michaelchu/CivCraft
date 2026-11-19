@@ -2,7 +2,25 @@
 
 use super::*;
 
-pub(super) use crate::map_palette::{player_color, secondary_civilization_color};
+fn color_from_rgb(rgb: crate::map_palette::Rgb) -> Color {
+    let [r, g, b] = rgb.channels();
+    Color::new(r, g, b, 1.0)
+}
+
+pub(super) fn player_color(civilization_id: Option<&str>, owner: usize) -> Color {
+    color_from_rgb(crate::map_palette::player_rgb(civilization_id, owner))
+}
+
+pub(super) fn secondary_civilization_color(civilization_id: Option<&str>, owner: usize) -> Color {
+    color_from_rgb(crate::map_palette::secondary_civilization_rgb(
+        civilization_id,
+        owner,
+    ))
+}
+
+pub(super) fn minimap_color(terrain: Terrain) -> Color {
+    color_from_rgb(terrain.minimap_rgb())
+}
 
 pub(super) fn unit_art_role(kind: UnitKind) -> String {
     kind.conquests_id()

@@ -10,6 +10,7 @@ mod research;
 mod units;
 mod world;
 pub(crate) use readiness::UnitReadiness;
+#[cfg(test)]
 pub(crate) use units::give_unit_full_movement;
 pub(crate) use world::capture_known_tiles;
 

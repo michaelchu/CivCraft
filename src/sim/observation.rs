@@ -180,9 +180,6 @@ pub(crate) struct UnitSnapshot {
 impl Simulation {
     #[cfg(feature = "desktop")]
     pub(crate) fn observe_minimap(&self) -> MinimapSnapshot {
-        let rgb = |color: macroquad::prelude::Color| {
-            [color.r, color.g, color.b].map(|c| (c * 255.0).round() as u8)
-        };
         let width = self.map_wrap.width();
         let height = self.map_wrap.height();
         MinimapSnapshot {
@@ -190,7 +187,7 @@ impl Simulation {
             height,
             terrain: (0..height)
                 .flat_map(|y| (0..width).map(move |x| (x, y)))
-                .map(|(x, y)| rgb(self.tile(x, y).terrain.minimap_color()))
+                .map(|(x, y)| self.tile(x, y).terrain.minimap_rgb().to_rgb8())
                 .collect(),
             owners: (0..height)
                 .flat_map(|y| (0..width).map(move |x| self.tile(x, y).owner))
@@ -214,10 +211,8 @@ impl Simulation {
                 .map(|(id, p)| MinimapCivilization {
                     id,
                     name: p.name.clone(),
-                    color: rgb(crate::map_palette::player_color(
-                        p.civilization_id.as_deref(),
-                        id,
-                    )),
+                    color: crate::map_palette::player_rgb(p.civilization_id.as_deref(), id)
+                        .to_rgb8(),
                     alive: self.player_alive(id),
                 })
                 .collect(),

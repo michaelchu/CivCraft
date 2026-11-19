@@ -1,7 +1,7 @@
 //! Current campaign persistence, input validation, and runtime restoration.
 //!
 //! Saves encode the durable part of [`Simulation`] with the current versioned
-//! binary format. Formats 0x26 through 0x2E are read and upgraded on save.
+//! binary format. Formats 0x26 through 0x2F are read and upgraded on save.
 //!
 //! When adding persistent fields, decide whether they belong in the save,
 //! update the round-trip and corruption checks. Runtime caches should remain excluded when
@@ -20,10 +20,11 @@ use std::{
 mod schema;
 use schema::{
     LegacyAiMap, LegacyCampaign, SavedCampaign, SavedCampaignV2A, SavedCampaignV2B,
-    SavedCampaignV2C, SavedCampaignV2D, SavedCampaignV2E,
+    SavedCampaignV2C, SavedCampaignV2D, SavedCampaignV2E, SavedCampaignV30,
 };
 
-const HEADER: &[u8] = b"CIVCRAFT\0\x2F";
+const HEADER: &[u8] = b"CIVCRAFT\0\x30";
+const V2F_HEADER: &[u8] = b"CIVCRAFT\0\x2F";
 const V2E_HEADER: &[u8] = b"CIVCRAFT\0\x2E";
 const V2D_HEADER: &[u8] = b"CIVCRAFT\0\x2D";
 const V2C_HEADER: &[u8] = b"CIVCRAFT\0\x2C";
@@ -74,7 +75,7 @@ impl Simulation {
 
     pub(crate) fn encode_campaign(&self) -> io::Result<Vec<u8>> {
         codec(MAX_PAYLOAD)
-            .serialize(&SavedCampaignV2E::from_game(
+            .serialize(&SavedCampaignV30::from_game(
                 self,
                 Cow::Borrowed(&self.observed_map.partial_sites),
             ))
@@ -86,8 +87,8 @@ impl Simulation {
         let mut header = [0; HEADER.len()];
         file.read_exact(&mut header)?;
         let max_payload = match header.as_slice() {
-            HEADER | V2E_HEADER | V2D_HEADER | V2C_HEADER | V2B_HEADER | V2A_HEADER
-            | V29_HEADER | V28_HEADER | PACKED_LEGACY_HEADER => MAX_PAYLOAD,
+            HEADER | V2F_HEADER | V2E_HEADER | V2D_HEADER | V2C_HEADER | V2B_HEADER
+            | V2A_HEADER | V29_HEADER | V28_HEADER | PACKED_LEGACY_HEADER => MAX_PAYLOAD,
             LEGACY_HEADER => LEGACY_MAX_PAYLOAD,
             _ => return Err(invalid("Unsupported CivCraft save format")),
         };
@@ -161,8 +162,41 @@ impl Simulation {
                 let (game, partial_sites) = saved.into_game().map_err(invalid)?;
                 (game, None, LegacyAiMap::default(), partial_sites)
             }
+            V2F_HEADER => {
+                let notification_candidate = codec(max_payload)
+                    .deserialize::<SavedCampaignV2E<'_, observed_map::PartialCitySites>>(&payload)
+                    .ok()
+                    .and_then(|saved| saved.into_game().ok())
+                    .filter(|(game, _)| valid_notification_state(game));
+                if let Some((game, partial_sites)) = notification_candidate {
+                    (game, None, LegacyAiMap::default(), partial_sites)
+                } else {
+                    let (saved, objectives, vassalage): (
+                        SavedCampaignV2D<'_, observed_map::PartialCitySites>,
+                        SavedWarObjectives,
+                        diplomacy::vassalage::SavedVassalage,
+                    ) = codec(max_payload)
+                        .deserialize(&payload)
+                        .map_err(|error| invalid(error.to_string()))?;
+                    let (mut game, partial_sites) = saved.into_game().map_err(invalid)?;
+                    game.restore_vassalage(vassalage).map_err(invalid)?;
+                    for (pair, objective) in objectives {
+                        let Some(plan) = game.ai_war_plans.get_mut(&pair) else {
+                            return Err(invalid("War objective has no plan"));
+                        };
+                        if plan.objective.is_some()
+                            || !(0..game.map_wrap.width()).contains(&objective.staging.0)
+                            || !(0..game.map_wrap.height()).contains(&objective.staging.1)
+                        {
+                            return Err(invalid("Invalid war objective"));
+                        }
+                        plan.objective = Some(objective);
+                    }
+                    (game, None, LegacyAiMap::default(), partial_sites)
+                }
+            }
             HEADER => {
-                let saved: SavedCampaignV2E<'_, observed_map::PartialCitySites> =
+                let saved: SavedCampaignV30<'_, observed_map::PartialCitySites> =
                     codec(max_payload)
                         .deserialize(&payload)
                         .map_err(|error| invalid(error.to_string()))?;
@@ -194,6 +228,9 @@ impl Simulation {
         };
         game.upgrade_legacy_notifications();
         game.validate_campaign()?;
+        if !game.valid_vassalage() {
+            return Err(invalid("Invalid vassalage state"));
+        }
         if game.city_governors.iter().any(|(&id, state)| {
             !state.settings.valid()
                 || !game
@@ -497,6 +534,16 @@ impl Simulation {
         }
         Ok(())
     }
+}
+
+fn valid_notification_state(game: &Simulation) -> bool {
+    let ids: std::collections::BTreeSet<_> =
+        game.notifications.iter().map(|item| item.id).collect();
+    let max_id = ids.iter().next_back().copied().unwrap_or(0);
+    game.notifications.len() <= 500
+        && ids.len() == game.notifications.len()
+        && !ids.contains(&0)
+        && game.next_notification_id > max_id
 }
 
 fn codec(max_payload: u64) -> impl Options {

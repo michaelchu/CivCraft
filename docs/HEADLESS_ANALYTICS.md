@@ -202,10 +202,16 @@ Seeds 1 and 18, which exposed roster-dependent failures in the old script, now
 use the same controlled roster and geometry. The normal-turn test also repeats
 seed 42 to check deterministic observations.
 
-`ai-paradrops` seed 3 reproduces a threatened-city reinforcement failure in the
-original `e1123c9` fixture code; its landing-refusal and undefended-city checks
-succeed. Inspect the named checks in its report when comparing that historical
-case with the current engine.
+`ai-paradrops` version 2 runs two normal turns with fixed Rome/Inca identities.
+Run `--scenario ai-paradrops --seed 42 --turns 2`. An airborne unit must choose
+an empty threatened city over an available undefended enemy city, while
+the original guard stays at home. Islands isolate the choices, a spotter provides
+vision of the approach, and the distant threat avoids a combat roll after landing.
+The observer tracks exact unit IDs and latches the three required outcomes within
+two turns. Setup precedes tracing; no actions or fixture edits run after it.
+The old version-1 seed-3 failure used the generated roster and manually invoked
+an AI phase. Defended-landing refusal and vacant-city capture remain focused
+aviation unit checks, alongside this normal-turn workflow.
 
 ### City governor campaign comparison
 
@@ -1075,3 +1081,12 @@ cargo run --offline --bin report_read -- report.json --stream events |
 Use the `wartime-funding` release scenario for a controlled policy regression;
 use verbose evidence for per-turn funding/crisis counts. Compacted lean events
 cannot establish those frequencies without their omitted observations.
+
+### Vassal diplomacy evidence
+
+Diplomacy analyzer version 7 adds `vassalage` and `independence_reason` to
+`analytics.metrics.diplomacy.relationships`. The agreement identifies its
+subject, master, kind, start turn and original land total. Formation, eligibility
+and dissolution use the existing `diplomacy.transition` event and appear in
+`recent_activity` with evidence references. An eligibility event is not proof
+of departure: inspect `vassalage_ended` and the next relationship snapshot.

@@ -243,6 +243,7 @@ pub(super) struct SavedCampaignV2E<'a, S> {
     next_notification_id: u64,
 }
 impl<'a, S> SavedCampaignV2E<'a, S> {
+    #[cfg(test)]
     pub(super) fn from_game(game: &'a Simulation, partial_sites: S) -> Self {
         let objectives = game
             .ai_war_plans
@@ -258,6 +259,51 @@ impl<'a, S> SavedCampaignV2E<'a, S> {
     }
     pub(super) fn into_game(self) -> Result<(Simulation, S), &'static str> {
         let (mut game, partial_sites) = self.campaign.into_game()?;
+        for (pair, objective) in self.objectives {
+            let Some(plan) = game.ai_war_plans.get_mut(&pair) else {
+                return Err("War objective has no plan");
+            };
+            if plan.objective.is_some()
+                || !(0..game.map_wrap.width()).contains(&objective.staging.0)
+                || !(0..game.map_wrap.height()).contains(&objective.staging.1)
+            {
+                return Err("Invalid war objective");
+            }
+            plan.objective = Some(objective);
+        }
+        game.notifications = self.notifications.into_owned();
+        game.next_notification_id = self.next_notification_id;
+        Ok((game, partial_sites))
+    }
+}
+
+/// Format 0x30 combines the 0x2F notification and vassalage save extensions.
+#[derive(Serialize, Deserialize)]
+pub(super) struct SavedCampaignV30<'a, S> {
+    campaign: SavedCampaignV2D<'a, S>,
+    objectives: Vec<((usize, usize), diplomacy::WarObjective)>,
+    vassalage: diplomacy::vassalage::SavedVassalage,
+    notifications: Cow<'a, [notifications::Notification]>,
+    next_notification_id: u64,
+}
+impl<'a, S> SavedCampaignV30<'a, S> {
+    pub(super) fn from_game(game: &'a Simulation, partial_sites: S) -> Self {
+        let objectives = game
+            .ai_war_plans
+            .iter()
+            .filter_map(|(&pair, plan)| plan.objective.map(|objective| (pair, objective)))
+            .collect();
+        Self {
+            campaign: SavedCampaignV2D::from_game(game, partial_sites),
+            objectives,
+            vassalage: game.save_vassalage(),
+            notifications: Cow::Borrowed(&game.notifications),
+            next_notification_id: game.next_notification_id,
+        }
+    }
+    pub(super) fn into_game(self) -> Result<(Simulation, S), &'static str> {
+        let (mut game, partial_sites) = self.campaign.into_game()?;
+        game.restore_vassalage(self.vassalage)?;
         for (pair, objective) in self.objectives {
             let Some(plan) = game.ai_war_plans.get_mut(&pair) else {
                 return Err("War objective has no plan");
@@ -402,6 +448,7 @@ impl<'a, A, S> SavedCampaign<'a, A, S> {
             hunter_targets: core.hunter_targets.into_iter().collect(),
             previous_naval_positions: core.previous_naval_positions.into_iter().collect(),
             diplomacy: core.diplomacy.into_owned(),
+            vassalage: Default::default(),
             apollo_completed: core.apollo_completed,
             global_advances: core.global_advances.into_owned(),
             players: core.players.into_owned(),
@@ -478,6 +525,38 @@ mod treaty_schema_tests {
         assert!(loaded.notifications.iter().all(|item| item.read));
         assert_eq!(loaded.unread_notifications_view(), 0);
         assert!(loaded.legacy_events.is_empty());
+    }
+
+    #[test]
+    fn previous_notification_format_with_its_header_preserves_notifications() {
+        let mut game = Simulation::new(crate::test_support::seeded_map());
+        game.legacy_events.push("Earlier text message.".to_owned());
+        game.notifications[0].read = true;
+        let saved =
+            SavedCampaignV2E::from_game(&game, Cow::Borrowed(&game.observed_map.partial_sites));
+        let payload = super::super::codec(super::super::MAX_PAYLOAD)
+            .serialize(&saved)
+            .unwrap();
+        let path = std::env::temp_dir().join(format!(
+            "civcraft-notification-v2f-{}.save",
+            std::process::id()
+        ));
+        let mut bytes = super::super::V2F_HEADER.to_vec();
+        bytes.extend(payload);
+        std::fs::write(&path, bytes).unwrap();
+
+        let loaded = Simulation::load_campaign(&path).unwrap();
+        std::fs::remove_file(path).unwrap();
+
+        assert_eq!(loaded.notifications.len(), 4);
+        assert!(
+            loaded
+                .notifications
+                .iter()
+                .any(|item| { item.text == "Earlier text message." && item.read })
+        );
+        assert!(loaded.notifications[0].read);
+        assert_eq!(loaded.unread_notifications_view(), 2);
     }
 
     #[test]

@@ -2306,7 +2306,7 @@ mod tests {
         let mut rules = RulesetData::campaign_default().clone();
         assert!(rules.victory_enabled(VictoryCondition::SpaceRace).unwrap());
         assert!(rules.victory_enabled(VictoryCondition::Allied).unwrap());
-        assert!(!rules.victory_enabled(VictoryCondition::Culture).unwrap());
+        assert!(rules.victory_enabled(VictoryCondition::Culture).unwrap());
 
         let index = rules
             .settings
@@ -2316,6 +2316,7 @@ mod tests {
         rules.settings[index].value = super::Value::String("ALLIED".to_owned());
         assert!(rules.victory_enabled(VictoryCondition::Allied).unwrap());
         assert!(!rules.victory_enabled(VictoryCondition::SpaceRace).unwrap());
+        assert!(!rules.victory_enabled(VictoryCondition::Culture).unwrap());
 
         rules.settings[index].value = super::Value::String("ALLIED|UNKNOWN".to_owned());
         assert!(rules.victory_enabled(VictoryCondition::Allied).is_err());

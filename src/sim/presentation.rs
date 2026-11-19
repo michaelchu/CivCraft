@@ -11,7 +11,6 @@ pub(crate) struct CombatVisual {
     /// The Conquests PRTO Bombard Effects flag requests a target explosion
     /// effect even when bombardment does not kill the selected unit.
     pub(crate) bombard_effects: bool,
-    pub(crate) territory: Vec<Option<usize>>,
 }
 
 #[derive(Clone)]
@@ -140,7 +139,6 @@ impl Simulation {
                         .as_ref()
                         .map(|city| self.rendered_city_override_view(city)),
                     bombard_effects: combat.bombard_effects,
-                    territory: combat.territory,
                     duration,
                 }))
             }
@@ -196,7 +194,6 @@ mod tests {
             hp: vec![(10, 10)],
             city: None,
             bombard_effects: false,
-            territory: vec![None; sim.tiles.len()],
         }));
         let PresentationEventView::Combat(combat) = sim.presentation_event_view_for_test(event)
         else {

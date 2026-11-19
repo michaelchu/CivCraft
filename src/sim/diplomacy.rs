@@ -13,7 +13,10 @@ mod offers;
 mod pacts;
 pub(in crate::sim) mod relationships;
 mod trade_policy;
+mod transitions;
+pub(in crate::sim) mod vassalage;
 mod vision;
+pub(crate) use vassalage::{VassalKind, VassalTerms};
 mod war_planning;
 #[cfg(feature = "desktop")]
 pub(crate) use espionage::EspionageRivalView;
@@ -233,6 +236,8 @@ impl Concessions {
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub(crate) struct TreatyOffer {
+    #[serde(default)]
+    pub(crate) vassalage: Option<VassalTerms>,
     pub(crate) pact: Option<Pact>,
     // Terms are ordered by player ID.
     pub(crate) terms: [Concessions; 2],
@@ -240,7 +245,7 @@ pub(crate) struct TreatyOffer {
 
 impl TreatyOffer {
     pub(crate) fn bundled(&self) -> bool {
-        self.terms != [Concessions::default(), Concessions::default()]
+        self.vassalage.is_some() || self.terms != [Concessions::default(), Concessions::default()]
     }
 }
 
@@ -568,6 +573,7 @@ impl Simulation {
     }
 
     pub(in crate::sim) fn advance_diplomacy(&mut self) {
+        self.advance_vassalage();
         let turn = self.turn;
         let failed_plant_flags: Vec<_> = self
             .diplomacy
@@ -602,6 +608,18 @@ impl Simulation {
             }
         }
         for (a, b, previous, pact) in transitions {
+            let changes = self.plan_group_pact(a, b, pact, 0);
+            let newly_expired: Vec<_> = changes
+                .iter()
+                .filter(|c| {
+                    c.pact == Pact::Peace && self.pact(c.first, c.second) == Pact::Armistice
+                })
+                .map(|c| (c.first, c.second))
+                .collect();
+            self.commit_pact_changes(changes);
+            for (first, second) in newly_expired {
+                self.expel_armistice_units(first, second);
+            }
             self.trace_diplomacy(
                 a,
                 b,
@@ -615,34 +633,7 @@ impl Simulation {
                 self.refresh_visibility();
             }
             if pact == Pact::Peace {
-                let expelled: Vec<_> = self
-                    .units
-                    .iter()
-                    .filter(|unit| {
-                        (unit.owner == a && self.tile(unit.x, unit.y).owner == Some(b)
-                            || unit.owner == b && self.tile(unit.x, unit.y).owner == Some(a))
-                            && !unit.kind.is_civilian()
-                            && !movement_rules::MovementRules::campaign()
-                                .terrain_has_named_flag(
-                                    self.tile(unit.x, unit.y).terrain,
-                                    "EnterBorders",
-                                )
-                                .expect("campaign terrain has valid flags")
-                    })
-                    .map(|unit| unit.id)
-                    .collect();
-                for unit in self.units.iter().filter(|unit| {
-                    expelled.contains(&unit.id)
-                        || unit.transport.is_some_and(|id| expelled.contains(&id))
-                }) {
-                    self.trace
-                        .unit_removed(self.turn, unit, lifecycle::UnitRemoval::Expelled);
-                }
-                self.units.retain(|unit| {
-                    !expelled.contains(&unit.id)
-                        && unit.transport.is_none_or(|id| !expelled.contains(&id))
-                });
-                self.prune_unit_ai_state();
+                self.expel_armistice_units(a, b);
             }
             if a == HUMAN || b == HUMAN {
                 let other = if a == HUMAN { b } else { a };
@@ -676,7 +667,8 @@ impl Simulation {
     }
 
     pub(super) fn treaty_blocks_move(&self, unit: &Unit, x: i32, y: i32) -> bool {
-        let blocked = |owner| !self.allied(unit.owner, owner) && !self.at_war(unit.owner, owner);
+        let blocked =
+            |owner| !self.military_access(unit.owner, owner) && !self.at_war(unit.owner, owner);
         let occupied = self
             .units
             .iter()
@@ -687,10 +679,10 @@ impl Simulation {
                 .any(|city| (city.x, city.y) == (x, y) && blocked(city.owner));
         occupied
             || !unit.kind.is_civilian()
-                && self
-                    .tile(x, y)
-                    .owner
-                    .is_some_and(|owner| self.pact(unit.owner, owner) == Pact::Peace)
+                && self.tile(x, y).owner.is_some_and(|owner| {
+                    self.pact(unit.owner, owner) == Pact::Peace
+                        && !self.military_access(unit.owner, owner)
+                })
     }
 }
 

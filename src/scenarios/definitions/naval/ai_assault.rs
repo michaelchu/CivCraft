@@ -23,7 +23,22 @@ pub(in crate::scenarios) const SCENARIO: Scenario = Scenario::new(
     },
 );
 
+pub(in crate::scenarios) const SECOND_WAVE: Scenario = Scenario::new(
+    "naval-second-wave",
+    1,
+    ScenarioKind::Runtime {
+        control: Control::AllAi,
+        world: RuntimeWorld::Custom,
+        setup: setup_second_wave,
+    },
+);
+
 fn setup(map: GeneratedMap) -> (Simulation, Box<dyn ScenarioRun>) {
+    let (game, assault) = campaign(map);
+    (game, Box::new(assault))
+}
+
+fn campaign(map: GeneratedMap) -> (Simulation, Assault) {
     let mut game = WorldBuilder::ocean_campaign(
         map,
         &[
@@ -63,7 +78,7 @@ fn setup(map: GeneratedMap) -> (Simulation, Box<dyn ScenarioRun>) {
     world.finish();
     (
         game,
-        Box::new(Assault {
+        Assault {
             home,
             island,
             target,
@@ -75,7 +90,7 @@ fn setup(map: GeneratedMap) -> (Simulation, Box<dyn ScenarioRun>) {
             landing_turn: None,
             capture_turn: None,
             opening_guard: false,
-        }),
+        },
     )
 }
 
@@ -176,6 +191,177 @@ impl ScenarioRun for Assault {
             milestone("naval_assault_sailed_with_cargo", self.departure_turn),
             milestone("naval_assault_landed_cargo", self.landing_turn),
             milestone("naval_assault_captured_target", self.capture_turn),
+        ]
+    }
+}
+
+const WAVE_DEADLINE: u32 = 50;
+const HOLD_TURNS: u32 = 8;
+
+fn setup_second_wave(map: GeneratedMap) -> (Simulation, Box<dyn ScenarioRun>) {
+    let (mut game, opening) = campaign(map);
+    let port = opening.island[1];
+    let counterattack = offset_native_by_map(port.0, port.1, 3, 0);
+    let refuge = offset_native_by_map(port.0, port.1, 0, 8);
+    let mut world = WorldBuilder::new(&mut game);
+    for position in [
+        refuge,
+        counterattack,
+        offset_native_by_map(port.0, port.1, 2, 0),
+        offset_native_by_map(port.0, port.1, 1, 0),
+    ] {
+        world.grassland(position);
+        world.mark_known(HUMAN, position);
+    }
+    let city = world.city(HUMAN, refuge, 2);
+    world.production_stock(
+        city,
+        crate::sim::Production::Building(crate::rules::Building::COINAGE),
+        0,
+    );
+    world.unit(HUMAN, UnitKind::Spearman, refuge);
+    world.mark_known(HUMAN, port);
+    world.finish();
+    (
+        game,
+        Box::new(SecondWave {
+            opening,
+            counterattack,
+            reserves: Vec::new(),
+            counterattackers: Vec::new(),
+            embarked: Vec::new(),
+            shore_turn: None,
+            threatened: false,
+            counterattack_losses: 0,
+            trace_dropped: false,
+            hold_turns: 0,
+            port_lost: false,
+        }),
+    )
+}
+
+struct SecondWave {
+    opening: Assault,
+    counterattack: Position,
+    reserves: Vec<u32>,
+    counterattackers: Vec<u32>,
+    embarked: Vec<u32>,
+    shore_turn: Option<u32>,
+    threatened: bool,
+    counterattack_losses: usize,
+    trace_dropped: bool,
+    hold_turns: u32,
+    port_lost: bool,
+}
+
+impl ScenarioRun for SecondWave {
+    fn trace_kinds(&self) -> &'static [&'static str] {
+        &["lifecycle.changed"]
+    }
+
+    fn before_turn(&mut self, game: &mut Simulation, _: u32) {
+        if self.opening.capture_turn.is_none() || !self.reserves.is_empty() {
+            return;
+        }
+        let mut world = WorldBuilder::new(game);
+        for _ in 0..3 {
+            self.reserves
+                .push(world.unit(ATTACKER, UnitKind::Marine, self.opening.home));
+        }
+        for _ in 0..2 {
+            self.counterattackers
+                .push(world.unit(HUMAN, UnitKind::Knight, self.counterattack));
+        }
+        world.finish();
+    }
+
+    fn observe_turn(&mut self, game: &Simulation, turn: u32) -> Value {
+        let opening = self.opening.observe_turn(game, turn);
+        let port = self.opening.island[1];
+        let held = game
+            .city_by_id(self.opening.target)
+            .is_some_and(|city| city.owner == ATTACKER);
+        let survivors: Vec<_> = self
+            .counterattackers
+            .iter()
+            .filter_map(|&id| game.unit_by_id(id))
+            .collect();
+        self.trace_dropped |= game.trace.dropped() > 0;
+        self.counterattack_losses += game
+            .trace
+            .pending_events()
+            .iter()
+            .filter(|event| {
+                event.kind == "lifecycle.changed"
+                    && event.payload["event"] == "unit_removed"
+                    && event.payload["reason"] == "combat"
+                    && self
+                        .counterattackers
+                        .iter()
+                        .any(|&id| event.payload["unit"]["id"] == id)
+            })
+            .count();
+        if !self.counterattackers.is_empty() {
+            self.threatened |= survivors
+                .iter()
+                .any(|unit| game.map_distance(port.0, port.1, unit.x, unit.y) <= 2)
+                || self.counterattack_losses > 0;
+            self.port_lost |= !held;
+            if held && game.at_war(ATTACKER, HUMAN) {
+                self.hold_turns += 1;
+            }
+        }
+        let reserve_positions: Vec<_> = self
+            .reserves
+            .iter()
+            .filter_map(|&id| game.unit_by_id(id))
+            .map(|unit| {
+                if unit.transport.is_some() && !self.embarked.contains(&unit.id) {
+                    self.embarked.push(unit.id);
+                }
+                if unit.transport.is_none()
+                    && (unit.x, unit.y) == port
+                    && self.embarked.contains(&unit.id)
+                {
+                    self.shore_turn.get_or_insert(turn);
+                }
+                json!({"unit": unit.id, "position": [unit.x, unit.y], "transport": unit.transport})
+            })
+            .collect();
+        json!({"opening": opening, "reserves": reserve_positions, "reserve_embarkations": self.embarked,
+            "reinforcement_at_port": self.shore_turn, "port_held": held, "hold_turns": self.hold_turns,
+            "live_counterattackers": survivors.iter().map(|unit| (unit.id, unit.x, unit.y)).collect::<Vec<_>>()})
+    }
+
+    fn finish(self: Box<Self>, _: u32) -> Vec<Check> {
+        vec![
+            Check {
+                name: "opening_wave_captures_port",
+                passed: self.opening.capture_turn.is_some() && self.opening.landing_turn.is_some(),
+                detail: format!(
+                    "Opening landing {:?}, capture {:?}",
+                    self.opening.landing_turn, self.opening.capture_turn
+                ),
+            },
+            Check {
+                name: "second_wave_crosses_and_reaches_port",
+                passed: self.shore_turn.is_some_and(|turn| turn <= WAVE_DEADLINE),
+                detail: format!(
+                    "Reserve embarkations {:?}, first arrival {:?} by {WAVE_DEADLINE}",
+                    self.embarked, self.shore_turn
+                ),
+            },
+            Check {
+                name: "port_holds_against_counterattack",
+                passed: self.threatened
+                    && self.counterattack_losses > 0
+                    && !self.port_lost
+                    && self.hold_turns >= HOLD_TURNS,
+                detail: format!(
+                    "Counterattack threatened port {}, enemy combat losses {}, held {} turns without recapture {}",
+                    self.threatened, self.counterattack_losses, self.hold_turns, !self.port_lost
+                ),
+            },
         ]
     }
 }

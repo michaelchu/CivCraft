@@ -46,6 +46,7 @@ impl Simulation {
             next_pact,
             offer,
             sides,
+            vassal_offer: self.vassal_offer_view(owner),
         })
     }
 
@@ -73,8 +74,10 @@ impl Simulation {
                     has_embassy: self.has_embassy(HUMAN, owner),
                     gives_shared_vision,
                     senate_veto: pact != Pact::War && self.senate_blocks_cancellation(HUMAN, owner),
+                    vassal_status: self.vassal_status(owner),
+                    can_cancel_pact: !self.same_vassal_group(HUMAN, owner),
+                    can_release: self.vassal_master(owner) == Some(HUMAN),
                     pact_offer: self.pact_offer(owner),
-                    next_pact: self.next_pact(HUMAN, owner),
                     can_negotiate,
                     treaty_offer,
                 })

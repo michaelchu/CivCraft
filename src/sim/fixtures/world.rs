@@ -193,6 +193,7 @@ impl WorldBuilder<'_> {
         self.game.units.clear();
         self.game.cities.clear();
         self.game.diplomacy.clear();
+        self.game.vassalage = Default::default();
         self.game.ai_war_plans.clear();
         for player in &mut self.game.players {
             player.ai = false;
@@ -258,10 +259,6 @@ impl WorldBuilder<'_> {
 
     pub(crate) fn clear_outcome(&mut self) {
         self.game.game_over = None;
-    }
-
-    pub(crate) fn remove_hut(&mut self, position: (i32, i32)) {
-        self.game.tile_mut(position.0, position.1).hut = false;
     }
 
     pub(crate) fn refresh_visibility(&mut self) {

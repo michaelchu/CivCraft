@@ -31,7 +31,7 @@ mod sprite_metadata;
 mod unit_media;
 pub(crate) use assets::{AssetContext, Assets, window_conf};
 pub(crate) use audio::MusicPlayer;
-use sprite_metadata::player_color;
+use sprite_metadata::{minimap_color, player_color};
 pub(crate) use unit_sound::UnitSoundPlayer;
 
 mod city_bar;
@@ -192,6 +192,7 @@ pub(crate) enum UiAction {
     AddTreatyGold(usize, usize, TreatyOffer),
     ProposeTreaty(usize, TreatyOffer),
     CancelPact(usize),
+    ReleaseVassal(usize),
     CancelSharedVision(usize),
     DeclineOffer(usize),
     ReviewOffer(usize, TreatyOffer),

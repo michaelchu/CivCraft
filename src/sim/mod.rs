@@ -61,6 +61,10 @@ pub(crate) use notifications::{Notification, NotificationPriority};
 mod combat_rules;
 mod commands;
 mod diplomacy;
+#[cfg(any(test, feature = "scenarios"))]
+pub(crate) use diplomacy::VassalKind;
+#[cfg(feature = "desktop")]
+pub(crate) use diplomacy::VassalTerms;
 mod tech_trade;
 mod trade_routes;
 pub(crate) use diplomacy::{EspionageMission, EspionageRisk, Pact, TreatyMap, TreatyOffer};
@@ -249,6 +253,7 @@ pub(crate) struct Simulation {
     hunter_targets: std::collections::HashMap<u32, u32>,
     previous_naval_positions: std::collections::HashMap<u32, (i32, i32)>,
     diplomacy: std::collections::BTreeMap<(usize, usize), diplomacy::Relation>,
+    vassalage: diplomacy::vassalage::VassalState,
     apollo_completed: bool,
     /// Technologies ever discovered by any civilization, including advances
     /// later lost to upkeep. Freeciv's `survives=true, range=World` checks use
@@ -303,10 +308,7 @@ pub(crate) struct Simulation {
     founder_phase: bool,
     planning: ai::PlanningCaches,
     advisor_cache: advisors::AdvisorCaches,
-    visibility_refresh_deferred: bool,
-    visibility_refresh_pending: bool,
-    visibility_pending_render_tiles: Vec<bool>,
-    visibility_render_scope: Option<Vec<usize>>,
+    visibility_refresh: observed_map::VisibilityRefresh,
 }
 
 fn percent_of(value: i32, percent: i32) -> i32 {
@@ -519,6 +521,7 @@ impl Simulation {
             hunter_targets: Default::default(),
             previous_naval_positions: Default::default(),
             diplomacy: Default::default(),
+            vassalage: Default::default(),
             apollo_completed: false,
             global_advances,
             players,
@@ -600,10 +603,7 @@ impl Simulation {
             founder_phase: false,
             planning: Default::default(),
             advisor_cache: Default::default(),
-            visibility_refresh_deferred: false,
-            visibility_refresh_pending: false,
-            visibility_pending_render_tiles: Default::default(),
-            visibility_render_scope: None,
+            visibility_refresh: Default::default(),
         };
         for owner in 0..civilization_count {
             game.players[owner].researching = game.choose_research_target(owner);

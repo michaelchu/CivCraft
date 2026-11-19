@@ -92,8 +92,10 @@ pub(crate) struct DiplomacyRivalView {
     pub(crate) has_embassy: bool,
     pub(crate) gives_shared_vision: bool,
     pub(crate) senate_veto: bool,
+    pub(crate) vassal_status: Option<String>,
+    pub(crate) can_cancel_pact: bool,
+    pub(crate) can_release: bool,
     pub(crate) pact_offer: Option<Pact>,
-    pub(crate) next_pact: Option<Pact>,
     pub(crate) can_negotiate: bool,
     pub(crate) treaty_offer: Option<TreatyOffer>,
 }
@@ -106,6 +108,7 @@ pub(crate) struct DiplomacyMeetingView {
     pub(crate) next_pact: Option<Pact>,
     pub(crate) offer: TreatyOffer,
     pub(crate) sides: [TreatySideView; 2],
+    pub(crate) vassal_offer: Result<TreatyOffer, String>,
 }
 
 pub(crate) struct TreatySideView {
@@ -285,7 +288,6 @@ pub(crate) struct CombatPresentationView {
     pub(crate) hp: Vec<(i32, i32)>,
     pub(crate) city: Option<RenderedCityView>,
     pub(crate) bombard_effects: bool,
-    pub(crate) territory: Vec<Option<usize>>,
     pub(crate) duration: f64,
 }
 

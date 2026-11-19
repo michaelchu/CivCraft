@@ -12,9 +12,9 @@ impl Game {
                 let color = if !tile.seen {
                     Color::from_rgba(7, 13, 17, 255)
                 } else if tile.visible {
-                    tile.terrain.minimap_color()
+                    minimap_color(tile.terrain)
                 } else {
-                    darken(tile.terrain.minimap_color(), 0.53)
+                    darken(minimap_color(tile.terrain), 0.53)
                 };
                 let origin = self.minimap_tile_origin(rect, x, y);
                 let width = (rect.right() - origin.x).min(2.0 * scale);
