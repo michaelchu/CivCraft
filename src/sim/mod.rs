@@ -847,7 +847,8 @@ impl Simulation {
         self.record_ai_domestic_tech_wants(owner);
         drop(_profile);
         let _profile = profiler.scope("ai.last.city_defenses");
-        let build_choices = self.prepare_ai_city_defenses(owner);
+        let mut build_choices = self.prepare_ai_city_defenses(owner);
+        self.fund_ai_upkeep_with_coinage(owner, &mut build_choices);
         drop(_profile);
         let _profile = profiler.scope("ai.last.defense_spending");
         self.spend_ai_defense_gold_with_choices(owner, &build_choices);

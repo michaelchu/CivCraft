@@ -85,7 +85,9 @@ impl super::Simulation {
         // raises tax from 40 to 60. With a scientist already assigned, Library
         // initially wins, but higher tax makes Marketplace win city advice.
         // Running advice first would leave Library in the production queue.
-        self.tax_phase_fixture(3, 10, [60, 40, 0], 0);
+        // Cover the one-unit upkeep cushion so emergency Coinage cannot
+        // override the advisor's choice in this phase-order test.
+        self.tax_phase_fixture(3, 10, [60, 40, 0], 1);
         self.cities[0].worked_tiles.pop();
         self.cities[0].specialists = [1, 0, 0];
         self.units.retain(|unit| unit.kind == UnitKind::Warrior);

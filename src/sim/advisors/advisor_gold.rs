@@ -152,6 +152,86 @@ impl Simulation {
         (income, science)
     }
 
+    /// Raise operating cash with shields when tax advice leaves too little
+    /// room for upkeep. Coordinate conversions across cities so one funded
+    /// shortfall does not interrupt every production queue.
+    pub(in crate::sim) fn fund_ai_upkeep_with_coinage(
+        &mut self,
+        owner: usize,
+        choices: &mut std::collections::BTreeMap<u32, AiBuildChoice>,
+    ) {
+        let player = &self.players[owner];
+        let gold = player.gold;
+        let buffer = self.strategic_upkeep_buffer(owner);
+        if gold >= buffer || buffer == 0 {
+            return;
+        }
+        let unit_cost = player
+            .government
+            .rule_name()
+            .and_then(|name| crate::rules::native::governments().get(name))
+            .map_or(0, |rule| rule.cost_per_excess_unit_gold);
+        let coinage = Production::Building(Building::COINAGE);
+        let mut income = self.ai_projected_income(owner);
+        let mut candidates = Vec::new();
+        for city in self.player_cities_ordered(owner) {
+            let forecast = self.city_forecast(city);
+            let surplus = forecast.shield_surplus();
+            // A completed unit can be billed in the same turn. Near the cash
+            // floor, budget for it at the excess-unit rate.
+            let queued_upkeep = match city.production {
+                Production::Unit(kind)
+                    if kind.conquests_rule().require_support != 0
+                        && self.unit_buildable(city, kind)
+                        && city.shields + surplus >= city.production.cost() =>
+                {
+                    unit_cost
+                }
+                _ => 0,
+            };
+            income -= queued_upkeep;
+            if surplus <= 0
+                || city.production == coinage
+                || !self.can_change_production(city, coinage)
+            {
+                continue;
+            }
+            let assessment = self.advisor_guard_city_assessment(city);
+            if assessment.urgency > 0
+                || assessment.grave > 0
+                || matches!(city.production, Production::Unit(kind)
+                    if kind.is_military() && assessment.defense == 0)
+            {
+                continue;
+            }
+            // Use recurring conversion output. Any banked shields that
+            // survive the switch are extra cash, not a recurring surplus.
+            let benefit = surplus + queued_upkeep;
+            let want = choices.get(&city.id).map_or(0.0, |choice| choice.want);
+            candidates.push((
+                (want + f64::from(city.shields)) / f64::from(benefit),
+                city.id,
+                benefit,
+            ));
+        }
+        // Leave room for one additional support charge if the city's actual
+        // output or free support changes during the accounting phase.
+        let required = unit_cost - gold;
+        if income >= required {
+            return;
+        }
+        candidates.sort_by(|a, b| a.0.total_cmp(&b.0).then_with(|| a.1.cmp(&b.1)));
+        for (_, city, benefit) in candidates {
+            if self.change_production(city, coinage) {
+                choices.remove(&city);
+                income += benefit;
+                if income >= required {
+                    break;
+                }
+            }
+        }
+    }
+
     fn ai_building_is_crucial(&self, city: &City, building: Building) -> bool {
         Self::ai_building_has_effect(city, building, EffectKind::DefendBonus)
             || self.ai_building_is_productive(city, building)
@@ -327,8 +407,14 @@ impl Simulation {
         let owned: Vec<_> = self.player_cities_ordered(owner).collect();
         let expenses: i32 = owned
             .iter()
-            .map(|city| self.building_upkeep(city) + self.city_unit_upkeep(city).gold)
-            .sum();
+            .map(|city| self.building_upkeep(city))
+            .sum::<i32>()
+            + self
+                .national_unit_gold_upkeep(owner)
+                .paid
+                .iter()
+                .map(|(_, cost)| cost)
+                .sum::<i32>();
         let reserve = self.strategic_priorities(owner).gold_reserve;
         let operating_buffer = self.strategic_upkeep_buffer(owner);
         let mut priorities: Vec<_> = owned

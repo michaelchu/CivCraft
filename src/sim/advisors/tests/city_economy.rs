@@ -3,6 +3,57 @@
 use super::*;
 
 #[test]
+fn upkeep_uses_safe_city_production_without_cutting_science_or_replacing_a_garrison_build() {
+    let mut game = Simulation::new(crate::test_support::seeded_map());
+    crate::scenarios::funding_campaign_fixture(&mut game);
+    let home = game.cities[0].id;
+    let safe = game.cities[1].id;
+    let defender = Production::Unit(UnitKind::Warrior);
+    let worker = Production::Unit(UnitKind::Worker);
+    {
+        let mut world = crate::sim::fixtures::WorldBuilder::new(&mut game);
+        world.treasury(1, 0);
+        world.production_stock(home, defender, 0);
+        world.production_stock(safe, worker, 0);
+        for _ in 0..12 {
+            world.unit(1, UnitKind::Warrior, (18, 30));
+        }
+    }
+    let rates = game.players[1].rates;
+    let before = game.ai_projected_budget_at_rates(1, rates);
+    assert!(before.0 < 0);
+    let mut choices = std::collections::BTreeMap::from([
+        (
+            home,
+            AiBuildChoice {
+                production: defender,
+                want: 100.0,
+            },
+        ),
+        (
+            safe,
+            AiBuildChoice {
+                production: worker,
+                want: 100.0,
+            },
+        ),
+    ]);
+    game.fund_ai_upkeep_with_coinage(1, &mut choices);
+    let after = game.ai_projected_budget_at_rates(1, rates);
+
+    assert_eq!(game.city_by_id(home).unwrap().production, defender);
+    assert_eq!(
+        game.city_by_id(safe).unwrap().production,
+        Production::Building(Building::COINAGE)
+    );
+    assert!(choices.contains_key(&home));
+    assert!(!choices.contains_key(&safe));
+    assert_eq!(game.players[1].rates, rates);
+    assert_eq!(after.1, before.1);
+    assert!(after.0 > before.0);
+}
+
+#[test]
 fn stable_city_advice_is_reused_until_its_persisted_schedule_is_due() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     game.create_city(1, 10, 24);
