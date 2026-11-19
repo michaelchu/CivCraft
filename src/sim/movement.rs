@@ -519,17 +519,13 @@ impl Simulation {
     }
 
     fn enemy_zoc_controls_tile(&self, owner: usize, x: i32, y: i32, observed: bool) -> bool {
-        if self.ai_advisor_cache_enabled.get() {
+        if self.advisor_cache.active() {
             let index = self.map_wrap.index(x, y);
             let visibility = usize::from(observed);
             if let Some(controlled) = self
-                .ai_spatial_index
-                .borrow()
-                .route_zone_control
-                .get(&owner)
-                .and_then(|cache| cache[visibility].get(index))
-                .copied()
-                .flatten()
+                .advisor_cache
+                .memos()
+                .zone_control(owner, visibility, index)
             {
                 self.trace
                     .count_operation("movement.route_zoc_cache_hits", 1);
@@ -538,12 +534,13 @@ impl Simulation {
             self.trace
                 .count_operation("movement.route_zoc_cache_misses", 1);
             let controlled = self.enemy_zoc_controls_tile_uncached(owner, x, y, observed);
-            let mut spatial = self.ai_spatial_index.borrow_mut();
-            let cache = spatial
-                .route_zone_control
-                .entry(owner)
-                .or_insert_with(|| std::array::from_fn(|_| vec![None; self.tiles.len()]));
-            cache[visibility][index] = Some(controlled);
+            self.advisor_cache.memos().remember_zone_control(
+                owner,
+                visibility,
+                index,
+                self.tiles.len(),
+                controlled,
+            );
             return controlled;
         }
         self.enemy_zoc_controls_tile_uncached(owner, x, y, observed)

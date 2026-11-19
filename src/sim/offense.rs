@@ -57,34 +57,24 @@ impl Simulation {
     }
 
     fn cached_offensive_output(&self, city: &City) -> i32 {
-        if self.ai_advisor_cache_enabled.get() {
-            self.ai_spatial_index
-                .borrow()
-                .offensive_outputs
-                .get(&city.id)
-                .copied()
+        if self.advisor_cache.active() {
+            self.advisor_cache.memos().offensive_output(city.id)
         } else {
             None
         }
         .unwrap_or_else(|| {
             let output = self.offensive_production_output(city);
-            if self.ai_advisor_cache_enabled.get() {
-                self.ai_spatial_index
-                    .borrow_mut()
-                    .offensive_outputs
-                    .insert(city.id, output);
+            if self.advisor_cache.active() {
+                self.advisor_cache
+                    .memos()
+                    .remember_offensive_output(city.id, output);
             }
             output
         })
     }
 
     fn offensive_production_output(&self, city: &City) -> i32 {
-        let cached = self
-            .ai_spatial_index
-            .borrow()
-            .average_production
-            .get(&city.owner)
-            .copied();
+        let cached = self.advisor_cache.memos().average_production(city.owner);
         let average = cached.unwrap_or_else(|| {
             let mut count = 0;
             let mut total = 0;
@@ -93,11 +83,10 @@ impl Simulation {
                 total += self.city_forecast(other).shield_surplus();
             }
             let average = total / count.max(1);
-            if self.ai_advisor_cache_enabled.get() {
-                self.ai_spatial_index
-                    .borrow_mut()
-                    .average_production
-                    .insert(city.owner, average);
+            if self.advisor_cache.active() {
+                self.advisor_cache
+                    .memos()
+                    .remember_average_production(city.owner, average);
             }
             average
         });
@@ -331,14 +320,8 @@ impl Simulation {
         prior: Option<AiBuildChoice>,
     ) -> (Option<AiBuildChoice>, Vec<(Tech, f32)>, bool) {
         self.trace.count_operation("offensive_advice.calls", 1);
-        let cache_enabled = self.ai_advisor_cache_enabled.get();
-        if cache_enabled
-            && let Some(result) = self
-                .ai_spatial_index
-                .borrow()
-                .offensive_advice
-                .get(&city.id)
-                .cloned()
+        let cache_enabled = self.advisor_cache.active();
+        if cache_enabled && let Some(result) = self.advisor_cache.memos().offensive_advice(city.id)
         {
             self.trace.count_operation("offensive_advice.cache_hit", 1);
             return result;
@@ -347,11 +330,10 @@ impl Simulation {
             self.trace.count_operation("offensive_advice.cache_miss", 1);
         }
         let result = self.offensive_advice_with_prior(city, prior);
-        if self.ai_advisor_cache_enabled.get() {
-            self.ai_spatial_index
-                .borrow_mut()
-                .offensive_advice
-                .insert(city.id, result.clone());
+        if self.advisor_cache.active() {
+            self.advisor_cache
+                .memos()
+                .remember_offensive_advice(city.id, result.clone());
         }
         result
     }

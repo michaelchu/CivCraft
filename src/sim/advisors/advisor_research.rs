@@ -392,18 +392,22 @@ impl Simulation {
                     && requirement.range == RequirementRange::Local
             })
             .collect();
-        let mut spatial = self.ai_spatial_index.borrow_mut();
-        let mut uncached = std::collections::BTreeMap::new();
-        let cache = if self.ai_advisor_cache_enabled.get() {
-            &mut spatial.unit_class_totals
-        } else {
-            &mut uncached
-        };
-        let classes = cache.entry(owner).or_insert_with(|| {
+        let cached = self
+            .advisor_cache
+            .active()
+            .then(|| self.advisor_cache.memos().unit_class_totals(owner))
+            .flatten();
+        let classes = cached.unwrap_or_else(|| {
             let mut classes = std::collections::BTreeMap::new();
             for unit in self.units_owned_by(owner) {
                 let class = super::super::action_rules::freeciv_unit_class_rule_name(unit.kind);
                 *classes.entry(class).or_default() += 1;
+            }
+            let classes = std::sync::Arc::new(classes);
+            if self.advisor_cache.active() {
+                self.advisor_cache
+                    .memos()
+                    .remember_unit_class_totals(owner, classes.clone());
             }
             classes
         });
@@ -426,10 +430,7 @@ impl Simulation {
     }
 
     pub(in crate::sim) fn record_ai_tech_effect_wants(&mut self, owner: usize) {
-        self.ai_spatial_index
-            .get_mut()
-            .unit_class_totals
-            .remove(&owner);
+        self.advisor_cache.memos().clear_unit_class_totals(owner);
         let cities: Vec<_> = self.player_cities_ordered(owner).cloned().collect();
         let baselines = cities
             .iter()

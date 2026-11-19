@@ -1,0 +1,95 @@
+//! Immutable locations for one advisor pass; list revisions guard ordered lookups.
+
+use crate::sim::{City, Unit, list_order::ListOrder};
+use crate::world::topology::MapWrap;
+use std::sync::Arc;
+
+#[derive(Clone, Default)]
+pub(super) struct SpatialSnapshot {
+    unit_head: Vec<Option<usize>>,
+    unit_next: Vec<Option<usize>>,
+    tile_units: Option<Vec<Vec<usize>>>,
+    tile_revision: u64,
+    city_at: Vec<Option<usize>>,
+    continents: Arc<[usize]>,
+}
+
+impl SpatialSnapshot {
+    pub(super) fn new(
+        units: &[Unit],
+        cities: &[City],
+        topology: MapWrap,
+        order: &ListOrder,
+        continents: Arc<[usize]>,
+    ) -> Self {
+        let tile_count = topology.tile_count();
+        let mut tile_units = vec![Vec::new(); tile_count];
+        let mut unit_head = vec![None; tile_count];
+        let mut unit_next = vec![None; units.len()];
+        for (index, unit) in units.iter().enumerate() {
+            let tile = topology.index(unit.x, unit.y);
+            tile_units[tile].push(index);
+            unit_next[index] = unit_head[tile];
+            unit_head[tile] = Some(index);
+        }
+        for (tile, indices) in tile_units.iter_mut().enumerate() {
+            let position = topology.position(tile);
+            indices.sort_by_key(|&index| {
+                std::cmp::Reverse(order.tile_unit_order_key(&units[index], position))
+            });
+        }
+        let mut city_at = vec![None; tile_count];
+        for (index, city) in cities.iter().enumerate() {
+            city_at[topology.index(city.x, city.y)] = Some(index);
+        }
+        Self {
+            unit_head,
+            unit_next,
+            tile_units: Some(tile_units),
+            tile_revision: order.tile_revision(),
+            city_at,
+            continents,
+        }
+    }
+
+    pub(super) fn any_unit_at(
+        &self,
+        tile: usize,
+        units: &[Unit],
+        predicate: impl Fn(&Unit) -> bool,
+    ) -> bool {
+        let mut next = self.unit_head[tile];
+        while let Some(index) = next {
+            if predicate(&units[index]) {
+                return true;
+            }
+            next = self.unit_next[index];
+        }
+        false
+    }
+
+    pub(super) fn city_index_at(&self, tile: usize) -> Option<usize> {
+        self.city_at[tile]
+    }
+
+    pub(super) fn continent_labels(&self) -> Arc<[usize]> {
+        self.continents.clone()
+    }
+
+    pub(super) fn ordered_tile_units<'a>(
+        &self,
+        tile: usize,
+        revision: u64,
+        units: &'a [Unit],
+    ) -> Option<Vec<&'a Unit>> {
+        if revision != self.tile_revision {
+            return None;
+        }
+        Some(
+            self.tile_units.as_ref()?[tile]
+                .iter()
+                .map(|&index| &units[index])
+                .collect(),
+        )
+    }
+}

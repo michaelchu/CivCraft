@@ -131,7 +131,7 @@ impl Simulation {
         let profiler = self.trace.profiler();
         let _profile = profiler.scope("ai.tech_and_registries");
         let _profile = profiler.scope("ai.first_activity.tech_wants");
-        let owns_advisor_cache = !self.ai_advisor_cache_enabled.get();
+        let owns_advisor_cache = !self.advisor_cache.active();
         if owns_advisor_cache {
             self.begin_ai_advisor_cache();
         }

@@ -29,7 +29,7 @@ impl Simulation {
         if owner == BARBARIANS {
             return reserved;
         }
-        let owns_advisor_cache = !self.ai_advisor_cache_enabled.get();
+        let owns_advisor_cache = !self.advisor_cache.active();
         if owns_advisor_cache {
             self.begin_ai_advisor_cache();
         }
@@ -316,7 +316,7 @@ impl Simulation {
         if owner == BARBARIANS {
             return dispatched;
         }
-        let owns_advisor_cache = !self.ai_advisor_cache_enabled.get();
+        let owns_advisor_cache = !self.advisor_cache.active();
         if owns_advisor_cache {
             self.begin_ai_advisor_cache();
         }

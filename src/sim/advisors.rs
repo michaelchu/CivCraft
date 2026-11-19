@@ -6,10 +6,11 @@ mod advisor_gold;
 mod advisor_production;
 mod advisor_research;
 mod advisor_threats;
+mod caches;
+pub(super) use caches::AdvisorCaches;
 mod planning;
 #[cfg(test)]
 use advisor_buildings::DefenseEffectContext;
-pub(super) use advisor_threats::DangerRouteCache;
 pub(super) use planning::GuardDangerCache;
 
 use super::unit_catalog::{UnitClass, UnitFlag};

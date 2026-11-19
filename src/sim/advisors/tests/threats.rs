@@ -196,7 +196,7 @@ fn scoped_threat_cache_preserves_arrivals_across_multiple_cities() {
     let cached = arrivals(&game);
     let repeated = arrivals(&game);
     // Stacked warriors share a map. Warriors at both positions share step costs.
-    assert_eq!(game.ai_danger_route_cache.borrow().sizes(), (3, 2));
+    assert_eq!(game.advisor_cache.threats().route_sizes(), (3, 2));
     game.end_ai_advisor_cache();
 
     assert_eq!(cached, uncached);
@@ -229,7 +229,7 @@ fn naval_threat_map_can_attack_a_coastal_city_but_cannot_route_through_it() {
     assert_eq!(arrivals(), [Some(0), None]);
     game.begin_ai_advisor_cache();
     assert_eq!(arrivals(), [Some(0), None]);
-    assert_eq!(game.ai_danger_route_cache.borrow().sizes(), (1, 1));
+    assert_eq!(game.advisor_cache.threats().route_sizes(), (1, 1));
 }
 
 #[test]
@@ -258,7 +258,7 @@ fn danger_route_bound_keeps_rail_routes_at_the_horizon_across_wrap() {
     game.begin_ai_advisor_cache();
     assert_eq!(game.danger_route_turns(&inside, city), Some(3));
     assert_eq!(game.danger_route_turns(&outside, city), None);
-    assert_eq!(game.ai_danger_route_cache.borrow().sizes(), (1, 1));
+    assert_eq!(game.advisor_cache.threats().route_sizes(), (1, 1));
 }
 
 #[test]

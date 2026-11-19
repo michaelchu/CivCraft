@@ -105,12 +105,11 @@ impl Simulation {
     /// Production candidates share the same army and have no real attacker
     /// to exclude. Keep their city markers within the advisor pass.
     pub(in crate::sim) fn offensive_invasion_support(&self, owner: usize) -> SharedInvasionSupport {
-        let cached = self.ai_advisor_cache_enabled.get();
-        if cached && let Some(markers) = self.ai_spatial_index.borrow().invasion_support.get(&owner)
-        {
+        let cached = self.advisor_cache.active();
+        if cached && let Some(markers) = self.advisor_cache.memos().invasion_support(owner) {
             self.trace
                 .count_operation("ai.invasion_support.cache_hits", 1);
-            return markers.clone();
+            return markers;
         }
         let cities: Vec<_> = self
             .cities
@@ -119,10 +118,9 @@ impl Simulation {
             .collect();
         let markers = std::sync::Arc::new(self.invasion_support_many(owner, &cities, 0));
         if cached {
-            self.ai_spatial_index
-                .borrow_mut()
-                .invasion_support
-                .insert(owner, markers.clone());
+            self.advisor_cache
+                .memos()
+                .remember_invasion_support(owner, markers.clone());
         }
         markers
     }
