@@ -12,9 +12,9 @@ mod observer;
 mod offers;
 mod pacts;
 pub(in crate::sim) mod relationships;
-#[cfg(test)]
-mod scenarios;
 mod trade_policy;
+#[cfg(test)]
+mod unit_cases;
 mod vision;
 mod war_planning;
 #[cfg(feature = "desktop")]
@@ -393,7 +393,7 @@ impl Simulation {
     /// Returns a treaty only after first contact. Freeciv's no-contact
     /// diplomatic state is distinct from an explicit war despite both using
     /// `Pact::War` as this model's default storage value.
-    pub(super) fn contacted_pact(&self, a: usize, b: usize) -> Option<Pact> {
+    pub(crate) fn contacted_pact(&self, a: usize, b: usize) -> Option<Pact> {
         self.diplomacy
             .get(&Self::relation_key(a, b))
             .filter(|relation| relation.first_contact.is_some())
@@ -560,7 +560,7 @@ impl Simulation {
         }
     }
 
-    pub(super) fn advance_diplomacy(&mut self) {
+    pub(crate) fn advance_diplomacy(&mut self) {
         let turn = self.turn;
         let failed_plant_flags: Vec<_> = self
             .diplomacy

@@ -121,8 +121,8 @@ fn failed_scenario_publishes_its_checks_and_exits_unsuccessfully() {
 }
 
 #[test]
-fn completed_playtest_publishes_only_required_checks_in_its_totals() {
-    let directory = report_directory("completed-playtest");
+fn completed_scenario_publishes_only_required_checks_in_its_totals() {
+    let directory = report_directory("completed-scenario");
     let path = directory.join("report.json");
     let output = headless()
         .args([
@@ -158,8 +158,8 @@ fn completed_playtest_publishes_only_required_checks_in_its_totals() {
 }
 
 #[test]
-fn shortened_playtest_publishes_unmet_milestones_and_fails() {
-    let directory = report_directory("shortened-playtest");
+fn shortened_scenario_publishes_unmet_milestones_and_fails() {
+    let directory = report_directory("shortened-scenario");
     let path = directory.join("report.json");
     let output = headless()
         .args(["--scenario", "naval-ai-assault", "--turns", "1", "--report"])

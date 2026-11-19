@@ -38,7 +38,7 @@ impl Simulation {
             .count_operation("advisor.stable_invalidations", invalidated);
     }
 
-    fn cached_settlement_choice(
+    pub(crate) fn cached_settlement_choice(
         &mut self,
         city: &City,
         wonder_city: Option<u32>,
@@ -87,7 +87,7 @@ impl Simulation {
         choice.and_then(|choice| self.price_settlement_expansion(city, choice))
     }
 
-    pub(super) fn price_settlement_expansion(
+    pub(crate) fn price_settlement_expansion(
         &self,
         city: &City,
         mut choice: AiBuildChoice,
@@ -155,81 +155,6 @@ impl Simulation {
             * ((committed - foothold).max(0.0) / (sustainable - foothold).max(1.0)).powi(2);
         choice.want -= cost;
         (choice.want > 0.0).then_some(choice)
-    }
-
-    #[cfg(any(test, feature = "scenarios"))]
-    pub(in crate::sim) fn expansion_balance_playtest(
-        &mut self,
-    ) -> Vec<(&'static str, bool, String)> {
-        self.units.clear();
-        self.cities.clear();
-        for tile in &mut self.tiles {
-            tile.terrain = Terrain::Grassland;
-            tile.resource = Some(Resource::Wheat);
-            tile.owner = Some(1);
-            tile.hut = false;
-            tile.known_by.set(1, true);
-        }
-        self.players[1].government = Government::Despotism;
-        self.create_city(1, 10, 24);
-        self.cities[0].size = 4;
-        self.cities[0].specialists = [0; 3];
-        self.reconcile_city_workers();
-        let city = self.cities[0].clone();
-        let early = self.cached_settlement_choice(&city, None);
-        let next = self.cities[0].ai_settlement_next;
-        let raw = self.cities[0].ai_settlement_choice;
-        for _ in 0..30 {
-            self.spawn_unit(1, UnitKind::Settler, city.x, city.y);
-        }
-        let backlog = self.cached_settlement_choice(&city, None);
-        let fresh_pressure = backlog.is_none()
-            && self.cities[0].ai_settlement_next == next
-            && self.cities[0].ai_settlement_choice == raw;
-        self.units.clear();
-        let recovered = self.cached_settlement_choice(&city, None);
-        let recovered = recovered.zip(early).is_some_and(|(a, b)| a.want == b.want);
-        let quote = |want| AiBuildChoice {
-            production: Production::Unit(UnitKind::Settler),
-            want,
-        };
-        let mut checks = vec![
-            ("early_expansion", early.is_some(), "A young empire still wants a viable new city".into()),
-            ("pending_founders_reprice_cached_advice", fresh_pressure, "An existing founder backlog suppresses new production without waiting for the site-cache timer".into()),
-            ("expansion_recovers_when_backlog_clears", recovered, "Clearing commitments restores the cached site's original adjusted want".into()),
-        ];
-        self.create_city(1, 20, 24);
-        for _ in 0..2 {
-            self.spawn_unit(1, UnitKind::Settler, city.x, city.y);
-        }
-        let without_queue = self
-            .price_settlement_expansion(&city, quote(400.0))
-            .map(|c| c.want);
-        self.cities[1].production = Production::Unit(UnitKind::Settler);
-        let with_queue = self
-            .price_settlement_expansion(&city, quote(400.0))
-            .map(|c| c.want);
-        checks.push((
-            "queued_founders_have_a_cost",
-            with_queue < without_queue,
-            "Other cities' existing founder production counts as committed expansion".into(),
-        ));
-        for i in 2..20 {
-            self.create_city(1, 4 + (i % 5) * 6, 4 + (i / 5) * 6);
-        }
-        let ordinary = self.price_settlement_expansion(&city, quote(400.0));
-        let exceptional = self.price_settlement_expansion(&city, quote(10_000.0));
-        checks.push((
-            "large_empire_prices_marginal_expansion",
-            ordinary.is_none(),
-            "A crowded empire rejects an ordinary site after administration and space costs".into(),
-        ));
-        checks.push((
-            "valuable_sites_are_not_hard_capped",
-            exceptional.is_some(),
-            "A sufficiently valuable opportunity can justify expansion beyond twenty cities".into(),
-        ));
-        checks
     }
 
     fn cached_building_choice(

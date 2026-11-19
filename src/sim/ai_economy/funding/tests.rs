@@ -1,14 +1,6 @@
 use super::*;
 
 #[test]
-fn registered_wartime_funding_checks_pass() {
-    let mut game = Simulation::new(crate::test_support::seeded_map());
-    for (name, passed, detail) in game.wartime_funding_scenario() {
-        assert!(passed, "{name}: {detail}");
-    }
-}
-
-#[test]
 fn forced_upkeep_losses_are_visible_without_changing_accounting() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
@@ -48,7 +40,9 @@ fn forced_upkeep_losses_are_visible_without_changing_accounting() {
 #[test]
 fn forecast_at_proposed_rates_matches_an_actual_rate_change_and_preserves_workers() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
-    game.wartime_funding_scenario();
+    crate::sim::fixtures::WorldBuilder::new(&mut game).funding_campaign();
+    game.sign_pact(1, 2, Pact::War);
+    game.manage_ai_taxes(1);
     let before = game.encode_campaign().unwrap();
     for rates in [[70, 30, 0], [40, 40, 20], [0, 70, 30]] {
         let projected = game.ai_projected_income_at_rates(1, rates);
@@ -62,7 +56,9 @@ fn forecast_at_proposed_rates_matches_an_actual_rate_change_and_preserves_worker
 #[test]
 fn suggested_defense_is_not_a_purchase_commitment_in_a_guarded_city() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
-    game.wartime_funding_scenario();
+    crate::sim::fixtures::WorldBuilder::new(&mut game).funding_campaign();
+    game.sign_pact(1, 2, Pact::War);
+    game.manage_ai_taxes(1);
     game.players[1].known.push(Tech::MASONRY);
     game.cities[0].production = Production::Building(Building::LIBRARY);
     game.cities[1].production = Production::Building(Building::LIBRARY);
@@ -86,7 +82,9 @@ fn suggested_defense_is_not_a_purchase_commitment_in_a_guarded_city() {
 #[test]
 fn an_unaffordable_rush_does_not_consume_all_discretionary_research() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
-    game.wartime_funding_scenario();
+    crate::sim::fixtures::WorldBuilder::new(&mut game).funding_campaign();
+    game.sign_pact(1, 2, Pact::War);
+    game.manage_ai_taxes(1);
     game.players[1].gold = 0;
     game.cities[0].production = Production::Unit(UnitKind::Warrior);
     game.cities[0].shields = 0;
@@ -120,7 +118,9 @@ fn an_unaffordable_rush_does_not_consume_all_discretionary_research() {
 #[test]
 fn a_funded_urgent_purchase_does_not_waive_research_for_other_preparation_costs() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
-    game.wartime_funding_scenario();
+    crate::sim::fixtures::WorldBuilder::new(&mut game).funding_campaign();
+    game.sign_pact(1, 2, Pact::War);
+    game.manage_ai_taxes(1);
     game.players[1].gold = 100;
     let strategy = game.strategic_priorities(1);
     let decision = game.ai_funding_decision(
@@ -139,7 +139,9 @@ fn a_funded_urgent_purchase_does_not_waive_research_for_other_preparation_costs(
 #[test]
 fn scientific_traits_preserve_a_larger_share_during_discretionary_military_refills() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
-    game.wartime_funding_scenario();
+    crate::sim::fixtures::WorldBuilder::new(&mut game).funding_campaign();
+    game.sign_pact(1, 2, Pact::War);
+    game.manage_ai_taxes(1);
     game.players[1].gold = 0;
     let mut choices = Vec::new();
     for id in ["rome", "korea"] {

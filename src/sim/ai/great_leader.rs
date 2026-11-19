@@ -36,7 +36,7 @@ impl Simulation {
     /// Moves a Leader toward its target city and completes production on
     /// arrival. With no target it waits in a city of its owner. Returns true
     /// because a Leader never takes part in other unit handling.
-    pub(in crate::sim) fn run_ai_great_leader(&mut self, unit: &Unit) -> bool {
+    pub(crate) fn run_ai_great_leader(&mut self, unit: &Unit) -> bool {
         let Some(city_id) = self.great_leader_target(unit) else {
             self.shelter_great_leader(unit);
             return true;

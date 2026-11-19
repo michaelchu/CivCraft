@@ -80,7 +80,7 @@ impl CityForecast {
 }
 
 impl City {
-    pub(super) fn has_building(&self, building: Building) -> bool {
+    pub(crate) fn has_building(&self, building: Building) -> bool {
         self.buildings.contains(&building)
     }
 }

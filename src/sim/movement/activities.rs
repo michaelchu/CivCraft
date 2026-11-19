@@ -142,7 +142,7 @@ impl Simulation {
         (remaining + rate - 1) / rate
     }
 
-    pub(in crate::sim) fn restore_player_units(&mut self, owner: usize) {
+    pub(crate) fn restore_player_units(&mut self, owner: usize) {
         self.apply_workshop_upgrades_for(owner);
         let ids: Vec<_> = self
             .player_units_ordered(owner)
@@ -179,7 +179,7 @@ impl Simulation {
 
     // Compatibility fixture helper; runtime uses the two source phases.
     #[cfg(any(test, feature = "scenarios"))]
-    pub(in crate::sim) fn update_activities_and_restore(&mut self) {
+    pub(crate) fn update_activities_and_restore(&mut self) {
         let ids: Vec<_> = (0..self.players.len())
             .flat_map(|owner| self.player_units_ordered(owner))
             .filter(|unit| !unit.kind.is_aircraft())

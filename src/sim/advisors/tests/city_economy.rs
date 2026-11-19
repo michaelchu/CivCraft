@@ -31,7 +31,7 @@ fn stable_city_advice_is_reused_until_its_persisted_schedule_is_due() {
 #[test]
 fn gold_spending_preserves_final_city_advice() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
-    let (city, _) = game.hunter_production_playtest_setup();
+    let (city, _) = game.hunter_production_fixture();
     let position = {
         let port = game.city_by_id(city).unwrap();
         (port.x, port.y)
@@ -103,7 +103,7 @@ fn domestic_wants_penalize_discarding_invested_unit_production() {
 #[test]
 fn growth_and_expansion_options_remain_available_to_city_advisor() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
-    assert!(game.ai_growth_expansion_playtest());
+    assert!(game.ai_growth_expansion_test());
 }
 
 #[test]

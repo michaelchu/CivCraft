@@ -7,7 +7,7 @@ pub(in crate::sim) type SharedInvasionSupport =
 
 impl Simulation {
     #[cfg(test)]
-    pub(crate) fn ai_ground_invasion_playtest_setup(&mut self) -> (u32, u32, u32) {
+    pub(crate) fn ai_ground_invasion_fixture(&mut self) -> (u32, u32, u32) {
         self.units.clear();
         self.cities.clear();
         self.ai_ground_targets.clear();

@@ -73,7 +73,7 @@ impl Simulation {
         self.defense_power_against(unit, x, y, unit.kind)
     }
 
-    pub(in crate::sim) fn defense_power_against(
+    pub(crate) fn defense_power_against(
         &self,
         unit: &Unit,
         x: i32,

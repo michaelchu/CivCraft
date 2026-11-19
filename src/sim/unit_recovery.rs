@@ -8,7 +8,7 @@ impl Simulation {
     /// Civ III hitpoint capacity remains the mapped unit-content value; the
     /// selected C2C3 ruleset supplies regeneration, minimum HP, recovery, and
     /// non-native attrition.
-    pub(super) fn unit_hitpoint_gain_at(&self, unit: &Unit, x: i32, y: i32) -> i32 {
+    pub(crate) fn unit_hitpoint_gain_at(&self, unit: &Unit, x: i32, y: i32) -> i32 {
         let base = unit.max_hit_points();
         if base <= 0 {
             return 0;

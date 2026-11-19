@@ -339,7 +339,7 @@ mod tests {
                 tile.last_seen_owner = Some(1);
                 tile.base = Some(Base::Fortress);
             }
-            assert!(sim.remembered_route_playtest(), "seed {seed}");
+            assert!(sim.remembered_route_test(), "seed {seed}");
         }
     }
 }

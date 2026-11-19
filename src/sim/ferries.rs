@@ -287,7 +287,7 @@ mod tests {
     #[test]
     fn boat_assignment_availability_is_independent_of_cargo_and_released_on_death() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
-        assert!(game.ai_ferry_registry_playtest());
+        assert!(game.ai_ferry_registry_test());
     }
 
     #[test]
@@ -334,7 +334,7 @@ mod tests {
     #[test]
     fn cargo_boss_uses_first_non_escort_or_last_escort_in_boarding_order() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
-        assert!(game.native_cargo_order_playtest());
+        assert!(game.native_cargo_order_test());
         let boat = game
             .units
             .iter()

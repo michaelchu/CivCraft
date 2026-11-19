@@ -119,7 +119,7 @@ compensation. This supersedes corresponding AI pact valuation policy, while
 progression, ally commitments, legal clauses and atomic execution remain.
 Shared vision remains alliance-based; no open-borders mechanic was added.
 All proposals reuse the persisted pair cadence, preserve pending human offers
-and require human approval. The three `diplomatic-*` playtests cover normal
+and require human approval. The three `diplomatic-*` scenarios cover normal
 campaign execution rather than directly invoking the advisors in their setup.
 
 The owner requested a funding correction after multi-seed validation showed

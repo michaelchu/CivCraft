@@ -13,14 +13,6 @@ fn plans_and_senate_refusals_do_not_earn_ally_support() {
 }
 
 #[test]
-fn relationship_scenario_checks_actual_trade_breach_and_support() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
-    for (name, passed, detail) in game.relationship_memory_scenario() {
-        assert!(passed, "{name}: {detail}");
-    }
-}
-
-#[test]
 fn relationship_credit_is_bounded_directional_and_decays_without_resetting_clock() {
     let mut game = war_planning_game();
     game.remember_relationship(1, HUMAN, "pact_breached");

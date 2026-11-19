@@ -107,15 +107,11 @@ impl Simulation {
     /// Projected per-turn income follows common/player.c's accounting split:
     /// city gold pays city-style unit upkeep, while mixed/nation styles charge
     /// the nation for paid unit upkeep. C2C3 selects Mixed.
-    pub(in crate::sim) fn ai_projected_income(&self, owner: usize) -> i32 {
+    pub(crate) fn ai_projected_income(&self, owner: usize) -> i32 {
         self.ai_projected_income_at_rates(owner, self.players[owner].rates)
     }
 
-    pub(in crate::sim) fn ai_projected_income_at_rates(
-        &self,
-        owner: usize,
-        rates: [i32; 3],
-    ) -> i32 {
+    pub(crate) fn ai_projected_income_at_rates(&self, owner: usize, rates: [i32; 3]) -> i32 {
         self.ai_projected_budget_at_rates(owner, rates).0
     }
 
@@ -323,7 +319,7 @@ impl Simulation {
         self.spend_ai_defense_gold_with_choices(owner, &choices);
     }
 
-    pub(in crate::sim) fn spend_ai_defense_gold_with_choices(
+    pub(crate) fn spend_ai_defense_gold_with_choices(
         &mut self,
         owner: usize,
         choices: &std::collections::BTreeMap<u32, AiBuildChoice>,

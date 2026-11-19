@@ -69,7 +69,7 @@ impl Simulation {
         result
     }
 
-    pub(in crate::sim) fn encode_campaign(&self) -> io::Result<Vec<u8>> {
+    pub(crate) fn encode_campaign(&self) -> io::Result<Vec<u8>> {
         codec(MAX_PAYLOAD)
             .serialize(&SavedCampaignV2D::from_game(
                 self,

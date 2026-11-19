@@ -174,7 +174,7 @@ prerequisites, or upgrade behavior.
 These types are outside `ALL_NATIVE`; remove their production,
 upgrade, AI, UI, sprite, and unit-specific gameplay paths; do not leave runtime
 aliases or compatibility shims for them. `Migrants` has been removed from the
-enum, fallback rules, city actions, and playtest UI:
+enum, fallback rules, city actions, and UI review:
 
 - `Caravan` and `Freight` (Civ II trade units; enum, production, AI, UI,
   mission, save, transport-test, and city-route paths have been removed).

@@ -27,7 +27,7 @@ fn civ3_east(game: &Simulation, point: (i32, i32), tiles: usize) -> (i32, i32) {
 
 #[test]
 fn carrier_path_fixture_uses_imported_attack_capability() {
-    assert!(world().ai_zero_attack_carrier_path_playtest());
+    assert!(world().ai_zero_attack_carrier_path_test());
 }
 
 #[test]

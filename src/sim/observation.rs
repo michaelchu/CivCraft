@@ -352,3 +352,14 @@ impl Simulation {
         }
     }
 }
+
+impl super::Simulation {
+    /// Persistent routes, in their simulation order.
+    pub(crate) fn trade_routes(&self) -> &[super::trade_routes::TradeRoute] {
+        &self.trade_routes
+    }
+
+    pub(crate) fn combat_kills(&self, owner: usize) -> i32 {
+        self.nation_scores[owner].units_killed
+    }
+}

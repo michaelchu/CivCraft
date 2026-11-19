@@ -8,7 +8,7 @@
 //! turn boundary deliberately.
 //!
 //! Keep individual rule calculations in their owning modules and call them
-//! here in the reference-compatible sequence. Save and playtest behavior also
+//! here in the reference-compatible sequence. Save and unit tests behavior also
 //! depends on this ordering.
 
 use super::*;

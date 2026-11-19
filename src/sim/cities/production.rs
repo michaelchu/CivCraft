@@ -163,7 +163,7 @@ impl Simulation {
         true
     }
 
-    pub(in crate::sim) fn choose_ai_production(&self, owner: usize, city_id: u32) -> Production {
+    pub(crate) fn choose_ai_production(&self, owner: usize, city_id: u32) -> Production {
         let Some(city) = self.city_by_id(city_id) else {
             return Production::Unit(UnitKind::Warrior);
         };
@@ -202,7 +202,7 @@ impl Simulation {
     }
 
     #[cfg(any(test, feature = "scenarios"))]
-    pub(in crate::sim) fn process_cities(&mut self) {
+    pub(crate) fn process_cities(&mut self) {
         self.reconcile_trade_routes();
         self.establish_connected_trade_routes();
         for owner in 0..self.players.len() {
@@ -217,7 +217,7 @@ impl Simulation {
         }
     }
 
-    pub(in crate::sim) fn process_player_cities(&mut self, owner: usize) -> (i32, Vec<(u32, i32)>) {
+    pub(crate) fn process_player_cities(&mut self, owner: usize) -> (i32, Vec<(u32, i32)>) {
         let mut city_ids: Vec<u32> = self
             .player_cities_ordered(owner)
             .map(|city| city.id)

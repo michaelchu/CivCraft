@@ -143,7 +143,7 @@ mod tests {
     #[test]
     fn sea_map_transfers_the_sellers_last_observation() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
-        assert!(game.map_snapshot_playtest());
+        assert!(game.map_snapshot_test());
     }
 
     #[test]

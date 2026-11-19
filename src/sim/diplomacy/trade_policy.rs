@@ -1,7 +1,6 @@
 //! Proactive, trait-aware economic diplomacy. Treaty legality stays in offers.
 use super::*;
 
-mod scenarios;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::sync::OnceLock;
@@ -157,7 +156,7 @@ impl Simulation {
         percent
     }
 
-    pub(in crate::sim) fn diplomatic_trade_reserve(&self, owner: usize) -> i32 {
+    pub(crate) fn diplomatic_trade_reserve(&self, owner: usize) -> i32 {
         self.strategic_priorities(owner).gold_reserve
     }
 
@@ -180,7 +179,7 @@ impl Simulation {
     }
 
     /// The same reservation values are used by proposal selection and acceptance.
-    pub(in crate::sim) fn diplomatic_technology_value(
+    pub(crate) fn diplomatic_technology_value(
         &self,
         owner: usize,
         other: usize,
@@ -340,6 +339,13 @@ impl Simulation {
         assets
     }
 
+    /// Whether current policy can select a technology exchange with this nation.
+    pub(crate) fn has_technology_trade(&self, actor: usize, other: usize) -> bool {
+        self.choose_technology_trade(actor, other)
+            .selected
+            .is_some()
+    }
+
     fn choose_technology_trade(&self, actor: usize, other: usize) -> Decision {
         let mut decision = Decision {
             actor,
@@ -419,7 +425,7 @@ impl Simulation {
         decision
     }
 
-    pub(super) fn advance_proactive_trades_for(&mut self, owner: usize) {
+    pub(crate) fn advance_proactive_trades_for(&mut self, owner: usize) {
         if owner >= self.civilization_count || !self.players[owner].ai || !self.player_alive(owner)
         {
             return;

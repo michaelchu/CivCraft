@@ -14,7 +14,7 @@ use super::unit_catalog::{UnitClass, UnitFlag};
 use super::*;
 
 #[cfg(test)]
-mod playtest;
+mod unit_cases;
 use crate::rules::{Genus, Requirement};
 
 const FOOD_WEIGHT: i32 = 30;
@@ -23,9 +23,9 @@ const TRADE_WEIGHT: i32 = 18;
 const ADVISOR_POWER_DIVIDER: i32 = POWER_FACTOR * 3;
 
 #[derive(Clone, Copy, Debug)]
-pub(super) struct AiBuildChoice {
-    pub(super) production: Production,
-    pub(super) want: f64,
+pub(crate) struct AiBuildChoice {
+    pub(crate) production: Production,
+    pub(crate) want: f64,
 }
 
 const DOMESTIC_WANT_MAX: f64 = 750.075;
@@ -41,7 +41,7 @@ pub(super) struct GuardCityAssessment {
 }
 
 impl Simulation {
-    #[allow(dead_code)] // Direct parity helper used by playtests and focused tests.
+    #[allow(dead_code)] // Direct parity helper used by unit tests and focused tests.
     fn wonder_build_choice(&self, city: &City) -> Option<AiBuildChoice> {
         self.wonder_build_choice_with_wonder_city(city, self.ai_wonder_city(city.owner))
     }

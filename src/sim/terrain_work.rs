@@ -181,7 +181,7 @@ mod tests {
     #[test]
     fn transported_workers_build_oil_platforms_but_not_land_improvements() {
         let game = Simulation::new(crate::mapgen::generate(42));
-        assert!(game.transport_worker_actions_playtest());
+        assert!(game.transport_worker_actions_test());
     }
 
     #[test]

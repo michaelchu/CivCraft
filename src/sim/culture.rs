@@ -137,6 +137,12 @@ impl Simulation {
     }
 }
 
+impl Simulation {
+    pub(crate) fn city_history(&self, id: u32) -> Option<i32> {
+        self.city_by_id(id).map(|city| city.history)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

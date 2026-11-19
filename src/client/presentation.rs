@@ -334,8 +334,7 @@ mod tests {
     #[test]
     fn playback_is_clock_driven_and_drops_all_overrides_at_completion() {
         let mut sim = Simulation::new(crate::mapgen::generate(42));
-        let (id, target) =
-            crate::sim::scenarios::ui_review::ui_review_animation_setup(&mut sim, false);
+        let (id, target) = crate::sim::ui_review::ui_review_animation_setup(&mut sim, false);
         let before = sim.unit_by_id(id).unwrap().clone();
         assert!(sim.apply(Command::move_civ3_by_offset(&sim, id, 1, 0)));
         let mut playback = Playback::default();
@@ -363,7 +362,7 @@ mod tests {
     #[test]
     fn movement_sound_request_is_emitted_once_when_the_event_starts() {
         let mut sim = Simulation::new(crate::mapgen::generate(42));
-        let (id, _) = crate::sim::scenarios::ui_review::ui_review_animation_setup(&mut sim, false);
+        let (id, _) = crate::sim::ui_review::ui_review_animation_setup(&mut sim, false);
         assert!(sim.apply(Command::move_civ3_by_offset(&sim, id, 1, 0)));
         let mut playback = Playback::default();
         playback.update(sim.take_presentation_event_views(), 10.0, Some(id));
@@ -378,8 +377,7 @@ mod tests {
     #[test]
     fn combat_sounds_follow_each_attack_and_terminal_result() {
         let mut sim = Simulation::new(crate::mapgen::generate(42));
-        let (attacker_id, _) =
-            crate::sim::scenarios::ui_review::ui_review_animation_setup(&mut sim, true);
+        let (attacker_id, _) = crate::sim::ui_review::ui_review_animation_setup(&mut sim, true);
         let attacker = sim.unit_by_id(attacker_id).unwrap().clone();
         let defender = sim
             .units()
@@ -410,7 +408,7 @@ mod tests {
     #[test]
     fn worker_order_uses_its_ini_action_name() {
         let mut sim = Simulation::new(crate::mapgen::generate(42));
-        let (id, _) = crate::sim::scenarios::ui_review::ui_review_animation_setup(&mut sim, false);
+        let (id, _) = crate::sim::ui_review::ui_review_animation_setup(&mut sim, false);
         let unit = sim.unit_by_id(id).unwrap().clone();
         let requests = sound_requests_for(
             &sim,
@@ -427,7 +425,7 @@ mod tests {
     #[test]
     fn unit_events_use_the_matching_ini_sound_action() {
         let mut sim = Simulation::new(crate::mapgen::generate(42));
-        let (id, _) = crate::sim::scenarios::ui_review::ui_review_animation_setup(&mut sim, false);
+        let (id, _) = crate::sim::ui_review::ui_review_animation_setup(&mut sim, false);
         let unit = sim.unit_by_id(id).unwrap().clone();
 
         for (event, expected_action) in [
@@ -454,7 +452,7 @@ mod tests {
     #[test]
     fn worker_orders_map_to_their_ini_sound_actions() {
         let mut sim = Simulation::new(crate::mapgen::generate(42));
-        let (id, _) = crate::sim::scenarios::ui_review::ui_review_animation_setup(&mut sim, false);
+        let (id, _) = crate::sim::ui_review::ui_review_animation_setup(&mut sim, false);
         let unit = sim.unit_by_id(id).unwrap().clone();
         let cases = [
             (WorkKind::Road, Some("ROAD")),
@@ -499,8 +497,7 @@ mod tests {
     #[test]
     fn combat_sound_uses_death_and_victory_for_either_loser() {
         let mut sim = Simulation::new(crate::mapgen::generate(42));
-        let (attacker_id, _) =
-            crate::sim::scenarios::ui_review::ui_review_animation_setup(&mut sim, true);
+        let (attacker_id, _) = crate::sim::ui_review::ui_review_animation_setup(&mut sim, true);
         let attacker = sim.unit_by_id(attacker_id).unwrap().clone();
         let defender = sim
             .units()

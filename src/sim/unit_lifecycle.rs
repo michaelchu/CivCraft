@@ -96,7 +96,7 @@ impl Simulation {
         })
     }
 
-    pub(in crate::sim) fn disband_unit(&mut self, id: u32, city_id: Option<u32>) -> bool {
+    pub(crate) fn disband_unit(&mut self, id: u32, city_id: Option<u32>) -> bool {
         let Some(unit) = self.unit_by_id(id).cloned() else {
             return false;
         };

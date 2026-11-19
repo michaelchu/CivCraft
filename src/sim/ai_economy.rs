@@ -4,7 +4,7 @@ use super::*;
 mod funding;
 
 #[cfg(test)]
-mod playtest;
+mod unit_cases;
 
 // dai/default/daihand.c:dai_manage_taxes, Normal/Civ2Civ3 configuration.
 const RESERVE_TURNS: i32 = 10;
@@ -161,7 +161,7 @@ fn native_tax_decision(budget: TaxBudget) -> TaxDecision {
 }
 
 impl Simulation {
-    pub(super) fn manage_ai_taxes(&mut self, owner: usize) {
+    pub(crate) fn manage_ai_taxes(&mut self, owner: usize) {
         // Fixed Civ2Civ3 allows changing taxes. Anarchy leaves saved rates
         // alone; production itself distributes all trade to luxury there.
         if self.players[owner].government == Government::during_revolution() {

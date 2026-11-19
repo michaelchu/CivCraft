@@ -6,7 +6,7 @@ use super::*;
 use crate::rules::Genus;
 
 #[cfg(test)]
-mod playtest;
+mod unit_cases;
 
 struct LeaderPaths {
     costs: Vec<i32>,

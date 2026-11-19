@@ -80,7 +80,7 @@ fn launched_space_leader_triggers_a_two_turn_war_plan() {
     let mut game = war_planning_game();
     game.sign_pact(HUMAN, 1, Pact::Alliance);
     game.diplomacy.get_mut(&(HUMAN, 1)).unwrap().trust[1] = 5000;
-    game.spaceship_playtest_setup();
+    game.spaceship_fixture();
     assert!(game.launch_spaceship(HUMAN));
     game.advance_ai_war_plans();
     let plan = game.ai_war_plans[&(1, HUMAN)];
@@ -193,7 +193,7 @@ fn aggression_threshold_matches_reference_clipping_and_love_rounding() {
 #[test]
 fn spaceship_construction_warns_before_launch_without_breaking_alliance() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
-    assert!(game.ai_space_strategy_playtest());
+    assert!(game.ai_space_strategy_test());
 }
 
 #[test]

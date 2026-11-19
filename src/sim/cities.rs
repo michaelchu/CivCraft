@@ -90,7 +90,7 @@ impl Simulation {
         None
     }
 
-    pub(super) fn found_city(&mut self, unit_id: u32) -> bool {
+    pub(crate) fn found_city(&mut self, unit_id: u32) -> bool {
         let Some(index) = self.unit_index_by_id(unit_id) else {
             return false;
         };
@@ -281,7 +281,7 @@ impl Simulation {
         }
     }
 
-    pub(super) fn remove_city_because(
+    pub(crate) fn remove_city_because(
         &mut self,
         city_id: u32,
         reason: lifecycle::CityRemoval,
@@ -319,7 +319,7 @@ impl Simulation {
         self.rebuild_city_ownership_for_city_event(self.cities[index].id);
     }
 
-    pub(super) fn transfer_traded_city(&mut self, index: usize, buyer: usize) {
+    pub(crate) fn transfer_traded_city(&mut self, index: usize, buyer: usize) {
         self.transfer_city_because(index, buyer, lifecycle::TransferReason::Trade);
     }
 
@@ -465,7 +465,7 @@ impl Simulation {
             )
     }
 
-    pub(super) fn capture_city_if_needed(&mut self, unit_id: u32, x: i32, y: i32) {
+    pub(crate) fn capture_city_if_needed(&mut self, unit_id: u32, x: i32, y: i32) {
         let Some(unit) = self.unit_by_id(unit_id).cloned() else {
             return;
         };

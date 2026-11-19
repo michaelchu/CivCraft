@@ -5,7 +5,7 @@ use super::*;
 #[test]
 fn actual_ferry_reselects_two_slots_for_guard_without_changing_city_goal() {
     let mut game = ocean_game();
-    assert_eq!(game.ai_guard_ferry_capacity_playtest(), (true, true, true));
+    assert_eq!(game.ai_guard_ferry_capacity_test(), (true, true, true));
 }
 
 #[test]
@@ -125,14 +125,4 @@ fn settlement_ferries_follow_native_transport_strategies() {
         assert!(kind.has_ai_strategy(crate::sim::unit_catalog::UnitAiStrategy::NavalTransport));
     }
     assert!(!candidates.contains(&UnitKind::Curragh));
-}
-
-#[test]
-fn map_making_port_builds_a_ferry_before_settling_a_worthwhile_overseas_site() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
-    assert_eq!(
-        game.settlement_ferry_production_playtest(),
-        (true, true, true),
-        "the AI should queue the ferry, then the founder, and settle the island"
-    );
 }

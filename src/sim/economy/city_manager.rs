@@ -97,11 +97,7 @@ pub(super) struct CmQueryResult {
 }
 
 impl Simulation {
-    pub(in crate::sim) fn city_manager_surplus(
-        &self,
-        city: &City,
-        forecast: &CityForecast,
-    ) -> [i32; 6] {
+    pub(crate) fn city_manager_surplus(&self, city: &City, forecast: &CityForecast) -> [i32; 6] {
         [
             forecast.food_surplus(city.size, forecast.support.food),
             if forecast.disorder {
@@ -1030,7 +1026,7 @@ impl Simulation {
         true
     }
 
-    pub(in crate::sim) fn reconcile_city_workers(&mut self) {
+    pub(crate) fn reconcile_city_workers(&mut self) {
         let mut occupied = std::collections::HashSet::new();
         // Preserve existing assignments before placing any newly available workers.
         for index in 0..self.cities.len() {

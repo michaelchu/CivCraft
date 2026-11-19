@@ -257,16 +257,16 @@ fn friendly_ui_fixture_has_a_real_alternate_target_for_peace_then_alliance() {
     // Isolate pact cadence from independent economic proposals.
     game.players[HUMAN].known = game.players[1].known.clone();
     game.sign_pact(HUMAN, 1, Pact::Ceasefire);
-    game.diplomacy_playtest_friendship();
-    game.diplomacy_playtest_tick(12);
+    game.diplomacy_test_friendship();
+    game.diplomacy_test_tick(12);
     assert_eq!(game.pact_offer(1), Some(Pact::Peace));
     assert!(game.negotiate(1, Pact::Peace));
-    game.diplomacy_playtest_tick(16);
+    game.diplomacy_test_tick(16);
     assert_eq!(game.pact(HUMAN, 1), Pact::Peace);
     assert_eq!(game.pact_offer(1), None);
-    game.diplomacy_playtest_unit(1).unwrap();
-    game.diplomacy_playtest_alliance_offer_setup();
-    game.diplomacy_playtest_tick(1);
+    game.diplomacy_test_unit(1).unwrap();
+    game.diplomacy_test_alliance_offer_setup();
+    game.diplomacy_test_tick(1);
     assert_eq!(game.pact_offer(1), Some(Pact::Alliance));
 }
 
@@ -359,7 +359,7 @@ fn native_pair_spam_delays_first_ai_offer_without_delaying_human_offers() {
 #[test]
 fn cached_diplomatic_intelligence_changes_real_negotiation_commands() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
-    assert!(game.ai_diplomatic_intelligence_playtest());
+    assert!(game.ai_diplomatic_intelligence_test());
 }
 
 #[test]
@@ -434,9 +434,9 @@ fn shared_ally_greed_discount_is_a_phase_snapshot() {
 #[test]
 fn treaty_map_and_city_clause_fixtures_use_negotiated_terms() {
     let fresh = || Simulation::new(crate::test_support::seeded_map());
-    assert!(fresh().treaty_map_playtest());
-    assert!(fresh().city_clause_playtest());
-    assert!(fresh().city_clause_bundle_playtest());
+    assert!(fresh().treaty_map_test());
+    assert!(fresh().city_clause_test());
+    assert!(fresh().city_clause_bundle_test());
 }
 
 #[test]
@@ -444,12 +444,12 @@ fn allied_exchange_ui_fixture_consumes_retained_advice_and_accepts_policy_terms(
     let mut game = war_planning_game();
     game.sign_pact(HUMAN, 1, Pact::Alliance);
     game.players[1].gold = 300;
-    game.diplomacy_playtest_technologies(true);
-    game.diplomacy_playtest_allied_sharing();
+    game.diplomacy_test_technologies(true);
+    game.diplomacy_test_allied_sharing();
     let sharing = game.treaty_offer(1).expect("allied sharing offer");
     assert!(sharing.terms.iter().all(|terms| terms.shared_vision()));
     assert!(game.accept_offer(1, sharing));
-    game.diplomacy_playtest_allied_exchange();
+    game.diplomacy_test_allied_exchange();
     let currency = Tech::all().find(|tech| tech.name() == "Currency").unwrap();
     let offer = game
         .treaty_offer(1)
@@ -496,7 +496,7 @@ fn allied_trade_baseline_recomputes_embassy_leakage_before_advisor_premium() {
     game.players[1].known = game.research_path(1, currency);
     game.players[1].known.retain(|&tech| tech != currency);
     game.players[1].known.push(Tech::WARRIOR_CODE);
-    let before = game.diplomacy_playtest_allied_trade_baseline().unwrap();
+    let before = game.diplomacy_test_allied_trade_baseline().unwrap();
     let embassy = TreatyOffer {
         terms: [
             Concessions::default().with_embassy(),
@@ -505,7 +505,7 @@ fn allied_trade_baseline_recomputes_embassy_leakage_before_advisor_premium() {
         ..Default::default()
     };
     assert!(game.execute_offer(HUMAN, 1, &embassy));
-    let after = game.diplomacy_playtest_allied_trade_baseline().unwrap();
+    let after = game.diplomacy_test_allied_trade_baseline().unwrap();
     assert!(after < before);
     let expected = (3 * game.target_cost(1, currency) / 2) / 2
         - (3 * game.target_cost(HUMAN, Tech::WARRIOR_CODE) / 2) / 2;
@@ -516,12 +516,12 @@ fn allied_trade_baseline_recomputes_embassy_leakage_before_advisor_premium() {
 fn established_sharing_keeps_inventory_until_human_accepts() {
     let mut game = war_planning_game();
     game.sign_pact(HUMAN, 1, Pact::Alliance);
-    game.diplomacy_playtest_technologies(true);
+    game.diplomacy_test_technologies(true);
     let before = [
         game.players[HUMAN].known.clone(),
         game.players[1].known.clone(),
     ];
-    game.diplomacy_playtest_allied_sharing();
+    game.diplomacy_test_allied_sharing();
     assert_eq!(game.players[HUMAN].known, before[0]);
     assert_eq!(game.players[1].known, before[1]);
     let offer = game.treaty_offer(1).unwrap();
@@ -605,7 +605,7 @@ fn positive_most_hated_target_still_suppresses_source_offer_cadence() {
 #[test]
 fn phase_love_and_gift_response_match_reference_integer_order() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
-    assert!(game.ai_diplomatic_love_playtest());
+    assert!(game.ai_diplomatic_love_test());
 }
 
 #[test]
@@ -851,7 +851,7 @@ fn balanced_trades_do_not_count_as_all_beneficial_gifts() {
 #[test]
 fn treaty_giver_policies_alliance_jump_and_senate_callback_match_source() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
-    assert!(game.ai_treaty_policy_playtest());
+    assert!(game.ai_treaty_policy_test());
 }
 
 #[test]
@@ -912,7 +912,7 @@ fn technology_price_discounts_allies_before_adding_leakage() {
 #[test]
 fn low_science_reduces_trade_value_and_negative_research_rejects() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
-    game.diplomacy_playtest_technologies(true);
+    game.diplomacy_test_technologies(true);
     game.sign_pact(HUMAN, 1, Pact::Peace);
     game.diplomacy.get_mut(&(HUMAN, 1)).unwrap().pact = Pact::Peace;
     let offer = game.build_offer(HUMAN, 1, None);
@@ -936,7 +936,7 @@ fn stale_bundle_applies_no_gold_technology_pact_or_vision() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     game.create_city(HUMAN, 10, 10);
     game.create_city(1, 20, 20);
-    game.diplomacy_playtest_technologies(true);
+    game.diplomacy_test_technologies(true);
     let key = Simulation::relation_key(HUMAN, 1);
     let relation = game.diplomacy.entry(key).or_default();
     relation.pact = Pact::Peace;
@@ -960,10 +960,10 @@ fn an_armistice_disbands_units_that_fail_to_withdraw() {
     game.create_city(1, 20, 20);
     let soldier = game.spawn_unit(HUMAN, UnitKind::Warrior, 20, 20);
     game.sign_pact(HUMAN, 1, Pact::Peace);
-    game.diplomacy_playtest_tick(15);
+    game.diplomacy_test_tick(15);
     assert_eq!(game.pact(HUMAN, 1), Pact::Armistice);
     assert!(game.units.iter().any(|unit| unit.id == soldier));
-    game.diplomacy_playtest_tick(1);
+    game.diplomacy_test_tick(1);
     assert_eq!(game.pact(HUMAN, 1), Pact::Peace);
     assert!(!game.units.iter().any(|unit| unit.id == soldier));
 }
@@ -975,9 +975,9 @@ fn a_ceasefire_expires_back_to_war() {
     game.create_city(1, 20, 20);
     game.sign_pact(HUMAN, 1, Pact::Ceasefire);
 
-    game.diplomacy_playtest_tick(15);
+    game.diplomacy_test_tick(15);
     assert_eq!(game.pact(HUMAN, 1), Pact::Ceasefire);
-    game.diplomacy_playtest_tick(1);
+    game.diplomacy_test_tick(1);
     assert_eq!(game.pact(HUMAN, 1), Pact::War);
     assert_eq!(game.diplomacy[&(HUMAN, 1)].until, 0);
 }

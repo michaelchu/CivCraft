@@ -328,7 +328,7 @@ impl Collector {
         self.phase = phase;
     }
     #[cfg(any(test, feature = "scenarios"))]
-    pub(in crate::sim) fn pending_events(&self) -> &[Event] {
+    pub(crate) fn pending_events(&self) -> &[Event] {
         &self.pending
     }
 

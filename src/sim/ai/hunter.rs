@@ -85,9 +85,9 @@ impl Simulation {
     }
 
     #[cfg(test)]
-    pub(crate) fn normal_hunter_production_playtest(&self) -> (bool, bool, bool) {
+    pub(crate) fn normal_hunter_production_test(&self) -> (bool, bool, bool) {
         let mut game = self.clone();
-        let (port, target) = game.hunter_production_playtest_setup();
+        let (port, target) = game.hunter_production_fixture();
         let city = game.city_by_id(port).unwrap().clone();
         let mut hunter = game.make_unit(0, city.owner, UnitKind::Submarine, city.x, city.y);
         hunter.home_city = Some(port);
@@ -107,7 +107,7 @@ impl Simulation {
     /// gate (which Normal AI's handicap disables).
     #[cfg(test)]
     #[allow(dead_code)]
-    pub(crate) fn native_hunter_tactics_playtest(&self) -> (bool, bool, bool, bool) {
+    pub(crate) fn native_hunter_tactics_test(&self) -> (bool, bool, bool, bool) {
         use crate::sim::unit_catalog::UnitFlag;
         let mut sim = self.clone();
         sim.units.clear();

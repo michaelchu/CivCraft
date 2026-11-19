@@ -15,6 +15,7 @@ mod map_palette;
 mod mapgen;
 mod random;
 mod rules;
+mod scenarios;
 mod sim;
 #[cfg(feature = "desktop")]
 mod visual_test;

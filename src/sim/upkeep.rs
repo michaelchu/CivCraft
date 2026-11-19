@@ -51,14 +51,14 @@ fn missing_unit_upkeep_settings() -> &'static crate::rules::engine_rules::Missin
     })
 }
 
-pub(super) struct UnitGoldUpkeep {
-    pub(super) paid: Vec<(u32, i32)>,
+pub(crate) struct UnitGoldUpkeep {
+    pub(crate) paid: Vec<(u32, i32)>,
 }
 
 impl Simulation {
     /// Allocate national support slots once in stable unit-ID order. Home-city
     /// assignments are retained for save/UI compatibility, not for eligibility.
-    pub(super) fn national_unit_gold_upkeep(&self, owner: usize) -> UnitGoldUpkeep {
+    pub(crate) fn national_unit_gold_upkeep(&self, owner: usize) -> UnitGoldUpkeep {
         self.national_unit_gold_upkeep_for_government(owner, self.players[owner].government)
     }
 
@@ -156,7 +156,7 @@ impl Simulation {
         Some(0)
     }
 
-    pub(super) fn balance_unit_gold_upkeep(&mut self, owner: usize, paid: &[(u32, i32)]) {
+    pub(crate) fn balance_unit_gold_upkeep(&mut self, owner: usize, paid: &[(u32, i32)]) {
         while self.players[owner].gold < 0 {
             let candidates: Vec<_> = self
                 .player_units_ordered(owner)

@@ -115,7 +115,7 @@ own deficits and currently visible enemy military pressure, while preserving
 ally obligations and treaty progression. Proposals and acceptance share values;
 incoming human offers still require approval. There is no open-borders clause.
 Validate with the `diplomatic-aid`, `diplomatic-maps` and `diplomatic-recovery`
-release playtests (one normal turn each). Inspect `diplomacy.negotiation_decisions`
+release scenarios (one normal turn each). Inspect `diplomacy.negotiation_decisions`
 and `diplomacy.recent_negotiation_decisions`, then actual acceptance events.
 Repeated unmet decisions compact in lean mode and remain complete in verbose.
 
@@ -219,6 +219,13 @@ for coverage and retention semantics.
 
 ### Headless scenarios and saved campaigns
 
+Registered gameplay definitions and their catalog belong in `src/scenarios`.
+Use `sim/fixtures` for typed state preparation, and keep private rule assertions
+in ordinary Rust unit tests under `cfg(test)`. The headless runner owns all full
+turn advancement, including preparatory turns requested by scripted actions.
+See `docs/SCENARIO_REFACTOR.md` for the boundary and coverage inventory.
+
+
 List and run registered scenarios without creating a graphics context:
 
 ```sh
@@ -234,7 +241,7 @@ cargo run --offline --release --bin headless_sim -- \
 Require a zero exit status and inspect `summary.scenario_checks_passed`,
 `summary.scenario_checks_total`, and every entry under `run.scenario.checks`.
 Failed scenario checks make the command fail after it publishes the report.
-Use `Scenario::playtest` for regressions that exercise normal campaign turns.
+Use `Scenario::campaign` for scenarios that exercise normal campaign turns.
 Build the fixture with `WorldBuilder` before the initial snapshot, track the
 exact entities by ID, and let the headless runner advance the game. Observe
 state after each turn and evaluate required outcomes in `finish`, including

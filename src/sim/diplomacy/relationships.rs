@@ -108,9 +108,9 @@ impl RelationshipMemory {
 
 #[derive(Clone, Serialize)]
 pub(crate) struct RelationshipSnapshot {
-    commerce: i32,
-    loyalty: i32,
-    grievance: i32,
+    pub(crate) commerce: i32,
+    pub(crate) loyalty: i32,
+    pub(crate) grievance: i32,
     last_trade: Option<i32>,
     last_support: Option<i32>,
     last_breach: Option<i32>,
@@ -129,6 +129,11 @@ impl trace::Payload for MemoryEvent {
 }
 
 impl Simulation {
+    /// Configured credit for support and grievance for an unjustified breach.
+    pub(crate) fn relationship_credit_rules() -> (i32, i32) {
+        (policy().support_gain, policy().breach_grievance)
+    }
+
     fn relationship_memory(&self, owner: usize, other: usize) -> RelationshipMemory {
         self.ai_relationship_memory
             .get(&(owner, other))
@@ -136,7 +141,7 @@ impl Simulation {
             .unwrap_or_else(|| RelationshipMemory::new(self.turn))
             .at(self.turn)
     }
-    pub(super) fn observe_relationship(&self, owner: usize, other: usize) -> RelationshipSnapshot {
+    pub(crate) fn observe_relationship(&self, owner: usize, other: usize) -> RelationshipSnapshot {
         let memory = self.relationship_memory(owner, other);
         RelationshipSnapshot {
             commerce: memory.commerce,
@@ -331,7 +336,5 @@ impl Simulation {
     }
 }
 
-#[cfg(any(test, feature = "scenarios"))]
-mod scenarios;
 #[cfg(test)]
 mod tests;

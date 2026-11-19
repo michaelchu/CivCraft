@@ -39,7 +39,7 @@ fn finite_contact_expires_and_only_physical_events_refresh_it() {
     let mut game = war_planning_game();
     let first = game.diplomacy[&(HUMAN, 1)].first_contact;
     assert!(game.can_negotiate(1));
-    game.diplomacy_playtest_tick(20);
+    game.diplomacy_test_tick(20);
     assert!(!game.can_negotiate(1));
     assert!(!game.negotiate(1, Pact::Alliance));
     assert_eq!(game.diplomacy[&(HUMAN, 1)].first_contact, first);
@@ -135,7 +135,7 @@ fn a_lost_attack_does_not_refresh_contact_without_actual_movement() {
 fn nuclear_actions_apply_selected_success_casus_belli_after_the_blast() {
     for intercepted in [true, false] {
         let mut game = Simulation::new(crate::test_support::seeded_map());
-        let (missile, _, city_id) = game.nuclear_playtest_setup(intercepted);
+        let (missile, _, city_id) = game.nuclear_fixture(intercepted);
         let city = game.city_by_id(city_id).unwrap();
         let target = (city.x, city.y);
         let relation = game.diplomacy.entry((HUMAN, 1)).or_default();
@@ -237,7 +237,7 @@ fn first_contact_skips_the_first_decrement_and_common_allies_start_at_peace() {
 #[test]
 fn observer_incidents_and_offer_cadence_work_together() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
-    assert!(game.ai_observer_incident_cadence_playtest());
+    assert!(game.ai_observer_incident_cadence_test());
 }
 
 #[test]
@@ -331,14 +331,14 @@ fn a_capital_attack_does_not_guarantee_free_peace_after_twelve_turns() {
     game.units.clear();
     game.tile_mut(8, 24).terrain = Terrain::Grassland;
     game.create_city(HUMAN, 8, 24);
-    let (id, direction) = game.civil_war_playtest().unwrap();
+    let (id, direction) = game.civil_war_test().unwrap();
     assert!(game.negotiate(1, Pact::Ceasefire));
     game.players[HUMAN].government = Government::Despotism;
     assert!(game.cancel_pact(HUMAN, 1));
     assert!(game.apply(Command::MoveCiv3(id, direction)));
     game.end_turn();
     assert!(game.negotiate(1, Pact::Ceasefire));
-    game.diplomacy_playtest_technologies(false);
+    game.diplomacy_test_technologies(false);
     // Exercise an established rival ready for another war. Native
     // dai_war_desire deliberately removes its expansion-era appetite
     // when every surviving city builds Settlers (as quiet cities now do).
@@ -356,7 +356,7 @@ fn a_capital_attack_does_not_guarantee_free_peace_after_twelve_turns() {
         game.spawn_unit(1, UnitKind::Warrior, x, y);
     }
     assert!(game.ai_war_desire(1, HUMAN) > 0);
-    game.diplomacy_playtest_tick(12);
+    game.diplomacy_test_tick(12);
     let key = (HUMAN, 1);
     assert_eq!(game.pact(HUMAN, 1), Pact::Ceasefire);
     assert_eq!(game.pact_offer(1), None);

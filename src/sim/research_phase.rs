@@ -4,16 +4,13 @@ use super::*;
 #[test]
 fn unset_goal_roundtrips_without_becoming_an_invention_or_current_target() {
     let game = Simulation::new(crate::mapgen::generate(42));
-    assert!(game.native_unset_goal_save_playtest());
+    assert!(game.native_unset_goal_save_test());
 }
 
 #[test]
 fn research_feedback_is_ordered_retained_copied_and_transient_on_load() {
     let game = Simulation::new(crate::mapgen::generate(42));
-    assert_eq!(
-        game.native_research_phase_playtest(),
-        (true, true, true, true)
-    );
+    assert_eq!(game.native_research_phase_test(), (true, true, true, true));
 }
 
 #[test]

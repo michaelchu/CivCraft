@@ -1,6 +1,5 @@
 //! Shared, read-only AI policy. Advisor legality and emergency rules still apply.
 use super::*;
-mod scenarios;
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, sync::OnceLock};
 
@@ -88,13 +87,13 @@ pub(crate) struct StrategicPriorities {
 
 impl StrategicPriorities {
     /// This gates optional expansion, never defense, revenge or ally obligations.
-    pub(super) fn can_start_optional_war(&self) -> bool {
+    pub(crate) fn can_start_optional_war(&self) -> bool {
         !self.economic_crisis && self.wars == 0 && !self.space_program
     }
 }
 
 impl Simulation {
-    pub(super) fn strategic_upkeep_buffer(&self, owner: usize) -> i32 {
+    pub(crate) fn strategic_upkeep_buffer(&self, owner: usize) -> i32 {
         let (buildings, city_support): (i32, i32) = self
             .cities_owned_by(owner)
             .map(|city| {
@@ -133,7 +132,7 @@ impl Simulation {
             .saturating_mul(policy().upkeep_buffer_turns)
     }
 
-    pub(super) fn strategic_priorities(&self, owner: usize) -> StrategicPriorities {
+    pub(crate) fn strategic_priorities(&self, owner: usize) -> StrategicPriorities {
         let rules = policy();
         let mut economy = 100;
         let mut science = 100;

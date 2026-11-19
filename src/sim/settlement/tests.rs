@@ -5,7 +5,7 @@ use super::*;
 #[test]
 fn equal_yield_future_city_workers_and_reservations_follow_native_city_indices() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
-    assert!(game.settlement_reservation_order_playtest());
+    assert!(game.settlement_reservation_order_test());
 }
 
 // A bounded island gives the real planners several valid destinations without
@@ -102,7 +102,7 @@ fn founder_city_want_must_be_strictly_greater_than_actual_worker_want() {
 #[test]
 fn settlement_goal_government_fixture() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
-    assert!(game.ai_settlement_goal_government_playtest());
+    assert!(game.ai_settlement_goal_government_test());
 }
 
 #[test]
@@ -340,5 +340,5 @@ fn a_virtual_city_does_not_invent_road_trade_on_a_bare_river() {
 #[test]
 fn settlement_values_use_per_tile_rounding_reservations_and_actual_output() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
-    assert!(game.ai_settlement_value_playtest());
+    assert!(game.ai_settlement_value_test());
 }

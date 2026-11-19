@@ -485,7 +485,7 @@ mod tests {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         game.sign_pact(HUMAN, 1, Pact::War);
         game.create_city(HUMAN, 10, 20);
-        let (attacker, target) = game.multicultural_playtest_setup();
+        let (attacker, target) = game.multicultural_fixture();
         assert!(game.apply(Command::move_civ3_by_offset(&game, attacker, 1, 0)));
         assert!(game.cities.iter().any(|city| {
             city.id == target && city.owner == HUMAN && city.foreign_citizens == vec![(1, 2)]

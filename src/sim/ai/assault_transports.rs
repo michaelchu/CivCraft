@@ -74,7 +74,7 @@ impl Simulation {
     }
 
     #[cfg(test)]
-    pub(crate) fn assault_transport_playtest_has_orders(&mut self, owner: usize) -> bool {
+    pub(crate) fn assault_transport_test_has_orders(&mut self, owner: usize) -> bool {
         let defenders = self.assign_ai_city_defenders(owner);
         !self
             .dispatch_assault_transports(owner, |_| false, |id| defenders.contains(&id))

@@ -5,7 +5,7 @@ use super::*;
 #[test]
 fn happiness_effects_are_independent_stage_capped_and_range_aware() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
-    assert!(game.ai_happiness_effects_playtest());
+    assert!(game.ai_happiness_effects_test());
 }
 
 #[test]

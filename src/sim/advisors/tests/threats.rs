@@ -264,7 +264,7 @@ fn danger_route_bound_keeps_rail_routes_at_the_horizon_across_wrap() {
 #[test]
 fn transported_troops_and_paradrops_enter_city_danger_without_illegal_moves() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
-    assert!(game.ai_embarked_paradrop_danger_playtest());
+    assert!(game.ai_embarked_paradrop_danger_test());
 }
 
 #[test]
@@ -331,7 +331,7 @@ fn paradrop_estimate_uses_source_integer_range_and_full_movement_assumption() {
 #[test]
 fn danger_counter_choice_assumes_the_next_full_turn_without_mutating_the_enemy() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
-    assert!(game.ai_embarked_paradrop_danger_playtest());
+    assert!(game.ai_embarked_paradrop_danger_test());
     game.players[1].known.extend(Tech::all());
     let (sx, sy) = offset_native_by_map(game.cities[0].x, game.cities[0].y, -1, 0);
     let saltpeter = game.tile_mut(sx, sy);

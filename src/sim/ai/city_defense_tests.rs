@@ -175,14 +175,14 @@ fn hunter_role_runs_before_assigned_city_defense() {
 #[test]
 fn city_defender_and_spare_counterattack_fixtures_use_expected_thresholds() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
-    let (held, spare_attacked, _) = game.ai_counterattack_playtest();
+    let (held, spare_attacked, _) = game.ai_counterattack_test();
     assert!(held && spare_attacked);
 }
 
 #[test]
 fn future_defender_forecast_scores_a_buildable_trained_counter_unit() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
-    let forecast = game.ai_defender_forecast_playtest();
+    let forecast = game.ai_defender_forecast_test();
     assert!(forecast, "near/far defender forecast failed");
 }
 

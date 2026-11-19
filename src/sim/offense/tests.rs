@@ -233,7 +233,7 @@ fn literal_c_kill_desire_and_amortization_vectors_preserve_float_assignments() {
 #[test]
 fn offensive_target_feedback_respects_visibility_and_ends_after_learning_the_tech() {
     let game = Simulation::new(crate::test_support::seeded_map());
-    assert_eq!(game.offensive_research_playtest(), (true, true));
+    assert_eq!(game.offensive_research_test(), (true, true));
 }
 
 #[test]

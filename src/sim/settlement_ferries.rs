@@ -5,7 +5,7 @@ use super::normal_paths::GotoTask;
 use super::*;
 
 #[cfg(test)]
-mod playtest;
+mod unit_cases;
 use std::{
     cmp::Reverse,
     collections::{BTreeMap, BinaryHeap},

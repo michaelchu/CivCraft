@@ -515,13 +515,13 @@ mod tests {
     #[test]
     fn player_creation_tile_arrival_and_transfer_orders_are_independent() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
-        assert_eq!(game.native_list_order_playtest(), (true, true, true));
+        assert_eq!(game.native_list_order_test(), (true, true, true));
     }
 
     #[test]
     fn cargo_appends_on_boarding_and_reboarding_independently_of_unit_creation() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
-        assert!(game.native_cargo_order_playtest());
+        assert!(game.native_cargo_order_test());
     }
 
     #[test]
@@ -549,7 +549,7 @@ mod tests {
     #[test]
     fn city_activity_uses_native_list_then_random_selection_after_conversion() {
         let mut game = city_activity_order_game();
-        assert!(game.native_city_activity_order_playtest());
+        assert!(game.native_city_activity_order_test());
     }
 
     #[test]

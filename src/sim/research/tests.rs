@@ -17,10 +17,7 @@ fn gated_resource_becomes_visible_after_required_technology_is_discovered() {
 #[test]
 fn unset_goal_is_distinct_and_clears_on_gift_and_negative_advisor_values() {
     let sim = Simulation::new(crate::test_support::seeded_map());
-    assert_eq!(
-        sim.native_unset_research_goal_playtest(),
-        (true, true, true)
-    );
+    assert_eq!(sim.native_unset_research_goal_test(), (true, true, true));
 }
 
 #[test]
@@ -106,10 +103,7 @@ fn future_research_retains_its_project_but_clears_its_advisor_goal() {
 #[test]
 fn native_research_integer_and_float_compound_vectors_match_c() {
     let sim = Simulation::new(crate::test_support::seeded_map());
-    assert_eq!(
-        sim.native_research_arithmetic_playtest(),
-        (true, true, true)
-    );
+    assert_eq!(sim.native_research_arithmetic_test(), (true, true, true));
     let paths = vec![
         vec![],
         vec![Tech(1)],
@@ -152,7 +146,7 @@ fn player_research_keeps_the_selected_goal_after_an_advance() {
 #[test]
 fn switching_respects_investment_and_exempts_discovery_overflow() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
-    assert!(game.ai_research_switching_playtest());
+    assert!(game.ai_research_switching_test());
 }
 
 #[test]

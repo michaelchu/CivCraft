@@ -29,7 +29,7 @@ fn native_hunter_roles_and_combat_values_match_imported_conquests_rules() {
 #[test]
 fn hunter_assigns_same_tile_missiles_only_when_a_real_hunt_begins() {
     let mut sim = Simulation::new(crate::test_support::seeded_map());
-    let (hunter, missile, target) = sim.ai_submarine_playtest_setup();
+    let (hunter, missile, target) = sim.ai_submarine_fixture();
     {
         let hunter_unit = sim.units.iter_mut().find(|u| u.id == hunter).unwrap();
         hunter_unit.kind = UnitKind::NuclearSubmarine;
@@ -133,7 +133,7 @@ fn selected_c2c3_hunter_role_dispatches_existing_hunter_management() {
 #[test]
 fn hunter_stack_uses_native_prepend_order_and_keeps_raw_original_threat() {
     let mut sim = Simulation::new(crate::test_support::seeded_map());
-    let (hunter_id, _, carrier) = sim.ai_submarine_playtest_setup();
+    let (hunter_id, _, carrier) = sim.ai_submarine_fixture();
     let hunter = sim
         .units
         .iter()
@@ -188,7 +188,7 @@ fn imported_naval_speeds_and_sea_legality_are_used_without_asserting_ai_ranking(
 #[test]
 fn active_hunter_passes_over_a_cheap_ship_for_a_carrier() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
-    let (hunter, _, carrier) = game.ai_submarine_playtest_setup();
+    let (hunter, _, carrier) = game.ai_submarine_fixture();
     let sub = game
         .units
         .iter()
@@ -214,13 +214,13 @@ fn active_hunter_passes_over_a_cheap_ship_for_a_carrier() {
 #[test]
 fn normal_targets_handicap_suppresses_hunter_and_ammunition_production() {
     let game = Simulation::new(crate::test_support::seeded_map());
-    assert_eq!(game.normal_hunter_production_playtest(), (true, true, true));
+    assert_eq!(game.normal_hunter_production_test(), (true, true, true));
 }
 
 #[test]
 fn distant_ground_missions_do_not_assume_a_one_way_air_sortie_is_recoverable() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
-    let (infantry, fighter, city) = game.ai_ground_invasion_playtest_setup();
+    let (infantry, fighter, city) = game.ai_ground_invasion_fixture();
     assert_eq!(game.ai_ground_targets.get(&infantry), Some(&city));
     let target = game.city_by_id(city).unwrap();
     let unit = game.unit_by_id(infantry).unwrap();
@@ -250,7 +250,7 @@ fn distant_ground_missions_do_not_assume_a_one_way_air_sortie_is_recoverable() {
 #[test]
 fn local_occupation_marks_only_undefended_cities_and_obeys_actual_movement_radius() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
-    let (infantry, _, city) = game.ai_ground_invasion_playtest_setup();
+    let (infantry, _, city) = game.ai_ground_invasion_fixture();
     game.ai_ground_targets.clear();
     let target = game.city_by_id(city).unwrap().clone();
     let adjacent = offset_native_by_map(target.x, target.y, -1, 0);
@@ -268,7 +268,7 @@ fn local_occupation_marks_only_undefended_cities_and_obeys_actual_movement_radiu
 #[test]
 fn indexed_invasion_markers_keep_allied_cargo_and_exclude_the_live_attacker() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
-    let (_, _, city) = game.ai_ground_invasion_playtest_setup();
+    let (_, _, city) = game.ai_ground_invasion_fixture();
     game.sign_pact(1, 2, Pact::Alliance);
     let boat = game.spawn_unit(1, UnitKind::Transport, 10, 24);
     let cargo = game.spawn_unit(2, UnitKind::Marine, 10, 24);
@@ -307,7 +307,7 @@ fn indexed_invasion_markers_keep_allied_cargo_and_exclude_the_live_attacker() {
 #[test]
 fn peace_and_defensive_reservations_cancel_ground_missions() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
-    let (infantry, _, city) = game.ai_ground_invasion_playtest_setup();
+    let (infantry, _, city) = game.ai_ground_invasion_fixture();
     game.refresh_ground_invasions(1, &[infantry].into_iter().collect());
     assert!(!game.ai_ground_targets.contains_key(&infantry));
     game.ai_ground_targets.insert(infantry, city);
@@ -320,7 +320,7 @@ fn peace_and_defensive_reservations_cancel_ground_missions() {
 #[test]
 fn defended_overseas_force_keeps_its_invasion_until_capture() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
-    let result = game.overseas_assault_playtest(true);
+    let result = game.overseas_assault_test(true);
     assert_eq!(
         result,
         (true, true, true),
@@ -461,7 +461,7 @@ fn worker_transport_dispatch_keeps_its_passenger_and_booking_without_ferry_manag
 #[test]
 fn military_delivery_releases_the_persisted_ferry_boss() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
-    assert_eq!(game.overseas_assault_playtest(false), (true, true, true));
+    assert_eq!(game.overseas_assault_test(false), (true, true, true));
     assert!(!game.ai_ferries.boats.is_empty());
     assert!(
         game.ai_ferries
@@ -582,7 +582,7 @@ fn damaged_military_ferry_waits_in_city_until_recovered() {
 #[test]
 fn surplus_city_attacker_can_pursue_a_field_unit() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
-    let (attacker, _, enemy_city) = game.ai_ground_invasion_playtest_setup();
+    let (attacker, _, enemy_city) = game.ai_ground_invasion_fixture();
     game.cities.retain(|city| city.id != enemy_city);
     let home = game.cities[0].clone();
     let target = offset_native_by_map(home.x, home.y, 2, 0);

@@ -6,7 +6,7 @@ use super::*;
 fn native_defense_effects_and_static_research_match_independent_numeric_cases() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     assert_eq!(
-        game.native_defensive_effects_playtest(),
+        game.native_defensive_effects_test(),
         (true, true, true, true)
     );
 }
@@ -47,7 +47,7 @@ fn defense_effect_capital_and_ocean_city_preserve_native_integer_divisions() {
 fn static_defender_research_is_gated_by_real_production_need_and_keeps_police_value() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     assert_eq!(
-        game.native_defensive_effects_playtest(),
+        game.native_defensive_effects_test(),
         (true, true, true, true)
     );
     game.units.clear();
@@ -99,7 +99,7 @@ fn city_defense_fixture_uses_selected_c2c3_treasury_support_allowance() {
 fn defense_baseline_counts_untrusted_armistice_and_trusted_ceasefire_cities() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     assert_eq!(
-        game.native_defensive_effects_playtest(),
+        game.native_defensive_effects_test(),
         (true, true, true, true)
     );
     game.units.clear();
@@ -112,7 +112,7 @@ fn defense_baseline_counts_untrusted_armistice_and_trusted_ceasefire_cities() {
         game.defensive_building_effect_want(&game.cities[0], Building::CITY_WALLS),
         83.0
     );
-    game.diplomacy_playtest_friendship();
+    game.diplomacy_test_friendship();
     // The reusable friendship setup also creates a disliked alternate
     // rival. Isolate this baseline comparison to the treaty partner.
     game.units.retain(|unit| unit.owner != 2);
@@ -134,7 +134,7 @@ fn defense_baseline_counts_untrusted_armistice_and_trusted_ceasefire_cities() {
 fn city_defense_fixture_uses_imported_unit_classes() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     assert_eq!(
-        game.native_city_defense_advisor_playtest(),
+        game.native_city_defense_advisor_test(),
         (true, true, true, true)
     );
 }
@@ -208,7 +208,7 @@ fn quiet_empty_city_has_no_defense_bid_but_entertainer_can_request_police() {
 fn defense_building_uses_native_provider_order_and_counts_all_tile_units() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     assert_eq!(
-        game.native_city_defense_advisor_playtest(),
+        game.native_city_defense_advisor_test(),
         (true, true, true, true)
     );
     game.units.clear();

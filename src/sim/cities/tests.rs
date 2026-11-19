@@ -629,7 +629,7 @@ fn six_civilizations_found_capitals_then_use_unique_names_after_capture_and_loss
 #[test]
 fn lifecycle_cm_replaces_existing_workers_when_population_weights_change() {
     let game = Simulation::new(crate::test_support::seeded_map());
-    assert_eq!(game.city_worker_lifecycle_playtest(), (true, true, true));
+    assert_eq!(game.city_worker_lifecycle_test(), (true, true, true));
 }
 
 #[test]

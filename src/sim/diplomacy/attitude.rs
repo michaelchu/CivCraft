@@ -41,7 +41,7 @@ impl Simulation {
             .unwrap_or_default()
     }
 
-    pub(super) fn diplomatic_at_war(&self, owner: usize, other: usize) -> bool {
+    pub(crate) fn diplomatic_at_war(&self, owner: usize, other: usize) -> bool {
         self.diplomacy
             .get(&Self::relation_key(owner, other))
             .is_some_and(|relation| relation.first_contact.is_some() && relation.pact == Pact::War)

@@ -177,7 +177,7 @@ fn sea_worker_routes_reject_known_land_and_use_native_unknown_terrain_cost() {
 #[test]
 fn default_ai_plans_remote_work_displaces_reservations_and_shelters() {
     let mut game = game();
-    assert_eq!(game.ai_worker_planning_playtest(), (true, true, true));
+    assert_eq!(game.ai_worker_planning_test(), (true, true, true));
 }
 
 #[test]

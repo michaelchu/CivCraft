@@ -46,7 +46,7 @@ fn small_wonder_projects_government_center_effects_across_empire() {
 #[test]
 fn wonder_production_and_helpers_compete_using_empire_effects() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
-    assert!(game.ai_wonder_advisor_playtest());
+    assert!(game.ai_wonder_advisor_test());
 }
 
 #[test]

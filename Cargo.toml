@@ -36,8 +36,8 @@ image-compare = { version = "0.5", optional = true }
 
 [features]
 default = ["scenarios", "desktop"]
-# Regression scenarios and their fixtures, run by `headless_sim --scenario`.
-# Tests require it.
+# Registered gameplay scenarios, run by `headless_sim --scenario`.
+# Unit-test builds include the catalog independently of this feature.
 scenarios = []
 desktop = ["dep:macroquad", "dep:image", "dep:image-compare"]
 desktop-audio = ["desktop", "macroquad/audio", "dep:symphonia", "dep:lewton"]

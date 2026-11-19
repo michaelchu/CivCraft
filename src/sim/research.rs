@@ -226,7 +226,7 @@ impl Simulation {
         self.select_ai_research(owner).0
     }
 
-    pub(super) fn select_ai_research(&mut self, owner: usize) -> (Tech, i32, i32) {
+    pub(crate) fn select_ai_research(&mut self, owner: usize) -> (Tech, i32, i32) {
         if !self.players[owner].ai {
             return (self.research_target(owner), 0, 0);
         }
@@ -512,7 +512,7 @@ impl Simulation {
         ((upkeep - free as f64).max(0.0) * cities) as i32
     }
 
-    pub(super) fn apply_research_upkeep(&mut self, owner: usize, income: i32) {
+    pub(crate) fn apply_research_upkeep(&mut self, owner: usize, income: i32) {
         let upkeep = self.technology_upkeep(owner);
         self.players[owner].last_science = income - upkeep;
         self.trace.research_output(owner, self.turn, income, upkeep);
@@ -747,7 +747,7 @@ impl Simulation {
         choice
     }
 
-    pub(super) fn resolve_research_turn(&mut self, owner: usize, science: i32) {
+    pub(crate) fn resolve_research_turn(&mut self, owner: usize, science: i32) {
         self.apply_research_upkeep(owner, science);
         loop {
             let current = self.players[owner].researching;

@@ -87,7 +87,7 @@ impl Simulation {
         }
     }
 
-    pub(in crate::sim) fn make_diplomatic_contact(&mut self, a: usize, b: usize) {
+    pub(crate) fn make_diplomatic_contact(&mut self, a: usize, b: usize) {
         if a == b
             || a >= self.players.len()
             || b >= self.players.len()
@@ -162,7 +162,7 @@ impl Simulation {
         }
     }
 
-    pub(in crate::sim) fn has_real_embassy(&self, owner: usize, other: usize) -> bool {
+    pub(crate) fn has_real_embassy(&self, owner: usize, other: usize) -> bool {
         self.diplomacy
             .get(&Self::relation_key(owner, other))
             .is_some_and(|relation| relation.embassy[usize::from(owner > other)])

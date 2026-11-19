@@ -26,10 +26,10 @@ mod infrastructure_tests {
             let map = crate::mapgen::generate_with_wrap(42, MapWrap::X);
             let mut sim = Simulation::new(map);
             if knowledge == fog::Knowledge::Remembered {
-                crate::sim::scenarios::ui_review::ui_review_remember_all_tiles(&mut sim);
+                crate::sim::ui_review::ui_review_remember_all_tiles(&mut sim);
             }
             if knowledge == fog::Knowledge::Visible {
-                crate::sim::scenarios::ui_review::ui_review_reveal_all_tiles(&mut sim);
+                crate::sim::ui_review::ui_review_reveal_all_tiles(&mut sim);
             }
             let game = Game::from_simulation(sim);
             assert_eq!(game.edge_water_rows().collect::<Vec<_>>(), [-2, -1, 48, 49]);

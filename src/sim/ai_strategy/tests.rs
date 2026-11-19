@@ -1,14 +1,6 @@
 use super::*;
 
 #[test]
-fn shared_strategy_scenario_checks_research_trade_war_and_solvency() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
-    for (name, passed, detail) in game.shared_strategy_scenario() {
-        assert!(passed, "{name}: {detail}");
-    }
-}
-
-#[test]
 fn assessments_are_read_only_and_missing_identity_has_neutral_preferences() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
     game.players[1].civilization_id = None;
@@ -35,7 +27,7 @@ fn assessments_are_read_only_and_missing_identity_has_neutral_preferences() {
 #[test]
 fn active_space_program_prioritizes_science_without_blocking_defense() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
-    game.shared_strategy_scenario();
+    crate::sim::fixtures::WorldBuilder::new(&mut game).strategy_pair();
     let before = game.strategic_priorities(1);
     game.spaceships[1].built[0] = 1;
     let space = game.strategic_priorities(1);
@@ -49,7 +41,7 @@ fn active_space_program_prioritizes_science_without_blocking_defense() {
 #[test]
 fn human_private_state_does_not_change_public_technology_estimates() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
-    game.shared_strategy_scenario();
+    crate::sim::fixtures::WorldBuilder::new(&mut game).strategy_pair();
     game.players[1].ai = false;
     let before = game.diplomatic_technology_value(1, 2, Tech::POTTERY, false);
     game.players[1].research_goal = Tech::POTTERY;
@@ -66,7 +58,7 @@ fn human_private_state_does_not_change_public_technology_estimates() {
 #[test]
 fn unmet_targets_and_defeated_enemies_do_not_create_military_pressure() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
-    game.shared_strategy_scenario();
+    crate::sim::fixtures::WorldBuilder::new(&mut game).strategy_pair();
     game.diplomacy.remove(&(1, 2));
     game.ai_war_plans.insert(
         (1, 2),

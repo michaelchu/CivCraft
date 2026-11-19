@@ -3,7 +3,7 @@
 //! Screen code receives read-only projections and submits gameplay commands
 //! through this type. The underlying campaign model stays private to `sim`.
 
-use super::scenarios::ui_review::{ReviewFixture, ReviewState};
+use super::ui_review::{ReviewFixture, ReviewState};
 use super::{
     CityContextView, CityManagerView, Command, DiplomacyMeetingView, DiplomacyRivalView,
     EspionageRivalView, GameOverView, GotoPreview, GovernmentView, MinimapCityView,

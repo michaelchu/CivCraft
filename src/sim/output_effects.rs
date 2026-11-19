@@ -33,7 +33,7 @@ mod tests {
     fn industry_and_power_apply_real_shield_bonuses_without_stacking_plants() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         assert_eq!(Building::POWER_PLANT.data().name, "Power Plant");
-        assert!(game.industrial_output_playtest());
+        assert!(game.industrial_output_test());
     }
 
     #[test]
@@ -51,7 +51,7 @@ mod tests {
     #[test]
     fn shield_waste_includes_factory_output_before_integer_rounding() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
-        assert!(game.industrial_output_playtest());
+        assert!(game.industrial_output_test());
         let mut city = game.cities[0].clone();
         city.buildings = vec![Building::FACTORY];
         let tiles: Vec<_> = Simulation::city_radius(&city)
@@ -172,7 +172,7 @@ mod city_output_tests {
     #[test]
     fn shared_city_output_fixture() {
         let mut game = fixture();
-        assert!(game.city_output_rules_playtest());
+        assert!(game.city_output_rules_test());
     }
 
     #[test]

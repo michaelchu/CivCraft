@@ -177,8 +177,7 @@ mod tests {
     fn observer_records_real_results_without_changing_rng_or_saved_campaign() {
         for combat in [false, true] {
             let mut observed = Simulation::new(crate::mapgen::generate(42));
-            let (id, _) =
-                crate::sim::scenarios::ui_review::ui_review_animation_setup(&mut observed, combat);
+            let (id, _) = crate::sim::ui_review::ui_review_animation_setup(&mut observed, combat);
             let mut unobserved = observed.clone();
             unobserved.visual_events = VisualEvents::default();
             assert_eq!(

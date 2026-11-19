@@ -552,6 +552,12 @@ impl trace::Collector {
 }
 
 impl Simulation {
+    pub(crate) fn ensure_lifecycle_observation(&mut self) {
+        if self.trace.lifecycle().is_none() {
+            self.start_lifecycle_observation();
+        }
+    }
+
     pub(crate) fn start_lifecycle_observation(&mut self) {
         self.trace.enable_lifecycle(
             self.turn,
@@ -613,70 +619,6 @@ impl Simulation {
         }
         snapshot.city_totals = cities.into_values().collect();
         snapshot
-    }
-}
-
-#[cfg(any(test, feature = "scenarios"))]
-impl Simulation {
-    pub(in crate::sim) fn lifecycle_history_playtest(
-        &mut self,
-    ) -> Vec<(&'static str, bool, String)> {
-        if self.trace.lifecycle().is_none() {
-            self.start_lifecycle_observation();
-        }
-        for tile in &mut self.tiles {
-            tile.terrain = Terrain::Grassland;
-            tile.resource = Some(Resource::Wheat);
-            tile.hut = false;
-            tile.owner = None;
-        }
-        self.create_city(0, 10, 24);
-        let factory = self.cities.last().unwrap().id;
-        let index = self.city_index_by_id(factory).unwrap();
-        self.cities[index].size = 2;
-        self.cities[index].specialists = [0; 3];
-        self.cities[index].production = Production::Unit(UnitKind::Warrior);
-        self.cities[index].shields = Production::Unit(UnitKind::Warrior).cost();
-        self.reconcile_city_workers();
-        self.process_player_cities(0);
-        let built = self
-            .units
-            .iter()
-            .find(|u| u.home_city == Some(factory) && u.kind == UnitKind::Warrior)
-            .map(|u| u.id);
-        if let Some(id) = built {
-            self.remove_units_with_cargo_because(vec![id], UnitRemoval::Combat);
-        }
-        let founder = self.spawn_unit(0, UnitKind::Settler, 26, 40);
-        self.found_city(founder);
-        let spare = self.spawn_unit(0, UnitKind::Worker, 10, 24);
-        self.disband_unit(spare, None);
-
-        self.create_city(1, 28, 12);
-        let enemy = self.cities.last().unwrap().id;
-        self.cities.last_mut().unwrap().size = 3;
-        self.sign_pact(0, 1, Pact::War);
-        let attacker = self.spawn_unit(0, UnitKind::Warrior, 28, 12);
-        self.capture_city_if_needed(attacker, 28, 12);
-        self.create_city(1, 20, 24);
-        let traded = self.cities.last().unwrap().id;
-        self.spawn_unit(1, UnitKind::Worker, 20, 24);
-        let index = self.city_index_by_id(traded).unwrap();
-        self.transfer_traded_city(index, 0);
-        self.remove_city_because(enemy, CityRemoval::Disaster, None);
-        self.reconcile_lifecycle_observation();
-        let history = self.observe_lifecycle();
-        let changes = &history.changes;
-        vec![
-            ("unit_built", changes.iter().any(|e| matches!(&e.change, Change::UnitCreated { unit, origin: UnitOrigin::Built { city_id } } if *city_id == factory && Some(unit.id) == built)), "A real city production completion records its unit ID and producing city".into()),
-            ("unit_destroyed", changes.iter().any(|e| matches!(&e.change, Change::UnitRemoved { unit, reason: UnitRemoval::Combat } if Some(unit.id) == built)), "A built unit removed within the same observation interval remains in history".into()),
-            ("founder_consumed", changes.iter().any(|e| matches!(&e.change, Change::UnitRemoved { unit, reason: UnitRemoval::FoundedCity } if unit.id == founder)), "Founding consumes its Settler without classifying it as destroyed".into()),
-            ("unit_disbanded", changes.iter().any(|e| matches!(&e.change, Change::UnitRemoved { unit, reason: UnitRemoval::Disbanded } if unit.id == spare)), "Voluntary disbanding is distinct from destruction".into()),
-            ("city_conquered", changes.iter().any(|e| matches!(&e.change, Change::CityTransferred { city, new_owner: 0, reason: TransferReason::Conquest } if city.id == enemy)), "Conquest records the previous and new owner".into()),
-            ("city_traded", changes.iter().any(|e| matches!(&e.change, Change::CityTransferred { city, new_owner: 0, reason: TransferReason::Trade } if city.id == traded)), "A traded city is not classified as conquered".into()),
-            ("city_destroyed", changes.iter().any(|e| matches!(&e.change, Change::CityDestroyed { city, reason: CityRemoval::Disaster, .. } if city.id == enemy)), "A conquered city can also be destroyed in the same interval".into()),
-            ("history_complete", history.complete_since_start, "All changes reconcile with the live unit and city rosters".into()),
-        ]
     }
 }
 

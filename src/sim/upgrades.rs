@@ -142,7 +142,7 @@ mod tests {
     fn paid_upgrades_apply_selected_veteran_loss_and_require_own_city() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         game.create_city(HUMAN, 10, 20);
-        let id = game.upgrade_playtest_setup();
+        let id = game.upgrade_fixture();
         game.units.last_mut().unwrap().c2c3_veteran = 3;
         let original = game.units.last().unwrap().clone();
         game.start_lifecycle_observation();
@@ -257,7 +257,7 @@ mod tests {
     fn workshop_upgrades_apply_selected_automatic_veteran_loss() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         game.create_city(HUMAN, 10, 20);
-        let id = game.upgrade_playtest_setup();
+        let id = game.upgrade_fixture();
         game.units.last_mut().unwrap().c2c3_veteran = 3;
         game.cities[0].buildings.push(Building::LEONARDOS_WORKSHOP);
 

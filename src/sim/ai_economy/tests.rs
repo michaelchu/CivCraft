@@ -79,13 +79,13 @@ fn treasury_and_bulb_insolvency_switch_priority_on_war_preparation() {
 #[test]
 fn live_last_activities_apply_tax_before_advice_and_rearrange_workers_first() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
-    assert_eq!(game.ai_tax_phase_playtest(), (true, true));
+    assert_eq!(game.ai_tax_phase_test(), (true, true));
 }
 
 #[test]
 fn purchase_reserve_tax_fixture_uses_an_observable_native_balance_floor() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
-    assert!(game.ai_reserve_playtest());
+    assert!(game.ai_reserve_test());
 }
 
 #[test]
@@ -108,13 +108,13 @@ fn emergency_worker_hook_preserves_normal_assignments_but_rearranges_full_granar
 #[test]
 fn actual_city_tax_manager_covers_reserve_war_future_and_anarchy() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
-    assert!(game.ai_tax_manager_playtest());
+    assert!(game.ai_tax_manager_test());
 }
 
 #[test]
 fn civ2civ3_celebrating_history_does_not_enable_absent_rapture_growth_tax_policy() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
-    assert!(game.ai_tax_manager_playtest());
+    assert!(game.ai_tax_manager_test());
     game.players[1].government = Government::Despotism;
     game.players[1].researching = Tech::BRONZE_WORKING;
     game.players[1].rates = [60, 40, 0];

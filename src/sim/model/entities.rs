@@ -334,3 +334,10 @@ impl Player {
             })
     }
 }
+
+impl City {
+    /// Read-only advisor cache diagnostics for deterministic scenario checks.
+    pub(crate) fn settlement_advice_cache(&self) -> (i32, Option<(Production, f64)>) {
+        (self.ai_settlement_next, self.ai_settlement_choice)
+    }
+}

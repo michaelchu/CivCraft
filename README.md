@@ -222,3 +222,17 @@ Civ III presets or `WIDTHxHEIGHT`; ocean coverage accepts `60`, `70`, or `80`;
 climate accepts `arid`, `normal`, or `wet`; world age accepts `3`, `4`, or `5`;
 landform accepts `archipelago`, `continents`, or `pangaea`; and temperature
 accepts `cool`, `temperate`, or `warm`.
+
+## Scenario architecture
+
+Registered gameplay checks live in `src/scenarios`: one catalog owns their
+stable IDs, scripted actions, turn observations, and named checks. A scenario
+can check an immediate action or observe normal campaign turns. Regression
+coverage uses this same catalog. `src/headless` executes the selected scenario,
+attaches tracing and analytics, advances turns, and publishes reports.
+Simulation rules and fixture construction remain owned by `src/sim`.
+
+Private rule assertions remain ordinary Rust unit tests under `src/sim/tests`
+and subsystem test modules. Reusable setup lives in `src/sim/fixtures.rs`.
+See [scenario boundaries and coverage](docs/SCENARIO_REFACTOR.md) for the
+architecture and the helper migration inventory.

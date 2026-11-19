@@ -6,7 +6,7 @@ use super::*;
 
 mod planning;
 #[cfg(test)]
-mod playtest;
+mod unit_cases;
 pub(super) use planning::WorkMap;
 use planning::{WORKER_FACTOR, amortize};
 #[cfg(test)]

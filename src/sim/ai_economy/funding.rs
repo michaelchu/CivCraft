@@ -2,34 +2,34 @@
 use super::*;
 use serde::Serialize;
 
-pub(super) struct MilitaryNeed {
+pub(crate) struct MilitaryNeed {
     routine_purchase: i32,
-    urgent_purchase: i32,
+    pub(crate) urgent_purchase: i32,
 }
 
 impl MilitaryNeed {
-    fn purchase(&self) -> i32 {
+    pub(crate) fn purchase(&self) -> i32 {
         self.routine_purchase.max(self.urgent_purchase)
     }
 }
 
 #[derive(Serialize)]
-pub(in crate::sim) struct FundingDecision {
+pub(crate) struct FundingDecision {
     owner: usize,
     wars: usize,
     preparing: bool,
     economic_crisis: bool,
     wants_science: bool,
     previous_income: i32,
-    pub(super) rates: [i32; 3],
+    pub(crate) rates: [i32; 3],
     native_rates: [i32; 3],
     gold: i32,
     reserve: i32,
     target: i32,
     military_purchase: i32,
-    urgent_purchase: i32,
+    pub(crate) urgent_purchase: i32,
     upkeep_buffer: i32,
-    required_income: i32,
+    pub(crate) required_income: i32,
     refill_science_floor: i32,
     urgent_purchase_affordable: bool,
     projected_income: i32,
@@ -68,7 +68,7 @@ impl Simulation {
         operating.max(urgent)
     }
 
-    pub(super) fn ai_military_funding_need(&self, owner: usize, preparing: bool) -> MilitaryNeed {
+    pub(crate) fn ai_military_funding_need(&self, owner: usize, preparing: bool) -> MilitaryNeed {
         let mut need = MilitaryNeed {
             routine_purchase: 0,
             urgent_purchase: 0,
@@ -115,7 +115,7 @@ impl Simulation {
         need
     }
 
-    pub(super) fn ai_funding_decision(
+    pub(crate) fn ai_funding_decision(
         &self,
         owner: usize,
         native_rates: [i32; 3],
@@ -236,6 +236,5 @@ impl Simulation {
     }
 }
 
-mod scenarios;
 #[cfg(test)]
 mod tests;

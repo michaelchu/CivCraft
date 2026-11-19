@@ -93,7 +93,7 @@ impl Simulation {
     }
 
     #[cfg(any(test, feature = "scenarios"))]
-    pub(super) fn run_ai_player(&mut self, owner: usize) {
+    pub(crate) fn run_ai_player(&mut self, owner: usize) {
         if !self.run_ai_player_planning(owner) {
             return;
         }

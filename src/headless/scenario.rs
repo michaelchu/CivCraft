@@ -12,10 +12,10 @@ use crate::{
 use serde::Serialize;
 use std::path::Path;
 
-use crate::sim::scenarios::regression::{self, Check, Fixture, Playtest, Scenario};
+use crate::scenarios::{self, Check, Fixture, ScenarioRun};
 
 pub(crate) fn names() -> impl Iterator<Item = &'static str> {
-    regression::all().map(|scenario| scenario.id)
+    scenarios::all().map(|scenario| scenario.id)
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -65,31 +65,43 @@ impl WorldProvenance {
 pub(crate) struct Run {
     pub game: Simulation,
     pub provenance: Provenance,
-    scenario: Option<&'static Scenario>,
-    playtest: Option<Box<dyn Playtest>>,
+    runtime: Option<Box<dyn ScenarioRun>>,
 }
 
 impl Run {
     pub fn has_actions(&self) -> bool {
-        self.scenario.is_some_and(Scenario::has_actions)
+        self.runtime
+            .as_ref()
+            .is_some_and(|runtime| runtime.has_actions())
     }
 
     pub fn execute_actions(&mut self) {
-        if let Some(scenario) = self.scenario.take() {
-            self.provenance.checks = scenario.run(&mut self.game);
-            self.game.enable_all_civilizations_as_ai();
+        if let Some(runtime) = &mut self.runtime
+            && runtime.has_actions()
+        {
+            self.provenance
+                .checks
+                .extend(runtime.execute_actions(&mut self.game));
+            for _ in 0..runtime.action_turns() {
+                self.game.simulate_turn();
+            }
+            self.provenance
+                .checks
+                .extend(runtime.complete_actions(&mut self.game));
         }
     }
 
     pub fn trace_kinds(&self) -> &'static [&'static str] {
-        self.playtest
+        self.runtime
             .as_ref()
-            .map_or(&[], |playtest| playtest.trace_kinds())
+            .map_or(&[], |campaign| campaign.trace_kinds())
     }
 
     pub fn observe_turn(&mut self, completed_turns: u32) {
-        if let Some(playtest) = &mut self.playtest {
-            let state = playtest.observe_turn(&self.game, completed_turns);
+        if let Some(campaign) = &mut self.runtime
+            && campaign.records_turns()
+        {
+            let state = campaign.observe_turn(&self.game, completed_turns);
             self.provenance.observations.push(Observation {
                 completed_turns,
                 campaign_turn: self.game.turn(),
@@ -99,10 +111,10 @@ impl Run {
     }
 
     pub fn finish(&mut self, completed_turns: u32) {
-        if let Some(playtest) = self.playtest.take() {
+        if let Some(campaign) = self.runtime.take() {
             self.provenance
                 .checks
-                .extend(playtest.finish(completed_turns));
+                .extend(campaign.finish(completed_turns));
         }
     }
 }
@@ -121,13 +133,12 @@ pub(crate) fn load(path: &Path) -> Result<Run, String> {
             world: WorldProvenance::for_campaign(&game, None, None),
         },
         game,
-        scenario: None,
-        playtest: None,
+        runtime: None,
     })
 }
 
 pub(crate) fn build(name: &str, seed: u64, setup: WorldSetup) -> Result<Run, String> {
-    let scenario = regression::find(name).ok_or_else(|| {
+    let scenario = scenarios::find(name).ok_or_else(|| {
         format!(
             "unknown scenario {name}; available: {}",
             names().collect::<Vec<_>>().join(",")
@@ -144,29 +155,22 @@ pub(crate) fn build(name: &str, seed: u64, setup: WorldSetup) -> Result<Run, Str
             (mapgen::generate(seed), None, Generator::Fractal)
         }
     };
-    let (mut game, playtest) = if let Some(setup) = scenario.playtest {
-        let (game, playtest) = setup(map);
-        (game, Some(playtest))
-    } else {
-        (Simulation::new(map), None)
-    };
-    scenario.prepare(&mut game);
+    let (game, runtime) = scenario.start(map);
     Ok(Run {
         provenance: Provenance {
             kind: "named",
             name: name.into(),
-            version: if playtest.is_some() { 2 } else { 1 },
+            version: scenario.version,
             checks: vec![],
             observations: vec![],
             world: WorldProvenance::for_campaign(
                 &game,
                 size,
-                playtest.is_none().then_some(generator),
+                (!scenario.custom_world).then_some(generator),
             ),
         },
         game,
-        scenario: Some(scenario),
-        playtest,
+        runtime: Some(runtime),
     })
 }
 
@@ -183,8 +187,7 @@ pub(crate) fn generated(seed: u64, setup: WorldSetup) -> Run {
             world: WorldProvenance::for_campaign(&game, Some(setup.size), Some(setup.generator)),
         },
         game,
-        scenario: None,
-        playtest: None,
+        runtime: None,
     }
 }
 
@@ -223,6 +226,26 @@ mod tests {
         run.execute_actions();
         assert!(!run.has_actions());
         assert!(run.provenance.checks.iter().all(|check| check.passed));
+        let checks = run.provenance.checks.clone();
+        run.execute_actions();
+        run.observe_turn(0);
+        run.finish(0);
+        assert_eq!(run.provenance.checks, checks);
+        assert!(run.provenance.observations.is_empty());
+    }
+
+    #[test]
+    fn campaign_scenario_finishes_with_failed_checks_when_no_turn_was_run() {
+        let mut run = build("naval-ship-combat", 42, world()).unwrap();
+        assert!(!run.has_actions());
+        assert!(run.provenance.checks.is_empty());
+        run.finish(0);
+        assert_eq!(run.provenance.version, 2);
+        assert_eq!(run.provenance.checks.len(), 2);
+        assert!(run.provenance.checks.iter().all(|check| !check.passed));
+        let checks = run.provenance.checks.clone();
+        run.finish(0);
+        assert_eq!(run.provenance.checks, checks);
     }
 
     #[test]

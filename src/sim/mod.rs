@@ -19,6 +19,8 @@
 
 mod action_rules;
 mod advisors;
+#[cfg(any(test, feature = "scenarios"))]
+pub(crate) use advisors::AiBuildChoice;
 mod ai;
 mod ai_economy;
 mod ai_strategy;
@@ -115,14 +117,15 @@ pub(crate) use pollution::Contamination;
 use spaceship::Spaceship;
 pub(crate) use spaceship::{STRUCTURE_PARENT, ShipPart};
 #[cfg(any(test, feature = "scenarios"))]
-mod headless_scenarios;
+pub(crate) mod fixtures;
 #[cfg(test)]
-mod playtest;
+#[path = "tests/gameplay/mod.rs"]
+mod gameplay_tests;
 mod research;
 #[cfg(test)]
 mod research_phase;
-pub(crate) mod scenarios;
 mod terrain_work;
+pub(crate) mod ui_review;
 pub(crate) use commands::Command;
 mod military_research;
 mod model;
@@ -751,10 +754,10 @@ impl Simulation {
         (self.rng, self.native_random) = snapshot;
     }
 
-    /// Reports whether the native random stream remains usable in playtest state.
+    /// Reports whether the native random stream remains usable in unit tests state.
     #[cfg(test)]
     #[allow(dead_code)]
-    pub(crate) fn native_random_stream_playtest(&mut self) -> bool {
+    pub(crate) fn native_random_stream_test(&mut self) -> bool {
         let same = Self::new(crate::mapgen::generate_with_wrap(
             self.world_seed,
             self.map_wrap,

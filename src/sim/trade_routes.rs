@@ -236,7 +236,7 @@ impl Simulation {
 
     /// Adds route trade to the city's gross trade output before city bonuses,
     /// waste, and the science/luxury/gold split are applied.
-    pub(super) fn trade_route_income(
+    pub(crate) fn trade_route_income(
         &self,
         city: &City,
         granted: Option<crate::rules::Tech>,

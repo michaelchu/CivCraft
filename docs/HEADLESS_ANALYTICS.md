@@ -18,7 +18,7 @@ state and never participate in gameplay decisions.
 | Analyzers | `src/analytics/analyzers/` | State, thresholds, findings, metrics |
 | Finding lifecycle | `src/analytics/finding.rs` | Episodes, recovery, recurrence, evidence references |
 | Output | `src/headless/report.rs` | Stream JSONL and atomically replace summary checkpoints |
-| Scenario inputs | `src/headless/scenario.rs`, `src/sim/scenarios/regression/` | Prepare registered scenarios or load persisted campaigns, then run traced actions |
+| Scenario inputs | `src/headless/scenario.rs`, `src/scenarios/` | Prepare registered scenarios or load persisted campaigns, then run traced actions |
 
 There are two extension paths: events for transitions/decisions and providers
 for persistent state. A new analyzer can use either or both. No runner or
@@ -45,25 +45,28 @@ Scenario actions therefore emit ordinary retained events and produce a typed
 snapshot before turn simulation begins. Generated campaigns and loaded saves
 without scripted actions omit that extra boundary.
 
-Reusable state mutation belongs in simulation-level scenario helpers. Scenario
+Fixture construction belongs in `src/sim/fixtures.rs`; registered scenario definitions
+and checks belong in `src/scenarios`. Scenario
 definitions compose setup, actions, and checks; desktop-only input/rendering
 assertions belong in the visual review path without coupling the headless
 runner to UI code.
 
 ### Registering a scenario
 
-The `SCENARIOS` table in `src/sim/scenarios/regression/headless.rs`
-registers scripted scenarios and playtests. A scripted definition is a
+Direct definitions live in `src/scenarios`; the `SCENARIOS` table in `src/scenarios/catalog.rs`
+registers scenarios with scripted actions or normal campaign turns. A scripted definition is a
 function over a newly generated campaign that records named checks:
 
 ```rust
-fn ai_paradrops(sim: &mut Simulation, checks: &mut Checks) {
-    let (defended, refused, captured) = sim.ai_paradrop_playtest();
-    checks.push(("ai_paradrops", defended && refused && captured, detail));
+pub(super) const SCENARIO: Scenario = Scenario::new("example-action", execute);
+
+fn execute(game: &mut Simulation, checks: &mut Checks) {
+    // Prepare through WorldBuilder, execute an engine action, then record checks.
+    checks.push(("example_outcome", passed, detail));
 }
 ```
 
-Registration makes it available as `--scenario ai-paradrops` with no runner
+Registration makes it available as `--scenario example-action` with no runner
 change. `Scenario::new` starts from a new campaign with the human seat intact
 and enables all-AI play only after the actions run; `Scenario::all_ai` enables
 it first. Scripted scenarios use the reference map generator for the
@@ -72,7 +75,7 @@ requested seed and report that map's effective settings. The
 loaded campaigns reject world setup flags. Saved campaigns report their
 seed and dimensions and leave generator settings empty.
 
-For a playtest that spans normal campaign turns, use `Scenario::playtest`.
+For a scenario that spans normal campaign turns, use `Scenario::campaign`.
 Its setup receives the generated map and returns a starting campaign and an
 observer for that run. Use the shared world builder to construct fixtures and
 keep the returned city and unit IDs in the observer. Setup runs before the
@@ -82,9 +85,14 @@ the campaign. Its structured observations appear under
 or a short turn budget, the runner asks the observer to evaluate all required
 outcomes. Only those assertions contribute to the scenario check totals.
 
-`Scenario::human_playtest` keeps the human seat active while the other
-civilizations run normally. Playtests can request trace kinds needed for their
+`Scenario::human_campaign` keeps the human seat active while the other
+civilizations run normally. Scenarios can request trace kinds needed for their
 checks independently of the report's event filters.
+
+`ScenarioRun` is the per-run lifecycle for actions, observations and final
+checks. Scripted actions can request preparatory turns with `action_turns` and
+inspect them in `complete_actions`; the runner executes those turns within the
+action boundary. The runner uses it for both scripted and normal-turn scenarios.
 
 The world builder takes an ordered list of `CivPreset` entries. Each entry
 uses a stable catalog ID and optionally replaces the civilization's starting
@@ -158,13 +166,13 @@ normal turn completes the Worker, advances the Harbor from the worklist,
 and discovers Alphabet.
 
 The naval assault is defined in
-`src/sim/scenarios/naval/ai_assault.rs`. Run it with
+`src/scenarios/naval/ai_assault.rs`. Run it with
 `--scenario naval-ai-assault --seed 42 --turns 30`. It starts with a blank sea
 map and an established war, then watches the original Galleon and its troops.
 The short run path is covered in the CLI integration tests. The registry unit
 test checks scenario names and exercises the scripted cases.
 
-The ship combat playtest in `src/sim/scenarios/naval/ship_combat.rs` uses the
+The ship combat scenario in `src/scenarios/naval/ship_combat.rs` uses the
 same API. Run it with `--scenario naval-ship-combat --seed 42 --turns 1`.
 An elite Submarine intercepts a damaged Battleship on open water. The
 observer tracks both ships by ID and requires a combat kill credited to
@@ -363,7 +371,7 @@ Aid is bounded by verified need, trust, donor surplus and a per-offer cap.
 All these proposals share the persisted pair cadence with technology trade.
 Lean mode suppresses identical unsuccessful negotiation decisions independently
 of technology decisions; verbose retains them all. Run the release
-`diplomatic-aid`, `diplomatic-maps`, and `diplomatic-recovery` playtests with
+`diplomatic-aid`, `diplomatic-maps`, and `diplomatic-recovery` scenarios with
 `--seed 42 --turns 1`. Their fixtures precede the initial snapshot, and checks
 match selected terms to actual accepted treaties during normal advisor turns.
 Government and diplomacy event counts are run-local and marked

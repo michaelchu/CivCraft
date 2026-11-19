@@ -44,8 +44,28 @@ fn production_and_loss_within_one_boundary_survive_event_overflow() {
     let mut game = game();
     game.trace = trace::Collector::enabled(std::collections::BTreeSet::from(["*".into()]), 1);
     game.start_lifecycle_observation();
-    let checks = game.lifecycle_history_playtest();
-    assert!(checks.iter().all(|(_, passed, _)| *passed), "{checks:?}");
+    // Keep this unit test focused on overflow retention; scenario coverage owns
+    // the larger production/founding/conquest/trade/disaster sequence.
+    game.create_city(0, 10, 24);
+    let factory = game.cities.last().unwrap().id;
+    let index = game.city_index_by_id(factory).unwrap();
+    game.cities[index].size = 2;
+    game.cities[index].specialists = [0; 3];
+    game.cities[index].production = Production::Unit(UnitKind::Warrior);
+    game.cities[index].shields = Production::Unit(UnitKind::Warrior).cost();
+    game.reconcile_city_workers();
+    game.process_player_cities(0);
+    let built = game
+        .units
+        .iter()
+        .find(|unit| unit.home_city == Some(factory) && unit.kind == UnitKind::Warrior)
+        .unwrap()
+        .id;
+    game.remove_units_with_cargo_because(vec![built], UnitRemoval::Combat);
+    game.reconcile_lifecycle_observation();
+    let history = game.observe_lifecycle();
+    assert!(history.changes.iter().any(|entry| matches!(entry.change, Change::UnitCreated { ref unit, origin: UnitOrigin::Built { city_id } } if unit.id == built && city_id == factory)));
+    assert!(history.changes.iter().any(|entry| matches!(entry.change, Change::UnitRemoved { ref unit, reason: UnitRemoval::Combat } if unit.id == built)));
     assert!(game.trace.dropped() > 0);
     let first = game.observe_lifecycle();
     assert!(first.complete_since_start);

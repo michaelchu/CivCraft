@@ -66,7 +66,7 @@ impl trace::Payload for GovernorReleased {
 }
 
 impl Simulation {
-    pub(in crate::sim) fn governor_controls(&self, id: u32) -> bool {
+    pub(crate) fn governor_controls(&self, id: u32) -> bool {
         self.city_governors
             .get(&id)
             .is_some_and(|state| state.active)

@@ -464,7 +464,7 @@ impl Simulation {
     }
 
     #[cfg(test)]
-    pub(crate) fn ai_defender_forecast_playtest(&mut self) -> bool {
+    pub(crate) fn ai_defender_forecast_test(&mut self) -> bool {
         self.units.clear();
         self.cities.clear();
         self.ai_ground_targets.clear();

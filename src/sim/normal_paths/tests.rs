@@ -4,7 +4,7 @@ use super::*;
 
 #[test]
 fn goto_fixture_exercises_risk_detour_and_final_attack() {
-    assert!(world().ai_source_goto_playtest());
+    assert!(world().ai_source_goto_test());
 }
 
 fn world() -> Simulation {

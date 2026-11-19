@@ -46,7 +46,7 @@ fn blocked_zoc_positions(game: &Simulation) -> ((i32, i32), (i32, i32), (i32, i3
 fn activity_completion_is_immediate_and_old_mp_controls_only_work_count() {
     let game = Simulation::new(crate::test_support::seeded_map());
     assert_eq!(
-        game.activity_completion_order_playtest(),
+        game.activity_completion_order_test(),
         (true, true, true, true)
     );
 }
@@ -990,16 +990,13 @@ fn player_goto_continues_across_turns_until_destination() {
 #[test]
 fn end_phase_repairs_precede_city_builds_and_next_phase_activities() {
     let game = Simulation::new(crate::test_support::seeded_map());
-    assert_eq!(
-        game.unit_turn_lifecycle_playtest(),
-        (true, true, true, true)
-    );
+    assert_eq!(game.unit_turn_lifecycle_test(), (true, true, true, true));
 }
 
 #[test]
 fn native_movement_costs_nativity_boarding_and_zoc_flags() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
-    assert_eq!(game.native_movement_rules_playtest(), (true, true, true));
+    assert_eq!(game.native_movement_rules_test(), (true, true, true));
 }
 
 #[test]
@@ -1293,13 +1290,13 @@ fn combat_firepower_uses_selected_c2c3_unit_flags() {
 #[test]
 fn civilian_peace_borders_follow_ruleset_flags_and_still_exclude_foreign_stacks() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
-    assert!(game.civilian_border_playtest());
+    assert!(game.civilian_border_test());
 }
 
 #[test]
 fn movement_rates_scale_damage_before_effects_and_use_whole_move_class_minima() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
-    assert!(game.damaged_movement_playtest());
+    assert!(game.damaged_movement_test());
     game.players[HUMAN]
         .known
         .retain(|&tech| tech != Tech::NUCLEAR_POWER);
@@ -1382,7 +1379,7 @@ fn newly_created_triremes_get_lighthouse_speed_in_their_actual_location() {
 fn workers_pool_matching_progress_only_when_they_have_movement() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     game.create_city(HUMAN, 10, 20);
-    let (first, second) = game.cooperative_work_playtest_setup();
+    let (first, second) = game.cooperative_work_fixture();
     for id in [first, second] {
         assert!(game.apply(Command::Work(id, WorkKind::Irrigation)));
     }
@@ -1413,7 +1410,7 @@ fn pathfinding_routes_around_control_and_friendly_stacks_allow_entry() {
     for tile in &mut game.tiles {
         tile.terrain = Terrain::Grassland;
     }
-    let (warrior, _, (x, y)) = game.zone_control_playtest_setup();
+    let (warrior, _, (x, y)) = game.zone_control_fixture();
     let direct = game.path_to(warrior, x, y);
     assert!(
         direct.len() > 1,

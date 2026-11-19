@@ -195,10 +195,7 @@ mod tests {
     #[test]
     fn threat_counter_feedback_uses_the_source_assessment_without_a_second_danger_heuristic() {
         let game = Simulation::new(crate::mapgen::generate(42));
-        assert_eq!(
-            game.counter_defender_research_playtest(),
-            (true, true, true)
-        );
+        assert_eq!(game.counter_defender_research_test(), (true, true, true));
     }
 
     #[test]

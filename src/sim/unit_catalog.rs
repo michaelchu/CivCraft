@@ -53,7 +53,7 @@ mod tests {
     #[test]
     fn catalog_fixture_checks_source_stats_capabilities_and_independent_native_order() {
         let game = Simulation::new(crate::mapgen::generate(42));
-        assert_eq!(game.native_unit_catalog_playtest(), (true, true, true));
+        assert_eq!(game.native_unit_catalog_test(), (true, true, true));
     }
 
     #[test]

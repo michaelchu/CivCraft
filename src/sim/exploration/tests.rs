@@ -21,7 +21,7 @@ fn world() -> Simulation {
 
 #[test]
 fn human_warriors_and_ships_explore_but_fuelled_and_losing_hp_types_cannot_activate_it() {
-    assert!(world().ai_exploration_legality_playtest());
+    assert!(world().ai_exploration_legality_test());
 }
 
 #[test]
@@ -78,7 +78,7 @@ fn group_goto_ends_automation_only_for_units_given_the_order() {
 
 #[test]
 fn idle_ai_military_and_ferries_use_frontier_exploration() {
-    assert!(world().ai_idle_exploration_playtest());
+    assert!(world().ai_idle_exploration_test());
 }
 
 #[test]
@@ -154,7 +154,7 @@ fn native_start_ignore_can_leave_a_forbidden_start_without_entering_forbidden_de
     let mut game = world();
     let id = game.spawn_unit(HUMAN, UnitKind::Warrior, 10, 20);
     game.sign_pact(HUMAN, 1, Pact::Peace);
-    game.diplomacy_playtest_tick(16);
+    game.diplomacy_test_tick(16);
     assert_eq!(game.pact(HUMAN, 1), Pact::Peace);
     game.tile_mut(10, 20).owner = Some(1);
     let next = offset_native_by_map(10, 20, 1, 0);
@@ -188,7 +188,7 @@ fn explorer_rechecks_entry_when_a_foreign_unit_occupies_the_goal() {
 fn explorer_and_ferries_cross_peace_borders_but_warriors_and_carriers_do_not() {
     let mut game = world();
     game.sign_pact(HUMAN, 1, Pact::Peace);
-    game.diplomacy_playtest_tick(16);
+    game.diplomacy_test_tick(16);
     game.tile_mut(10, 20).owner = Some(1);
     for kind in [
         UnitKind::Explorer,
@@ -291,7 +291,7 @@ fn exploration_never_attacks_or_enters_nonallied_cities_or_peace_borders() {
     assert!(!game.explorer_may_visit(&unit, next.0, next.1));
     game.cities.clear();
     game.sign_pact(HUMAN, 1, Pact::Peace);
-    game.diplomacy_playtest_tick(16);
+    game.diplomacy_test_tick(16);
     assert_eq!(game.pact(HUMAN, 1), Pact::Peace);
     game.tile_mut(next.0, next.1).owner = Some(1);
     assert!(!game.explorer_may_visit(&unit, next.0, next.1));
@@ -362,7 +362,7 @@ fn end_of_turn_danger_uses_native_combined_attack_and_terrain_defense() {
 #[test]
 fn exploration_fixture_uses_real_automation_and_movement() {
     let mut game = world();
-    assert!(game.ai_exploration_playtest());
+    assert!(game.ai_exploration_test());
 }
 
 #[test]

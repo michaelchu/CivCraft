@@ -35,7 +35,7 @@ fn default_government_uses_selected_ruleset_unit_upkeep() {
 #[test]
 fn barbarians_keep_the_current_government_output_waste_rules() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
-    assert!(game.barbarian_output_waste_playtest());
+    assert!(game.barbarian_output_waste_test());
     let mut city = game.cities[0].clone();
     assert_eq!(
         game.government_output_waste_under(&city, 100, 100, None, Government::Despotism),
@@ -80,7 +80,7 @@ fn selected_ruleset_governments_have_no_fundamentalism_tithe_effect() {
 #[test]
 fn cached_government_scores_follow_reference_cadence_but_unlocks_apply_immediately() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
-    assert!(game.ai_government_cache_playtest());
+    assert!(game.ai_government_cache_test());
 }
 
 #[test]

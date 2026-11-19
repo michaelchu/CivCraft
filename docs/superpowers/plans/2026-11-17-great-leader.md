@@ -1,5 +1,9 @@
 # Great Leader Implementation Plan
 
+Current scenario checks live in `src/scenarios/great_leader.rs`. The steps below
+record the original implementation; scenario ownership has since moved to the
+shared catalog described in `docs/SCENARIO_REFACTOR.md`.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Make the existing `Leader` unit a Civ III Great Leader: never buildable, created by elite combat victories, and able to complete a city's current building production.

@@ -234,7 +234,7 @@ mod tests {
     fn barracks_production_completes_as_veteran_after_a_turn() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         game.create_city(HUMAN, 10, 20);
-        let (city, expected_rank) = game.veteran_playtest_setup();
+        let (city, expected_rank) = game.veteran_fixture();
         let city_state = game.city_by_id(city).unwrap();
         assert_eq!(game.trained_c2c3_veteran(city_state, UnitKind::Warrior), 1);
         assert!(game.unit_buildable(city_state, UnitKind::Warrior));
