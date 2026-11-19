@@ -77,6 +77,14 @@ choose which tiles to mark, and the existing callers retain their flush timing.
 Cloning copies pending work independently. Saving omits the batching state and
 preserves remembered knowledge; loading starts with no deferral or pending work.
 
+## Observation colors
+
+`map_palette` provides graphics-independent RGB values for terrain and nations.
+It retains normalized float channels to preserve existing renderer tints and
+provides the same rounded RGB bytes used by minimap observations. Only the
+client's color adapters construct Macroquad colors. The minimap snapshot contract
+and desktop gating of PNG export remain unchanged.
+
 ## Durable knowledge and scheduled decisions
 
 `observed_map` contains remembered player knowledge and remains in campaign
