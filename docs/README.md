@@ -6,6 +6,7 @@ Start here for the project’s current sources of truth:
 - [Freeciv AI algorithm audit](FREECIV_AI_ALGORITHM_AUDIT.md) — measured late-game costs, source comparisons, and open efficiency gaps.
 - [`FREECIV_GAMEPLAY_PORT_MAINTENANCE.md`](FREECIV_GAMEPLAY_PORT_MAINTENANCE.md) — maintaining the port and its provenance.
 - [`HEADLESS_ANALYTICS.md`](HEADLESS_ANALYTICS.md) — headless scenarios, tracing, and analytics.
+- [`SIMULATION_STATE.md`](SIMULATION_STATE.md) — durable state, query cache ownership, and invalidation.
 - [`SCENARIOS.md`](SCENARIOS.md) — scenario ownership, lifecycle, fixtures, and test boundaries.
 - [`CIV3_ASSET_RETRIEVAL_RECONCILIATION.md`](CIV3_ASSET_RETRIEVAL_RECONCILIATION.md) — restored media resolver plan and implementation status.
 - [`UI_REVIEW.md`](UI_REVIEW.md) — current renderer contract and visual review.

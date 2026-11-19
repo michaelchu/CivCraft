@@ -345,6 +345,9 @@ impl Simulation {
         game.unit_goto_tiles.clear();
         game.rebuild_observed_city_index();
         game.refresh_diplomatic_intelligence();
+        // Restoration may query entities while validating and repairing state.
+        // Return with reconstructible memoizations cold; remembered knowledge stays intact.
+        game.caches.clear();
         Ok(game)
     }
 

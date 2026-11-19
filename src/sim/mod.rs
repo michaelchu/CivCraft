@@ -19,6 +19,7 @@
 
 mod action_rules;
 mod advisors;
+mod caches;
 #[cfg(any(test, feature = "scenarios"))]
 pub(crate) use advisors::AiBuildChoice;
 mod ai;
@@ -234,8 +235,8 @@ pub(crate) struct Simulation {
     tiles: Vec<Tile>,
     units: Vec<Unit>,
     cities: Vec<City>,
-    unit_id_index: std::cell::RefCell<std::collections::HashMap<u32, usize>>,
-    city_id_index: std::cell::RefCell<std::collections::HashMap<u32, usize>>,
+    /// Reconstructible memoizations; private storage and key validation live in `caches`.
+    caches: caches::QueryCaches,
     trade_routes: Vec<trade_routes::TradeRoute>,
     completed_wonders: Vec<Building>,
     spaceships: Vec<Spaceship>,
@@ -288,7 +289,6 @@ pub(crate) struct Simulation {
     ai_ferries: ferries::FerryRegistry,
     ai_government_cache: std::collections::BTreeMap<usize, government::GovernmentAdvisorCache>,
     diplomatic_contact_until: std::collections::BTreeMap<(usize, usize), i32>,
-    research_knowledge: std::cell::RefCell<Vec<research::ResearchKnowledge>>,
     founder_phase: bool,
     planning_airfields: std::cell::OnceCell<Vec<(i32, i32)>>,
     planning_continents: std::cell::OnceCell<std::sync::Arc<[usize]>>,
@@ -299,7 +299,6 @@ pub(crate) struct Simulation {
     ai_threat_arrival_cache:
         std::cell::RefCell<std::collections::BTreeMap<(u32, u32), Option<i32>>>,
     ai_danger_route_cache: std::cell::RefCell<advisors::DangerRouteCache>,
-    movement_cache: pf_actions::MovementCache,
     visibility_refresh_deferred: bool,
     visibility_refresh_pending: bool,
     visibility_pending_render_tiles: Vec<bool>,
@@ -393,19 +392,7 @@ impl Simulation {
     }
     /// Finds a live unit's position in the stable unit collection.
     pub(crate) fn unit_index_by_id(&self, id: u32) -> Option<usize> {
-        if let Some(index) = self.unit_id_index.borrow().get(&id).copied()
-            && self.units.get(index).is_some_and(|unit| unit.id == id)
-        {
-            return Some(index);
-        }
-        let index = self.units.iter().position(|unit| unit.id == id);
-        let mut cache = self.unit_id_index.borrow_mut();
-        if let Some(index) = index {
-            cache.insert(id, index);
-        } else {
-            cache.remove(&id);
-        }
-        index
+        self.caches.unit_index(&self.units, id)
     }
     /// Returns all cities in their stable simulation order.
     pub(crate) fn cities(&self) -> &[City] {
@@ -437,19 +424,7 @@ impl Simulation {
     }
     /// Finds a city's index by its persistent identifier.
     pub(crate) fn city_index_by_id(&self, id: u32) -> Option<usize> {
-        if let Some(index) = self.city_id_index.borrow().get(&id).copied()
-            && self.cities.get(index).is_some_and(|city| city.id == id)
-        {
-            return Some(index);
-        }
-        let index = self.cities.iter().position(|city| city.id == id);
-        let mut cache = self.city_id_index.borrow_mut();
-        if let Some(index) = index {
-            cache.insert(id, index);
-        } else {
-            cache.remove(&id);
-        }
-        index
+        self.caches.city_index(&self.cities, id)
     }
     /// Returns players in their stable slot order.
     pub(crate) fn players(&self) -> &[Player] {
@@ -568,8 +543,7 @@ impl Simulation {
             tiles,
             units: Vec::new(),
             cities: Vec::new(),
-            unit_id_index: Default::default(),
-            city_id_index: Default::default(),
+            caches: Default::default(),
             trade_routes: Vec::new(),
             completed_wonders: Vec::new(),
             spaceships: vec![Spaceship::default(); players.len()],
@@ -624,7 +598,6 @@ impl Simulation {
             ai_ferries: Default::default(),
             ai_government_cache: Default::default(),
             diplomatic_contact_until: Default::default(),
-            research_knowledge: Default::default(),
             founder_phase: false,
             planning_airfields: Default::default(),
             planning_continents: Default::default(),
@@ -633,7 +606,6 @@ impl Simulation {
             ai_threat_route_cache_enabled: Default::default(),
             ai_threat_arrival_cache: Default::default(),
             ai_danger_route_cache: Default::default(),
-            movement_cache: Default::default(),
             visibility_refresh_deferred: false,
             visibility_refresh_pending: false,
             visibility_pending_render_tiles: Default::default(),
