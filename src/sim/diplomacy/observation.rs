@@ -11,6 +11,8 @@ pub(crate) struct DiplomacySnapshot {
     pub first_contact: Option<i32>,
     /// None means no contact, distinct from explicit War.
     pub pact: Option<Pact>,
+    pub vassalage: Option<(usize, super::vassalage::VassalAgreement)>,
+    pub independence_reason: Option<String>,
     pub until: i32,
     pub trust: [i32; 2],
     pub relationship_memory: [super::relationships::RelationshipSnapshot; 2],
@@ -68,6 +70,20 @@ impl Simulation {
                 alive: [self.player_alive(a), self.player_alive(b)],
                 first_contact: r.first_contact,
                 pact: r.first_contact.map(|_| r.pact),
+                vassalage: [a, b].into_iter().find_map(|v| {
+                    self.vassalage
+                        .agreements
+                        .get(&v)
+                        .filter(|agreement| [a, b].contains(&agreement.master))
+                        .map(|agreement| (v, agreement.clone()))
+                }),
+                independence_reason: [a, b]
+                    .into_iter()
+                    .filter(|&v| {
+                        self.vassal_master(v)
+                            .is_some_and(|master| [a, b].contains(&master))
+                    })
+                    .find_map(|v| self.vassal_independence_reason(v).map(str::to_owned)),
                 until: r.until,
                 trust: r.trust,
                 relationship_memory: [
@@ -157,6 +173,8 @@ mod tests {
                 alive,
                 first_contact: contact,
                 pact,
+                vassalage: None,
+                independence_reason: None,
                 until: 0,
                 trust: [0, 0],
                 shared_vision: [false, false],

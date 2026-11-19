@@ -190,6 +190,7 @@ pub(crate) enum UiAction {
     AddTreatyGold(usize, usize, TreatyOffer),
     ProposeTreaty(usize, TreatyOffer),
     CancelPact(usize),
+    ReleaseVassal(usize),
     CancelSharedVision(usize),
     DeclineOffer(usize),
     ReviewOffer(usize, TreatyOffer),

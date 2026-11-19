@@ -970,7 +970,7 @@ impl Simulation {
             let occupies = self.unit_by_id(attacker_id).is_some()
                 && self.rand_below(100) < super::super::combat_rules::selected().occupychance;
             let occupied = self.units.iter().any(|unit| {
-                (unit.x, unit.y) == (nx, ny) && !self.allied(unit.owner, attacker_owner)
+                (unit.x, unit.y) == (nx, ny) && !self.military_access(unit.owner, attacker_owner)
             });
             if occupies
                 && !occupied

@@ -79,6 +79,7 @@ fn remembered_betrayal_changes_policy_but_preserves_human_choice() {
 fn offers_and_gifts_do_not_create_completed_exchange_memory() {
     let mut game = war_planning_game();
     let mut offer = TreatyOffer {
+        vassalage: None,
         pact: None,
         terms: Default::default(),
     };

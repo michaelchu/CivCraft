@@ -41,7 +41,8 @@ impl Simulation {
             && self.player_alive(other)
             && !self.player_has_no_diplomacy(owner)
             && !self.player_has_no_diplomacy(other)
-            && (self.has_embassy(owner, other)
+            && (self.same_vassal_group(owner, other)
+                || self.has_embassy(owner, other)
                 || self.has_embassy(other, owner)
                 || self
                     .diplomatic_contact_until

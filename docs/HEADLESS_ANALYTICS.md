@@ -1081,3 +1081,12 @@ cargo run --offline --bin report_read -- report.json --stream events |
 Use the `wartime-funding` release scenario for a controlled policy regression;
 use verbose evidence for per-turn funding/crisis counts. Compacted lean events
 cannot establish those frequencies without their omitted observations.
+
+### Vassal diplomacy evidence
+
+Diplomacy analyzer version 7 adds `vassalage` and `independence_reason` to
+`analytics.metrics.diplomacy.relationships`. The agreement identifies its
+subject, master, kind, start turn and original land total. Formation, eligibility
+and dissolution use the existing `diplomacy.transition` event and appear in
+`recent_activity` with evidence references. An eligibility event is not proof
+of departure: inspect `vassalage_ended` and the next relationship snapshot.

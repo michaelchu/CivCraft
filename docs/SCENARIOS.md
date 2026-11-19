@@ -165,3 +165,11 @@ for binary in /tmp/civcraft-desktop-only /tmp/civcraft-with-scenarios; do
     | rg 'civcraft::(scenarios|sim::drive)::' || true
 done
 ```
+
+### Vassal states
+
+`vassal-capitulation` and `vassal-voluntary` prepare a threatened AI, its
+prospective protector and an independent third nation through `WorldBuilder`.
+Traced actions run the existing AI proposal and player acceptance command
+paths; a normal turn then checks that AI planning and treaty expiry preserve
+the agreement. Run each for one turn.

@@ -6,6 +6,7 @@ use crate::sim::Pact;
 impl WorldBuilder<'_> {
     pub(crate) fn clear_relationships(&mut self) {
         self.game.diplomacy.clear();
+        self.game.vassalage = Default::default();
         self.game.ai_war_plans.clear();
     }
 
@@ -79,5 +80,50 @@ impl WorldBuilder<'_> {
                 objective: None,
             },
         );
+    }
+}
+
+impl WorldBuilder<'_> {
+    /// A threatened AI neighbor, a protector and a third independent nation.
+    /// Modern Armor makes the force ratio explicit without simulating a long war.
+    pub(crate) fn vassalage_campaign(&mut self, kind: crate::sim::VassalKind) {
+        use crate::{
+            rules::Tech,
+            sim::{HUMAN, UnitKind, VassalKind},
+        };
+        self.clear_campaign_entities();
+        for (owner, position) in [(HUMAN, (8, 20)), (1, (12, 24)), (2, (18, 30))] {
+            self.founding_city(owner, position);
+            self.treasury(owner, 1000);
+        }
+        self.known_technologies(HUMAN, &[Tech::FEUDALISM]);
+        self.ai_control(1, true);
+        for (a, b) in [(0, 1), (0, 2), (1, 2)] {
+            self.diplomacy(a, b, Pact::Peace, 0, [6000, 6000]);
+            self.embassy(a, b);
+            self.embassy(b, a);
+        }
+        self.diplomatic_state(
+            0,
+            1,
+            if kind == VassalKind::Capitulation {
+                Pact::War
+            } else {
+                Pact::Peace
+            },
+            [6000, 6000],
+        );
+        self.grassland((12, 23));
+        self.unit(1, UnitKind::Warrior, (12, 24));
+        for _ in 0..3 {
+            self.unit(HUMAN, UnitKind::ModernArmor, (12, 23));
+        }
+        if kind == VassalKind::Voluntary {
+            self.grassland((13, 24));
+            for _ in 0..3 {
+                self.unit(2, UnitKind::ModernArmor, (13, 24));
+            }
+            self.diplomatic_state(1, 2, Pact::War, [0, 0]);
+        }
     }
 }

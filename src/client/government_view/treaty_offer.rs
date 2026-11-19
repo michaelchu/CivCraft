@@ -28,8 +28,21 @@ impl Game {
             22.0,
             WHITE,
         );
-        let pact = offer.pact.map_or("Exchange", Pact::name);
+        let vassal_label = offer.vassalage.map(|t| self.sim.vassal_offer_label(t));
+        let pact = vassal_label
+            .as_deref()
+            .unwrap_or_else(|| offer.pact.map_or("Exchange", Pact::name));
         draw_text(pact, x, panel.y + 60.0, 18.0, GOLD);
+        if let Some(terms) = offer.vassalage {
+            text_in(
+                &self.sim.vassal_war_preview(HUMAN, owner, terms),
+                x,
+                panel.y + 79.0,
+                12.0,
+                width - 36.0,
+                LIGHTGRAY,
+            );
+        }
         let mut actions = Vec::new();
         for (index, terms) in offer.terms.iter().enumerate() {
             let mut y = panel.y + 90.0;

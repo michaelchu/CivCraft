@@ -238,7 +238,7 @@ impl Simulation {
                         .map(|other| other.owner)
                         .chain(remembered.and_then(|tile| tile.city_owner));
                     let blocked = rivals.clone().any(|owner| {
-                        !self.allied(unit.owner, owner)
+                        !self.military_access(unit.owner, owner)
                             && (!goal_tiles[ni]
                                 || !unit.kind.is_military()
                                 || !self.at_war(unit.owner, owner))

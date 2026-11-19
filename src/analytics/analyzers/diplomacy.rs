@@ -23,7 +23,7 @@ impl Analyzer for Diplomacy {
     fn descriptor(&self) -> Descriptor {
         Descriptor {
             id: "diplomacy",
-            version: 6,
+            version: 7,
             events: vec![
                 "diplomacy.transition",
                 "diplomacy.trade_decision",
@@ -108,7 +108,7 @@ impl Analyzer for Diplomacy {
                         .filter(|p| p.first_contact.is_some())
                         .map(
                             |p| json!({"players":p.players,"names":p.names,"alive":p.alive,
-                    "pact":p.pact,"until":p.until,"trust":p.trust,"relationship_memory":p.relationship_memory,"war_plans":p.war_plans,
+                    "pact":p.pact,"vassalage":p.vassalage,"independence_reason":p.independence_reason,"until":p.until,"trust":p.trust,"relationship_memory":p.relationship_memory,"war_plans":p.war_plans,
                     "pending_offer":p.offer,"evidence":{"snapshot_turn":snapshot.turn}})
                         )
                         .collect::<Vec<_>>()

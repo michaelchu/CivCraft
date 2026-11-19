@@ -193,6 +193,7 @@ impl WorldBuilder<'_> {
         self.game.units.clear();
         self.game.cities.clear();
         self.game.diplomacy.clear();
+        self.game.vassalage = Default::default();
         self.game.ai_war_plans.clear();
         for player in &mut self.game.players {
             player.ai = false;

@@ -103,7 +103,7 @@ impl WorkerRouteZoneCache {
 
     pub(super) fn foreign_city_at(&self, sim: &Simulation, owner: usize, x: i32, y: i32) -> bool {
         self.city_owners[sim.map_wrap.index(x, y)]
-            .is_some_and(|city_owner| !sim.allied(owner, city_owner))
+            .is_some_and(|city_owner| !sim.military_access(owner, city_owner))
     }
 }
 
@@ -284,7 +284,7 @@ impl Simulation {
             let native = destination_native;
             let port = destination
                 .city_owner
-                .is_some_and(|owner| self.allied(owner, unit.owner))
+                .is_some_and(|owner| self.military_access(owner, unit.owner))
                 && self.map_wrap.civ3_neighbors(x, y).any(|(nx, ny)| {
                     self.observed_route_tile(nx, ny).is_none_or(|tile| {
                         rules
@@ -304,7 +304,7 @@ impl Simulation {
             }
         } else if destination_known {
             let city_access = destination.city_owner.is_some_and(|owner| {
-                self.allied(owner, unit.owner)
+                self.military_access(owner, unit.owner)
                     || self.at_war(owner, unit.owner)
                         && rules
                             .unit_class_movement_data_for_kind(kind)
@@ -430,7 +430,8 @@ impl Simulation {
         if unit.kind.is_naval() {
             return destination_native
                 || city.is_some_and(|city| {
-                    self.allied(city.owner, unit.owner) && self.naval_city_access(city, unit.kind)
+                    self.military_access(city.owner, unit.owner)
+                        && self.naval_city_access(city, unit.kind)
                 });
         }
         let can_occupy_city = profile.map_or_else(
@@ -442,7 +443,7 @@ impl Simulation {
             |profile| profile.can_occupy_city,
         );
         let city_access = city.is_some_and(|city| {
-            self.allied(city.owner, unit.owner)
+            self.military_access(city.owner, unit.owner)
                 || self.at_war(city.owner, unit.owner) && can_occupy_city
         });
         destination_native || city_access
@@ -571,7 +572,7 @@ impl Simulation {
 
                 if tile
                     .city_owner
-                    .is_some_and(|city_owner| !self.allied(owner, city_owner))
+                    .is_some_and(|city_owner| !self.military_access(owner, city_owner))
                 {
                     if observed {
                         // Freeciv exposes an occupied bit for visible enemy
@@ -589,7 +590,7 @@ impl Simulation {
                 // representable here.
                 self.any_unit_at(tx, ty, |unit| {
                     (!observed || self.unit_visible_to_human(unit))
-                        && !self.allied(owner, unit.owner)
+                        && !self.military_access(owner, unit.owner)
                         && unit.transport.is_none()
                         && Self::unit_class_uses_zoc(unit.kind)
                         && !super::action_rules::freeciv_unit_type_flag(unit.kind, "HasNoZOC")
@@ -620,7 +621,8 @@ impl Simulation {
 
     fn allied_unit_at(&self, owner: usize, x: i32, y: i32, observed: bool) -> bool {
         self.any_unit_at(x, y, |other| {
-            (!observed || self.unit_visible_to_human(other)) && self.allied(owner, other.owner)
+            (!observed || self.unit_visible_to_human(other))
+                && self.military_access(owner, other.owner)
         })
     }
 
@@ -853,12 +855,12 @@ impl Simulation {
         };
         let city_tile = self.city_at(unit.x, unit.y).is_some();
         let hostile_city = self.cities.iter().any(|city| {
-            (city.x, city.y) == (unit.x, unit.y) && !self.allied(unit.owner, city.owner)
+            (city.x, city.y) == (unit.x, unit.y) && !self.military_access(unit.owner, city.owner)
         });
         let hostile_unlisted_unit = self.units.iter().any(|other| {
             other.id != id
                 && (other.x, other.y) == (unit.x, unit.y)
-                && !self.allied(unit.owner, other.owner)
+                && !self.military_access(unit.owner, other.owner)
                 && !remaining_capture_ids.contains(&other.id)
         });
         if city_tile || hostile_city || hostile_unlisted_unit {
@@ -876,10 +878,9 @@ impl Simulation {
                 continue;
             }
             if self.unit_can_survive_at_tile(&unit, x, y)
-                && self
-                    .cities
-                    .iter()
-                    .all(|city| (city.x, city.y) != (x, y) || self.allied(unit.owner, city.owner))
+                && self.cities.iter().all(|city| {
+                    (city.x, city.y) != (x, y) || self.military_access(unit.owner, city.owner)
+                })
                 && self.units.iter().all(|other| {
                     (other.x, other.y) != (x, y) || !self.unit_is_nonallied_to(other, unit.owner)
                 })
@@ -920,7 +921,7 @@ impl Simulation {
 
     pub(super) fn unit_is_nonallied_to(&self, unit: &Unit, owner: usize) -> bool {
         unit.owner != owner
-            && (!self.allied(owner, unit.owner)
+            && (!self.military_access(owner, unit.owner)
                 || crate::sim::action_rules::freeciv_unit_type_flag(unit.kind, "Flagless")
                     .expect("campaign C2C3 unit-type Flagless binding"))
     }

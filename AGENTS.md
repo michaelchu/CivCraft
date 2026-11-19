@@ -119,6 +119,18 @@ release scenarios (one normal turn each). Inspect `diplomacy.negotiation_decisio
 and `diplomacy.recent_negotiation_decisions`, then actual acceptance events.
 Repeated unmet decisions compact in lean mode and remain complete in verbose.
 
+### Recorded exception: vassal states (Civ IV-inspired)
+
+The owner authorized vassal states on 2026-11-19. See
+[`docs/VASSAL_STATES.md`](docs/VASSAL_STATES.md) for the implemented rules and
+scope. Preserve directional agreements separately from symmetric pacts, shared
+master-controlled war transitions, deterministic AI evaluation, human approval
+of incoming offers and independent city/unit ownership. Do not equate military
+access with alliance scoring or transport rights. Mechanical thresholds live in
+`content/vassalage.toml`. Validate with the `vassal-capitulation` and
+`vassal-voluntary` release scenarios and the source-adjacent rule/save tests.
+Colonies and resource tribute are deferred.
+
 ## Comparison source checkout
 
 The Freeciv source submodule at `reference/freeciv` tracks the public upstream

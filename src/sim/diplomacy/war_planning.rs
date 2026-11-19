@@ -192,6 +192,7 @@ impl Simulation {
 
     pub(in crate::sim) fn ai_potentially_hostile(&self, owner: usize, other: usize) -> bool {
         owner != other
+            && !self.same_vassal_group(owner, other)
             && (self.at_war(owner, other)
                 || self.ai_war_countdown(owner, other) >= 0
                 || self
@@ -201,6 +202,9 @@ impl Simulation {
     }
 
     pub(in crate::sim) fn advisor_player_dangerous(&self, owner: usize, other: usize) -> bool {
+        if self.same_vassal_group(owner, other) {
+            return false;
+        }
         // advdata.c:adv_is_player_dangerous and the default-AI override.
         // Do not substitute the stricter military target predicate or the
         // alive/contact-filtered default-AI diplomatic intelligence cache.
@@ -287,6 +291,9 @@ impl Simulation {
     }
 
     pub(super) fn advance_ai_war_plans_for(&mut self, owner: usize) {
+        if self.vassal_master(owner).is_some() {
+            return;
+        }
         let map_size = self.map_size_factor();
         let space_leader = self.ai_space_race_leader();
         let pairs: Vec<_> = self.diplomacy.keys().copied().collect();
@@ -304,6 +311,7 @@ impl Simulation {
                     return None;
                 };
                 (target != BARBARIANS
+                    && !self.same_vassal_group(owner, target)
                     && self.player_alive(target)
                     && self.diplomacy[&(a, b)].first_contact.is_some())
                 .then_some(target)
@@ -583,6 +591,9 @@ impl Simulation {
     }
 
     pub(in crate::sim) fn declare_ai_war_now(&mut self, owner: usize, target: usize) {
+        if !self.pact_transition_allowed(owner, target) {
+            return;
+        }
         let previous = self.contacted_pact(owner, target);
         while !self.at_war(owner, target) {
             if !self.cancel_pact(owner, target) {

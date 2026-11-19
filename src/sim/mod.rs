@@ -57,6 +57,10 @@ pub(crate) use diplomacy::EspionageRivalView;
 mod combat_rules;
 mod commands;
 mod diplomacy;
+#[cfg(any(test, feature = "scenarios"))]
+pub(crate) use diplomacy::VassalKind;
+#[cfg(feature = "desktop")]
+pub(crate) use diplomacy::VassalTerms;
 mod tech_trade;
 mod trade_routes;
 pub(crate) use diplomacy::{EspionageMission, EspionageRisk, Pact, TreatyMap, TreatyOffer};
@@ -244,6 +248,7 @@ pub(crate) struct Simulation {
     hunter_targets: std::collections::HashMap<u32, u32>,
     previous_naval_positions: std::collections::HashMap<u32, (i32, i32)>,
     diplomacy: std::collections::BTreeMap<(usize, usize), diplomacy::Relation>,
+    vassalage: diplomacy::vassalage::VassalState,
     apollo_completed: bool,
     /// Technologies ever discovered by any civilization, including advances
     /// later lost to upkeep. Freeciv's `survives=true, range=World` checks use
@@ -510,6 +515,7 @@ impl Simulation {
             hunter_targets: Default::default(),
             previous_naval_positions: Default::default(),
             diplomacy: Default::default(),
+            vassalage: Default::default(),
             apollo_completed: false,
             global_advances,
             players,

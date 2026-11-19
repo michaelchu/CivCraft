@@ -102,3 +102,15 @@ ledgers. It remains separate from both query memoization and saved knowledge.
 Campaign entities and durable AI memory still live directly on `Simulation`.
 Their ownership can be separated in later slices without treating remembered
 knowledge or scheduled decisions as disposable caches.
+
+## Vassal agreements
+
+`diplomacy/vassalage::VassalState` owns durable master–subject agreements and
+negotiation cooldowns. Agreements store their start turn and original land
+total; these cannot be reconstructed from current borders. Independence
+eligibility history prevents duplicate transition events. Pending submission
+clauses remain on existing treaty offers. Save format `0x2F` stores this
+extension separately from the frozen core; legacy saves initialize it empty.
+Military access and compulsory one-way sight are derived from the agreements,
+with independent vision grants and remembered knowledge retaining their own
+lifetimes. See [vassal states](VASSAL_STATES.md).

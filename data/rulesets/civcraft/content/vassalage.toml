@@ -1,0 +1,10 @@
+# Owner-authorized Civ IV-style diplomacy extension.
+required_technology = "Feudalism"
+voluntary_minimum_turns = 10
+independence_size_percent = 50
+retained_land_percent = 50
+negotiation_cooldown_turns = 10
+submission_force_ratio = 3
+voluntary_minimum_trust = 5000
+minimum_peace_value = 100
+maximum_protection_pressure_percent = 150
