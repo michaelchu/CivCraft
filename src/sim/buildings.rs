@@ -57,6 +57,14 @@ impl Simulation {
         let city = &mut self.cities[index];
         city.shields = city.production.cost();
         city.bought_production = true;
+        self.trace.emit(
+            self.turn,
+            || vec![trace::Entity::City(id), trace::Entity::Civilization(owner)],
+            || super::cities::observations::ProductionRushed {
+                item: city.production.name().into(),
+                gold: cost,
+            },
+        );
         let message = format!(
             "{} rushed {} for {cost} gold.",
             city.name,

@@ -23,6 +23,7 @@ mod settlement_ferry;
 mod shared_strategy;
 mod space_victory;
 mod state_presets;
+mod trait_campaign;
 mod unit_recovery;
 mod wartime_funding;
 
@@ -80,6 +81,7 @@ pub(super) const SCENARIOS: &[Scenario] = &[
     peaceful_first_contact::SCENARIO,
     proactive_trade::SCENARIO,
     shared_strategy::SCENARIO,
+    trait_campaign::SCENARIO,
     space_victory::SCENARIO,
     wartime_funding::SCENARIO,
     relationship_memory::SCENARIO,

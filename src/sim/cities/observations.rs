@@ -23,3 +23,12 @@ pub(crate) struct ProductionCompleted {
 impl Payload for ProductionCompleted {
     const KIND: &'static str = "production.completed";
 }
+
+#[derive(Serialize)]
+pub(crate) struct ProductionRushed {
+    pub item: String,
+    pub gold: i32,
+}
+impl Payload for ProductionRushed {
+    const KIND: &'static str = "production.rushed";
+}
