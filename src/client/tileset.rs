@@ -18,6 +18,8 @@ const CELL_W: usize = WIDTH + 2;
 const CELL_H: usize = HEIGHT + 2;
 const PAGE: usize = 12;
 const SIDES: [(i32, i32); 4] = [(0, -1), (1, 0), (0, 1), (-1, 0)];
+const UNIT_TEAM_PALETTE_COUNT: usize = 32;
+type UnitTeamPalette = [[u8; 3]; 256];
 // OpenCiv3's PCX loader uses the same default palette transparency indices.
 const DEFAULT_PCX_TRANSPARENT_INDICES: [u8; 2] = [254, 255];
 const TERRITORY_PCX_TRANSPARENT_INDICES: [u8; 3] = [1, 254, 255];
@@ -776,6 +778,30 @@ fn decode_pcx(bytes: &[u8], transparent_indices: &[u8]) -> AssetResult<Image> {
     })
 }
 
+fn decode_pcx_palette(bytes: &[u8]) -> Result<UnitTeamPalette, String> {
+    if bytes.len() < 897 || bytes[bytes.len() - 769] != 0x0c {
+        return Err("PCX is missing its 256-color palette".into());
+    }
+    let mut palette = [[0u8; 3]; 256];
+    for (index, color) in palette.iter_mut().enumerate() {
+        let offset = bytes.len() - 768 + index * 3;
+        color.copy_from_slice(&bytes[offset..offset + 3]);
+    }
+    Ok(palette)
+}
+
+fn load_unit_team_palettes(theme: &Theme) -> AssetResult<Vec<UnitTeamPalette>> {
+    (0..UNIT_TEAM_PALETTE_COUNT)
+        .map(|index| {
+            let relative = format!("Units/Palettes/ntp{index:02}.pcx");
+            let path = theme.images.resolve(&relative)?;
+            let bytes = fs::read(&path)
+                .map_err(|error| AssetError::io("read unit team palette", &path, error))?;
+            decode_pcx_palette(&bytes).map_err(|error| AssetError::decode(&path, error))
+        })
+        .collect()
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 struct Junction {
     ground: [Ground; 4],
@@ -1041,6 +1067,7 @@ pub(super) struct Civ3 {
     craters: Option<Texture2D>,
     optional_improvements: HashMap<&'static str, Texture2D>,
     unit_art: RefCell<HashMap<String, Civ3UnitArt>>,
+    unit_team_palettes: Vec<UnitTeamPalette>,
     unit_cursor: Civ3UnitCursor,
     unit_animation_sources: HashMap<String, UnitAnimationSource>,
     unit_sound_sources: HashMap<String, HashMap<String, UnitSoundSource>>,
@@ -1144,6 +1171,7 @@ struct Civ3UnitCursor {
 struct Civ3UnitArt {
     base: Texture2D,
     tint: Texture2D,
+    team_textures: HashMap<u8, Texture2D>,
     width: f32,
     height: f32,
     frame_count: usize,
@@ -1316,6 +1344,7 @@ impl Civ3 {
     pub(super) fn load(path: &Path, media: &Civ3MediaResolver) -> AssetResult<Self> {
         let animation_pacing = super::unit_animation_pacing::UnitAnimationPacing::load()?;
         let theme = Theme::read_with_media(path, media)?;
+        let unit_team_palettes = load_unit_team_palettes(&theme)?;
         let required = |key: &str, file: &str, size| {
             theme
                 .image(key, &format!("Terrain/{file}.png"), size, true)
@@ -1591,6 +1620,7 @@ impl Civ3 {
             craters,
             optional_improvements,
             unit_art: RefCell::default(),
+            unit_team_palettes,
             unit_cursor,
             unit_animation_sources: resolved_unit_paths,
             unit_sound_sources,
@@ -1770,6 +1800,7 @@ impl Civ3 {
             Civ3UnitArt {
                 base,
                 tint,
+                team_textures: HashMap::new(),
                 width: flic.width as f32,
                 height: flic.height as f32,
                 frame_count: flic.animations[0].len(),
@@ -1784,6 +1815,41 @@ impl Civ3 {
                 fast_speed: source.fast_speed,
             },
         );
+        Ok(())
+    }
+
+    fn ensure_unit_team_texture(&self, role: &str, palette_index: u8) -> AssetResult<()> {
+        let palette = self
+            .unit_team_palettes
+            .get(usize::from(palette_index))
+            .ok_or_else(|| format!("invalid Civ III team palette index {palette_index}"))?;
+        let source = self
+            .unit_animation_sources
+            .get(role)
+            .ok_or_else(|| format!("no Civ III animation is mapped for {role}"))?;
+        let needs_texture = self
+            .unit_art
+            .borrow()
+            .get(role)
+            .is_some_and(|art| !art.team_textures.contains_key(&palette_index));
+        if !needs_texture {
+            return Ok(());
+        }
+        let bytes = fs::read(&source.path).map_err(|error| {
+            AssetError::io("read animation for team palette", &source.path, error)
+        })?;
+        let flic = super::flc::decode_flic(&bytes)
+            .map_err(|error| AssetError::decode(&source.path, error))?;
+        let image = flic
+            .team_color_atlas(palette)
+            .map_err(|error| AssetError::decode(&source.path, error))?;
+        let texture = Texture2D::from_image(&image);
+        texture.set_filter(FilterMode::Nearest);
+        let mut unit_art = self.unit_art.borrow_mut();
+        let art = unit_art
+            .get_mut(role)
+            .ok_or_else(|| format!("Civ III animation {role} was not loaded"))?;
+        art.team_textures.insert(palette_index, texture);
         Ok(())
     }
 
@@ -1888,6 +1954,12 @@ impl Civ3 {
         if self.load_unit_animation(selected_role).is_err() {
             return false;
         }
+        let team_palette_index = civilization_id
+            .and_then(crate::rules::civilizations::by_id)
+            .map(|civilization| civilization.primary_color_index);
+        if let Some(palette_index) = team_palette_index {
+            let _ = self.ensure_unit_team_texture(selected_role, palette_index);
+        }
         let loaded_unit_art = self.unit_art.borrow();
         let art = loaded_unit_art.get(selected_role).unwrap();
         let frame = if let Some(still) = action.fixed_frame(
@@ -1952,7 +2024,7 @@ impl Civ3 {
         } else {
             Color::new(team.r * 0.62, team.g * 0.66, team.b * 0.68, team.a)
         };
-        for (texture, tint) in [(&art.base, base_tint), (&art.tint, team_tint)] {
+        let draw_layer = |texture: &Texture2D, tint| {
             draw_texture_ex(
                 texture,
                 position.x,
@@ -1964,6 +2036,13 @@ impl Civ3 {
                     ..Default::default()
                 },
             );
+        };
+        if let Some(texture) = team_palette_index.and_then(|index| art.team_textures.get(&index)) {
+            draw_layer(texture, base_tint);
+        } else {
+            for (texture, tint) in [(&art.base, base_tint), (&art.tint, team_tint)] {
+                draw_layer(texture, tint);
+            }
         }
         true
     }
