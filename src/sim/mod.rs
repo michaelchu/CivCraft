@@ -117,6 +117,8 @@ pub(crate) use pollution::Contamination;
 use spaceship::Spaceship;
 pub(crate) use spaceship::{STRUCTURE_PARENT, ShipPart};
 #[cfg(any(test, feature = "scenarios"))]
+pub(crate) mod drive;
+#[cfg(any(test, feature = "scenarios"))]
 pub(crate) mod fixtures;
 mod research;
 #[cfg(test)]

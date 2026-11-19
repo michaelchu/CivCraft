@@ -552,6 +552,7 @@ impl trace::Collector {
 }
 
 impl Simulation {
+    #[cfg(any(test, feature = "scenarios"))]
     pub(crate) fn ensure_lifecycle_observation(&mut self) {
         if self.trace.lifecycle().is_none() {
             self.start_lifecycle_observation();

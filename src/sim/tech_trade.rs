@@ -17,7 +17,7 @@ impl Simulation {
         self.rand_below(100) >= receiver_loss_chance.clamp(0, 100)
     }
 
-    pub(crate) fn transfer_treaty_technology(
+    pub(in crate::sim) fn transfer_treaty_technology(
         &mut self,
         donor: usize,
         receiver: usize,

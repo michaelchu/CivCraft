@@ -1,6 +1,7 @@
 //! Complete research, treaty transfer and upkeep loss through engine operations.
 use super::{Checks, Scenario};
 use crate::scenarios::{Control, ScenarioKind};
+use crate::sim::drive::Drive;
 use crate::{
     rules::Tech,
     sim::{

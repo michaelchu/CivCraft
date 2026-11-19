@@ -347,7 +347,7 @@ impl Simulation {
         }
     }
 
-    pub(crate) fn declare_ai_war_now(&mut self, owner: usize, target: usize) {
+    pub(in crate::sim) fn declare_ai_war_now(&mut self, owner: usize, target: usize) {
         let previous = self.contacted_pact(owner, target);
         while !self.at_war(owner, target) {
             if !self.cancel_pact(owner, target) {

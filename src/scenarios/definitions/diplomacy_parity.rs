@@ -1,6 +1,7 @@
 //! Treaty expiry, atomic technology exchange and an actual begin-phase war.
 use super::{Check, Checks, Scenario, ScenarioRun};
 use crate::scenarios::{Control, RuntimeWorld, ScenarioKind};
+use crate::sim::drive::Drive;
 use crate::{
     rules::Tech,
     sim::{HUMAN, Pact, Simulation, TreatyOffer, UnitKind, fixtures::WorldBuilder},

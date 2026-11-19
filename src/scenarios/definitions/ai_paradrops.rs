@@ -1,6 +1,7 @@
 //! AI defense, defended-landing refusal and capture with airborne units.
 use super::{Checks, Scenario};
 use crate::scenarios::{Control, ScenarioKind};
+use crate::sim::drive::Drive;
 use crate::{
     rules::Tech,
     sim::{

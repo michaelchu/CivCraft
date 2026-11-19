@@ -319,7 +319,7 @@ impl Simulation {
         self.spend_ai_defense_gold_with_choices(owner, &choices);
     }
 
-    pub(crate) fn spend_ai_defense_gold_with_choices(
+    pub(in crate::sim) fn spend_ai_defense_gold_with_choices(
         &mut self,
         owner: usize,
         choices: &std::collections::BTreeMap<u32, AiBuildChoice>,

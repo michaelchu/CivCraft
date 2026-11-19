@@ -156,7 +156,7 @@ impl Simulation {
         Some(0)
     }
 
-    pub(crate) fn balance_unit_gold_upkeep(&mut self, owner: usize, paid: &[(u32, i32)]) {
+    pub(in crate::sim) fn balance_unit_gold_upkeep(&mut self, owner: usize, paid: &[(u32, i32)]) {
         while self.players[owner].gold < 0 {
             let candidates: Vec<_> = self
                 .player_units_ordered(owner)

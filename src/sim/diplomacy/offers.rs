@@ -50,7 +50,7 @@ impl Simulation {
             && !self.gives_shared_vision(giver, receiver)
     }
 
-    pub(crate) fn propose_treaty(&mut self, other: usize, offer: TreatyOffer) -> bool {
+    pub(in crate::sim) fn propose_treaty(&mut self, other: usize, offer: TreatyOffer) -> bool {
         if other == HUMAN || other >= self.players.len() || !self.can_negotiate(other) {
             return false;
         }
@@ -491,7 +491,7 @@ impl Simulation {
         }
     }
 
-    pub(crate) fn advance_diplomatic_offers_for(&mut self, owner: usize) {
+    pub(in crate::sim) fn advance_diplomatic_offers_for(&mut self, owner: usize) {
         let mut vision_changed = false;
         if owner == BARBARIANS || !self.players[owner].ai || !self.player_alive(owner) {
             return;

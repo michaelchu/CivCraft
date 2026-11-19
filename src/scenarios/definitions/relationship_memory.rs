@@ -1,6 +1,7 @@
 //! Executed exchanges, justified ally support and unjustified breaches.
 use super::{Checks, Scenario};
 use crate::scenarios::{Control, ScenarioKind};
+use crate::sim::drive::Drive;
 use crate::sim::{HUMAN, Pact, Simulation, fixtures::WorldBuilder};
 pub(super) const SCENARIO: Scenario = Scenario::new(
     "relationship-memory",

@@ -248,7 +248,7 @@ impl Simulation {
         self.remove_units_with_cargo_because(losses, lifecycle::UnitRemoval::Destroyed);
     }
 
-    pub(crate) fn remove_units_with_cargo_because(
+    pub(in crate::sim) fn remove_units_with_cargo_because(
         &mut self,
         mut losses: Vec<u32>,
         reason: lifecycle::UnitRemoval,

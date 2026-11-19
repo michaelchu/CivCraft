@@ -557,7 +557,7 @@ impl Simulation {
         }
     }
 
-    pub(crate) fn advance_diplomacy(&mut self) {
+    pub(in crate::sim) fn advance_diplomacy(&mut self) {
         let turn = self.turn;
         let failed_plant_flags: Vec<_> = self
             .diplomacy

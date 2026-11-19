@@ -130,6 +130,7 @@ impl trace::Payload for MemoryEvent {
 
 impl Simulation {
     /// Configured credit for support and grievance for an unjustified breach.
+    #[cfg(any(test, feature = "scenarios"))]
     pub(crate) fn relationship_credit_rules() -> (i32, i32) {
         (policy().support_gain, policy().breach_grievance)
     }

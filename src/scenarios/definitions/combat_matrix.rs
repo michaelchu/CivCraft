@@ -1,6 +1,7 @@
 //! Actual movement-triggered combat across terrain and city defenses.
 use super::{Checks, Scenario};
 use crate::scenarios::{Control, ScenarioKind};
+use crate::sim::drive::Drive;
 use crate::{
     sim::{HUMAN, MoveResult, Pact, Simulation, UnitKind, fixtures::WorldBuilder},
     world::Terrain,

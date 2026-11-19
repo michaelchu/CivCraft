@@ -87,7 +87,7 @@ impl Simulation {
         }
     }
 
-    pub(crate) fn make_diplomatic_contact(&mut self, a: usize, b: usize) {
+    pub(in crate::sim) fn make_diplomatic_contact(&mut self, a: usize, b: usize) {
         if a == b
             || a >= self.players.len()
             || b >= self.players.len()

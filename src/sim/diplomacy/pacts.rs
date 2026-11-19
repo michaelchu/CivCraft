@@ -196,7 +196,7 @@ impl Simulation {
         true
     }
 
-    pub(crate) fn sign_pact(&mut self, a: usize, b: usize, proposed: Pact) {
+    pub(in crate::sim) fn sign_pact(&mut self, a: usize, b: usize, proposed: Pact) {
         let previous = self.contacted_pact(a, b);
         let treaty_length = self.treaty_length(a, b, proposed);
         let relation = self.diplomacy.entry(Self::relation_key(a, b)).or_default();
@@ -259,7 +259,7 @@ impl Simulation {
         }
     }
 
-    pub(crate) fn cancel_pact(&mut self, owner: usize, other: usize) -> bool {
+    pub(in crate::sim) fn cancel_pact(&mut self, owner: usize, other: usize) -> bool {
         self.cancel_pact_inner(owner, other, false)
     }
 

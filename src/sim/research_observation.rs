@@ -218,6 +218,7 @@ impl Simulation {
             })
             .collect()
     }
+    #[cfg(any(test, feature = "scenarios"))]
     pub(crate) fn ensure_research_observation(&mut self) {
         if self.trace.research.is_none() {
             self.start_research_observation();

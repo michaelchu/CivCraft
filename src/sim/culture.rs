@@ -138,6 +138,7 @@ impl Simulation {
 }
 
 impl Simulation {
+    #[cfg(any(test, feature = "scenarios"))]
     pub(crate) fn city_history(&self, id: u32) -> Option<i32> {
         self.city_by_id(id).map(|city| city.history)
     }

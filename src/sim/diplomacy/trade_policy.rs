@@ -340,6 +340,7 @@ impl Simulation {
     }
 
     /// Whether current policy can select a technology exchange with this nation.
+    #[cfg(any(test, feature = "scenarios"))]
     pub(crate) fn has_technology_trade(&self, actor: usize, other: usize) -> bool {
         self.choose_technology_trade(actor, other)
             .selected
@@ -425,7 +426,7 @@ impl Simulation {
         decision
     }
 
-    pub(crate) fn advance_proactive_trades_for(&mut self, owner: usize) {
+    pub(in crate::sim) fn advance_proactive_trades_for(&mut self, owner: usize) {
         if owner >= self.civilization_count || !self.players[owner].ai || !self.player_alive(owner)
         {
             return;

@@ -1,6 +1,7 @@
 //! Policy preferences across research, diplomacy, war and economic recovery.
 use super::{Checks, Scenario};
 use crate::scenarios::{Control, ScenarioKind};
+use crate::sim::drive::Drive;
 use crate::{
     rules::{Building, Tech},
     sim::{Pact, Simulation, fixtures::WorldBuilder},

@@ -986,7 +986,11 @@ impl Simulation {
         self.try_move_unit_civ3(unit_id, direction)
     }
 
-    pub(crate) fn try_move_unit_civ3(&mut self, unit_id: u32, direction: usize) -> MoveResult {
+    pub(in crate::sim) fn try_move_unit_civ3(
+        &mut self,
+        unit_id: u32,
+        direction: usize,
+    ) -> MoveResult {
         let Some(unit) = self.unit_by_id(unit_id).cloned() else {
             return MoveResult::Blocked;
         };

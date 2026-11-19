@@ -1,6 +1,7 @@
 //! Production, loss, founding, capture and transfer remain in lifecycle history.
 use super::{Checks, Scenario};
 use crate::scenarios::{Control, ScenarioKind};
+use crate::sim::drive::Drive;
 use crate::sim::{
     Pact, Production, Simulation, UnitKind,
     fixtures::WorldBuilder,

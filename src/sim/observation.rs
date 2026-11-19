@@ -355,10 +355,12 @@ impl Simulation {
 
 impl super::Simulation {
     /// Persistent routes, in their simulation order.
+    #[cfg(any(test, feature = "scenarios"))]
     pub(crate) fn trade_routes(&self) -> &[super::trade_routes::TradeRoute] {
         &self.trade_routes
     }
 
+    #[cfg(any(test, feature = "scenarios"))]
     pub(crate) fn combat_kills(&self, owner: usize) -> i32 {
         self.nation_scores[owner].units_killed
     }

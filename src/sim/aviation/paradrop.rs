@@ -217,7 +217,7 @@ impl Simulation {
                 .is_some()
     }
 
-    pub(crate) fn run_ai_paratrooper(&mut self, unit: &Unit) -> bool {
+    pub(in crate::sim) fn run_ai_paratrooper(&mut self, unit: &Unit) -> bool {
         // daiparadrop.c first clears immediate threats and opportunistic
         // attacks before considering a jump.
         if !self.ai_military_rampage(unit.id, 1, 99999) {

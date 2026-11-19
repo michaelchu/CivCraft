@@ -1,6 +1,7 @@
 //! Peaceful contact, cautious trust, explicit war and barbarian hostility.
 use super::{Checks, Scenario};
 use crate::scenarios::{Control, ScenarioKind};
+use crate::sim::drive::Drive;
 use crate::{
     sim::{
         BARBARIANS, HUMAN, MoveResult, Pact, Simulation, TreatyOffer, UnitKind,

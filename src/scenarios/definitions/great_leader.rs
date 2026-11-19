@@ -1,6 +1,7 @@
 //! AI Leader eligibility, consumption and wonder completion.
 use super::{Checks, Scenario};
 use crate::scenarios::{Control, ScenarioKind};
+use crate::sim::drive::Drive;
 use crate::{
     rules::{Building, Tech},
     sim::{Production, Simulation, UnitKind, fixtures::WorldBuilder},

@@ -1,6 +1,7 @@
 //! Barracks and ordinary unit recovery through the normal recovery rules.
 use super::{Checks, Scenario};
 use crate::scenarios::{Control, ScenarioKind};
+use crate::sim::drive::Drive;
 use crate::{
     rules::{Building, Tech},
     sim::{HUMAN, Simulation, UnitKind, fixtures::WorldBuilder},

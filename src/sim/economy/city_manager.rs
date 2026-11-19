@@ -1026,7 +1026,7 @@ impl Simulation {
         true
     }
 
-    pub(crate) fn reconcile_city_workers(&mut self) {
+    pub(in crate::sim) fn reconcile_city_workers(&mut self) {
         let mut occupied = std::collections::HashSet::new();
         // Preserve existing assignments before placing any newly available workers.
         for index in 0..self.cities.len() {

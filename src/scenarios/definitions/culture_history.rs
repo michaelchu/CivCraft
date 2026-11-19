@@ -1,6 +1,7 @@
 //! City culture accrual and conquest retain the ruleset's history semantics.
 use super::{Checks, Scenario};
 use crate::scenarios::{Control, ScenarioKind};
+use crate::sim::drive::Drive;
 use crate::{
     rules::engine_rules::VictoryCondition,
     sim::{HUMAN, Pact, Simulation, UnitKind, fixtures::WorldBuilder},

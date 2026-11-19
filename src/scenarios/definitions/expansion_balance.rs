@@ -1,6 +1,7 @@
 //! Settlement advice reprices commitments while retaining cached site values.
 use super::{Checks, Scenario};
 use crate::scenarios::{Control, ScenarioKind};
+use crate::sim::drive::Drive;
 use crate::sim::{
     AiBuildChoice, Government, Production, Simulation, UnitKind, fixtures::WorldBuilder,
 };

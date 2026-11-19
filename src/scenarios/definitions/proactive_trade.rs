@@ -1,6 +1,7 @@
 //! Cash purchases, policy preferences, export safeguards and trade cadence.
 use super::{Checks, Scenario};
 use crate::scenarios::{Control, ScenarioKind};
+use crate::sim::drive::Drive;
 use crate::{
     rules::Tech,
     sim::{Pact, Simulation, fixtures::WorldBuilder},
