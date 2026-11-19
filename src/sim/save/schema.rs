@@ -351,6 +351,39 @@ impl<'a, S> SavedCampaignV2G<'a, S> {
     }
 }
 
+/// Legacy 0x30 payload used before culture-building ages were merged into the
+/// current save schema. Kept for migration of campaigns written on main.
+#[derive(Serialize, Deserialize)]
+pub(super) struct SavedCampaignV30<'a, S> {
+    campaign: SavedCampaignV2D<'a, S>,
+    objectives: Vec<((usize, usize), diplomacy::WarObjective)>,
+    vassalage: diplomacy::vassalage::SavedVassalage,
+    notifications: Cow<'a, [notifications::Notification]>,
+    next_notification_id: u64,
+}
+
+impl<'a, S> SavedCampaignV30<'a, S> {
+    pub(super) fn into_game(self) -> Result<(Simulation, S), &'static str> {
+        let (mut game, partial_sites) = self.campaign.into_game()?;
+        game.restore_vassalage(self.vassalage)?;
+        for (pair, objective) in self.objectives {
+            let Some(plan) = game.ai_war_plans.get_mut(&pair) else {
+                return Err("War objective has no plan");
+            };
+            if plan.objective.is_some()
+                || !(0..game.map_wrap.width()).contains(&objective.staging.0)
+                || !(0..game.map_wrap.height()).contains(&objective.staging.1)
+            {
+                return Err("Invalid war objective");
+            }
+            plan.objective = Some(objective);
+        }
+        game.notifications = self.notifications.into_owned();
+        game.next_notification_id = self.next_notification_id;
+        Ok((game, partial_sites))
+    }
+}
+
 fn apply_culture_building_history(
     game: &mut Simulation,
     histories: BTreeMap<u32, Vec<CultureBuildingAge>>,

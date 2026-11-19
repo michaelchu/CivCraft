@@ -21,6 +21,7 @@ mod schema;
 use schema::{
     LegacyAiMap, LegacyCampaign, SavedCampaign, SavedCampaignV2A, SavedCampaignV2B,
     SavedCampaignV2C, SavedCampaignV2D, SavedCampaignV2E, SavedCampaignV2F, SavedCampaignV2G,
+    SavedCampaignV30,
 };
 
 const HEADER: &[u8] = b"CIVCRAFT\0\x31";
@@ -235,11 +236,22 @@ impl Simulation {
                 (game, None, LegacyAiMap::default(), partial_sites)
             }
             V2G_HEADER => {
-                let saved: SavedCampaignV2G<'_, observed_map::PartialCitySites> =
-                    codec(max_payload)
-                        .deserialize(&payload)
-                        .map_err(|error| invalid(error.to_string()))?;
-                let (game, partial_sites) = saved.into_game().map_err(invalid)?;
+                let culture_result = codec(max_payload)
+                    .deserialize::<SavedCampaignV2G<'_, observed_map::PartialCitySites>>(&payload)
+                    .map_err(|error| invalid(error.to_string()))
+                    .and_then(|saved| saved.into_game().map_err(invalid));
+                let (game, partial_sites) = match culture_result {
+                    Ok((game, partial_sites)) if valid_notification_state(&game) => {
+                        (game, partial_sites)
+                    }
+                    _ => {
+                        let saved: SavedCampaignV30<'_, observed_map::PartialCitySites> =
+                            codec(max_payload)
+                                .deserialize(&payload)
+                                .map_err(|error| invalid(error.to_string()))?;
+                        saved.into_game().map_err(invalid)?
+                    }
+                };
                 (game, None, LegacyAiMap::default(), partial_sites)
             }
             HEADER => {
@@ -571,6 +583,16 @@ impl Simulation {
         }
         Ok(())
     }
+}
+
+fn valid_notification_state(game: &Simulation) -> bool {
+    let ids: std::collections::BTreeSet<_> =
+        game.notifications.iter().map(|item| item.id).collect();
+    let max_id = ids.iter().next_back().copied().unwrap_or(0);
+    game.notifications.len() <= 500
+        && ids.len() == game.notifications.len()
+        && !ids.contains(&0)
+        && game.next_notification_id > max_id
 }
 
 fn codec(max_payload: u64) -> impl Options {
