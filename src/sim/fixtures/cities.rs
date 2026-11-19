@@ -120,6 +120,20 @@ impl WorldBuilder<'_> {
         self.game.cities[index].buildings = buildings.to_vec();
     }
 
+    /// Install a culture-producing building and record its source age at the
+    /// campaign's current year.
+    pub(crate) fn culture_building(&mut self, city_id: u32, building: Building) {
+        let index = self
+            .game
+            .city_index_by_id(city_id)
+            .expect("fixture city exists");
+        let owner = self.game.cities[index].owner;
+        if !self.game.cities[index].buildings.contains(&building) {
+            self.game.cities[index].buildings.push(building);
+        }
+        self.game.cities[index].record_culture_building(building, owner, self.game.year);
+    }
+
     pub(crate) fn production_stock(
         &mut self,
         city_id: u32,

@@ -833,6 +833,14 @@ Run `--scenario lifecycle-history --turns 1` for a regression exercising actual
 production, same-interval loss, founding, disbanding, conquest, trade and city
 destruction.
 
+Run `--scenario culture-borders --turns 1` to verify accumulated city culture
+claims a tile after crossing a border tier. Run
+`--scenario culture-wonder-capture --turns 1` to check audited Palace and Sistine
+Chapel rates, 1,000-year doubling, capture output, and original-builder
+recapture. Run `--scenario culture-empire-victory --turns 1` to exercise the
+map-scaled culture target and two-to-one lead through normal turn processing,
+with culture distributed below the legendary-city threshold.
+
 ### Seed-42 80-turn ramp baseline
 
 The deterministic tiny-map workload below is the current ramp regression:

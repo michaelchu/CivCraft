@@ -88,7 +88,7 @@ retain private access in the aviation unit tests.
 ## Scripted-rule audit
 
 Full workflows use normal turns, including `ai-paradrops` and the paired
-`trait-campaign`. The remaining thirteen `Actions` definitions control individual
+`trait-campaign`. The remaining sixteen `Actions` definitions control individual
 rule inputs or transitions. They retain `Drive` where they need a rule result or
 an explicit phase boundary, rather than scheduling an AI player's activities.
 
@@ -97,6 +97,7 @@ an explicit phase boundary, rather than scheduling an AI player's activities.
 | `combat-matrix` | Movement-triggered combat results under terrain and city-defense variants. |
 | `city-healing` | Unit restoration with and without the relevant healing improvement. |
 | `culture-history`, `lifecycle-history`, `research-history` | History/provenance for explicit production, capture, loss, research, treaty and upkeep operations. |
+| `culture-borders`, `culture-wonder-capture`, `culture-empire-victory` | Culture milestones claim territory; wonder sources age and follow their original builder through capture and recapture; distributed empire culture wins at the normal turn boundary. |
 | `great-leader` | Leader consumption and completion of a selected city improvement. |
 | `expansion-balance`, `shared-strategy`, `wartime-funding` | Advisor/cache repricing, shared policy weights, purchase quotes and upkeep/reserve constraints under changed inputs. |
 | `proactive-trade`, `peaceful-first-contact`, `relationship-memory`, `competing-trade-partners` | Atomic diplomatic choices, valuation, first-contact rules and directional relationship memory. |
