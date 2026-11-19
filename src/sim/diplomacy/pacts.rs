@@ -27,6 +27,9 @@ impl Simulation {
     }
 
     pub(crate) fn next_pact(&self, a: usize, b: usize) -> Option<Pact> {
+        if !self.pact_transition_allowed(a, b) || self.vassal_master(b).is_some() {
+            return None;
+        }
         match self.pact(a, b) {
             Pact::War => Some(Pact::Ceasefire),
             Pact::Ceasefire if self.pact_turns(a, b) <= 4 => Some(Pact::Peace),
@@ -56,6 +59,9 @@ impl Simulation {
         proposer: usize,
         proposed: Pact,
     ) -> Option<&'static str> {
+        if !self.pact_transition_allowed(proposer, receiver) {
+            return Some("War and peace are controlled by the master.");
+        }
         if receiver >= self.players.len()
             || proposer >= self.players.len()
             || receiver == proposer
@@ -197,19 +203,38 @@ impl Simulation {
     }
 
     pub(in crate::sim) fn sign_pact(&mut self, a: usize, b: usize, proposed: Pact) {
-        let previous = self.contacted_pact(a, b);
-        let treaty_length = self.treaty_length(a, b, proposed);
-        let relation = self.diplomacy.entry(Self::relation_key(a, b)).or_default();
-        relation.pact = if proposed == Pact::Peace {
+        if !self.pact_transition_allowed(a, b) {
+            return;
+        }
+        let pact = if proposed == Pact::Peace {
             Pact::Armistice
         } else {
             proposed
         };
-        relation.until = if matches!(proposed, Pact::Peace | Pact::Ceasefire) {
-            self.turn.saturating_add(treaty_length)
+        let length = self.treaty_length(
+            self.vassal_master(a).unwrap_or(a),
+            self.vassal_master(b).unwrap_or(b),
+            proposed,
+        );
+        let until = if matches!(proposed, Pact::Peace | Pact::Ceasefire) {
+            self.turn.saturating_add(length)
         } else {
             0
         };
+        if self.diplomatic_group(a).len() == 1 && self.diplomatic_group(b).len() == 1 {
+            self.set_pact_state(a, b, pact, until);
+        } else {
+            let changes = self.plan_group_pact(a, b, pact, until);
+            self.commit_pact_changes(changes);
+        }
+    }
+
+    /// Applies an already validated final state; callers own group expansion.
+    pub(super) fn set_pact_state(&mut self, a: usize, b: usize, proposed: Pact, until: i32) {
+        let previous = self.contacted_pact(a, b);
+        let relation = self.diplomacy.entry(Self::relation_key(a, b)).or_default();
+        relation.pact = proposed;
+        relation.until = until;
         relation.offer = None;
         // Native diplomacy has a permanent state independently of physical
         // contact; a treaty through an embassy can change NO_CONTACT without
@@ -230,7 +255,7 @@ impl Simulation {
         self.trace_diplomacy(a, b, "pact_changed", "treaty_signed", previous, None);
         self.ai_war_plans.remove(&(a, b));
         self.ai_war_plans.remove(&(b, a));
-        if proposed == Pact::Peace {
+        if matches!(proposed, Pact::Peace | Pact::Armistice) {
             let mut returned_to_normalcy = Vec::new();
             for owner in [a, b] {
                 if let Some(player) = self.players.get_mut(owner)
@@ -246,15 +271,22 @@ impl Simulation {
         }
         if a == HUMAN || b == HUMAN {
             let other = if a == HUMAN { b } else { a };
-            let detail = if proposed == Pact::Peace {
-                " Withdraw from their territory during the 16-turn armistice."
+            let detail = if proposed == Pact::Armistice {
+                format!(
+                    " Withdraw from their territory during the {}-turn armistice.",
+                    (until - self.turn).max(0)
+                )
             } else {
-                ""
+                String::new()
             };
             self.add_event(format!(
                 "{} agreed to {}.{detail}",
                 self.players[other].name,
-                proposed.name().to_lowercase()
+                if proposed == Pact::Armistice {
+                    "peace".to_owned()
+                } else {
+                    proposed.name().to_lowercase()
+                }
             ));
         }
     }
@@ -265,6 +297,11 @@ impl Simulation {
 
     fn cancel_pact_inner(&mut self, owner: usize, other: usize, forced: bool) -> bool {
         let pact = self.pact(owner, other);
+        if self.same_vassal_group(owner, other)
+            || (!forced && !self.pact_transition_allowed(owner, other))
+        {
+            return false;
+        }
         if owner == other
             || owner >= self.players.len()
             || other >= self.players.len()
@@ -284,6 +321,25 @@ impl Simulation {
             }
             return false;
         }
+        let next = if pact == Pact::Alliance {
+            Pact::Armistice
+        } else {
+            Pact::War
+        };
+        let changes = self
+            .plan_group_pact(
+                owner,
+                other,
+                next,
+                if next == Pact::Armistice {
+                    self.turn + 16
+                } else {
+                    0
+                },
+            )
+            .into_iter()
+            .filter(|c| (c.first, c.second) != Self::relation_key(owner, other))
+            .collect();
         let breach = self.relationship_breach(owner, other, pact, forced);
         if pact != Pact::Alliance {
             self.record_war_incident(owner, other, pact);
@@ -338,6 +394,7 @@ impl Simulation {
                 self.cancel_pact_inner(ally, owner, true);
             }
         }
+        self.commit_pact_changes(changes);
         if self.at_war(owner, other) {
             self.remember_ally_support(owner, other);
         }
@@ -366,6 +423,37 @@ impl Simulation {
             self.cancel_pact_inner(ally, a, true);
             self.cancel_pact_inner(ally, b, true);
         }
+    }
+
+    /// The normal armistice expiry cleanup, also used for propagated deadlines.
+    pub(super) fn expel_armistice_units(&mut self, a: usize, b: usize) {
+        let expelled: Vec<_> = self
+            .units
+            .iter()
+            .filter(|unit| {
+                (!self.military_access(a, b)
+                    && unit.owner == a
+                    && self.tile(unit.x, unit.y).owner == Some(b)
+                    || !self.military_access(a, b)
+                        && unit.owner == b
+                        && self.tile(unit.x, unit.y).owner == Some(a))
+                    && !unit.kind.is_civilian()
+                    && !movement_rules::MovementRules::campaign()
+                        .terrain_has_named_flag(self.tile(unit.x, unit.y).terrain, "EnterBorders")
+                        .expect("campaign terrain has valid flags")
+            })
+            .map(|unit| unit.id)
+            .collect();
+        for unit in self.units.iter().filter(|unit| {
+            expelled.contains(&unit.id) || unit.transport.is_some_and(|id| expelled.contains(&id))
+        }) {
+            self.trace
+                .unit_removed(self.turn, unit, lifecycle::UnitRemoval::Expelled);
+        }
+        self.units.retain(|unit| {
+            !expelled.contains(&unit.id) && unit.transport.is_none_or(|id| !expelled.contains(&id))
+        });
+        self.prune_unit_ai_state();
     }
 
     fn treaty_length(&self, a: usize, b: usize, proposed: Pact) -> i32 {

@@ -502,6 +502,9 @@ impl Game {
                     self.treaty_draft = Some((owner, offer));
                 }
             }
+            UiAction::ReleaseVassal(other) => {
+                self.sim.apply(Command::ReleaseVassal(other));
+            }
             UiAction::CancelPact(other) => {
                 self.sim.apply(Command::CancelPact(other));
             }

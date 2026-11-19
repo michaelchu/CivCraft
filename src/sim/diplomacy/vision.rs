@@ -7,13 +7,17 @@ impl Simulation {
         if giver == receiver || giver >= self.players.len() || receiver >= self.players.len() {
             return false;
         }
+        if self.vassal_master(giver) == Some(receiver) {
+            return true;
+        }
         self.diplomacy
             .get(&Self::relation_key(giver, receiver))
             .is_some_and(|relation| relation.vision[usize::from(giver > receiver)])
     }
 
     pub(in crate::sim) fn cancel_shared_vision(&mut self, giver: usize, receiver: usize) -> bool {
-        if !self.gives_shared_vision(giver, receiver) {
+        if self.vassal_master(giver) == Some(receiver) || !self.gives_shared_vision(giver, receiver)
+        {
             return false;
         }
         let side = usize::from(giver > receiver);
@@ -90,11 +94,9 @@ impl Simulation {
     pub(crate) fn unit_visible_to_human(&self, unit: &Unit) -> bool {
         let tile = self.tile(unit.x, unit.y);
         let allied = self.allied(HUMAN, unit.owner);
-        if self
-            .cities
-            .iter()
-            .any(|city| (city.x, city.y) == (unit.x, unit.y) && !self.allied(HUMAN, city.owner))
-        {
+        if self.cities.iter().any(|city| {
+            (city.x, city.y) == (unit.x, unit.y) && !self.military_access(HUMAN, city.owner)
+        }) {
             return false;
         }
         allied
@@ -119,6 +121,11 @@ impl Simulation {
         let mut recipients = vec![giver];
         let mut next = 0;
         while let Some(&source) = recipients.get(next) {
+            if let Some(master) = self.vassal_master(source)
+                && !recipients.contains(&master)
+            {
+                recipients.push(master);
+            }
             for (&(a, b), relation) in &self.diplomacy {
                 let target = if a == source && relation.vision[0] {
                     b

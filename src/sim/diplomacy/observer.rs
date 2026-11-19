@@ -3,6 +3,21 @@
 use super::*;
 
 impl Simulation {
+    pub(super) fn diplomatic_military_force(&self, observer: usize, owner: usize) -> i64 {
+        self.units
+            .iter()
+            .filter(|u| {
+                u.owner == owner
+                    && u.kind.is_military()
+                    && (observer == owner || self.unit_visible_to(observer, u))
+            })
+            .map(|u| {
+                i64::from(u.kind.stats().attack.max(u.kind.stats().defense))
+                    * i64::from(u.hp.max(0))
+            })
+            .sum()
+    }
+
     // common/player.c:can_player_see_unit_at. known_by is remembered map
     // knowledge, not current sight; reconstruct the observer's live layers.
     pub(crate) fn unit_visible_to(&self, observer: usize, unit: &Unit) -> bool {
@@ -12,11 +27,9 @@ impl Simulation {
         if unit.transport.is_some() && !self.allied(observer, unit.owner) {
             return false;
         }
-        if self
-            .cities
-            .iter()
-            .any(|city| (city.x, city.y) == (unit.x, unit.y) && !self.allied(observer, city.owner))
-        {
+        if self.cities.iter().any(|city| {
+            (city.x, city.y) == (unit.x, unit.y) && !self.military_access(observer, city.owner)
+        }) {
             return false;
         }
         self.unit_is_visible_from_sources(observer, unit)

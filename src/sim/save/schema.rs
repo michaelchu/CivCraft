@@ -506,6 +506,7 @@ impl<'a, A, S> SavedCampaign<'a, A, S> {
             hunter_targets: core.hunter_targets.into_iter().collect(),
             previous_naval_positions: core.previous_naval_positions.into_iter().collect(),
             diplomacy: core.diplomacy.into_owned(),
+            vassalage: Default::default(),
             apollo_completed: core.apollo_completed,
             global_advances: core.global_advances.into_owned(),
             players: core.players.into_owned(),

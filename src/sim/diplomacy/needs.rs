@@ -189,22 +189,8 @@ impl Simulation {
             return 0;
         }
         let strategy = self.strategic_priorities(owner);
-        let force = |unit: &Unit| {
-            i64::from(unit.kind.stats().attack.max(unit.kind.stats().defense))
-                * i64::from(unit.hp.max(0))
-        };
-        let own: i64 = self
-            .units
-            .iter()
-            .filter(|u| u.owner == owner && u.kind.is_military())
-            .map(force)
-            .sum();
-        let enemy: i64 = self
-            .units
-            .iter()
-            .filter(|u| u.owner == other && u.kind.is_military() && self.unit_visible_to(owner, u))
-            .map(force)
-            .sum();
+        let own = self.diplomatic_military_force(owner, owner);
+        let enemy = self.diplomatic_military_force(owner, other);
         let military =
             (enemy - own * policy().peace_visible_force_ratio).max(0) * policy().peace_force_value;
         let fiscal = if strategy.economic_crisis {

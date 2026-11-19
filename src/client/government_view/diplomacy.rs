@@ -29,7 +29,10 @@ impl Game {
             let owner = rival.owner;
             let y = panel.y + 53.0 + row as f32 * 94.0;
             let pact = rival.pact;
-            let mut status = pact.name().to_owned();
+            let mut status = rival
+                .vassal_status
+                .clone()
+                .unwrap_or_else(|| pact.name().to_owned());
             if rival.has_embassy {
                 status.push_str(" · Embassy");
             }
@@ -64,14 +67,20 @@ impl Game {
                     "Review offer".to_owned(),
                     UiAction::OpenDiplomacyWith(owner),
                 ));
-            } else if rival.next_pact.is_some() {
+            } else if rival.can_negotiate {
                 buttons.push(("Negotiate".to_owned(), UiAction::OpenDiplomacyWith(owner)));
             }
             if rival.treaty_offer.is_some() {
                 buttons.push(("Decline".to_owned(), UiAction::DeclineOffer(owner)));
             }
-            if pact != Pact::War {
+            if pact != Pact::War && rival.can_cancel_pact {
                 buttons.push(("Cancel pact".to_owned(), UiAction::CancelPact(owner)));
+            }
+            if rival.can_release {
+                buttons.push((
+                    "Grant independence".to_owned(),
+                    UiAction::ReleaseVassal(owner),
+                ));
             }
             if rival.gives_shared_vision {
                 buttons.push((
@@ -153,6 +162,7 @@ impl Game {
         for (side_index, side) in [HUMAN, owner].into_iter().enumerate() {
             let side_view = &view.sides[side_index];
             let rect = side_rects[side_index];
+            let can_negotiate = can_negotiate && offer.vassalage.is_none();
             draw_text(
                 &format!("{} · {}g", side_view.name, side_view.gold),
                 rect.x,
@@ -168,7 +178,7 @@ impl Game {
             let amount_rect = Rect::new(rect.x + step_width + step_gap, gold_y, step_width, 24.0);
             let plus = Rect::new(amount_rect.right() + step_gap, gold_y, step_width, 24.0);
             let add_gold = Rect::new(rect.x, gold_y + 28.0, rect.w, 24.0);
-            draw_ui_button(minus, "-25", amount > 0, false);
+            draw_ui_button(minus, "-25", can_negotiate && amount > 0, false);
             let amount_label = format!("{amount}g");
             let amount_label_width = measure_text(&amount_label, None, 13, 1.0).width;
             draw_text(
@@ -178,7 +188,7 @@ impl Game {
                 13.0,
                 WHITE,
             );
-            draw_ui_button(plus, "+25", amount < side_view.gold, false);
+            draw_ui_button(plus, "+25", can_negotiate && amount < side_view.gold, false);
             draw_ui_button(
                 add_gold,
                 "Add gold",
@@ -206,6 +216,14 @@ impl Game {
                 ("Diplomatic access".to_owned(), Vec::new()),
                 ("Cities".to_owned(), Vec::new()),
             ];
+            if side_index == 1
+                && let Ok(vassal_offer) = &view.vassal_offer
+            {
+                let terms = vassal_offer.vassalage.expect("vassal offer has terms");
+                groups[2]
+                    .1
+                    .push((self.sim.vassal_offer_label(terms), vassal_offer.clone()));
+            }
             for (tech, name) in &side_view.technologies {
                 if offer.terms[side_index]
                     .technologies()
@@ -390,11 +408,17 @@ impl Game {
             Pact::Peace => "Our diplomats are ready to discuss our relations.",
             Pact::Alliance => "Our alliance joins our fortunes. What shall we discuss?",
         };
+        let vassal_dialogue = offer
+            .vassalage
+            .map(|terms| self.sim.vassal_war_preview(HUMAN, owner, terms));
         let dialogue = self
             .treaty_feedback
             .as_ref()
             .filter(|(target, _)| *target == owner)
-            .map_or(default_dialogue, |(_, message)| message.as_str());
+            .map_or(
+                vassal_dialogue.as_deref().unwrap_or(default_dialogue),
+                |(_, message)| message.as_str(),
+            );
         let speech = Rect::new(center.x, leader_y + 7.0, center.w, 38.0);
         draw_rectangle(
             speech.x,
@@ -421,7 +445,19 @@ impl Game {
         );
 
         let treaty_y = speech.bottom() + 8.0;
-        let treaty_label = if let Some(pact) = offer.pact {
+        if let Err(reason) = &view.vassal_offer {
+            text_in(
+                reason,
+                center.x,
+                center.bottom() - 5.0,
+                11.0,
+                center.w,
+                LIGHTGRAY,
+            );
+        }
+        let treaty_label = if let Some(terms) = offer.vassalage {
+            self.sim.vassal_offer_label(terms)
+        } else if let Some(pact) = offer.pact {
             format!("Treaty: {}", pact.name())
         } else {
             "No treaty clause".to_owned()
@@ -434,12 +470,13 @@ impl Game {
             center.w - 95.0,
             GOLD,
         );
-        if offer.pact.is_some() {
+        if offer.pact.is_some() || offer.vassalage.is_some() {
             let remove = Rect::new(center.right() - 88.0, treaty_y - 2.0, 88.0, 22.0);
             draw_ui_button(remove, "Remove", can_negotiate, false);
             if can_negotiate {
                 let mut changed = offer.clone();
                 changed.pact = None;
+                changed.vassalage = None;
                 actions.push((remove, UiAction::EditTreatyDraft(owner, changed)));
             }
         } else if let Some(next_pact) = view.next_pact {

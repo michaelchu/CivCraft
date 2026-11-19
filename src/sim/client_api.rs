@@ -148,6 +148,19 @@ impl ClientSimulation {
         self.simulation.diplomacy_meeting_view(owner, draft)
     }
 
+    pub(crate) fn vassal_offer_label(&self, terms: super::VassalTerms) -> String {
+        self.simulation.vassal_offer_label(terms)
+    }
+
+    pub(crate) fn vassal_war_preview(
+        &self,
+        a: usize,
+        b: usize,
+        terms: super::VassalTerms,
+    ) -> String {
+        self.simulation.vassal_war_preview(a, b, terms)
+    }
+
     pub(crate) fn treaty_offer_current_view(&self, owner: usize, offer: &TreatyOffer) -> bool {
         self.simulation.treaty_offer_current_view(owner, offer)
     }

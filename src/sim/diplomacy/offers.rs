@@ -236,6 +236,29 @@ impl Simulation {
     }
 
     fn execute_offer_inner(&mut self, a: usize, b: usize, offer: &TreatyOffer) -> bool {
+        if a == b || a >= self.players.len() || b >= self.players.len() {
+            return false;
+        }
+        if let Some(terms) = offer.vassalage {
+            if offer.pact.is_some()
+                || offer.terms != [Concessions::default(), Concessions::default()]
+            {
+                return false;
+            }
+            let Ok(changes) = self.plan_vassalage(a, b, terms) else {
+                return false;
+            };
+            if !self.ai_accepts_vassalage(a, b, terms) {
+                return false;
+            }
+            self.establish_vassalage(a, b, terms, changes);
+            return true;
+        }
+        if offer.pact.is_some()
+            && (!self.pact_transition_allowed(a, b) || self.vassal_master(b).is_some())
+        {
+            return false;
+        }
         if offer
             .pact
             .is_some_and(|pact| self.pact_refusal(b, a, pact).is_some())
@@ -497,6 +520,7 @@ impl Simulation {
     }
 
     pub(in crate::sim) fn advance_diplomatic_offers_for(&mut self, owner: usize) {
+        self.advance_vassal_negotiations_for(owner);
         let mut vision_changed = false;
         if owner == BARBARIANS || !self.players[owner].ai || !self.player_alive(owner) {
             return;
@@ -570,6 +594,13 @@ impl Simulation {
                 *warning = warning.saturating_sub(1).max(0);
             }
             // A pending offer must not freeze unrelated diplomatic timers.
+            if self.diplomacy[&Self::relation_key(owner, other)]
+                .offer
+                .as_ref()
+                .is_some_and(|o| o.vassalage.is_some())
+            {
+                continue;
+            }
             if !self.players[other].ai
                 && self.diplomacy[&Self::relation_key(owner, other)]
                     .offer

@@ -166,3 +166,24 @@ for binary in /tmp/civcraft-desktop-only /tmp/civcraft-with-scenarios; do
     | rg 'civcraft::(scenarios|sim::drive)::' || true
 done
 ```
+
+### Vassal states
+
+`vassal-capitulation` and `vassal-voluntary` prepare a threatened AI, its
+prospective protector and an independent third nation through `WorldBuilder`.
+Traced actions run the existing AI proposal and player acceptance command
+paths; a normal turn then checks that AI planning and treaty expiry preserve
+the agreement. Run each for one turn.
+
+
+The all-AI vassal runtimes start with independent nations in slots 1 and 2.
+They form agreements entirely through ordinary turns; slot 0 is a separate AI.
+Run `ai-vassal-capitulation` and `ai-vassal-voluntary` for two turns each,
+`ai-vassal-war-peace` for five, and `ai-vassal-independence` for three.
+The latter two inject a prepared war plan or the loss of two remote cities
+through `before_turn`, then observe the AI's response. They never invoke
+submission, acceptance, war declaration, peace negotiation or independence rule
+steps directly. Inspect their scenario observations and `diplomacy.transition`
+events for the matching AI participants, actual acceptance, group pact changes
+and `protection_failed` departure. These controlled island fixtures establish
+behavior under explicit conditions, rather than campaign-wide frequency or balance.

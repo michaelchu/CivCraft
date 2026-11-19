@@ -729,3 +729,98 @@ fn governor_settings_round_trip_and_v2b_loads_without_a_governor() {
     fs::remove_file(path).unwrap();
     assert!(loaded.city_governors.is_empty());
 }
+
+#[test]
+fn vassal_agreements_and_pending_submission_survive_save_and_resume() {
+    use crate::sim::VassalKind;
+    for pending in [false, true] {
+        let mut game = Simulation::new(crate::test_support::seeded_map());
+        let mut world = fixtures::WorldBuilder::new(&mut game);
+        world.vassalage_campaign(VassalKind::Capitulation);
+        world.finish();
+        game.advance_diplomatic_offers_for(1);
+        let offer = game.treaty_offer(1).expect("surrender offer");
+        if !pending {
+            assert!(game.accept_offer(1, offer));
+        }
+        let path = temporary_save("vassal-resume");
+        game.save_campaign(&path).unwrap();
+        let mut loaded = Simulation::load_campaign(&path).unwrap();
+        fs::remove_file(path).unwrap();
+        assert_eq!(
+            game.encode_campaign().unwrap(),
+            loaded.encode_campaign().unwrap()
+        );
+        if pending {
+            let offer = loaded.treaty_offer(1).unwrap();
+            assert!(loaded.accept_offer(1, offer));
+            let offer = game.treaty_offer(1).unwrap();
+            assert!(game.accept_offer(1, offer));
+        }
+        game.simulate_turn();
+        loaded.simulate_turn();
+        assert_eq!(
+            game.encode_campaign().unwrap(),
+            loaded.encode_campaign().unwrap()
+        );
+    }
+}
+
+#[test]
+fn v2e_campaign_loads_without_vassals() {
+    let game = Simulation::new(crate::test_support::seeded_map());
+    let mut bytes = V2E_HEADER.to_vec();
+    bytes.extend(
+        codec(MAX_PAYLOAD)
+            .serialize(&(
+                SavedCampaignV2D::from_game(&game, Cow::Borrowed(&game.observed_map.partial_sites)),
+                Vec::<((usize, usize), diplomacy::WarObjective)>::new(),
+            ))
+            .unwrap(),
+    );
+    let path = temporary_save("v2e-vassal-upgrade");
+    fs::write(&path, bytes).unwrap();
+    let loaded = Simulation::load_campaign(&path).unwrap();
+    fs::remove_file(path).unwrap();
+    assert!(loaded.vassalage.agreements.is_empty());
+}
+
+#[test]
+fn corrupt_vassal_master_is_rejected_by_loader() {
+    let mut game = Simulation::new(crate::test_support::seeded_map());
+    let mut world = fixtures::WorldBuilder::new(&mut game);
+    world.vassalage_campaign(crate::sim::VassalKind::Capitulation);
+    world.finish();
+    let offer = game.vassal_offer_view(1).unwrap();
+    assert!(game.propose_treaty(1, offer));
+    game.vassalage.agreements.get_mut(&1).unwrap().master = 1;
+    let path = temporary_save("invalid-vassal-master");
+    game.save_campaign(&path).unwrap();
+    assert!(Simulation::load_campaign(&path).is_err());
+    fs::remove_file(path).unwrap();
+}
+
+#[test]
+fn corrupt_pending_vassal_participants_are_rejected() {
+    for master in [1, usize::MAX] {
+        let mut game = Simulation::new(crate::test_support::seeded_map());
+        let mut world = fixtures::WorldBuilder::new(&mut game);
+        world.vassalage_campaign(crate::sim::VassalKind::Capitulation);
+        world.finish();
+        game.advance_diplomatic_offers_for(1);
+        game.diplomacy
+            .get_mut(&(0, 1))
+            .unwrap()
+            .offer
+            .as_mut()
+            .unwrap()
+            .vassalage
+            .as_mut()
+            .unwrap()
+            .master = master;
+        let path = temporary_save("invalid-pending-vassal");
+        game.save_campaign(&path).unwrap();
+        assert!(Simulation::load_campaign(&path).is_err());
+        fs::remove_file(path).unwrap();
+    }
+}
