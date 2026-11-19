@@ -276,30 +276,108 @@ impl<'a, S> SavedCampaignV2F<'a, S> {
             }
             plan.objective = Some(objective);
         }
-        let player_count = game.players.len();
-        let current_year = game.year;
-        for (city_id, records) in self.culture_buildings {
-            let Some(city) = game.cities.iter_mut().find(|city| city.id == city_id) else {
-                return Err("Culture building history has no city");
-            };
-            if records.iter().any(|record| {
-                record.builder >= player_count
-                    || record.active_since_year > current_year
-                    || !city.buildings.contains(&record.building)
-            }) {
-                return Err("Invalid culture building history");
-            }
-            let mut seen = Vec::new();
-            for record in &records {
-                if seen.contains(&record.building) {
-                    return Err("Duplicate culture building history");
-                }
-                seen.push(record.building);
-            }
-            city.culture_buildings = records;
-        }
+        apply_culture_building_history(&mut game, self.culture_buildings)?;
         Ok((game, partial_sites))
     }
+}
+
+/// Alternate 0x2F payload used by the notification-inbox change on `work`.
+#[derive(Serialize, Deserialize)]
+pub(super) struct SavedCampaignV2E<'a, S> {
+    campaign: SavedCampaignV2D<'a, S>,
+    objectives: SavedWarObjectives,
+    notifications: Cow<'a, [notifications::Notification]>,
+    next_notification_id: u64,
+}
+
+impl<'a, S> SavedCampaignV2E<'a, S> {
+    #[cfg(test)]
+    pub(super) fn from_game(game: &'a Simulation, partial_sites: S) -> Self {
+        let objectives = game
+            .ai_war_plans
+            .iter()
+            .filter_map(|(&pair, plan)| plan.objective.map(|objective| (pair, objective)))
+            .collect();
+        Self {
+            campaign: SavedCampaignV2D::from_game(game, partial_sites),
+            objectives,
+            notifications: Cow::Borrowed(&game.notifications),
+            next_notification_id: game.next_notification_id,
+        }
+    }
+
+    pub(super) fn into_game(self) -> Result<(Simulation, S), &'static str> {
+        let (mut game, partial_sites) = self.campaign.into_game()?;
+        for (pair, objective) in self.objectives {
+            let Some(plan) = game.ai_war_plans.get_mut(&pair) else {
+                return Err("War objective has no plan");
+            };
+            if plan.objective.is_some()
+                || !(0..game.map_wrap.width()).contains(&objective.staging.0)
+                || !(0..game.map_wrap.height()).contains(&objective.staging.1)
+            {
+                return Err("Invalid war objective");
+            }
+            plan.objective = Some(objective);
+        }
+        game.notifications = self.notifications.into_owned();
+        game.next_notification_id = self.next_notification_id;
+        Ok((game, partial_sites))
+    }
+}
+
+/// Format 0x30 combines durable culture age and notification records.
+#[derive(Serialize, Deserialize)]
+pub(super) struct SavedCampaignV2G<'a, S> {
+    culture: SavedCampaignV2F<'a, S>,
+    notifications: Cow<'a, [notifications::Notification]>,
+    next_notification_id: u64,
+}
+
+impl<'a, S> SavedCampaignV2G<'a, S> {
+    pub(super) fn from_game(game: &'a Simulation, partial_sites: S) -> Self {
+        Self {
+            culture: SavedCampaignV2F::from_game(game, partial_sites),
+            notifications: Cow::Borrowed(&game.notifications),
+            next_notification_id: game.next_notification_id,
+        }
+    }
+
+    pub(super) fn into_game(self) -> Result<(Simulation, S), &'static str> {
+        let (mut game, partial_sites) = self.culture.into_game()?;
+        game.notifications = self.notifications.into_owned();
+        game.next_notification_id = self.next_notification_id;
+        Ok((game, partial_sites))
+    }
+}
+
+fn apply_culture_building_history(
+    game: &mut Simulation,
+    histories: BTreeMap<u32, Vec<CultureBuildingAge>>,
+) -> Result<(), &'static str> {
+    let player_count = game.players.len();
+    let current_year = game.year;
+    for (city_id, records) in histories {
+        let Some(city) = game.cities.iter_mut().find(|city| city.id == city_id) else {
+            return Err("Culture building history has no city");
+        };
+        if records.iter().any(|record| {
+            record.builder >= player_count
+                || record.active_since_year > current_year
+                || !city.buildings.contains(&record.building)
+        }) {
+            return Err("Invalid culture building history");
+        }
+        let mut seen = Vec::new();
+        for record in &records {
+            if seen.contains(&record.building) {
+                return Err("Duplicate culture building history");
+            }
+            seen.push(record.building);
+        }
+        city.culture_buildings = records;
+    }
+    Ok(())
 }
 
 #[derive(Deserialize)]
@@ -373,7 +451,7 @@ impl<'a, A, S> SavedCampaign<'a, A, S> {
                 next_unit_id: game.next_unit_id,
                 next_city_id: game.next_city_id,
                 rng: game.rng,
-                events: Cow::Borrowed(&game.events),
+                events: Cow::Borrowed(&game.legacy_events),
                 game_over: Cow::Borrowed(&game.game_over),
                 climate_pressure: Cow::Borrowed(&game.climate_pressure),
             },
@@ -438,7 +516,9 @@ impl<'a, A, S> SavedCampaign<'a, A, S> {
             next_unit_id: core.next_unit_id,
             next_city_id: core.next_city_id,
             rng: core.rng,
-            events: core.events.into_owned(),
+            legacy_events: core.events.into_owned(),
+            #[cfg(test)]
+            events: Vec::new(),
             game_over: core.game_over.into_owned(),
             climate_pressure: core.climate_pressure.into_owned(),
             ai_purchase_reserve: ai.ai_purchase_reserve.into_owned(),
@@ -471,6 +551,94 @@ impl<'a, A, S> SavedCampaign<'a, A, S> {
 #[cfg(test)]
 mod treaty_schema_tests {
     use super::*;
+    use bincode::Options;
+
+    #[test]
+    fn colliding_v2f_headers_load_both_culture_and_notification_payloads() {
+        let mut game = Simulation::new(crate::test_support::seeded_map());
+        game.create_city(HUMAN, 12, 24);
+        let city_id = game.cities[0].id;
+        game.cities[0].record_culture_building(Building::LIBRARY, HUMAN, game.year);
+        game.cities[0].buildings.push(Building::LIBRARY);
+
+        let path =
+            std::env::temp_dir().join(format!("civcraft-v2f-culture-{}.save", std::process::id()));
+        let mut bytes = super::super::V2F_HEADER.to_vec();
+        bytes.extend(
+            super::super::codec(super::super::MAX_PAYLOAD)
+                .serialize(&SavedCampaignV2F::from_game(
+                    &game,
+                    Cow::Borrowed(&game.observed_map.partial_sites),
+                ))
+                .unwrap(),
+        );
+        std::fs::write(&path, bytes).unwrap();
+        let culture_loaded = Simulation::load_campaign(&path).unwrap();
+        assert_eq!(
+            culture_loaded
+                .city_by_id(city_id)
+                .unwrap()
+                .culture_buildings,
+            game.city_by_id(city_id).unwrap().culture_buildings
+        );
+
+        game.add_contextual_notification(
+            "Inbox payload from 0x2F.",
+            notifications::NotificationCategory::City,
+            notifications::NotificationPriority::Important,
+            Some(city_id),
+            Some(1),
+        );
+        let mut bytes = super::super::V2F_HEADER.to_vec();
+        bytes.extend(
+            super::super::codec(super::super::MAX_PAYLOAD)
+                .serialize(&SavedCampaignV2E::from_game(
+                    &game,
+                    Cow::Borrowed(&game.observed_map.partial_sites),
+                ))
+                .unwrap(),
+        );
+        std::fs::write(&path, bytes).unwrap();
+        let notifications_loaded = Simulation::load_campaign(&path).unwrap();
+        std::fs::remove_file(path).unwrap();
+        assert_eq!(notifications_loaded.notifications, game.notifications);
+        assert_eq!(
+            notifications_loaded.next_notification_id,
+            game.next_notification_id
+        );
+    }
+
+    #[test]
+    fn previous_format_messages_migrate_as_read_notifications() {
+        let game = Simulation::new(crate::test_support::seeded_map());
+        let mut saved =
+            SavedCampaignV2D::from_game(&game, Cow::Borrowed(&game.observed_map.partial_sites));
+        saved.campaign.campaign.campaign.campaign.core.events = Cow::Owned(vec![
+            "Earlier campaign message.".to_owned(),
+            "Another earlier message.".to_owned(),
+        ]);
+        let payload = super::super::codec(super::super::MAX_PAYLOAD)
+            .serialize(&(saved, super::super::SavedWarObjectives::new()))
+            .unwrap();
+        let path = std::env::temp_dir().join(format!(
+            "civcraft-notification-migration-{}.save",
+            std::process::id()
+        ));
+        let mut bytes = super::super::V2E_HEADER.to_vec();
+        bytes.extend(payload);
+        std::fs::write(&path, bytes).unwrap();
+
+        let loaded = Simulation::load_campaign(&path).unwrap();
+        std::fs::remove_file(path).unwrap();
+
+        assert_eq!(loaded.notifications.len(), 2);
+        assert_eq!(loaded.notifications[0].text, "Earlier campaign message.");
+        assert_eq!(loaded.notifications[1].text, "Another earlier message.");
+        assert!(loaded.notifications.iter().all(|item| item.read));
+        assert_eq!(loaded.unread_notifications_view(), 0);
+        assert!(loaded.legacy_events.is_empty());
+    }
+
     #[test]
     fn extra_technology_clauses_require_an_existing_pending_offer() {
         let game = Simulation::new(crate::test_support::seeded_map());

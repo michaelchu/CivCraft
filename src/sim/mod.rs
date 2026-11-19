@@ -54,6 +54,10 @@ pub(crate) use client_views::{
 pub(crate) use client_views::{CombatPresentationView, PresentationEventView};
 #[cfg(feature = "desktop")]
 pub(crate) use diplomacy::EspionageRivalView;
+#[cfg(test)]
+pub(crate) use notifications::NotificationCategory;
+#[cfg(feature = "desktop")]
+pub(crate) use notifications::{Notification, NotificationPriority};
 mod combat_rules;
 mod commands;
 mod diplomacy;
@@ -85,6 +89,7 @@ mod migration;
 mod movement;
 #[allow(dead_code)] // Shared ruleset adapter is introduced before call-site migration.
 mod movement_rules;
+mod notifications;
 mod presentation;
 #[cfg(test)]
 pub(crate) use presentation::CombatVisual;
@@ -260,7 +265,13 @@ pub(crate) struct Simulation {
     rng: u64,
     native_random: Option<FreecivRng>,
     cargo_order: std::collections::BTreeMap<u32, Vec<u32>>,
+    /// Compatibility storage consumed while upgrading older save formats.
+    legacy_events: Vec<String>,
+    /// Text-only mirror retained for source-adjacent legacy assertions.
+    #[cfg(test)]
     events: Vec<String>,
+    notifications: Vec<notifications::Notification>,
+    next_notification_id: u64,
     visual_events: presentation::VisualEvents,
     game_over: Option<String>,
     climate_pressure: [ClimatePressure; 2],
@@ -388,11 +399,6 @@ impl Simulation {
     /// Returns players in their stable slot order.
     pub(crate) fn players(&self) -> &[Player] {
         &self.players
-    }
-    /// Returns the accumulated player-facing event log.
-    #[cfg(test)]
-    pub(crate) fn events(&self) -> &[String] {
-        &self.events
     }
     /// Returns the current campaign turn number.
     pub(crate) fn turn(&self) -> i32 {
@@ -523,14 +529,45 @@ impl Simulation {
             native_random: Some(game_random),
             cargo_order: Default::default(),
             visual_events: Default::default(),
-            events: vec![
-                format!(
-                    "{} - Your people are ready to settle.",
-                    year_label(start_year)
-                ),
-                "Choose the Settlers and press B to found a city.".to_owned(),
-                "Explore, research, grow, and unite the world.".to_owned(),
+            legacy_events: Vec::new(),
+            #[cfg(test)]
+            events: Vec::new(),
+            notifications: vec![
+                notifications::Notification {
+                    id: 1,
+                    turn: 1,
+                    category: notifications::NotificationCategory::General,
+                    priority: notifications::NotificationPriority::Routine,
+                    text: format!(
+                        "{} - Your people are ready to settle.",
+                        year_label(start_year)
+                    ),
+                    related_city: None,
+                    related_civilization: None,
+                    read: false,
+                },
+                notifications::Notification {
+                    id: 2,
+                    turn: 1,
+                    category: notifications::NotificationCategory::General,
+                    priority: notifications::NotificationPriority::Routine,
+                    text: "Choose the Settlers and press B to found a city.".to_owned(),
+                    related_city: None,
+                    related_civilization: None,
+                    read: false,
+                },
+                notifications::Notification {
+                    id: 3,
+                    turn: 1,
+                    category: notifications::NotificationCategory::General,
+                    priority: notifications::NotificationPriority::Routine,
+                    text: "Explore, research, grow, and unite the world.".to_owned(),
+                    related_city: None,
+                    related_civilization: None,
+                    read: false,
+                },
             ],
+            next_notification_id: 4,
             game_over: None,
             climate_pressure: [ClimatePressure::new(map.map_wrap.tile_count()); 2],
             climate_current: [0; 2],
@@ -637,14 +674,6 @@ impl Simulation {
         );
         let idx = self.map_wrap.index(x, y);
         &mut self.tiles[idx]
-    }
-
-    /// Appends a message to the event log shown to the player.
-    pub(crate) fn add_event(&mut self, text: impl Into<String>) {
-        self.events.push(text.into());
-        if self.events.len() > 10 {
-            self.events.remove(0);
-        }
     }
 
     fn rand_below(&mut self, max: i32) -> i32 {

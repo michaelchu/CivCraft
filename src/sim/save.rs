@@ -1,7 +1,7 @@
 //! Current campaign persistence, input validation, and runtime restoration.
 //!
 //! Saves encode the durable part of [`Simulation`] with the current versioned
-//! binary format. Formats 0x26 through 0x2F are read and upgraded on save.
+//! binary format. Formats 0x26 through 0x30 are read and upgraded on save.
 //!
 //! When adding persistent fields, decide whether they belong in the save,
 //! update the round-trip and corruption checks. Runtime caches should remain excluded when
@@ -20,10 +20,11 @@ use std::{
 mod schema;
 use schema::{
     LegacyAiMap, LegacyCampaign, SavedCampaign, SavedCampaignV2A, SavedCampaignV2B,
-    SavedCampaignV2C, SavedCampaignV2D, SavedCampaignV2F,
+    SavedCampaignV2C, SavedCampaignV2D, SavedCampaignV2E, SavedCampaignV2F, SavedCampaignV2G,
 };
 
-const HEADER: &[u8] = b"CIVCRAFT\0\x2F";
+const HEADER: &[u8] = b"CIVCRAFT\0\x30";
+const V2F_HEADER: &[u8] = b"CIVCRAFT\0\x2F";
 const V2E_HEADER: &[u8] = b"CIVCRAFT\0\x2E";
 const V2D_HEADER: &[u8] = b"CIVCRAFT\0\x2D";
 const V2C_HEADER: &[u8] = b"CIVCRAFT\0\x2C";
@@ -74,7 +75,7 @@ impl Simulation {
 
     pub(crate) fn encode_campaign(&self) -> io::Result<Vec<u8>> {
         codec(MAX_PAYLOAD)
-            .serialize(&SavedCampaignV2F::from_game(
+            .serialize(&SavedCampaignV2G::from_game(
                 self,
                 Cow::Borrowed(&self.observed_map.partial_sites),
             ))
@@ -86,8 +87,8 @@ impl Simulation {
         let mut header = [0; HEADER.len()];
         file.read_exact(&mut header)?;
         let max_payload = match header.as_slice() {
-            HEADER | V2E_HEADER | V2D_HEADER | V2C_HEADER | V2B_HEADER | V2A_HEADER
-            | V29_HEADER | V28_HEADER | PACKED_LEGACY_HEADER => MAX_PAYLOAD,
+            HEADER | V2F_HEADER | V2E_HEADER | V2D_HEADER | V2C_HEADER | V2B_HEADER
+            | V2A_HEADER | V29_HEADER | V28_HEADER | PACKED_LEGACY_HEADER => MAX_PAYLOAD,
             LEGACY_HEADER => LEGACY_MAX_PAYLOAD,
             _ => return Err(invalid("Unsupported CivCraft save format")),
         };
@@ -175,6 +176,29 @@ impl Simulation {
                 }
                 (game, None, LegacyAiMap::default(), partial_sites)
             }
+            V2F_HEADER => {
+                let culture_result = codec(max_payload)
+                    .deserialize::<SavedCampaignV2F<'_, observed_map::PartialCitySites>>(&payload)
+                    .map_err(|error| invalid(error.to_string()))
+                    .and_then(|saved| saved.into_game().map_err(invalid));
+                let (game, partial_sites) = match culture_result {
+                    Ok(result) => result,
+                    Err(culture_error) => {
+                        codec(max_payload)
+                            .deserialize::<SavedCampaignV2E<'_, observed_map::PartialCitySites>>(
+                                &payload,
+                            )
+                            .map_err(|notification_error| {
+                                invalid(format!(
+                                    "Invalid 0x2F save (culture format: {culture_error}; notification format: {notification_error})"
+                                ))
+                            })?
+                            .into_game()
+                            .map_err(invalid)?
+                    }
+                };
+                (game, None, LegacyAiMap::default(), partial_sites)
+            }
             V2D_HEADER => {
                 let saved: SavedCampaignV2D<'_, observed_map::PartialCitySites> =
                     codec(max_payload)
@@ -183,8 +207,16 @@ impl Simulation {
                 let (game, partial_sites) = saved.into_game().map_err(invalid)?;
                 (game, None, LegacyAiMap::default(), partial_sites)
             }
+            HEADER => {
+                let saved: SavedCampaignV2G<'_, observed_map::PartialCitySites> =
+                    codec(max_payload)
+                        .deserialize(&payload)
+                        .map_err(|error| invalid(error.to_string()))?;
+                let (game, partial_sites) = saved.into_game().map_err(invalid)?;
+                (game, None, LegacyAiMap::default(), partial_sites)
+            }
             _ => {
-                let saved: SavedCampaignV2F<'_, observed_map::PartialCitySites> =
+                let saved: SavedCampaignV2D<'_, observed_map::PartialCitySites> =
                     codec(max_payload)
                         .deserialize(&payload)
                         .map_err(|error| invalid(error.to_string()))?;
@@ -193,6 +225,7 @@ impl Simulation {
             }
         };
         game.initialize_missing_culture_building_ages();
+        game.upgrade_legacy_notifications();
         game.validate_campaign()?;
         if game.city_governors.iter().any(|(&id, state)| {
             !state.settings.valid()
@@ -398,6 +431,9 @@ impl Simulation {
         let tech = |tech: Tech| tech == Tech::FUTURE || tech.data().is_some();
         let building = |building| Building::all().any(|known| known == building);
         let mut trade_route_pairs = std::collections::BTreeSet::new();
+        let notification_ids: std::collections::BTreeSet<_> =
+            self.notifications.iter().map(|item| item.id).collect();
+        let max_notification_id = notification_ids.iter().next_back().copied().unwrap_or(0);
         let production = |item| match item {
             Production::Building(item) => building(item),
             Production::Unit(_) => true,
@@ -407,6 +443,9 @@ impl Simulation {
             || self.nation_scores.len() != players
             || self.spaceships.len() != players
             || self.turn < 1
+            || notification_ids.len() != self.notifications.len()
+            || notification_ids.contains(&0)
+            || self.next_notification_id <= max_notification_id
             || (self.year_0_hack && self.year != 1)
             || self
                 .global_advances

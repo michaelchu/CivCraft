@@ -510,10 +510,13 @@ impl Simulation {
             }
             self.refresh_visibility();
             if unit.owner == HUMAN || old_owner == HUMAN {
-                self.add_event(format!(
-                    "{} destroyed {city_name}.",
-                    self.players[unit.owner].name
-                ));
+                self.add_contextual_notification(
+                    format!("{} destroyed {city_name}.", self.players[unit.owner].name),
+                    notifications::NotificationCategory::City,
+                    notifications::NotificationPriority::Important,
+                    Some(city_id),
+                    None,
+                );
             }
             return;
         }
@@ -637,10 +640,16 @@ impl Simulation {
         self.refresh_diplomatic_contact_at(unit.owner, x, y);
         self.refresh_visibility();
         if unit.owner == HUMAN || old_owner == HUMAN {
-            self.add_event(format!(
-                "{} captured {city_name} from {} and looted {loot} gold.",
-                self.players[unit.owner].name, self.players[old_owner].name,
-            ));
+            self.add_contextual_notification(
+                format!(
+                    "{} captured {city_name} from {} and looted {loot} gold.",
+                    self.players[unit.owner].name, self.players[old_owner].name,
+                ),
+                notifications::NotificationCategory::City,
+                notifications::NotificationPriority::Important,
+                Some(city_id),
+                None,
+            );
         }
     }
 

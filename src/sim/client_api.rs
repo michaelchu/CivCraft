@@ -73,8 +73,28 @@ impl ClientSimulation {
         self.simulation.initial_client_focus_view()
     }
 
+    pub(crate) fn campaign_notifications_view(&self) -> Vec<super::Notification> {
+        self.simulation.campaign_notifications_view()
+    }
+
+    pub(crate) fn unread_notifications_view(&self) -> usize {
+        self.simulation.unread_notifications_view()
+    }
+
     pub(crate) fn campaign_messages_view(&self) -> Vec<String> {
         self.simulation.campaign_messages_view()
+    }
+
+    pub(crate) fn mark_notifications_read(&mut self) {
+        self.simulation.mark_notifications_read();
+    }
+
+    pub(crate) fn notify(&mut self, text: impl Into<String>) {
+        self.simulation.add_event(text);
+    }
+
+    pub(crate) fn notify_important(&mut self, text: impl Into<String>) {
+        self.simulation.add_important_event(text);
     }
 
     pub(crate) fn unit_action_view(&self, id: u32) -> Option<UnitActionView> {

@@ -607,7 +607,13 @@ impl Simulation {
             None,
         );
         if target == HUMAN {
-            self.add_event(format!("{} declared war on you.", self.players[owner].name));
+            self.add_contextual_notification(
+                format!("{} declared war on you.", self.players[owner].name),
+                super::super::notifications::NotificationCategory::Diplomacy,
+                super::super::notifications::NotificationPriority::Important,
+                None,
+                Some(owner),
+            );
         }
         self.refresh_visibility();
     }

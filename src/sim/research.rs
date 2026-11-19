@@ -699,7 +699,10 @@ impl Simulation {
             }
         }
         if owner == HUMAN {
-            self.add_event(format!("Research complete: {}.", tech.name()));
+            self.add_category_event(
+                format!("Research complete: {}.", tech.name()),
+                notifications::NotificationCategory::Research,
+            );
         }
         // techtools.c:found_new_tech clears a completed goal for every
         // research owner, regardless of whether the discovery was the

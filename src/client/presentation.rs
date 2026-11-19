@@ -248,6 +248,9 @@ impl Game {
                 progress,
                 Some(event.duration() as f32),
             );
+            if matches!(event, PresentationEventView::Combat(_)) {
+                self.draw_unit_health(assets, &unit, center);
+            }
         }
         if let PresentationEventView::Combat(combat) = event {
             let elapsed = self.playback.progress() as f64 * event.duration();
