@@ -6,6 +6,7 @@ use std::{borrow::Cow, collections::BTreeMap};
 mod records;
 
 type PairMemory<T> = BTreeMap<(usize, usize), T>;
+type SavedWarObjectives = Vec<((usize, usize), diplomacy::WarObjective)>;
 
 // Only the legacy readers consume the AI's former reduced tile memory.
 #[derive(Clone, Copy)]
@@ -230,6 +231,73 @@ impl<'a, S> SavedCampaignV2D<'a, S> {
     pub(super) fn into_game(self) -> Result<(Simulation, S), &'static str> {
         let (mut game, partial_sites) = self.campaign.into_game()?;
         game.ai_relationship_memory = self.relationships.into_owned();
+        Ok((game, partial_sites))
+    }
+}
+
+/// Format 0x2F appends current war objectives and Civ III culture-building
+/// age/ownership records without changing any frozen positional entity layout.
+#[derive(Serialize, Deserialize)]
+pub(super) struct SavedCampaignV2F<'a, S> {
+    campaign: SavedCampaignV2D<'a, S>,
+    war_objectives: SavedWarObjectives,
+    culture_buildings: BTreeMap<u32, Vec<CultureBuildingAge>>,
+}
+
+impl<'a, S> SavedCampaignV2F<'a, S> {
+    pub(super) fn from_game(game: &'a Simulation, partial_sites: S) -> Self {
+        Self {
+            campaign: SavedCampaignV2D::from_game(game, partial_sites),
+            war_objectives: game
+                .ai_war_plans
+                .iter()
+                .filter_map(|(&pair, plan)| plan.objective.map(|objective| (pair, objective)))
+                .collect(),
+            culture_buildings: game
+                .cities
+                .iter()
+                .filter(|city| !city.culture_buildings.is_empty())
+                .map(|city| (city.id, city.culture_buildings.clone()))
+                .collect(),
+        }
+    }
+
+    pub(super) fn into_game(self) -> Result<(Simulation, S), &'static str> {
+        let (mut game, partial_sites) = self.campaign.into_game()?;
+        for (pair, objective) in self.war_objectives {
+            let Some(plan) = game.ai_war_plans.get_mut(&pair) else {
+                return Err("War objective has no plan");
+            };
+            if plan.objective.is_some()
+                || !(0..game.map_wrap.width()).contains(&objective.staging.0)
+                || !(0..game.map_wrap.height()).contains(&objective.staging.1)
+            {
+                return Err("Invalid war objective");
+            }
+            plan.objective = Some(objective);
+        }
+        let player_count = game.players.len();
+        let current_year = game.year;
+        for (city_id, records) in self.culture_buildings {
+            let Some(city) = game.cities.iter_mut().find(|city| city.id == city_id) else {
+                return Err("Culture building history has no city");
+            };
+            if records.iter().any(|record| {
+                record.builder >= player_count
+                    || record.active_since_year > current_year
+                    || !city.buildings.contains(&record.building)
+            }) {
+                return Err("Invalid culture building history");
+            }
+            let mut seen = Vec::new();
+            for record in &records {
+                if seen.contains(&record.building) {
+                    return Err("Duplicate culture building history");
+                }
+                seen.push(record.building);
+            }
+            city.culture_buildings = records;
+        }
         Ok((game, partial_sites))
     }
 }

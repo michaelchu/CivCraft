@@ -31,6 +31,9 @@ pub(crate) struct CityContextView {
     pub(crate) production_name: &'static str,
     pub(crate) production_stock: i32,
     pub(crate) production_cost: i32,
+    pub(crate) culture: i64,
+    pub(crate) culture_per_turn: i64,
+    pub(crate) next_border_threshold: Option<i64>,
 }
 
 /// Research progress and goal for a single player.

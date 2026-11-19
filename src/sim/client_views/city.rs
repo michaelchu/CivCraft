@@ -165,6 +165,11 @@ impl Simulation {
             production_name: city.production.name(),
             production_stock: city.shields,
             production_cost: city.production.cost(),
+            culture: self.city_culture_score(city),
+            culture_per_turn: self.city_culture_per_turn(city),
+            next_border_threshold: crate::sim::culture::next_city_culture_border_threshold(
+                self.city_culture_score(city),
+            ),
         })
     }
 }

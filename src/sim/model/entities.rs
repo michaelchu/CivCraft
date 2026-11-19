@@ -214,6 +214,10 @@ pub(crate) struct City {
     pub(in crate::sim) last_plague: Option<i32>,
     /// Freeciv cumulative city culture history.
     pub(in crate::sim) history: i32,
+    /// Civ III culture-source age and ownership, saved as an appended campaign
+    /// record so older positional entity layouts stay frozen.
+    #[serde(default)]
+    pub(in crate::sim) culture_buildings: Vec<CultureBuildingAge>,
     pub(in crate::sim) foreign_citizens: Vec<(usize, i32)>,
     pub(in crate::sim) airlift_used: bool,
     pub(crate) food: i32,
@@ -269,6 +273,7 @@ impl City {
             confused_citizens: 0,
             last_plague: None,
             history: 0,
+            culture_buildings: Vec::new(),
             foreign_citizens: Vec::new(),
             airlift_used: false,
             food: 0,
@@ -290,6 +295,39 @@ impl City {
             ai_domestic_tech_next: 0,
         }
     }
+
+    pub(in crate::sim) fn record_culture_building(
+        &mut self,
+        building: Building,
+        builder: usize,
+        year: i32,
+    ) {
+        self.culture_buildings
+            .retain(|record| record.building != building);
+        self.culture_buildings.push(CultureBuildingAge {
+            building,
+            builder,
+            active_since_year: year,
+        });
+    }
+
+    pub(in crate::sim) fn forget_culture_building(&mut self, building: Building) {
+        self.culture_buildings
+            .retain(|record| record.building != building);
+    }
+
+    pub(in crate::sim) fn retain_existing_culture_buildings(&mut self) {
+        let buildings = &self.buildings;
+        self.culture_buildings
+            .retain(|record| buildings.contains(&record.building));
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub(crate) struct CultureBuildingAge {
+    pub(crate) building: Building,
+    pub(crate) builder: usize,
+    pub(crate) active_since_year: i32,
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize)]

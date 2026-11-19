@@ -8,6 +8,7 @@ use crate::rules::engine_rules::{
     EffectContext, Requirement, RequirementContext, RequirementEvaluationError, RequirementRange,
     RequirementValue, RulesetData,
 };
+use crate::sim::culture::city_culture_border_radius_sq;
 use std::collections::HashMap;
 
 #[cfg(test)]
@@ -43,9 +44,11 @@ impl BorderRules {
         }
     }
 
-    fn city_border_radius_sq(self, city: &City) -> i64 {
-        self.city_radius_sq
-            + i64::from(city.size.min(CITY_MAP_MAX_RADIUS_SQ as i32)) * self.city_size_effect
+    fn city_border_radius_sq(self, simulation: &Simulation, city: &City) -> i64 {
+        let base = self.city_radius_sq
+            + i64::from(city.size.min(CITY_MAP_MAX_RADIUS_SQ as i32)) * self.city_size_effect;
+        city_culture_border_radius_sq(simulation.city_culture_score(city))
+            .map_or(base, |culture_radius| base.max(culture_radius))
     }
 
     fn city_work_radius_sq(self, simulation: &Simulation, city: &City) -> i64 {
@@ -155,6 +158,7 @@ struct BorderSource {
     x: i32,
     y: i32,
     radius_sq: i64,
+    culture_radius_sq: Option<i64>,
     city_work_radius_sq: i64,
     strength: i64,
     distances: Vec<i32>,
@@ -394,7 +398,8 @@ impl Simulation {
                 tile_index: self.map_wrap.index(city.x, city.y),
                 x: city.x,
                 y: city.y,
-                radius_sq: rules.city_border_radius_sq(city),
+                radius_sq: rules.city_border_radius_sq(self, city),
+                culture_radius_sq: city_culture_border_radius_sq(self.city_culture_score(city)),
                 city_work_radius_sq: rules.city_work_radius_sq(self, city),
                 strength: rules.city_border_strength(self, city),
                 distances: self.map_wrap.civ3_distances_from(city.x, city.y),
@@ -426,8 +431,11 @@ impl Simulation {
             let source = &sources[source_index];
             let distance = source.distances[tile_index];
             let distance_sq = i64::from(distance) * i64::from(distance);
+            let within_cultural_radius = source
+                .culture_radius_sq
+                .is_some_and(|radius_sq| distance_sq <= radius_sq);
             if distance_sq > source.radius_sq
-                || (distance != 0 && !tile.known_by[source.owner])
+                || (distance != 0 && !tile.known_by[source.owner] && !within_cultural_radius)
                 || (distance != 0
                     && !tile_claimable(
                         self,
@@ -460,7 +468,13 @@ impl Simulation {
                 {
                     continue;
                 }
-                if distance != 0 && !self.tiles[tile_index].known_by[source.owner] {
+                let within_cultural_radius = source
+                    .culture_radius_sq
+                    .is_some_and(|radius_sq| distance_sq <= radius_sq);
+                if distance != 0
+                    && !self.tiles[tile_index].known_by[source.owner]
+                    && !within_cultural_radius
+                {
                     continue;
                 }
                 let target = self.map_wrap.position(tile_index);
@@ -493,9 +507,20 @@ impl Simulation {
             }
         }
 
-        for (tile, claim) in self.tiles.iter_mut().zip(claims) {
+        for (tile_index, (tile, claim)) in self.tiles.iter_mut().zip(claims).enumerate() {
             tile.border_city = claim.map(|claim| claim.city_id);
             tile.owner = claim.map(|claim| claim.owner);
+            if let Some(claim) = claim {
+                let source = &sources[source_index_by_city[&claim.city_id]];
+                let distance = source.distances[tile_index];
+                let distance_sq = i64::from(distance) * i64::from(distance);
+                if source
+                    .culture_radius_sq
+                    .is_some_and(|radius_sq| distance_sq <= radius_sq)
+                {
+                    tile.known_by.set(claim.owner, true);
+                }
+            }
         }
         self.remember_visible_borders();
         if let Some(city_id) = city_event {

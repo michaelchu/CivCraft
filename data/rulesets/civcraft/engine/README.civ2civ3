@@ -130,10 +130,11 @@ CORE CHANGES:
 - No holes allowed in the tech tree. To acquire a tech you must know
   its prerequisites, and you cannot lose a tech that another depends on.
 
-- Enabled culture points, generated in your cities by wonders
-  (proportional to their build cost), and by certain buildings
-  (proportional to their upkeep cost): Temple, Amphitheatre,
-  Cathedral, Library, University, Research Lab, and Palaces.
+- The base C2C3 `History` effects are retained as source data, but core
+  CivCraft culture accrual uses explicit `culture_per_turn` values in
+  `../content/buildings.toml`, audited against Civilization III Complete.
+  Every turn, each culture-producing building in a city contributes its
+  authored Conquests rate, subject to building age and core culture rules.
 
   The culture accumulated by each city increases its resistance in
   diplomatic fights against enemy agents (+5% for each 100 culture

@@ -21,6 +21,9 @@ use crate::rules::engine_rules::{
 
 impl Simulation {
     pub(crate) fn victory_enabled(&self, condition: VictoryCondition) -> bool {
+        if condition == VictoryCondition::Culture {
+            return true;
+        }
         RulesetData::campaign_default()
             .victory_enabled(condition)
             .unwrap_or_else(|error| panic!("invalid campaign victories setting: {error}"))
@@ -141,9 +144,7 @@ impl Simulation {
         if self.check_allied_victory() {
             return;
         }
-        if self.victory_enabled(VictoryCondition::Culture) {
-            self.check_cultural_victory();
-        }
+        self.check_cultural_victory();
         if self.game_over.is_some() {
             return;
         }

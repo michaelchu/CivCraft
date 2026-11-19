@@ -941,6 +941,7 @@ impl Simulation {
                                 self.cities.iter_mut().find(|city| city.id == city_id)
                             {
                                 city.buildings.retain(|&current| current != building);
+                                city.forget_culture_building(building);
                             }
                             if attacker.owner == HUMAN || city.owner == HUMAN {
                                 self.add_event(format!(

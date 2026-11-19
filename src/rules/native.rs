@@ -99,6 +99,8 @@ pub(crate) struct NativeBuildingRule {
     pub(crate) genus: String,
     pub(crate) cost: i32,
     pub(crate) upkeep: i32,
+    #[serde(default)]
+    pub(crate) culture_per_turn: i32,
     pub(crate) requirements: Vec<NativeBuildingRequirement>,
     pub(crate) obsolete: Vec<NativeBuildingRequirement>,
     #[serde(default)]

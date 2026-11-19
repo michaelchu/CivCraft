@@ -34,6 +34,20 @@ the odds are community-documented for Civ III patch 1.29f and live in
 `data/rulesets/civcraft/content/settlements.toml`. Keep other mechanics on the
 Freeciv authority above.
 
+### Recorded exception: core culture (Civ III Conquests)
+
+The owner authorized a Civ III Conquests culture model on 2026-11-19. Culture
+is a core CivCraft strategy and victory path, not a selectable victory flag.
+Use cumulative city culture, the audited `culture_per_turn` values in native
+building data, a per-building age bonus after 1,000 campaign years, threshold-
+based city border growth, and both single-city and empire-wide cultural
+victories. Captured buildings produce no culture for an occupier; an original
+builder resumes production after recapture without the age bonus. Existing
+C2C3 tile-claim legality and CivCraft topology remain adapters; culture
+flipping is deferred pending probability tuning and clear player-facing
+warnings. Keep the design and implementation in
+`docs/superpowers/specs/2026-11-19-culture-core-design.md`.
+
 ### Recorded exception: custom espionage
 
 The owner confirmed on 2026-11-18 that the existing custom espionage system is

@@ -1,7 +1,7 @@
 //! Stable building identifiers backed by the native TOML ruleset.
 //!
 //! The runtime IDs remain stable for saves and UI code; editable names, costs,
-//! genera, and requirements are loaded from the CivCraft campaign package.
+//! culture rates, genera, and requirements are loaded from the CivCraft package.
 //!
 //! Keep catalog indices and native ordering stable because saves and several
 //! deterministic selection paths refer to these entries.
@@ -42,6 +42,7 @@ pub(crate) struct BuildingData {
     pub(crate) genus: Genus,
     pub(crate) cost: i32,
     pub(crate) upkeep: i32,
+    pub(crate) culture_per_turn: i32,
     pub(crate) requirements: &'static [(Requirement, bool)],
     pub(crate) obsolete: &'static [(Requirement, bool)],
 }
@@ -173,6 +174,7 @@ fn native_building_data(rule: &crate::rules::native::NativeBuildingRule) -> Buil
         },
         cost: rule.cost,
         upkeep: rule.upkeep,
+        culture_per_turn: rule.culture_per_turn,
         requirements: Box::leak(
             rule.requirements
                 .iter()

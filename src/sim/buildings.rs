@@ -95,6 +95,7 @@ impl Simulation {
             return false;
         };
         city.buildings.retain(|&built| built != building);
+        city.forget_culture_building(building);
         city.sold_building = true;
         self.players[owner].gold += price;
         let message = format!(
@@ -360,6 +361,7 @@ impl Simulation {
             Genus::SmallWonder => {
                 for city in self.cities.iter_mut().filter(|city| city.owner == owner) {
                     city.buildings.retain(|&built| built != building);
+                    city.forget_culture_building(building);
                 }
                 if building == Building::APOLLO_PROGRAM {
                     self.apollo_completed = true;
@@ -373,6 +375,7 @@ impl Simulation {
             .find(|city| city.id == city_id)
             .unwrap();
         city.buildings.push(building);
+        city.record_culture_building(building, owner, self.year);
         if matches!(
             building,
             Building::GREAT_LIBRARY | Building::ISAAC_NEWTONS_COLLEGE | Building::INTERNET

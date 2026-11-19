@@ -371,16 +371,9 @@ tech_upkeep_divider = 6000
 free_tech_method = "Cheapest"
 
 [culture]
-; Minimum culture points for cultural domination victory
-victory_min_points = 20000
-
-; How big lead relative to second best player is needed for victory
-victory_lead_pct   = 100
-
-; How much existing history grows each turn. This makes older history
-; of the same original value more valuable as newer history, as it has
-; gained more interest.
-history_interest_pml = 0
+; Culture is a core CivCraft campaign system. Cultural victory cannot be
+; disabled by this ruleset; Civ III Conquests thresholds are implemented in
+; the simulation. Local culture and border tiers use the core Civ III model.
 
 ; How much each culture point affects the migration
 ; from/to the city. Each culture point count as this many permilles

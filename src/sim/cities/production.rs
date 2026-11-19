@@ -352,7 +352,9 @@ impl Simulation {
                         self.choose_ai_production(snapshot.owner, city_id);
                 }
             }
-            self.record_city_history(index);
+            if self.record_city_history(index) {
+                self.rebuild_city_ownership_for_city_event(city_id);
+            }
             // Buildings and population-cost units refresh city output before growth.
             let refreshed = self.cities[index].size != snapshot.size
                 || matches!(finished, Some((Production::Building(building), _))

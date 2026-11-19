@@ -159,10 +159,27 @@ impl Game {
                 17.0,
                 Color::from_rgba(229, 226, 209, 255),
             );
+            let culture_line = match city.next_border_threshold {
+                Some(threshold) => format!(
+                    "Culture {} (+{})  Next border: {}",
+                    city.culture, city.culture_per_turn, threshold
+                ),
+                None => format!(
+                    "Culture {} (+{})  Maximum borders",
+                    city.culture, city.culture_per_turn
+                ),
+            };
+            context_text(
+                &culture_line,
+                x,
+                y + city_offset + 126.0,
+                16.0,
+                Color::from_rgba(200, 177, 238, 255),
+            );
             context_text(
                 &format!("Producing: {}", city.production_name),
                 x,
-                y + city_offset + 132.0,
+                y + city_offset + 150.0,
                 18.0,
                 Color::from_rgba(145, 204, 224, 255),
             );
@@ -172,7 +189,7 @@ impl Game {
                     city.production_stock, city.production_cost
                 ),
                 x,
-                y + city_offset + 156.0,
+                y + city_offset + 174.0,
                 17.0,
                 Color::from_rgba(229, 226, 209, 255),
             );

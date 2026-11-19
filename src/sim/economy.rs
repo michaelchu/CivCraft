@@ -389,6 +389,7 @@ impl Simulation {
             let city = &mut self.cities[index];
             let affected_city = city.id;
             city.buildings.retain(|&built| built != building);
+            city.forget_culture_building(building);
             self.players[owner].gold += building.data().cost;
             if owner == HUMAN {
                 let message = format!(

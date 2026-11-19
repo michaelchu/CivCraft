@@ -149,6 +149,7 @@ impl Simulation {
                     self.cities[index]
                         .buildings
                         .retain(|&built| built != building);
+                    self.cities[index].forget_culture_building(building);
                     details.push(format!("{} destroyed.", building.data().name));
                 }
             }

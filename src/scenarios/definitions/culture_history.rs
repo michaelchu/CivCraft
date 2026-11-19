@@ -1,4 +1,4 @@
-//! City culture accrual and conquest retain the ruleset's history semantics.
+//! City culture accrual and the permanent national record survive city loss.
 use super::{Checks, Scenario};
 use crate::scenarios::{Control, ScenarioKind};
 use crate::sim::drive::Drive;
@@ -8,7 +8,7 @@ use crate::{
 };
 pub(super) const SCENARIO: Scenario = Scenario::new(
     "culture-history",
-    2,
+    3,
     ScenarioKind::Actions {
         control: Control::Human,
         execute,
@@ -35,8 +35,9 @@ fn execute(game: &mut Simulation, checks: &mut Checks) {
     let retained = conquest
         .city_by_id(target)
         .is_some_and(|city| city.owner == HUMAN)
-        && conquest.city_history(target) == Some(55)
-        && conquest.civilization_culture(HUMAN) >= 55;
+        && conquest.city_history(target) == Some(0)
+        && conquest.civilization_culture(1) >= 55
+        && conquest.civilization_culture(HUMAN) == 0;
     checks.extend([
         (
             "culture_history_uses_ruleset",
@@ -44,14 +45,14 @@ fn execute(game: &mut Simulation, checks: &mut Checks) {
             "City processing accrues the ruleset's culture history".into(),
         ),
         (
-            "culture_transfer_retains_history",
+            "culture_transfer_preserves_old_nation_total",
             retained,
-            "Conquest retains the city's accumulated history and credits its current owner".into(),
+            "Conquest resets the city's local culture and leaves its accumulated points with its original nation".into(),
         ),
         (
             "culture_victory_policy",
             game.victory_enabled(VictoryCondition::Culture),
-            "The campaign enables culture victory".into(),
+            "Culture victory is a core campaign condition".into(),
         ),
     ]);
 }

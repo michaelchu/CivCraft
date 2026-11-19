@@ -160,6 +160,7 @@ impl Simulation {
         city.specialists = [0, 0, 1];
         if first_city && owner != BARBARIANS {
             city.buildings.push(Building::PALACE);
+            city.record_culture_building(Building::PALACE, owner, self.year);
         }
         self.cities.push(city);
         self.trace
@@ -292,6 +293,7 @@ impl Simulation {
         };
         self.release_city_support(city_id);
         let removed = self.cities.remove(index);
+        self.preserve_city_culture_on_destruction(&removed);
         self.trace
             .city_destroyed(self.turn, &removed, reason, by_owner);
         for unit in self
@@ -334,6 +336,7 @@ impl Simulation {
         let center = (self.cities[index].x, self.cities[index].y);
         let first_city = !self.cities.iter().any(|city| city.owner == buyer);
         let leaders = self.leaders_of(original);
+        self.preserve_city_culture_on_transfer(index, buyer);
         self.trace
             .city_transferred(self.turn, &self.cities[index], buyer, reason);
         self.city_governors.remove(&id);
@@ -342,8 +345,10 @@ impl Simulation {
         self.cities[index]
             .buildings
             .retain(|building| building.data().genus != Genus::SmallWonder);
+        self.cities[index].retain_existing_culture_buildings();
         if first_city {
             self.cities[index].buildings.push(Building::PALACE);
+            self.cities[index].record_culture_building(Building::PALACE, buyer, self.year);
         }
 
         let mut affected = std::collections::BTreeSet::from([center]);
@@ -537,20 +542,21 @@ impl Simulation {
         let first_city_for_taker = !self.cities.iter().any(|city| city.owner == unit.owner);
         let center = (x, y);
 
-        // City history remains with the city and is scored for its new owner.
-        // Freeciv applies the selected conquest_convert_pct after transfer;
-        // C2C3 sets that value to zero.
+        // The former owner's ledger keeps accumulated city points. Captured
+        // cultural buildings produce only if the original builder recaptures.
         self.trace.city_transferred(
             self.turn,
             &self.cities[city_index],
             unit.owner,
             lifecycle::TransferReason::Conquest,
         );
+        self.preserve_city_culture_on_transfer(city_index, unit.owner);
         self.cities[city_index].transfer_citizens(unit.owner);
         self.convert_conquest_citizens(city_index);
         self.cities[city_index]
             .buildings
             .retain(|building| building.data().genus != Genus::SmallWonder);
+        self.cities[city_index].retain_existing_culture_buildings();
         self.list_order.city(&self.cities[city_index]);
 
         self.transfer_conquered_city_units(city_id, old_owner, unit.owner, center);
@@ -576,7 +582,14 @@ impl Simulation {
         // Palace has the selected SaveSmallWonder flag in C2C3. Other
         // small-wonder save flags are not present in this catalog.
         if first_city_for_taker && unit.owner != BARBARIANS {
-            self.cities[city_index].buildings.push(Building::PALACE);
+            if !self.cities[city_index].has_building(Building::PALACE) {
+                self.cities[city_index].buildings.push(Building::PALACE);
+            }
+            self.cities[city_index].record_culture_building(
+                Building::PALACE,
+                unit.owner,
+                self.year,
+            );
         }
         if had_palace && crate::sim::combat_rules::selected().savepalace {
             let old_city_ids = self
@@ -589,6 +602,7 @@ impl Simulation {
                     && !city.has_building(Building::PALACE)
                 {
                     city.buildings.push(Building::PALACE);
+                    city.record_culture_building(Building::PALACE, old_owner, self.year);
                 }
             }
         }

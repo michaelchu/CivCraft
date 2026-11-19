@@ -445,7 +445,7 @@ fn captured_city_history_and_nationalities_survive_save_load() {
 
     let captured_city = game.city_index_by_id(captured_city_id).unwrap();
     assert_eq!(game.cities[captured_city].owner, HUMAN);
-    assert_eq!(game.cities[captured_city].history, 300);
+    assert_eq!(game.cities[captured_city].history, 0);
     assert_eq!(game.cities[captured_city].foreign_citizens, [(1, 5)]);
     game.reconcile_city_workers();
     game.save_campaign(&path).unwrap();
@@ -454,11 +454,11 @@ fn captured_city_history_and_nationalities_survive_save_load() {
     fs::remove_file(path).unwrap();
     let loaded_city = loaded.city_index_by_id(captured_city_id).unwrap();
     assert_eq!(loaded.cities[loaded_city].owner, HUMAN);
-    assert_eq!(loaded.cities[loaded_city].history, 300);
+    assert_eq!(loaded.cities[loaded_city].history, 0);
     assert_eq!(loaded.cities[loaded_city].foreign_citizens, [(1, 5)]);
     assert_eq!(loaded.cities[2].history, 375);
-    assert_eq!(loaded.civilization_culture(1), 0);
-    assert_eq!(loaded.civilization_culture(HUMAN), 675);
+    assert_eq!(loaded.civilization_culture(1), 300);
+    assert_eq!(loaded.civilization_culture(HUMAN), 375);
     assert_eq!(
         bincode::serialize(&loaded.cities).unwrap(),
         bincode::serialize(&game.cities).unwrap()

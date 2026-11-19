@@ -321,6 +321,10 @@ struct CityWire {
     last_plague: Option<i32>,
 
     history: i32,
+    // Culture-building ages are appended by the newest outer save wrapper.
+    // Keep this skipped in all frozen entity layouts.
+    #[serde(skip)]
+    culture_buildings: Vec<CultureBuildingAge>,
     foreign_citizens: Vec<(usize, i32)>,
     airlift_used: bool,
     food: i32,
