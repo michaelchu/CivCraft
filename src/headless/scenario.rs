@@ -97,6 +97,21 @@ impl Run {
             .map_or(&[], |campaign| campaign.trace_kinds())
     }
 
+    pub fn simulate_turn(&mut self, completed_turns: u32) {
+        if let Some(campaign) = &mut self.runtime {
+            self.game
+                .trace
+                .phase(crate::sim::trace::Phase::ScenarioActions);
+            campaign.before_turn(&mut self.game, completed_turns);
+        }
+        self.game.simulate_turn();
+        if let Some(comparison) = self.runtime.as_mut().and_then(|run| run.comparison_game())
+            && comparison.game_over().is_none()
+        {
+            comparison.simulate_turn();
+        }
+    }
+
     pub fn observe_turn(&mut self, completed_turns: u32) {
         if let Some(campaign) = &mut self.runtime
             && campaign.records_turns()

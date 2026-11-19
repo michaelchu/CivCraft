@@ -306,10 +306,11 @@ impl Simulation {
         committed
     }
 
-    pub(in crate::sim) fn reinforce_ai_cities(
+    pub(super) fn reinforce_ai_cities(
         &mut self,
         owner: usize,
         reserved_defenders: &std::collections::HashSet<u32>,
+        muster_guard: Option<u32>,
     ) -> std::collections::HashSet<u32> {
         let _profile = self.trace.profiler().scope("ai.reinforcement");
         let mut dispatched = std::collections::HashSet::new();
@@ -400,6 +401,7 @@ impl Simulation {
             let mut best = None;
             for unit in self.units.iter().filter(|unit| {
                 is_defender(unit)
+                    && Some(unit.id) != muster_guard
                     && unit.moves_left > 0
                     && unit.state != UnitState::Sentry
                     && unit.work_left == 0

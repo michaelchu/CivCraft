@@ -36,6 +36,12 @@ pub(crate) trait ScenarioRun {
     fn complete_actions(&mut self, _game: &mut Simulation) -> Vec<Check> {
         vec![]
     }
+    /// Apply scripted changes before the next ordinary campaign turn.
+    fn before_turn(&mut self, _game: &mut Simulation, _completed_turns: u32) {}
+    /// Optional comparison state advanced by the runner alongside the primary run.
+    fn comparison_game(&mut self) -> Option<&mut Simulation> {
+        None
+    }
     fn records_turns(&self) -> bool {
         true
     }

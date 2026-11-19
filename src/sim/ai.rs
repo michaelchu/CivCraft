@@ -158,7 +158,16 @@ impl Simulation {
         }
         drop(_profile);
         let _profile = profiler.scope("ai.city_defenders");
+        let coordinated_objective = self.coordinated_war_objective(owner);
+        let muster_guard = coordinated_objective
+            .filter(|objective| {
+                self.city_by_id(objective.city)
+                    .is_some_and(|target| !self.at_war(owner, target.owner))
+            })
+            .and_then(|objective| self.city_by_id(objective.muster_city))
+            .and_then(|city| self.war_muster_garrison(city));
         let mut city_defenders = self.assign_ai_city_defenders(owner);
+        city_defenders.extend(muster_guard);
         // Keep the home city for this pass. A Freeciv DEFEND_HOME unit may
         // rampage and leave its tile before dai_military_defend sends it back.
         let mut city_defender_homes: std::collections::HashMap<_, _> = city_defenders
@@ -215,13 +224,14 @@ impl Simulation {
             let _profile = profiler.scope("ai.counterattack");
             self.counterattack_from_ai_cities(owner, &city_defenders)
         };
-        let reinforcements = self.reinforce_ai_cities(owner, &city_defenders);
+        let reinforcements = self.reinforce_ai_cities(owner, &city_defenders, muster_guard);
         let paratroopers: Vec<_> = self
             .units
             .iter()
             .filter(|unit| {
                 unit.owner == owner
                     && unit.kind == UnitKind::Paratrooper
+                    && Some(unit.id) != muster_guard
                     && !counterattacks.contains(&unit.id)
                     && !reinforcements.contains(&unit.id)
             })
@@ -276,7 +286,6 @@ impl Simulation {
         drop(_profile);
         let _profile = profiler.scope("ai.ground_invasions");
         let ground_missions = self.refresh_ground_invasions(owner, &reserved);
-        let coordinated_objective = self.coordinated_war_objective(owner);
         let mut claimed_targets = std::collections::HashSet::new();
         let mut ferry_managed = std::collections::HashSet::new();
         drop(_profile);
@@ -292,6 +301,11 @@ impl Simulation {
             }
             if unit.moves_left <= 0 {
                 self.trace.count_operation("ai.units.no_moves_skipped", 1);
+                continue;
+            }
+            if Some(id) == muster_guard {
+                self.unit_goto_tiles.remove(&id);
+                self.fortify_unit(id);
                 continue;
             }
             if unit.kind == UnitKind::Leader {

@@ -5,7 +5,10 @@ use crate::{
     rules::{Building, Tech},
     sim::{
         Government, HUMAN, Pact, Simulation, UnitKind,
+        drive::Drive,
         fixtures::{CivPreset, TilePreset, TileSurface, WorldBuilder},
+        lifecycle::CityRemoval,
+        trace::Entity,
     },
     world::{GeneratedMap, Resource, Terrain, TerrainBase},
 };
@@ -30,7 +33,22 @@ pub(super) const SCENARIO: Scenario = Scenario::new(
     },
 );
 
+pub(super) const INDUSTRIAL_LOSS: Scenario = Scenario::new(
+    "space-industrial-loss",
+    1,
+    ScenarioKind::Runtime {
+        control: Control::AllAi,
+        world: RuntimeWorld::Custom,
+        setup: setup_industrial_loss,
+    },
+);
+
 pub(crate) fn setup(map: GeneratedMap) -> (Simulation, Box<dyn ScenarioRun>) {
+    let (game, audit) = campaign(map);
+    (game, Box::new(audit))
+}
+
+fn campaign(map: GeneratedMap) -> (Simulation, SpaceVictory) {
     let known: Vec<_> = Tech::all().filter(|tech| tech.is_civ3_advance()).collect();
     let contender_known: Vec<_> = known
         .iter()
@@ -140,11 +158,11 @@ pub(crate) fn setup(map: GeneratedMap) -> (Simulation, Box<dyn ScenarioRun>) {
     world.finish();
     (
         game,
-        Box::new(SpaceVictory {
+        SpaceVictory {
             capital,
             frontier,
             ..Default::default()
-        }),
+        },
     )
 }
 
@@ -248,6 +266,148 @@ impl ScenarioRun for SpaceVictory {
                 detail: format!(
                     "At launch: war {}, guarded frontier and capital {}",
                     self.pressured_launch, self.held_frontier
+                ),
+            },
+        ]
+    }
+}
+
+const PARTS: [Building; 3] = [
+    Building::SPACE_STRUCTURAL,
+    Building::SPACE_COMPONENT,
+    Building::SPACE_MODULE,
+];
+const RECOVERY_DEADLINE: u32 = 100;
+
+fn setup_industrial_loss(map: GeneratedMap) -> (Simulation, Box<dyn ScenarioRun>) {
+    let (game, baseline) = campaign(map);
+    (
+        game,
+        Box::new(IndustrialLoss {
+            frontier: baseline.frontier,
+            ..Default::default()
+        }),
+    )
+}
+
+#[derive(Default)]
+struct IndustrialLoss {
+    frontier: u32,
+    loss: Option<(u32, u32, Building)>,
+    parts_before: [usize; 3],
+    original_part_sites: Vec<u32>,
+    completed_part_sites: Vec<u32>,
+    replacement: Option<(u32, u32)>,
+    launch: Option<u32>,
+    defended_at_launch: bool,
+}
+
+impl ScenarioRun for IndustrialLoss {
+    fn trace_kinds(&self) -> &'static [&'static str] {
+        &["production.completed"]
+    }
+
+    fn before_turn(&mut self, game: &mut Simulation, completed: u32) {
+        let (built, arrival) = game.spaceship_progress(CONTENDER);
+        if self.loss.is_some() || built.iter().sum::<usize>() < 8 || arrival.is_some() {
+            return;
+        }
+        let site = game
+            .cities_owned_by(CONTENDER)
+            .filter(|city| city.id != self.frontier && !city.has_building(Building::PALACE))
+            .filter_map(|city| match city.production {
+                crate::sim::Production::Building(part) if PARTS.contains(&part) => {
+                    Some((game.city_forecast(city).shield_surplus(), city.id, part))
+                }
+                _ => None,
+            })
+            .max_by_key(|&(shields, city, _)| (shields, std::cmp::Reverse(city)));
+        if let Some((_, city, part)) = site {
+            self.loss = Some((completed + 1, city, part));
+            self.parts_before = built;
+            self.original_part_sites = game
+                .cities_owned_by(CONTENDER)
+                .filter(|city| city.production == crate::sim::Production::Building(part))
+                .map(|city| city.id)
+                .collect();
+            game.remove_city_because(city, CityRemoval::Disaster, None);
+        }
+    }
+
+    fn observe_turn(&mut self, game: &Simulation, turn: u32) -> Value {
+        let (built, arrival) = game.spaceship_progress(CONTENDER);
+        let war = game.at_war(CONTENDER, HUMAN);
+        let frontier_guarded = game.city_by_id(self.frontier).is_some_and(|city| {
+            city.owner == CONTENDER
+                && game.units().iter().any(|unit| {
+                    unit.owner == CONTENDER
+                        && unit.kind.is_military()
+                        && (unit.x, unit.y) == (city.x, city.y)
+                })
+        });
+        if let Some((_, _, part)) = self.loss {
+            for event in game.trace.pending_events().iter().filter(|event| {
+                event.kind == "production.completed"
+                    && event.entities.contains(&Entity::Civilization(CONTENDER))
+                    && event.payload["item"] == part.data().name
+            }) {
+                if let Some(city) = event.entities.iter().find_map(|entity| match entity {
+                    Entity::City(id) => Some(*id),
+                    _ => None,
+                }) {
+                    // An existing site can take on more work after completing
+                    // its first in-flight copy.
+                    if !self.original_part_sites.contains(&city)
+                        || self.completed_part_sites.contains(&city)
+                    {
+                        self.replacement.get_or_insert((turn, city));
+                    }
+                    self.completed_part_sites.push(city);
+                }
+            }
+            if arrival.is_some() && self.launch.is_none() {
+                self.launch = Some(turn);
+                self.defended_at_launch = war && frontier_guarded;
+            }
+        }
+        json!({
+            "industrial_loss": self.loss.map(|(turn, city, part)| json!({"turn": turn, "city": city, "part": part.data().name})),
+            "built": built, "arrival": arrival, "active_war": war, "frontier_guarded": frontier_guarded,
+            "replacement_completion": self.replacement,
+            "part_sites": game.cities_owned_by(CONTENDER).filter_map(|city| match city.production {
+                crate::sim::Production::Building(part) if PARTS.contains(&part) => Some((city.id, part.data().name)),
+                _ => None,
+            }).collect::<Vec<_>>(),
+        })
+    }
+
+    fn finish(self: Box<Self>, _: u32) -> Vec<Check> {
+        vec![
+            Check {
+                name: "space_loses_active_part_city",
+                passed: self.loss.is_some(),
+                detail: format!(
+                    "Lost {:?} with parts already built {:?}",
+                    self.loss
+                        .map(|(turn, city, part)| (turn, city, part.data().name)),
+                    self.parts_before
+                ),
+            },
+            Check {
+                name: "space_replaces_lost_production",
+                passed: self.replacement.is_some(),
+                detail: format!(
+                    "New or repeat completion of the interrupted part type (turn, city) {:?}",
+                    self.replacement
+                ),
+            },
+            Check {
+                name: "space_launches_after_industrial_loss",
+                passed: self.launch.is_some_and(|turn| turn <= RECOVERY_DEADLINE)
+                    && self.defended_at_launch,
+                detail: format!(
+                    "Launch {:?} by turn {RECOVERY_DEADLINE}, defended frontier during war {}",
+                    self.launch, self.defended_at_launch
                 ),
             },
         ]

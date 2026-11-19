@@ -7,6 +7,7 @@ mod border_offensive;
 mod campaign_readiness;
 mod city_governor;
 mod combat_matrix;
+mod competing_partners;
 mod culture_history;
 mod diplomacy_parity;
 mod diplomatic_needs;
@@ -25,6 +26,7 @@ mod space_victory;
 mod state_presets;
 mod trait_campaign;
 mod unit_recovery;
+mod upkeep_shock;
 mod wartime_funding;
 
 #[cfg(test)]
@@ -59,6 +61,7 @@ pub(super) const SCENARIOS: &[Scenario] = &[
     state_presets::SCENARIO,
     campaign_readiness::SCENARIO,
     border_offensive::SCENARIO,
+    border_offensive::REINFORCED,
     city_governor::GOVERNED,
     city_governor::CONTROL,
     city_governor::FOOD_SHOCK,
@@ -70,6 +73,7 @@ pub(super) const SCENARIOS: &[Scenario] = &[
     diplomatic_needs::RECOVERY,
     harbor_trade::SCENARIO,
     naval::ai_assault::SCENARIO,
+    naval::ai_assault::SECOND_WAVE,
     naval::ship_combat::SCENARIO,
     expansion_balance::SCENARIO,
     lifecycle_history::SCENARIO,
@@ -83,6 +87,9 @@ pub(super) const SCENARIOS: &[Scenario] = &[
     shared_strategy::SCENARIO,
     trait_campaign::SCENARIO,
     space_victory::SCENARIO,
+    space_victory::INDUSTRIAL_LOSS,
+    competing_partners::SCENARIO,
+    upkeep_shock::SCENARIO,
     wartime_funding::SCENARIO,
     relationship_memory::SCENARIO,
     culture_history::SCENARIO,
