@@ -3,9 +3,6 @@
 use super::*;
 mod funding;
 
-#[cfg(test)]
-mod unit_cases;
-
 // dai/default/daihand.c:dai_manage_taxes, Normal/Civ2Civ3 configuration.
 const RESERVE_TURNS: i32 = 10;
 const RAPTURE_DELAY: i32 = 1;
@@ -272,5 +269,4 @@ impl Simulation {
 }
 
 #[cfg(test)]
-#[path = "ai_economy/tests.rs"]
 mod tests;

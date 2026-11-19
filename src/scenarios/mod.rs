@@ -6,6 +6,9 @@
 
 use crate::{sim::Simulation, world::GeneratedMap};
 
+mod catalog;
+pub(crate) use catalog::{all, find};
+
 #[cfg(any(test, feature = "scenarios"))]
 mod definitions;
 
@@ -56,115 +59,119 @@ pub(crate) struct Check {
 #[derive(Default)]
 pub(crate) struct Checks(Vec<Check>);
 
-/// The campaign state a scenario expects before its actions run.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum Fixture {
-    /// A campaign generated with the caller's options, with all seats AI-driven.
-    Generated,
-    /// A newly generated campaign with the human player in seat zero.
-    #[cfg_attr(not(any(test, feature = "scenarios")), allow(dead_code))]
-    NewCampaign,
-    /// A newly generated campaign in which every civilization is AI-driven.
-    #[cfg_attr(not(any(test, feature = "scenarios")), allow(dead_code))]
-    AllAiCampaign,
+/// Which seats run under AI control before a scenario's actions or turns.
+#[derive(Clone, Copy)]
+#[cfg_attr(not(any(test, feature = "scenarios")), allow(dead_code))]
+pub(crate) enum Control {
+    Human,
+    AllAi,
 }
 
-/// A named deterministic scenario over a generated campaign.
+/// Whether a runtime retains the reference generator's world or replaces it.
+#[derive(Clone, Copy)]
+#[cfg_attr(not(any(test, feature = "scenarios")), allow(dead_code))]
+pub(crate) enum RuntimeWorld {
+    Reference,
+    Custom,
+}
+
+pub(crate) type ScenarioActions = fn(&mut Simulation, &mut Checks);
+
+/// Valid execution forms, with their setup requirements kept together.
+#[derive(Clone, Copy)]
+#[cfg_attr(not(any(test, feature = "scenarios")), allow(dead_code))]
+pub(crate) enum ScenarioKind {
+    /// Generate the map using the caller's options and run every seat as AI.
+    Generated,
+    /// Defer a command script until the runner attaches tracing.
+    Actions {
+        control: Control,
+        execute: ScenarioActions,
+    },
+    /// Prepare a world and a runtime that can request actions or observe turns.
+    Runtime {
+        control: Control,
+        world: RuntimeWorld,
+        setup: ScenarioSetup,
+    },
+}
+
+/// A named deterministic scenario. Versions are explicit report contracts,
+/// independent of the execution form or choice of starting world.
 pub(crate) struct Scenario {
-    /// Stable kebab-case identifier accepted by `headless_sim --scenario`.
     pub(crate) id: &'static str,
-    pub(crate) fixture: Fixture,
-    actions: Option<fn(&mut Simulation, &mut Checks)>,
-    pub(crate) campaign: Option<ScenarioSetup>,
     pub(crate) version: u16,
-    pub(crate) custom_world: bool,
+    kind: ScenarioKind,
 }
 
 impl Scenario {
-    /// Prepare a fresh scenario runtime; actions wait until tracing is attached.
-    pub(crate) fn start(&'static self, map: GeneratedMap) -> (Simulation, Box<dyn ScenarioRun>) {
-        let (mut game, runtime) = if let Some(setup) = self.campaign {
-            setup(map)
-        } else {
-            (
-                Simulation::new(map),
-                Box::new(Scripted {
-                    definition: self,
-                    pending: self.has_actions(),
-                }) as Box<dyn ScenarioRun>,
-            )
-        };
-        self.prepare(&mut game);
+    pub(crate) const fn new(id: &'static str, version: u16, kind: ScenarioKind) -> Self {
+        Self { id, version, kind }
+    }
+
+    pub(crate) fn accepts_world_options(&self) -> bool {
+        matches!(self.kind, ScenarioKind::Generated)
+    }
+
+    pub(crate) fn uses_custom_world(&self) -> bool {
+        matches!(
+            self.kind,
+            ScenarioKind::Runtime {
+                world: RuntimeWorld::Custom,
+                ..
+            }
+        )
+    }
+
+    /// Prepare the world; actions wait until the runner attaches tracing.
+    pub(crate) fn start(&self, map: GeneratedMap) -> (Simulation, Box<dyn ScenarioRun>) {
+        let (mut game, runtime, control): (Simulation, Box<dyn ScenarioRun>, Control) =
+            match self.kind {
+                ScenarioKind::Generated => (
+                    Simulation::new(map),
+                    Box::new(Scripted { actions: None }),
+                    Control::AllAi,
+                ),
+                ScenarioKind::Actions { control, execute } => (
+                    Simulation::new(map),
+                    Box::new(Scripted {
+                        actions: Some(execute),
+                    }),
+                    control,
+                ),
+                ScenarioKind::Runtime { control, setup, .. } => {
+                    let (game, runtime) = setup(map);
+                    (game, runtime, control)
+                }
+            };
+        if matches!(control, Control::AllAi) {
+            game.enable_all_civilizations_as_ai();
+        }
         (game, runtime)
-    }
-
-    pub(crate) fn prepare(&self, campaign: &mut Simulation) {
-        if matches!(self.fixture, Fixture::Generated | Fixture::AllAiCampaign) {
-            campaign.enable_all_civilizations_as_ai();
-        }
-    }
-
-    pub(crate) fn has_actions(&self) -> bool {
-        self.actions.is_some()
-    }
-
-    /// Runs scenario actions after the campaign and its observers are ready.
-    pub(crate) fn run(&self, campaign: &mut Simulation) -> Vec<Check> {
-        let mut checks = Checks::default();
-        if let Some(actions) = self.actions {
-            actions(campaign, &mut checks);
-        }
-        checks.0
     }
 }
 
 /// Scripted actions use the same lifecycle as scenarios that observe turns.
 struct Scripted {
-    definition: &'static Scenario,
-    pending: bool,
+    actions: Option<ScenarioActions>,
 }
 
 impl ScenarioRun for Scripted {
     fn has_actions(&self) -> bool {
-        self.pending
+        self.actions.is_some()
     }
     fn execute_actions(&mut self, game: &mut Simulation) -> Vec<Check> {
-        if !self.pending {
+        let Some(actions) = self.actions.take() else {
             return vec![];
-        }
-        self.pending = false;
-        let checks = self.definition.run(game);
+        };
+        let mut checks = Checks::default();
+        actions(game, &mut checks);
         game.enable_all_civilizations_as_ai();
-        checks
+        checks.0
     }
     fn records_turns(&self) -> bool {
         false
     }
-}
-
-const GENERATED: &[Scenario] = &[Scenario {
-    id: "generated-ai",
-    fixture: Fixture::Generated,
-    actions: None,
-    campaign: None,
-    version: 1,
-    custom_world: false,
-}];
-
-const GROUPS: &[&[Scenario]] = &[
-    GENERATED,
-    #[cfg(any(test, feature = "scenarios"))]
-    definitions::SCENARIOS,
-];
-
-/// Every registered scenario, in registration order.
-pub(crate) fn all() -> impl Iterator<Item = &'static Scenario> {
-    GROUPS.iter().flat_map(|group| group.iter())
-}
-
-/// Looks up a scenario by its identifier.
-pub(crate) fn find(id: &str) -> Option<&'static Scenario> {
-    all().find(|scenario| scenario.id == id)
 }
 
 #[cfg(test)]

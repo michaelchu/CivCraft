@@ -118,9 +118,6 @@ use spaceship::Spaceship;
 pub(crate) use spaceship::{STRUCTURE_PARENT, ShipPart};
 #[cfg(any(test, feature = "scenarios"))]
 pub(crate) mod fixtures;
-#[cfg(test)]
-#[path = "tests/gameplay/mod.rs"]
-mod gameplay_tests;
 mod research;
 #[cfg(test)]
 mod research_phase;
@@ -877,5 +874,4 @@ pub(crate) fn year_label(year: i32) -> String {
 }
 
 #[cfg(test)]
-#[path = "tests.rs"]
 mod tests;

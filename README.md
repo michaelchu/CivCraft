@@ -232,7 +232,9 @@ coverage uses this same catalog. `src/headless` executes the selected scenario,
 attaches tracing and analytics, advances turns, and publishes reports.
 Simulation rules and fixture construction remain owned by `src/sim`.
 
-Private rule assertions remain ordinary Rust unit tests under `src/sim/tests`
-and subsystem test modules. Reusable typed setup lives in the domain modules under `src/sim/fixtures/`.
+Private rule assertions live in source-adjacent `tests` modules. Shared simulation
+checks enter through `sim::tests::gameplay`; subsystem helpers stay under the
+owning `tests` module. The root `tests/` directory covers CLI contracts.
+Reusable typed setup lives in the domain modules under `src/sim/fixtures/`.
 See [scenario boundaries and coverage](docs/SCENARIO_REFACTOR.md) for the
 architecture and the helper migration inventory.

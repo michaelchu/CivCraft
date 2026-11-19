@@ -2,6 +2,8 @@
 
 use super::*;
 
+mod helpers;
+
 #[test]
 fn peace_does_not_rewrite_citizen_nationalities() {
     let mut game = Simulation::new(crate::test_support::seeded_map());

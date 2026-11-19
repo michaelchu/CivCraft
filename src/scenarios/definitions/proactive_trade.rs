@@ -1,10 +1,18 @@
 //! Cash purchases, policy preferences, export safeguards and trade cadence.
 use super::{Checks, Scenario};
+use crate::scenarios::{Control, ScenarioKind};
 use crate::{
     rules::Tech,
     sim::{Pact, Simulation, fixtures::WorldBuilder},
 };
-pub(super) const SCENARIO: Scenario = Scenario::new("proactive-trade", execute);
+pub(super) const SCENARIO: Scenario = Scenario::new(
+    "proactive-trade",
+    1,
+    ScenarioKind::Actions {
+        control: Control::Human,
+        execute,
+    },
+);
 
 /// Two allies with a single technology available for a cash-only exchange.
 fn setup(game: &mut Simulation) -> Tech {

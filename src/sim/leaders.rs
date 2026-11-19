@@ -5,9 +5,6 @@ use super::pf_actions::PfAction;
 use super::*;
 use crate::rules::Genus;
 
-#[cfg(test)]
-mod unit_cases;
-
 struct LeaderPaths {
     costs: Vec<i32>,
     order: Vec<usize>,
@@ -239,5 +236,4 @@ impl Simulation {
 }
 
 #[cfg(test)]
-#[path = "leaders/tests.rs"]
 mod tests;

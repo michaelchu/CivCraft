@@ -1,3 +1,4 @@
+use crate::scenarios::{Control, RuntimeWorld, ScenarioKind};
 use crate::world::topology::offset_native_by_map;
 use crate::{
     sim::{HUMAN, Pact, Simulation, UnitKind},
@@ -12,7 +13,15 @@ const ATTACKER: usize = 1;
 const DEADLINE: u32 = 30;
 type Position = (i32, i32);
 
-pub(in crate::scenarios) const SCENARIO: Scenario = Scenario::campaign("naval-ai-assault", setup);
+pub(in crate::scenarios) const SCENARIO: Scenario = Scenario::new(
+    "naval-ai-assault",
+    2,
+    ScenarioKind::Runtime {
+        control: Control::AllAi,
+        world: RuntimeWorld::Custom,
+        setup,
+    },
+);
 
 fn setup(map: GeneratedMap) -> (Simulation, Box<dyn ScenarioRun>) {
     let mut game = WorldBuilder::ocean_campaign(

@@ -1,5 +1,6 @@
 //! Production and transport phases build a ferry, then a founder, then settle.
 use super::{Checks, Scenario};
+use crate::scenarios::{Control, ScenarioKind};
 use crate::{
     rules::Tech,
     sim::{
@@ -8,7 +9,14 @@ use crate::{
     },
     world::{Resource, Terrain, topology::offset_native_by_map},
 };
-pub(super) const SCENARIO: Scenario = Scenario::all_ai("settlement-ferry", execute);
+pub(super) const SCENARIO: Scenario = Scenario::new(
+    "settlement-ferry",
+    1,
+    ScenarioKind::Actions {
+        control: Control::AllAi,
+        execute,
+    },
+);
 
 /// A productive coastal home and a known overseas island.
 fn setup(game: &mut Simulation) -> (u32, (i32, i32)) {

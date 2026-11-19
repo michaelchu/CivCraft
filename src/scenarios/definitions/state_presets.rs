@@ -1,4 +1,5 @@
 //! Exercise existing governments, diplomatic access and a city trade route.
+use crate::scenarios::{Control, RuntimeWorld, ScenarioKind};
 
 use crate::sim::fixtures::{CivPreset, WorldBuilder};
 use serde::Serialize;
@@ -16,7 +17,15 @@ const MONARCHY: usize = 1;
 const TURNS: usize = 2;
 const GOODS: &str = "Goods";
 
-pub(super) const SCENARIO: Scenario = Scenario::campaign("campaign-state-presets", setup);
+pub(super) const SCENARIO: Scenario = Scenario::new(
+    "campaign-state-presets",
+    2,
+    ScenarioKind::Runtime {
+        control: Control::AllAi,
+        world: RuntimeWorld::Custom,
+        setup,
+    },
+);
 
 fn setup(map: GeneratedMap) -> (Simulation, Box<dyn ScenarioRun>) {
     let mut game = WorldBuilder::ocean_campaign(

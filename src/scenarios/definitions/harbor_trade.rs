@@ -1,4 +1,5 @@
 //! Ocean trade should connect coastal cities only when both have harbors.
+use crate::scenarios::{Control, RuntimeWorld, ScenarioKind};
 
 use crate::sim::fixtures::{CivPreset, TilePreset, WorldBuilder};
 use serde::Serialize;
@@ -11,7 +12,15 @@ use crate::{
     world::{GeneratedMap, Terrain, TerrainBase},
 };
 
-pub(super) const SCENARIO: Scenario = Scenario::campaign("harbor-trade-route", setup);
+pub(super) const SCENARIO: Scenario = Scenario::new(
+    "harbor-trade-route",
+    2,
+    ScenarioKind::Runtime {
+        control: Control::AllAi,
+        world: RuntimeWorld::Custom,
+        setup,
+    },
+);
 
 fn setup(map: GeneratedMap) -> (Simulation, Box<dyn ScenarioRun>) {
     let mut game = WorldBuilder::ocean_campaign(

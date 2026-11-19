@@ -13,8 +13,6 @@ mod offers;
 mod pacts;
 pub(in crate::sim) mod relationships;
 mod trade_policy;
-#[cfg(test)]
-mod unit_cases;
 mod vision;
 mod war_planning;
 #[cfg(feature = "desktop")]
@@ -687,7 +685,6 @@ impl Simulation {
 }
 
 #[cfg(test)]
-#[path = "diplomacy/tests.rs"]
 mod tests;
 
 #[cfg(test)]

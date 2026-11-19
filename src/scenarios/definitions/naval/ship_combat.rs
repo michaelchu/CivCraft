@@ -1,4 +1,5 @@
 //! An isolated hunt on open water, driven by the regular naval AI.
+use crate::scenarios::{Control, RuntimeWorld, ScenarioKind};
 
 use crate::sim::fixtures::{CivPreset, WorldBuilder};
 use crate::world::topology::offset_native_by_map;
@@ -13,7 +14,15 @@ use super::super::{Check, Scenario, ScenarioRun};
 const HUNTER: usize = 1;
 const ELITE: usize = 3;
 
-pub(in crate::scenarios) const SCENARIO: Scenario = Scenario::campaign("naval-ship-combat", setup);
+pub(in crate::scenarios) const SCENARIO: Scenario = Scenario::new(
+    "naval-ship-combat",
+    2,
+    ScenarioKind::Runtime {
+        control: Control::AllAi,
+        world: RuntimeWorld::Custom,
+        setup,
+    },
+);
 
 fn setup(map: GeneratedMap) -> (Simulation, Box<dyn ScenarioRun>) {
     let mut game = WorldBuilder::ocean_campaign(

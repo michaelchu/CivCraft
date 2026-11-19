@@ -48,58 +48,6 @@ impl Checks {
     }
 }
 
-impl Scenario {
-    const fn new(id: &'static str, actions: fn(&mut Simulation, &mut Checks)) -> Self {
-        Self {
-            id,
-            fixture: Fixture::NewCampaign,
-            actions: Some(actions),
-            campaign: None,
-            version: 1,
-            custom_world: false,
-        }
-    }
-
-    const fn all_ai(id: &'static str, actions: fn(&mut Simulation, &mut Checks)) -> Self {
-        Self {
-            id,
-            fixture: Fixture::AllAiCampaign,
-            actions: Some(actions),
-            campaign: None,
-            version: 1,
-            custom_world: false,
-        }
-    }
-
-    pub(crate) const fn campaign(id: &'static str, setup: ScenarioSetup) -> Self {
-        Self {
-            id,
-            fixture: Fixture::AllAiCampaign,
-            actions: None,
-            campaign: Some(setup),
-            version: 2,
-            custom_world: true,
-        }
-    }
-
-    pub(crate) const fn human_campaign(id: &'static str, setup: ScenarioSetup) -> Self {
-        Self {
-            fixture: Fixture::NewCampaign,
-            ..Self::campaign(id, setup)
-        }
-    }
-
-    /// Scripted actions may request normal turns from the runner before checks finish.
-    const fn scripted_runtime(id: &'static str, setup: ScenarioSetup) -> Self {
-        Self {
-            fixture: Fixture::NewCampaign,
-            version: 1,
-            custom_world: false,
-            ..Self::campaign(id, setup)
-        }
-    }
-}
-
 pub(super) const SCENARIOS: &[Scenario] = &[
     unit_recovery::SCENARIO,
     settlement_ferry::SCENARIO,

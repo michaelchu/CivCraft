@@ -53,13 +53,17 @@ runner to UI code.
 
 ### Registering a scenario
 
-Direct definitions live in `src/scenarios/definitions`; the `SCENARIOS` table in
-`src/scenarios/definitions/mod.rs` registers scenarios with scripted actions or
-normal campaign turns. A scripted definition is a function over a newly generated
-campaign that records named checks:
+The catalog entry point is `src/scenarios/catalog.rs`. It includes `generated-ai`
+and the optional definitions registered in `src/scenarios/definitions/mod.rs`.
+Direct definitions live in `src/scenarios/definitions`. A scripted definition is
+a function over a newly generated campaign that records named checks:
 
 ```rust
-pub(super) const SCENARIO: Scenario = Scenario::new("example-action", execute);
+pub(super) const SCENARIO: Scenario = Scenario::new(
+    "example-action",
+    1, // Explicit report contract version; independent of execution form.
+    ScenarioKind::Actions { control: Control::Human, execute },
+);
 
 fn execute(game: &mut Simulation, checks: &mut Checks) {
     // Prepare through WorldBuilder, execute an engine action, then record checks.
@@ -68,16 +72,21 @@ fn execute(game: &mut Simulation, checks: &mut Checks) {
 ```
 
 Registration makes it available as `--scenario example-action` with no runner
-change. `Scenario::new` starts from a new campaign with the human seat intact
-and enables all-AI play only after the actions run; `Scenario::all_ai` enables
-it first. Scripted scenarios use the reference map generator for the
+change. `Scenario::new(id, version, kind)` is the only constructor. The enum keeps
+mutually exclusive execution forms separate, and versions are explicit per
+registered definition. `Control::Human` preserves the human seat before actions;
+`Control::AllAi` enables every seat first. Command scripts enable all-AI play after
+actions complete. Scripted actions use the reference map generator for the
 requested seed and report that map's effective settings. The
 `generated-ai` scenario accepts generation options. Fixed scenarios and
 loaded campaigns reject world setup flags. Saved campaigns report their
 seed and dimensions and leave generator settings empty.
 
-For a scenario that spans normal campaign turns, use `Scenario::campaign`.
-Its setup receives the generated map and returns a starting campaign and an
+For a scenario that spans normal campaign turns, use `ScenarioKind::Runtime`
+with `control`, `world` and `setup` fields. `RuntimeWorld::Custom` describes a
+fixture-built world and omits generator metadata. `RuntimeWorld::Reference`
+retains reference-map provenance, as used by the scripted diplomacy runtime.
+The setup receives the generated map and returns a starting campaign and an
 observer for that run. Use the shared world builder to construct fixtures and
 keep the returned city and unit IDs in the observer. Setup runs before the
 initial snapshot. The observer receives each completed turn and cannot mutate
@@ -86,7 +95,7 @@ the campaign. Its structured observations appear under
 or a short turn budget, the runner asks the observer to evaluate all required
 outcomes. Only those assertions contribute to the scenario check totals.
 
-`Scenario::human_campaign` keeps the human seat active while the other
+A runtime with `Control::Human` keeps the human seat active while the other
 civilizations run normally. Scenarios can request trace kinds needed for their
 checks independently of the report's event filters.
 

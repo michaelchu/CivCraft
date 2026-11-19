@@ -1,4 +1,5 @@
 //! Paired campaigns that exercise citizen assignments with a human seat.
+use crate::scenarios::{Control, RuntimeWorld, ScenarioKind};
 
 use crate::sim::fixtures::{CivPreset, WorldBuilder};
 use serde::Serialize;
@@ -9,24 +10,62 @@ use super::{Check, Scenario, ScenarioRun};
 use crate::world::{GeneratedMap, TerrainBase};
 use crate::{sim::*, world::Terrain};
 
-pub(super) const GOVERNED: Scenario =
-    Scenario::human_campaign("city-governor-campaign", |map| setup(map, true));
-pub(super) const CONTROL: Scenario =
-    Scenario::human_campaign("city-governor-control", |map| setup(map, false));
+pub(super) const GOVERNED: Scenario = Scenario::new(
+    "city-governor-campaign",
+    2,
+    ScenarioKind::Runtime {
+        control: Control::Human,
+        world: RuntimeWorld::Custom,
+        setup: |map| setup(map, true),
+    },
+);
+pub(super) const CONTROL: Scenario = Scenario::new(
+    "city-governor-control",
+    2,
+    ScenarioKind::Runtime {
+        control: Control::Human,
+        world: RuntimeWorld::Custom,
+        setup: |map| setup(map, false),
+    },
+);
 
-pub(super) const FOOD_SHOCK: Scenario =
-    Scenario::human_campaign("city-governor-food-shock", |map| food_shock(map, true));
-pub(super) const FOOD_SHOCK_CONTROL: Scenario =
-    Scenario::human_campaign("city-governor-food-shock-control", |map| {
-        food_shock(map, false)
-    });
+pub(super) const FOOD_SHOCK: Scenario = Scenario::new(
+    "city-governor-food-shock",
+    2,
+    ScenarioKind::Runtime {
+        control: Control::Human,
+        world: RuntimeWorld::Custom,
+        setup: |map| food_shock(map, true),
+    },
+);
+pub(super) const FOOD_SHOCK_CONTROL: Scenario = Scenario::new(
+    "city-governor-food-shock-control",
+    2,
+    ScenarioKind::Runtime {
+        control: Control::Human,
+        world: RuntimeWorld::Custom,
+        setup: |map| food_shock(map, false),
+    },
+);
 
-pub(super) const UNREST_SHOCK: Scenario =
-    Scenario::human_campaign("city-governor-unrest-shock", |map| unrest_shock(map, true));
-pub(super) const UNREST_SHOCK_CONTROL: Scenario =
-    Scenario::human_campaign("city-governor-unrest-shock-control", |map| {
-        unrest_shock(map, false)
-    });
+pub(super) const UNREST_SHOCK: Scenario = Scenario::new(
+    "city-governor-unrest-shock",
+    2,
+    ScenarioKind::Runtime {
+        control: Control::Human,
+        world: RuntimeWorld::Custom,
+        setup: |map| unrest_shock(map, true),
+    },
+);
+pub(super) const UNREST_SHOCK_CONTROL: Scenario = Scenario::new(
+    "city-governor-unrest-shock-control",
+    2,
+    ScenarioKind::Runtime {
+        control: Control::Human,
+        world: RuntimeWorld::Custom,
+        setup: |map| unrest_shock(map, false),
+    },
+);
 
 fn unrest_shock(map: GeneratedMap, governed: bool) -> (Simulation, Box<dyn ScenarioRun>) {
     let mut game = WorldBuilder::ocean_campaign(

@@ -1,12 +1,21 @@
 //! Treaty expiry, atomic technology exchange and an actual begin-phase war.
 use super::{Check, Checks, Scenario, ScenarioRun};
+use crate::scenarios::{Control, RuntimeWorld, ScenarioKind};
 use crate::{
     rules::Tech,
     sim::{HUMAN, Pact, Simulation, TreatyOffer, UnitKind, fixtures::WorldBuilder},
     world::GeneratedMap,
 };
 
-pub(super) const SCENARIO: Scenario = Scenario::scripted_runtime("diplomacy-parity", setup);
+pub(super) const SCENARIO: Scenario = Scenario::new(
+    "diplomacy-parity",
+    1,
+    ScenarioKind::Runtime {
+        control: Control::Human,
+        world: RuntimeWorld::Reference,
+        setup,
+    },
+);
 fn setup(map: GeneratedMap) -> (Simulation, Box<dyn ScenarioRun>) {
     (
         Simulation::new(map),

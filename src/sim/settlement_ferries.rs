@@ -4,8 +4,6 @@ use super::movement::WorkerRouteZoneCache;
 use super::normal_paths::GotoTask;
 use super::*;
 
-#[cfg(test)]
-mod unit_cases;
 use std::{
     cmp::Reverse,
     collections::{BTreeMap, BinaryHeap},
@@ -711,5 +709,4 @@ impl Simulation {
 }
 
 #[cfg(test)]
-#[path = "settlement_ferries/pickup_tests.rs"]
-mod pickup_tests;
+mod tests;

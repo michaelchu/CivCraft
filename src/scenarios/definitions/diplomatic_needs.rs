@@ -1,5 +1,6 @@
 //! Observe real diplomatic advisor turns over independent controlled needs.
 use super::{Check, Scenario, ScenarioRun};
+use crate::scenarios::{Control, RuntimeWorld, ScenarioKind};
 use crate::world::GeneratedMap;
 use crate::{
     rules::{Building, Tech},
@@ -8,12 +9,33 @@ use crate::{
 use serde_json::{Value, json};
 
 use crate::sim::fixtures::{CivPreset, WorldBuilder};
-pub(super) const AID: Scenario =
-    Scenario::campaign("diplomatic-aid", |map| setup(map, "ally_funding"));
-pub(super) const MAPS: Scenario =
-    Scenario::campaign("diplomatic-maps", |map| setup(map, "useful_map"));
-pub(super) const RECOVERY: Scenario =
-    Scenario::campaign("diplomatic-recovery", |map| setup(map, "war_recovery"));
+pub(super) const AID: Scenario = Scenario::new(
+    "diplomatic-aid",
+    2,
+    ScenarioKind::Runtime {
+        control: Control::AllAi,
+        world: RuntimeWorld::Custom,
+        setup: |map| setup(map, "ally_funding"),
+    },
+);
+pub(super) const MAPS: Scenario = Scenario::new(
+    "diplomatic-maps",
+    2,
+    ScenarioKind::Runtime {
+        control: Control::AllAi,
+        world: RuntimeWorld::Custom,
+        setup: |map| setup(map, "useful_map"),
+    },
+);
+pub(super) const RECOVERY: Scenario = Scenario::new(
+    "diplomatic-recovery",
+    2,
+    ScenarioKind::Runtime {
+        control: Control::AllAi,
+        world: RuntimeWorld::Custom,
+        setup: |map| setup(map, "war_recovery"),
+    },
+);
 
 fn setup(map: GeneratedMap, reason: &'static str) -> (Simulation, Box<dyn ScenarioRun>) {
     let technologies: Vec<_> = Tech::all()

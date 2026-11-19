@@ -1,5 +1,6 @@
 //! Peaceful contact, cautious trust, explicit war and barbarian hostility.
 use super::{Checks, Scenario};
+use crate::scenarios::{Control, ScenarioKind};
 use crate::{
     sim::{
         BARBARIANS, HUMAN, MoveResult, Pact, Simulation, TreatyOffer, UnitKind,
@@ -7,7 +8,14 @@ use crate::{
     },
     world::topology::offset_native_by_map,
 };
-pub(super) const SCENARIO: Scenario = Scenario::new("peaceful-first-contact", execute);
+pub(super) const SCENARIO: Scenario = Scenario::new(
+    "peaceful-first-contact",
+    1,
+    ScenarioKind::Actions {
+        control: Control::Human,
+        execute,
+    },
+);
 fn execute(sim: &mut Simulation, checks: &mut Checks) {
     let mut world = WorldBuilder::new(sim);
     world.clear_campaign_entities();

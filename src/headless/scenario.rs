@@ -12,7 +12,7 @@ use crate::{
 use serde::Serialize;
 use std::path::Path;
 
-use crate::scenarios::{self, Check, Fixture, ScenarioRun};
+use crate::scenarios::{self, Check, ScenarioRun};
 
 pub(crate) fn names() -> impl Iterator<Item = &'static str> {
     scenarios::all().map(|scenario| scenario.id)
@@ -144,16 +144,15 @@ pub(crate) fn build(name: &str, seed: u64, setup: WorldSetup) -> Result<Run, Str
             names().collect::<Vec<_>>().join(",")
         )
     })?;
-    let (map, size, generator) = match scenario.fixture {
-        Fixture::Generated => (setup.generate(seed), Some(setup.size), setup.generator),
-        Fixture::NewCampaign | Fixture::AllAiCampaign => {
-            if setup.specified {
-                return Err(format!(
-                    "scenario {name} uses a fixed map and takes no world setup options"
-                ));
-            }
-            (mapgen::generate(seed), None, Generator::Fractal)
+    let (map, size, generator) = if scenario.accepts_world_options() {
+        (setup.generate(seed), Some(setup.size), setup.generator)
+    } else {
+        if setup.specified {
+            return Err(format!(
+                "scenario {name} uses a fixed map and takes no world setup options"
+            ));
         }
+        (mapgen::generate(seed), None, Generator::Fractal)
     };
     let (game, runtime) = scenario.start(map);
     Ok(Run {
@@ -166,7 +165,7 @@ pub(crate) fn build(name: &str, seed: u64, setup: WorldSetup) -> Result<Run, Str
             world: WorldProvenance::for_campaign(
                 &game,
                 size,
-                (!scenario.custom_world).then_some(generator),
+                (!scenario.uses_custom_world()).then_some(generator),
             ),
         },
         game,

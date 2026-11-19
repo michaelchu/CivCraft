@@ -1,6 +1,7 @@
 # Scenario boundary and coverage migration
 
-The registered gameplay catalog is `src/scenarios/definitions/mod.rs`. Scenario
+The registered gameplay catalog starts in `src/scenarios/catalog.rs`, combining
+`generated-ai` with the optional `src/scenarios/definitions/mod.rs` table. Scenario
 definitions own their setup composition, actions, observations and named checks. The headless
 runner owns tracing, analytics, turn advancement and report output. `sim` owns the
 rules, state, typed fixture construction and read-only queries.
@@ -18,9 +19,13 @@ weights and funding arrangements live with the scenario that chooses them.
 Strategy and funding unit tests reuse those setup functions through test-only
 exports; production simulation code does not depend on scenario definitions.
 
-The optional catalog, its constructors and every registered definition share one
-module gate on `scenarios::definitions`. The runtime lifecycle and `generated-ai`
-remain available without the `scenarios` feature. Simulation-only setup adapters
+Optional definitions share one module gate on `scenarios::definitions`. The catalog,
+runtime lifecycle and `generated-ai` remain available without the `scenarios` feature.
+Every definition uses `Scenario::new(id, version, kind)`. `ScenarioKind` selects
+one generated run, deferred action script, or prepared runtime, so actions and
+runtime setup cannot be configured simultaneously. Control and runtime-world
+provenance are explicit enum values; report versions are independent per-scenario
+contracts rather than constructor defaults. Simulation-only setup adapters
 retain gates at their owning module or implementation boundary where necessary.
 
 UI review's simulation setup is under `sim/ui_review`; rendering, input and
@@ -34,9 +39,12 @@ checks and provenance version. Their definitions now live under
 check implementations are removed. Culture/history coverage is additionally registered
 as `culture-history`.
 
-The old test-only helper tree is now `sim/tests/gameplay`, with scoped private-rule
-helpers in the owning subsystem's `unit_cases` module. These are ordinary Rust
-unit tests, compiled only under `cfg(test)`: they have no registry, runtime lifecycle,
+There are two Rust test boundaries. Source-adjacent `tests` modules own unit tests
+with private access; the root `tests/` directory owns executable/CLI contract tests.
+Shared simulation checks enter through `sim::tests::gameplay` in
+`sim/tests/gameplay`, and subsystem helpers live under each local `tests/helpers.rs`.
+There is no separate `unit_cases` module convention. These are ordinary Rust unit
+tests, compiled only under `cfg(test)`: they have no registry, runtime lifecycle,
 or production runner. Their setup methods use fixture names; other test helpers
 use test names. Private RNG vectors, arithmetic, caches and list-order assertions
 retain internal access in those tests rather than requiring a public scenario API.
@@ -70,6 +78,11 @@ Validated after the refactor:
   time and working-tree status; all event, change, snapshot and shared-value
   sidecars match byte for byte. The full Rust suite, Clippy, documentation tests
   and feature-enabled/disabled builds also pass after that follow-up.
+- The enum/API and test-layout follow-up retains all 1,292 discovered library
+  tests (including the ignored test), with only the planned test module paths
+  changed. All six relocated helper files are byte-identical. All 30 release
+  scenarios again match the preceding binary's reports and evidence, including
+  versions and generator provenance (excluding elapsed time and dirty status).
 - Retained unit helpers were compared against their original implementations:
   95 bodies match after identifier/formatting changes; two differ only in renamed
   fixture panic labels. Their ordinary Rust tests also pass.
@@ -88,18 +101,18 @@ helpers are fixtures, not an additional execution system.
 | `src/sim/ai_economy/funding/scenarios.rs` | `wartime_funding_scenario` | Migrated directly to `src/scenarios/definitions/wartime_funding.rs`; checks preserved in catalog coverage |
 | `src/sim/ai_strategy/scenarios.rs` | `shared_strategy_scenario` | Migrated directly to `src/scenarios/definitions/shared_strategy.rs`; checks preserved in catalog coverage |
 | `src/sim/diplomacy/relationships/scenarios.rs` | `relationship_memory_scenario` | Migrated directly to `src/scenarios/definitions/relationship_memory.rs`; checks preserved in catalog coverage |
-| `src/sim/diplomacy/scenarios.rs` | `diplomacy_playtest_friendship` | Fixture: `src/sim/diplomacy/unit_cases.rs::diplomacy_test_friendship`; private treaty valuations, directional memory and observer timers |
-| `src/sim/diplomacy/scenarios.rs` | `diplomacy_playtest_alliance_offer_setup` | Fixture: `src/sim/diplomacy/unit_cases.rs::diplomacy_test_alliance_offer_setup`; private treaty valuations, directional memory and observer timers |
-| `src/sim/diplomacy/scenarios.rs` | `diplomacy_playtest_allied_trade_baseline` | Fixture: `src/sim/diplomacy/unit_cases.rs::diplomacy_test_allied_trade_baseline`; private treaty valuations, directional memory and observer timers |
-| `src/sim/diplomacy/scenarios.rs` | `diplomacy_playtest_allied_sharing` | Fixture: `src/sim/diplomacy/unit_cases.rs::diplomacy_test_allied_sharing`; private treaty valuations, directional memory and observer timers |
-| `src/sim/diplomacy/scenarios.rs` | `ai_treaty_policy_playtest` | Unit check: `src/sim/diplomacy/unit_cases.rs::ai_treaty_policy_test`; private treaty valuations, directional memory and observer timers |
-| `src/sim/diplomacy/scenarios.rs` | `ai_diplomatic_intelligence_playtest` | Unit check: `src/sim/diplomacy/unit_cases.rs::ai_diplomatic_intelligence_test`; private treaty valuations, directional memory and observer timers |
-| `src/sim/diplomacy/scenarios.rs` | `ai_observer_incident_cadence_playtest` | Unit check: `src/sim/diplomacy/unit_cases.rs::ai_observer_incident_cadence_test`; private treaty valuations, directional memory and observer timers |
-| `src/sim/diplomacy/scenarios.rs` | `ai_diplomatic_love_playtest` | Unit check: `src/sim/diplomacy/unit_cases.rs::ai_diplomatic_love_test`; private treaty valuations, directional memory and observer timers |
-| `src/sim/diplomacy/scenarios.rs` | `ai_space_strategy_playtest` | Unit check: `src/sim/diplomacy/unit_cases.rs::ai_space_strategy_test`; private treaty valuations, directional memory and observer timers |
-| `src/sim/diplomacy/scenarios.rs` | `city_clause_playtest` | Unit check: `src/sim/diplomacy/unit_cases.rs::city_clause_test`; private treaty valuations, directional memory and observer timers |
-| `src/sim/diplomacy/scenarios.rs` | `treaty_map_playtest` | Unit check: `src/sim/diplomacy/unit_cases.rs::treaty_map_test`; private treaty valuations, directional memory and observer timers |
-| `src/sim/diplomacy/scenarios.rs` | `city_clause_bundle_playtest` | Unit check: `src/sim/diplomacy/unit_cases.rs::city_clause_bundle_test`; private treaty valuations, directional memory and observer timers |
+| `src/sim/diplomacy/scenarios.rs` | `diplomacy_playtest_friendship` | Fixture: `src/sim/diplomacy/tests/helpers.rs::diplomacy_test_friendship`; private treaty valuations, directional memory and observer timers |
+| `src/sim/diplomacy/scenarios.rs` | `diplomacy_playtest_alliance_offer_setup` | Fixture: `src/sim/diplomacy/tests/helpers.rs::diplomacy_test_alliance_offer_setup`; private treaty valuations, directional memory and observer timers |
+| `src/sim/diplomacy/scenarios.rs` | `diplomacy_playtest_allied_trade_baseline` | Fixture: `src/sim/diplomacy/tests/helpers.rs::diplomacy_test_allied_trade_baseline`; private treaty valuations, directional memory and observer timers |
+| `src/sim/diplomacy/scenarios.rs` | `diplomacy_playtest_allied_sharing` | Fixture: `src/sim/diplomacy/tests/helpers.rs::diplomacy_test_allied_sharing`; private treaty valuations, directional memory and observer timers |
+| `src/sim/diplomacy/scenarios.rs` | `ai_treaty_policy_playtest` | Unit check: `src/sim/diplomacy/tests/helpers.rs::ai_treaty_policy_test`; private treaty valuations, directional memory and observer timers |
+| `src/sim/diplomacy/scenarios.rs` | `ai_diplomatic_intelligence_playtest` | Unit check: `src/sim/diplomacy/tests/helpers.rs::ai_diplomatic_intelligence_test`; private treaty valuations, directional memory and observer timers |
+| `src/sim/diplomacy/scenarios.rs` | `ai_observer_incident_cadence_playtest` | Unit check: `src/sim/diplomacy/tests/helpers.rs::ai_observer_incident_cadence_test`; private treaty valuations, directional memory and observer timers |
+| `src/sim/diplomacy/scenarios.rs` | `ai_diplomatic_love_playtest` | Unit check: `src/sim/diplomacy/tests/helpers.rs::ai_diplomatic_love_test`; private treaty valuations, directional memory and observer timers |
+| `src/sim/diplomacy/scenarios.rs` | `ai_space_strategy_playtest` | Unit check: `src/sim/diplomacy/tests/helpers.rs::ai_space_strategy_test`; private treaty valuations, directional memory and observer timers |
+| `src/sim/diplomacy/scenarios.rs` | `city_clause_playtest` | Unit check: `src/sim/diplomacy/tests/helpers.rs::city_clause_test`; private treaty valuations, directional memory and observer timers |
+| `src/sim/diplomacy/scenarios.rs` | `treaty_map_playtest` | Unit check: `src/sim/diplomacy/tests/helpers.rs::treaty_map_test`; private treaty valuations, directional memory and observer timers |
+| `src/sim/diplomacy/scenarios.rs` | `city_clause_bundle_playtest` | Unit check: `src/sim/diplomacy/tests/helpers.rs::city_clause_bundle_test`; private treaty valuations, directional memory and observer timers |
 | `src/sim/diplomacy/trade_policy/scenarios.rs` | `proactive_trade_scenario` | Migrated directly to `src/scenarios/definitions/proactive_trade.rs`; checks preserved in catalog coverage |
 | `src/sim/headless_scenarios.rs` | `capture_known_tiles` | Setup-only helper in `src/sim/fixtures/world.rs` |
 | `src/sim/headless_scenarios.rs` | `give_unit_full_movement` | Setup-only helper in `src/sim/fixtures/units.rs` |
@@ -199,10 +212,10 @@ helpers are fixtures, not an additional execution system.
 | `src/sim/playtest/world_events_scenarios.rs` | `run_disaster_playtest` | Unit check: `src/sim/tests/gameplay/world_events_tests.rs::run_disaster_test`; seeded probability boundaries and literal native RNG oracles |
 | `src/sim/playtest/world_events_scenarios.rs` | `uprising_playtest` | Unit check: `src/sim/tests/gameplay/world_events_tests.rs::uprising_test`; seeded probability boundaries and literal native RNG oracles |
 | `src/sim/research_observation.rs` | `research_history_playtest` | Migrated to `src/scenarios/definitions/research_history.rs`; existing coverage preserved |
-| `src/sim/advisors/playtest.rs` | `ai_happiness_effects_playtest` | Unit check: `src/sim/advisors/unit_cases.rs::ai_happiness_effects_test`; private building/defender wants and internal forecast calculations |
-| `src/sim/advisors/playtest.rs` | `ai_wonder_advisor_playtest` | Unit check: `src/sim/advisors/unit_cases.rs::ai_wonder_advisor_test`; private building/defender wants and internal forecast calculations |
-| `src/sim/ai_economy/playtest.rs` | `ai_tax_manager_playtest` | Unit check: `src/sim/ai_economy/unit_cases.rs::ai_tax_manager_test`; tax manager arithmetic and private emergency/reserve thresholds |
-| `src/sim/ai_economy/playtest.rs` | `ai_tax_phase_playtest` | Unit check: `src/sim/ai_economy/unit_cases.rs::ai_tax_phase_test`; tax manager arithmetic and private emergency/reserve thresholds |
-| `src/sim/leaders/playtest.rs` | `ai_zero_attack_carrier_path_playtest` | Unit check: `src/sim/leaders/unit_cases.rs::ai_zero_attack_carrier_path_test`; private promotion/spawn odds and leader eligibility |
-| `src/sim/settlement_ferries/playtest.rs` | `ai_guard_ferry_capacity_playtest` | Unit check: `src/sim/settlement_ferries/unit_cases.rs::ai_guard_ferry_capacity_test`; private ferry capacity and founder/guard reservations |
-| `src/sim/workers/playtest.rs` | `ai_worker_planning_playtest` | Unit check: `src/sim/workers/unit_cases.rs::ai_worker_planning_test`; WorkMap reservations, route selection and shelter decisions |
+| `src/sim/advisors/playtest.rs` | `ai_happiness_effects_playtest` | Unit check: `src/sim/advisors/tests/helpers.rs::ai_happiness_effects_test`; private building/defender wants and internal forecast calculations |
+| `src/sim/advisors/playtest.rs` | `ai_wonder_advisor_playtest` | Unit check: `src/sim/advisors/tests/helpers.rs::ai_wonder_advisor_test`; private building/defender wants and internal forecast calculations |
+| `src/sim/ai_economy/playtest.rs` | `ai_tax_manager_playtest` | Unit check: `src/sim/ai_economy/tests/helpers.rs::ai_tax_manager_test`; tax manager arithmetic and private emergency/reserve thresholds |
+| `src/sim/ai_economy/playtest.rs` | `ai_tax_phase_playtest` | Unit check: `src/sim/ai_economy/tests/helpers.rs::ai_tax_phase_test`; tax manager arithmetic and private emergency/reserve thresholds |
+| `src/sim/leaders/playtest.rs` | `ai_zero_attack_carrier_path_playtest` | Unit check: `src/sim/leaders/tests/helpers.rs::ai_zero_attack_carrier_path_test`; private promotion/spawn odds and leader eligibility |
+| `src/sim/settlement_ferries/playtest.rs` | `ai_guard_ferry_capacity_playtest` | Unit check: `src/sim/settlement_ferries/tests/helpers.rs::ai_guard_ferry_capacity_test`; private ferry capacity and founder/guard reservations |
+| `src/sim/workers/playtest.rs` | `ai_worker_planning_playtest` | Unit check: `src/sim/workers/tests/helpers.rs::ai_worker_planning_test`; WorkMap reservations, route selection and shelter decisions |

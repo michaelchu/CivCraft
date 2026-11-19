@@ -13,8 +13,6 @@ pub(super) use advisor_threats::DangerRouteCache;
 use super::unit_catalog::{UnitClass, UnitFlag};
 use super::*;
 
-#[cfg(test)]
-mod unit_cases;
 use crate::rules::{Genus, Requirement};
 
 const FOOD_WEIGHT: i32 = 30;
@@ -257,5 +255,4 @@ impl Simulation {
 }
 
 #[cfg(test)]
-#[path = "advisors/tests.rs"]
 mod tests;

@@ -1,11 +1,19 @@
 //! Production, loss, founding, capture and transfer remain in lifecycle history.
 use super::{Checks, Scenario};
+use crate::scenarios::{Control, ScenarioKind};
 use crate::sim::{
     Pact, Production, Simulation, UnitKind,
     fixtures::WorldBuilder,
     lifecycle::{Change, CityRemoval, TransferReason, UnitOrigin, UnitRemoval},
 };
-pub(super) const SCENARIO: Scenario = Scenario::all_ai("lifecycle-history", execute);
+pub(super) const SCENARIO: Scenario = Scenario::new(
+    "lifecycle-history",
+    1,
+    ScenarioKind::Actions {
+        control: Control::AllAi,
+        execute,
+    },
+);
 fn execute(game: &mut Simulation, checks: &mut Checks) {
     game.ensure_lifecycle_observation();
     let mut world = WorldBuilder::new(game);

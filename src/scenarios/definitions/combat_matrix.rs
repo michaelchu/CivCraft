@@ -1,10 +1,18 @@
 //! Actual movement-triggered combat across terrain and city defenses.
 use super::{Checks, Scenario};
+use crate::scenarios::{Control, ScenarioKind};
 use crate::{
     sim::{HUMAN, MoveResult, Pact, Simulation, UnitKind, fixtures::WorldBuilder},
     world::Terrain,
 };
-pub(super) const SCENARIO: Scenario = Scenario::all_ai("combat-matrix", execute);
+pub(super) const SCENARIO: Scenario = Scenario::new(
+    "combat-matrix",
+    1,
+    ScenarioKind::Actions {
+        control: Control::AllAi,
+        execute,
+    },
+);
 fn execute(game: &mut Simulation, checks: &mut Checks) {
     let cases = [
         (

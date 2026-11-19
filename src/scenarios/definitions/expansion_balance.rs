@@ -1,9 +1,17 @@
 //! Settlement advice reprices commitments while retaining cached site values.
 use super::{Checks, Scenario};
+use crate::scenarios::{Control, ScenarioKind};
 use crate::sim::{
     AiBuildChoice, Government, Production, Simulation, UnitKind, fixtures::WorldBuilder,
 };
-pub(super) const SCENARIO: Scenario = Scenario::all_ai("expansion-balance", execute);
+pub(super) const SCENARIO: Scenario = Scenario::new(
+    "expansion-balance",
+    1,
+    ScenarioKind::Actions {
+        control: Control::AllAi,
+        execute,
+    },
+);
 fn execute(game: &mut Simulation, checks: &mut Checks) {
     let mut world = WorldBuilder::new(game);
     world.clear_units_and_cities();

@@ -1,10 +1,18 @@
 //! City culture accrual and conquest retain the ruleset's history semantics.
 use super::{Checks, Scenario};
+use crate::scenarios::{Control, ScenarioKind};
 use crate::{
     rules::engine_rules::VictoryCondition,
     sim::{HUMAN, Pact, Simulation, UnitKind, fixtures::WorldBuilder},
 };
-pub(super) const SCENARIO: Scenario = Scenario::new("culture-history", execute);
+pub(super) const SCENARIO: Scenario = Scenario::new(
+    "culture-history",
+    1,
+    ScenarioKind::Actions {
+        control: Control::Human,
+        execute,
+    },
+);
 fn execute(game: &mut Simulation, checks: &mut Checks) {
     let mut world = WorldBuilder::new(game);
     world.clear_units_and_cities();

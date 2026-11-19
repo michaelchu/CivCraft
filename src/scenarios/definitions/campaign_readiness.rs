@@ -1,4 +1,5 @@
 //! A campaign already producing, researching, and carrying aircraft.
+use crate::scenarios::{Control, RuntimeWorld, ScenarioKind};
 
 use crate::sim::fixtures::{CivPreset, UnitReadiness, WorldBuilder};
 use serde::Serialize;
@@ -20,7 +21,15 @@ const PROJECT: Tech = Tech::ALPHABET;
 const BUILD: Production = Production::Unit(UnitKind::Worker);
 const NEXT_BUILD: Production = Production::Building(Building::HARBOR);
 
-pub(super) const SCENARIO: Scenario = Scenario::campaign("campaign-readiness-presets", setup);
+pub(super) const SCENARIO: Scenario = Scenario::new(
+    "campaign-readiness-presets",
+    2,
+    ScenarioKind::Runtime {
+        control: Control::AllAi,
+        world: RuntimeWorld::Custom,
+        setup,
+    },
+);
 
 fn setup(map: GeneratedMap) -> (Simulation, Box<dyn ScenarioRun>) {
     let mut game = WorldBuilder::ocean_campaign(

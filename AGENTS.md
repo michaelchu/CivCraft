@@ -221,7 +221,10 @@ for coverage and retention semantics.
 
 Registered gameplay definitions and their catalog belong in `src/scenarios`.
 Use `sim/fixtures` for typed state preparation, and keep private rule assertions
-in ordinary Rust unit tests under `cfg(test)`. The headless runner owns all full
+in ordinary source-adjacent `tests` modules under `cfg(test)`. Shared simulation
+checks enter through `sim::tests::gameplay`; subsystem helpers belong under their
+local `tests` module. Keep root `tests/` for executable/CLI contracts. The headless
+runner owns all full
 turn advancement, including preparatory turns requested by scripted actions.
 See `docs/SCENARIO_REFACTOR.md` for the boundary and coverage inventory.
 
@@ -241,7 +244,8 @@ cargo run --offline --release --bin headless_sim -- \
 Require a zero exit status and inspect `summary.scenario_checks_passed`,
 `summary.scenario_checks_total`, and every entry under `run.scenario.checks`.
 Failed scenario checks make the command fail after it publishes the report.
-Use `Scenario::campaign` for scenarios that exercise normal campaign turns.
+Use `ScenarioKind::Runtime` with an explicit version for scenarios that exercise
+normal campaign turns. Choose control and runtime-world provenance explicitly.
 Build the fixture with `WorldBuilder` before the initial snapshot, track the
 exact entities by ID, and let the headless runner advance the game. Observe
 state after each turn and evaluate required outcomes in `finish`, including

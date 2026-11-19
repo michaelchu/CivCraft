@@ -1,5 +1,6 @@
 //! AI defense, defended-landing refusal and capture with airborne units.
 use super::{Checks, Scenario};
+use crate::scenarios::{Control, ScenarioKind};
 use crate::{
     rules::Tech,
     sim::{
@@ -8,7 +9,14 @@ use crate::{
     },
     world::{Terrain, topology::offset_native_by_map},
 };
-pub(super) const SCENARIO: Scenario = Scenario::new("ai-paradrops", execute);
+pub(super) const SCENARIO: Scenario = Scenario::new(
+    "ai-paradrops",
+    1,
+    ScenarioKind::Actions {
+        control: Control::Human,
+        execute,
+    },
+);
 fn execute(game: &mut Simulation, checks: &mut Checks) {
     WorldBuilder::new(game).clear_units();
     game.sign_pact(1, HUMAN, Pact::War);

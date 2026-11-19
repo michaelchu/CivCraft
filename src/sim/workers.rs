@@ -5,8 +5,6 @@ use super::pathfinding::reconstruct_path;
 use super::*;
 
 mod planning;
-#[cfg(test)]
-mod unit_cases;
 pub(super) use planning::WorkMap;
 use planning::{WORKER_FACTOR, amortize};
 #[cfg(test)]
@@ -434,5 +432,4 @@ impl Simulation {
 }
 
 #[cfg(test)]
-#[path = "workers/tests.rs"]
 mod tests;

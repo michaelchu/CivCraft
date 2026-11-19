@@ -1,5 +1,6 @@
 //! Concrete military purchase needs, upkeep buffers and protected research.
 use super::{Checks, Scenario};
+use crate::scenarios::{Control, ScenarioKind};
 use crate::{
     rules::Tech,
     sim::{
@@ -8,7 +9,14 @@ use crate::{
     },
     world::topology::offset_native_by_map,
 };
-pub(super) const SCENARIO: Scenario = Scenario::new("wartime-funding", execute);
+pub(super) const SCENARIO: Scenario = Scenario::new(
+    "wartime-funding",
+    1,
+    ScenarioKind::Actions {
+        control: Control::Human,
+        execute,
+    },
+);
 
 /// Shared with focused funding unit tests, without executing policy or checks.
 pub(crate) fn setup(game: &mut Simulation) {

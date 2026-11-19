@@ -1,10 +1,18 @@
 //! Barracks and ordinary unit recovery through the normal recovery rules.
 use super::{Checks, Scenario};
+use crate::scenarios::{Control, ScenarioKind};
 use crate::{
     rules::{Building, Tech},
     sim::{HUMAN, Simulation, UnitKind, fixtures::WorldBuilder},
 };
-pub(super) const SCENARIO: Scenario = Scenario::all_ai("city-healing", execute);
+pub(super) const SCENARIO: Scenario = Scenario::new(
+    "city-healing",
+    1,
+    ScenarioKind::Actions {
+        control: Control::AllAi,
+        execute,
+    },
+);
 
 fn execute(game: &mut Simulation, checks: &mut Checks) {
     let mut world = WorldBuilder::new(game);

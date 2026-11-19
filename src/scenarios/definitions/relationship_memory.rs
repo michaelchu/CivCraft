@@ -1,7 +1,15 @@
 //! Executed exchanges, justified ally support and unjustified breaches.
 use super::{Checks, Scenario};
+use crate::scenarios::{Control, ScenarioKind};
 use crate::sim::{HUMAN, Pact, Simulation, fixtures::WorldBuilder};
-pub(super) const SCENARIO: Scenario = Scenario::new("relationship-memory", execute);
+pub(super) const SCENARIO: Scenario = Scenario::new(
+    "relationship-memory",
+    1,
+    ScenarioKind::Actions {
+        control: Control::Human,
+        execute,
+    },
+);
 
 fn execute(game: &mut Simulation, checks: &mut Checks) {
     super::proactive_trade::execute(game, &mut Checks::default());

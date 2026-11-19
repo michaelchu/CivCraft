@@ -2,6 +2,8 @@
 
 use super::*;
 
+mod helpers;
+
 fn game() -> Simulation {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();

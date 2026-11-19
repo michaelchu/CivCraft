@@ -2,6 +2,8 @@
 
 use super::*;
 
+mod helpers;
+
 #[test]
 fn actual_ferry_reselects_two_slots_for_guard_without_changing_city_goal() {
     let mut game = ocean_game();

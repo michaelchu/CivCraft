@@ -1,5 +1,6 @@
 //! Complete research, treaty transfer and upkeep loss through engine operations.
 use super::{Checks, Scenario};
+use crate::scenarios::{Control, ScenarioKind};
 use crate::{
     rules::Tech,
     sim::{
@@ -8,7 +9,14 @@ use crate::{
         research_observation::{TechnologyAction, TechnologySource},
     },
 };
-pub(super) const SCENARIO: Scenario = Scenario::all_ai("research-history", execute);
+pub(super) const SCENARIO: Scenario = Scenario::new(
+    "research-history",
+    1,
+    ScenarioKind::Actions {
+        control: Control::AllAi,
+        execute,
+    },
+);
 fn execute(game: &mut Simulation, checks: &mut Checks) {
     game.ensure_research_observation();
     let tech = Tech::all()

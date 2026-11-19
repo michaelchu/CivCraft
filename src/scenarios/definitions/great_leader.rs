@@ -1,10 +1,18 @@
 //! AI Leader eligibility, consumption and wonder completion.
 use super::{Checks, Scenario};
+use crate::scenarios::{Control, ScenarioKind};
 use crate::{
     rules::{Building, Tech},
     sim::{Production, Simulation, UnitKind, fixtures::WorldBuilder},
 };
-pub(super) const SCENARIO: Scenario = Scenario::all_ai("great-leader", execute);
+pub(super) const SCENARIO: Scenario = Scenario::new(
+    "great-leader",
+    1,
+    ScenarioKind::Actions {
+        control: Control::AllAi,
+        execute,
+    },
+);
 
 fn execute(game: &mut Simulation, checks: &mut Checks) {
     let mut world = WorldBuilder::new(game);

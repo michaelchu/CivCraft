@@ -1,11 +1,19 @@
 //! Policy preferences across research, diplomacy, war and economic recovery.
 use super::{Checks, Scenario};
+use crate::scenarios::{Control, ScenarioKind};
 use crate::{
     rules::{Building, Tech},
     sim::{Pact, Simulation, fixtures::WorldBuilder},
 };
 
-pub(super) const SCENARIO: Scenario = Scenario::new("shared-strategy", execute);
+pub(super) const SCENARIO: Scenario = Scenario::new(
+    "shared-strategy",
+    1,
+    ScenarioKind::Actions {
+        control: Control::Human,
+        execute,
+    },
+);
 
 /// Shared with focused strategy unit tests; all fixed policy choices live here.
 pub(crate) fn setup(game: &mut Simulation) -> (u32, Tech) {

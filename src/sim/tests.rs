@@ -1,4 +1,6 @@
-//! Regression tests for the behavior of the parent module.
+//! Unit tests spanning simulation subsystems; local rules are tested beside their modules.
+
+mod gameplay;
 
 #[test]
 fn railroad_research_upgrades_centers_and_enables_worker_tracks() {
