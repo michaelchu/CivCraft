@@ -75,7 +75,8 @@ impl WorldBuilder<'_> {
             (owner, target),
             crate::sim::diplomacy::WarPlan {
                 countdown: 0,
-                reason: crate::sim::diplomacy::WarReason::Hatred,
+                reason: crate::sim::diplomacy::WarReason::Behavior,
+                objective: None,
             },
         );
     }

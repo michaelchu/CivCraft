@@ -189,6 +189,7 @@ fn production_compares_domestic_and_military_wants_on_one_scale() {
         super::super::diplomacy::WarPlan {
             countdown: 2,
             reason: super::super::diplomacy::WarReason::Spoils,
+            objective: None,
         },
     );
     game.spawn_unit(1, UnitKind::Musketman, 10, 24);
@@ -209,6 +210,7 @@ fn production_compares_domestic_and_military_wants_on_one_scale() {
         super::super::diplomacy::WarPlan {
             countdown: 2,
             reason: super::super::diplomacy::WarReason::Space,
+            objective: None,
         },
     );
     if let Some(military) = game.military_build_advice(&game.cities[0]).1 {
@@ -266,6 +268,7 @@ fn routine_settler_rush_requires_no_war_preparation_and_enough_population() {
         super::super::diplomacy::WarPlan {
             countdown: 0,
             reason: super::super::diplomacy::WarReason::Space,
+            objective: None,
         },
     );
     game.spend_ai_defense_gold(1);

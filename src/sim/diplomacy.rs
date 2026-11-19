@@ -258,6 +258,16 @@ pub(super) enum WarReason {
 pub(super) struct WarPlan {
     pub(super) countdown: i32,
     pub(super) reason: WarReason,
+    // The versioned campaign envelope stores objectives separately.
+    #[serde(skip)]
+    pub(super) objective: Option<WarObjective>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub(crate) struct WarObjective {
+    pub(crate) city: u32,
+    pub(crate) muster_city: u32,
+    pub(crate) staging: (i32, i32),
 }
 
 // ai/aitraits.c clips the effective trait before daidiplomacy.c computes

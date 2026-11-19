@@ -204,7 +204,8 @@ fn treaty_expiry_and_ai_diplomacy_run_at_separate_boundaries() {
         (1, HUMAN),
         WarPlan {
             countdown: 0,
-            reason: WarReason::Hatred,
+            reason: WarReason::Behavior,
+            objective: None,
         },
     );
     game.advance_diplomacy();
@@ -252,7 +253,8 @@ fn each_ai_negotiates_before_the_next_ai_declares_war() {
         (1, 2),
         WarPlan {
             countdown: 0,
-            reason: WarReason::Hatred,
+            reason: WarReason::Behavior,
+            objective: None,
         },
     );
     game.refresh_diplomatic_intelligence();

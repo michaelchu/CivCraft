@@ -23,12 +23,15 @@ pub(crate) struct DiplomacySnapshot {
 pub(crate) struct WarPlanSnapshot {
     pub countdown: i32,
     pub reason: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub objective: Option<WarObjective>,
 }
 impl From<WarPlan> for WarPlanSnapshot {
     fn from(plan: WarPlan) -> Self {
         Self {
             countdown: plan.countdown,
             reason: plan.reason.observation_name().to_owned(),
+            objective: plan.objective,
         }
     }
 }
@@ -164,6 +167,7 @@ mod tests {
                     Some(WarPlanSnapshot {
                         countdown,
                         reason: "hatred".into(),
+                        objective: None,
                     })
                 }),
             };

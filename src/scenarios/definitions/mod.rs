@@ -3,6 +3,7 @@
 use super::*;
 
 mod ai_paradrops;
+mod border_offensive;
 mod campaign_readiness;
 mod city_governor;
 mod combat_matrix;
@@ -53,6 +54,7 @@ pub(super) const SCENARIOS: &[Scenario] = &[
     settlement_ferry::SCENARIO,
     state_presets::SCENARIO,
     campaign_readiness::SCENARIO,
+    border_offensive::SCENARIO,
     city_governor::GOVERNED,
     city_governor::CONTROL,
     city_governor::FOOD_SHOCK,

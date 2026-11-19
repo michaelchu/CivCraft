@@ -65,6 +65,7 @@ fn unmet_targets_and_defeated_enemies_do_not_create_military_pressure() {
         diplomacy::WarPlan {
             countdown: 3,
             reason: diplomacy::WarReason::Hatred,
+            objective: None,
         },
     );
     let unmet = game.strategic_priorities(1);

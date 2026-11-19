@@ -52,6 +52,15 @@ impl Simulation {
                     && self.at_war(first.owner, unit.owner)
             })
             .collect();
+        self.assault_capture_chance_against(city, troops, &defenders)
+    }
+
+    pub(in crate::sim) fn assault_capture_chance_against(
+        &self,
+        city: &City,
+        troops: &[&Unit],
+        defenders: &[&Unit],
+    ) -> f64 {
         if !troops.iter().any(|unit| unit.kind.can_occupy_city()) || defenders.len() > troops.len()
         {
             return 0.0;
@@ -265,6 +274,7 @@ impl Simulation {
         drop(_profile);
         let _profile = profiler.scope("ai.ground_invasions");
         let ground_missions = self.refresh_ground_invasions(owner, &reserved);
+        let coordinated_objective = self.coordinated_war_objective(owner);
         let mut claimed_targets = std::collections::HashSet::new();
         let mut ferry_managed = std::collections::HashSet::new();
         drop(_profile);
@@ -407,6 +417,11 @@ impl Simulation {
                         && owner != BARBARIANS
                     {
                         let _profile = profiler.scope("ai.fallback.ground_mission");
+                        if coordinated_objective.is_some_and(|objective| {
+                            self.run_coordinated_ground_order(&unit, objective)
+                        }) {
+                            continue;
+                        }
                         if !ground_missions
                             .get(&id)
                             .is_some_and(|target| self.run_ground_mission(&unit, target))

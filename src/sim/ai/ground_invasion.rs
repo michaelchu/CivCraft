@@ -6,6 +6,49 @@ pub(in crate::sim) type SharedInvasionSupport =
     std::sync::Arc<std::collections::BTreeMap<u32, (i32, i32)>>;
 
 impl Simulation {
+    pub(super) fn run_coordinated_ground_order(
+        &mut self,
+        actor: &Unit,
+        objective: diplomacy::WarObjective,
+    ) -> bool {
+        if !Self::can_join_ground_offensive(actor.kind) || actor.transport.is_some() {
+            return false;
+        }
+        let Some(city) = self.city_by_id(objective.city) else {
+            return false;
+        };
+        if city.owner == actor.owner {
+            return false;
+        }
+        let attacking = self.at_war(actor.owner, city.owner);
+        let goal = if attacking {
+            (city.x, city.y)
+        } else {
+            objective.staging
+        };
+        // Keep this a local front, leaving distant units to their regular
+        // roles and avoiding long searches for an unreachable muster tile.
+        if self.map_distance(actor.x, actor.y, goal.0, goal.1) > 10 {
+            return false;
+        }
+        let mut routes = if attacking {
+            normal_paths::NormalPaths::attack_map(self, actor)
+        } else {
+            normal_paths::NormalPaths::goto_map(self, actor, GotoTask::None)
+        };
+        let Some((path, _)) = routes.path(self, goal.0, goal.1) else {
+            return false;
+        };
+        if attacking {
+            self.ai_ground_targets.insert(actor.id, objective.city);
+        } else {
+            self.ai_ground_targets.remove(&actor.id);
+        }
+        self.unit_goto_tiles.insert(actor.id, goal);
+        self.follow_ground_invasion_path(actor.id, &path);
+        true
+    }
+
     #[cfg(test)]
     pub(crate) fn ai_ground_invasion_fixture(&mut self) -> (u32, u32, u32) {
         self.units.clear();

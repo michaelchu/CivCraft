@@ -97,6 +97,11 @@ fn launched_space_leader_triggers_a_two_turn_war_plan() {
 #[test]
 fn hatred_prepares_war_and_stubbornness_expires_separately() {
     let mut game = war_planning_game();
+    for tile in &mut game.tiles {
+        tile.terrain = Terrain::Grassland;
+        tile.known_by.set(1, true);
+    }
+    game.spawn_unit(1, UnitKind::Spearman, 12, 24);
     assert!(!game.ai_on_war_footing(1));
     game.advance_ai_war_plans();
     let delay = 4 + game.map_size_factor();
@@ -106,6 +111,26 @@ fn hatred_prepares_war_and_stubbornness_expires_separately() {
     for _ in 0..delay {
         game.advance_ai_war_plans();
     }
+    assert!(!game.at_war(1, HUMAN));
+    assert_eq!(game.ai_war_countdown(1, HUMAN), 0);
+    let objective = game.coordinated_war_objective(1).unwrap();
+    let path = crate::sim::save::tests::temporary_save("war-objective");
+    game.save_campaign(&path).unwrap();
+    game = Simulation::load_campaign(&path).unwrap();
+    std::fs::remove_file(path).unwrap();
+    assert_eq!(game.coordinated_war_objective(1), Some(objective));
+    game.players[1].gold = 1000;
+    for _ in 0..8 {
+        game.spawn_unit(
+            1,
+            UnitKind::Swordsman,
+            objective.staging.0,
+            objective.staging.1,
+        );
+    }
+    assert!(game.war_force_ready(1, objective));
+    assert!(game.strategic_priorities(1).can_start_optional_war());
+    game.advance_ai_war_plans();
     assert!(game.at_war(1, HUMAN));
     assert_eq!(game.ai_war_countdown(1, HUMAN), -20);
     assert!(!game.ai_on_war_footing(1));
@@ -264,7 +289,8 @@ fn senate_requires_a_revolution_before_the_planned_declaration() {
         (1, HUMAN),
         WarPlan {
             countdown: 0,
-            reason: WarReason::Hatred,
+            reason: WarReason::Behavior,
+            objective: None,
         },
     );
     game.advance_ai_war_plans();

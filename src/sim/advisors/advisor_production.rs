@@ -729,6 +729,42 @@ impl Simulation {
                     want,
                 });
             }
+            if let Some(objective) = self.coordinated_war_objective(city.owner)
+                && objective.muster_city == city.id
+                && self.advisor_guard_city_assessment(city).urgency <= 1
+                && !military.is_some_and(|choice| choice.want >= MILITARY_EMERGENCY_WANT)
+                && !self.war_force_ready(city.owner, objective)
+                && self
+                    .strategic_priorities(city.owner)
+                    .can_start_optional_war()
+            {
+                let kind = if self.war_muster_has_garrison(city) {
+                    UnitKind::ALL_NATIVE
+                        .into_iter()
+                        .filter(|&kind| {
+                            Self::can_join_ground_offensive(kind) && self.unit_buildable(city, kind)
+                        })
+                        .max_by_key(|kind| {
+                            let stats = kind.stats();
+                            stats.attack * stats.attack * 100 / stats.cost.max(1)
+                        })
+                } else {
+                    self.production_city_defender_with_assessment(
+                        city,
+                        0,
+                        self.advisor_guard_city_assessment(city),
+                    )
+                };
+                if let Some(kind) = kind {
+                    return (
+                        military,
+                        Some(AiBuildChoice {
+                            production: Production::Unit(kind),
+                            want: DOMESTIC_WANT_MAX,
+                        }),
+                    );
+                }
+            }
         }
         let before = military;
         if !severe && let Some(choice) = military.as_mut() {
