@@ -1,6 +1,6 @@
 # Great Leader Implementation Plan
 
-Current scenario checks live in `src/scenarios/great_leader.rs`. The steps below
+Current scenario checks live in `src/scenarios/definitions/great_leader.rs`. The steps below
 record the original implementation; scenario ownership has since moved to the
 shared catalog described in `docs/SCENARIO_REFACTOR.md`.
 

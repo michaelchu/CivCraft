@@ -40,7 +40,7 @@ fn forced_upkeep_losses_are_visible_without_changing_accounting() {
 #[test]
 fn forecast_at_proposed_rates_matches_an_actual_rate_change_and_preserves_workers() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
-    crate::sim::fixtures::WorldBuilder::new(&mut game).funding_campaign();
+    crate::scenarios::funding_campaign_fixture(&mut game);
     game.sign_pact(1, 2, Pact::War);
     game.manage_ai_taxes(1);
     let before = game.encode_campaign().unwrap();
@@ -56,7 +56,7 @@ fn forecast_at_proposed_rates_matches_an_actual_rate_change_and_preserves_worker
 #[test]
 fn suggested_defense_is_not_a_purchase_commitment_in_a_guarded_city() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
-    crate::sim::fixtures::WorldBuilder::new(&mut game).funding_campaign();
+    crate::scenarios::funding_campaign_fixture(&mut game);
     game.sign_pact(1, 2, Pact::War);
     game.manage_ai_taxes(1);
     game.players[1].known.push(Tech::MASONRY);
@@ -82,7 +82,7 @@ fn suggested_defense_is_not_a_purchase_commitment_in_a_guarded_city() {
 #[test]
 fn an_unaffordable_rush_does_not_consume_all_discretionary_research() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
-    crate::sim::fixtures::WorldBuilder::new(&mut game).funding_campaign();
+    crate::scenarios::funding_campaign_fixture(&mut game);
     game.sign_pact(1, 2, Pact::War);
     game.manage_ai_taxes(1);
     game.players[1].gold = 0;
@@ -118,7 +118,7 @@ fn an_unaffordable_rush_does_not_consume_all_discretionary_research() {
 #[test]
 fn a_funded_urgent_purchase_does_not_waive_research_for_other_preparation_costs() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
-    crate::sim::fixtures::WorldBuilder::new(&mut game).funding_campaign();
+    crate::scenarios::funding_campaign_fixture(&mut game);
     game.sign_pact(1, 2, Pact::War);
     game.manage_ai_taxes(1);
     game.players[1].gold = 100;
@@ -139,7 +139,7 @@ fn a_funded_urgent_purchase_does_not_waive_research_for_other_preparation_costs(
 #[test]
 fn scientific_traits_preserve_a_larger_share_during_discretionary_military_refills() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
-    crate::sim::fixtures::WorldBuilder::new(&mut game).funding_campaign();
+    crate::scenarios::funding_campaign_fixture(&mut game);
     game.sign_pact(1, 2, Pact::War);
     game.manage_ai_taxes(1);
     game.players[1].gold = 0;

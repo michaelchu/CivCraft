@@ -7,49 +7,10 @@
 use crate::{sim::Simulation, world::GeneratedMap};
 
 #[cfg(any(test, feature = "scenarios"))]
-mod ai_paradrops;
-#[cfg(any(test, feature = "scenarios"))]
-mod campaign_readiness;
-#[cfg(any(test, feature = "scenarios"))]
-mod catalog;
-#[cfg(any(test, feature = "scenarios"))]
-mod city_governor;
-#[cfg(any(test, feature = "scenarios"))]
-mod combat_matrix;
-#[cfg(any(test, feature = "scenarios"))]
-mod culture_history;
-#[cfg(any(test, feature = "scenarios"))]
-mod diplomacy_parity;
-#[cfg(any(test, feature = "scenarios"))]
-mod diplomatic_needs;
-#[cfg(any(test, feature = "scenarios"))]
-mod expansion_balance;
-#[cfg(any(test, feature = "scenarios"))]
-mod great_leader;
-#[cfg(any(test, feature = "scenarios"))]
-mod harbor_trade;
-#[cfg(any(test, feature = "scenarios"))]
-mod lifecycle_history;
-#[cfg(any(test, feature = "scenarios"))]
-mod naval;
-#[cfg(any(test, feature = "scenarios"))]
-mod peaceful_first_contact;
-#[cfg(any(test, feature = "scenarios"))]
-mod proactive_trade;
-#[cfg(any(test, feature = "scenarios"))]
-mod relationship_memory;
-#[cfg(any(test, feature = "scenarios"))]
-mod research_history;
-#[cfg(any(test, feature = "scenarios"))]
-mod settlement_ferry;
-#[cfg(any(test, feature = "scenarios"))]
-mod shared_strategy;
-#[cfg(any(test, feature = "scenarios"))]
-mod state_presets;
-#[cfg(any(test, feature = "scenarios"))]
-mod unit_recovery;
-#[cfg(any(test, feature = "scenarios"))]
-mod wartime_funding;
+mod definitions;
+
+#[cfg(test)]
+pub(crate) use definitions::{funding_campaign_fixture, strategy_pair_fixture};
 
 /// One run of a scenario: actions, observations and final checks.
 /// Preparatory and ordinary turns are advanced by the runner.
@@ -95,26 +56,6 @@ pub(crate) struct Check {
 #[derive(Default)]
 pub(crate) struct Checks(Vec<Check>);
 
-#[cfg(any(test, feature = "scenarios"))]
-impl Checks {
-    pub(crate) fn push(&mut self, (name, passed, detail): (&'static str, bool, String)) {
-        self.0.push(Check {
-            name,
-            passed,
-            detail,
-        });
-    }
-
-    pub(crate) fn extend<I>(&mut self, checks: I)
-    where
-        I: IntoIterator<Item = (&'static str, bool, String)>,
-    {
-        for check in checks {
-            self.push(check);
-        }
-    }
-}
-
 /// The campaign state a scenario expects before its actions run.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Fixture {
@@ -140,61 +81,6 @@ pub(crate) struct Scenario {
 }
 
 impl Scenario {
-    #[cfg(any(test, feature = "scenarios"))]
-    const fn new(id: &'static str, actions: fn(&mut Simulation, &mut Checks)) -> Self {
-        Self {
-            id,
-            fixture: Fixture::NewCampaign,
-            actions: Some(actions),
-            campaign: None,
-            version: 1,
-            custom_world: false,
-        }
-    }
-
-    #[cfg(any(test, feature = "scenarios"))]
-    const fn all_ai(id: &'static str, actions: fn(&mut Simulation, &mut Checks)) -> Self {
-        Self {
-            id,
-            fixture: Fixture::AllAiCampaign,
-            actions: Some(actions),
-            campaign: None,
-            version: 1,
-            custom_world: false,
-        }
-    }
-
-    #[cfg(any(test, feature = "scenarios"))]
-    pub(crate) const fn campaign(id: &'static str, setup: ScenarioSetup) -> Self {
-        Self {
-            id,
-            fixture: Fixture::AllAiCampaign,
-            actions: None,
-            campaign: Some(setup),
-            version: 2,
-            custom_world: true,
-        }
-    }
-
-    #[cfg(any(test, feature = "scenarios"))]
-    pub(crate) const fn human_campaign(id: &'static str, setup: ScenarioSetup) -> Self {
-        Self {
-            fixture: Fixture::NewCampaign,
-            ..Self::campaign(id, setup)
-        }
-    }
-
-    /// Scripted actions may request normal turns from the runner before checks finish.
-    #[cfg(any(test, feature = "scenarios"))]
-    const fn scripted_runtime(id: &'static str, setup: ScenarioSetup) -> Self {
-        Self {
-            fixture: Fixture::NewCampaign,
-            version: 1,
-            custom_world: false,
-            ..Self::campaign(id, setup)
-        }
-    }
-
     /// Prepare a fresh scenario runtime; actions wait until tracing is attached.
     pub(crate) fn start(&'static self, map: GeneratedMap) -> (Simulation, Box<dyn ScenarioRun>) {
         let (mut game, runtime) = if let Some(setup) = self.campaign {
@@ -268,7 +154,7 @@ const GENERATED: &[Scenario] = &[Scenario {
 const GROUPS: &[&[Scenario]] = &[
     GENERATED,
     #[cfg(any(test, feature = "scenarios"))]
-    catalog::SCENARIOS,
+    definitions::SCENARIOS,
 ];
 
 /// Every registered scenario, in registration order.

@@ -3,14 +3,48 @@ use super::{Checks, Scenario};
 use crate::{
     rules::Tech,
     sim::{
-        AiBuildChoice, Government, Pact, Production, Simulation, UnitKind, fixtures::WorldBuilder,
+        AiBuildChoice, Government, Pact, Production, Simulation, UnitKind,
+        fixtures::{TileSurface, WorldBuilder},
     },
     world::topology::offset_native_by_map,
 };
 pub(super) const SCENARIO: Scenario = Scenario::new("wartime-funding", execute);
 
+/// Shared with focused funding unit tests, without executing policy or checks.
+pub(crate) fn setup(game: &mut Simulation) {
+    let turn = game.turn();
+    let mut world = WorldBuilder::new(game);
+    world.clear_units_and_cities();
+    world.clear_relationships();
+    world.clear_purchase_reserves();
+    world.map_surface(TileSurface {
+        terrain: Some(crate::world::Terrain::Grassland),
+        resource: Some(None),
+        river: Some(true),
+        road: Some(true),
+        hut: Some(false),
+        ..Default::default()
+    });
+    for (owner, position) in [(1, (10, 24)), (1, (18, 30)), (2, (26, 24))] {
+        world.founding_city(owner, position);
+    }
+    // Rush eligibility requires an established city; this is a fixture clock preset.
+    world.start_turn(turn + 1);
+    world.ai_control(1, true);
+    world.civilization_identity(1, "korea");
+    world.government_state(1, Government::Monarchy);
+    world.known_technologies(1, &[Tech::ALPHABET, Tech::BRONZE_WORKING, Tech::MONARCHY]);
+    world.research_project(1, Tech::POTTERY, 0);
+    world.last_science(1, 0);
+    world.treasury(1, 5000);
+    world.tax_rates(1, [60, 40, 0]);
+    game.reconcile_city_workers();
+    game.make_diplomatic_contact(1, 2);
+    game.sign_pact(1, 2, Pact::Peace);
+}
+
 fn execute(game: &mut Simulation, checks: &mut Checks) {
-    WorldBuilder::new(game).funding_campaign();
+    setup(game);
     let home = game.cities()[0].id;
     let original = game.clone();
     let before = game.encode_campaign().unwrap();

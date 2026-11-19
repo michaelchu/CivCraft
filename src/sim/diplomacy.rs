@@ -333,8 +333,8 @@ pub(super) struct Relation {
     offer_after: i32,
 }
 
+#[cfg(any(test, feature = "scenarios"))]
 impl Simulation {
-    #[cfg(any(test, feature = "scenarios"))]
     pub(in crate::sim) fn set_scenario_diplomacy(
         &mut self,
         first: usize,
@@ -369,7 +369,6 @@ impl Simulation {
         relation.trust = trust;
     }
 
-    #[cfg(any(test, feature = "scenarios"))]
     fn scenario_contact_mut(&mut self, first: usize, second: usize) -> &mut Relation {
         assert!(
             first != second && first < self.civilization_count && second < self.civilization_count
@@ -380,16 +379,16 @@ impl Simulation {
             .expect("set up diplomatic contact before granting scenario access")
     }
 
-    #[cfg(any(test, feature = "scenarios"))]
     pub(super) fn grant_scenario_embassy(&mut self, holder: usize, host: usize) {
         self.scenario_contact_mut(holder, host).embassy[usize::from(holder > host)] = true;
     }
 
-    #[cfg(any(test, feature = "scenarios"))]
     pub(super) fn grant_scenario_vision(&mut self, giver: usize, receiver: usize) {
         self.scenario_contact_mut(giver, receiver).vision[usize::from(giver > receiver)] = true;
     }
+}
 
+impl Simulation {
     /// Returns a treaty only after first contact. Freeciv's no-contact
     /// diplomatic state is distinct from an explicit war despite both using
     /// `Pact::War` as this model's default storage value.

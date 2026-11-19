@@ -6,8 +6,29 @@ use crate::{
 };
 pub(super) const SCENARIO: Scenario = Scenario::new("proactive-trade", execute);
 
+/// Two allies with a single technology available for a cash-only exchange.
+fn setup(game: &mut Simulation) -> Tech {
+    let mut world = WorldBuilder::new(game);
+    world.clear_campaign_entities();
+    let writing = Tech::all().find(|tech| tech.name() == "Writing").unwrap();
+    for (owner, position) in [(1, (10, 24)), (2, (18, 30))] {
+        world.founding_city(owner, position);
+        world.ai_control(owner, true);
+        world.known_technologies(owner, &[Tech::ALPHABET]);
+        world.research_project(owner, Tech::POTTERY, 0);
+        world.research_goal(owner, Tech::UNSET);
+        world.last_science(owner, 20);
+    }
+    world.add_technology(2, writing);
+    world.treasury(2, 0);
+    game.make_diplomatic_contact(1, 2);
+    game.sign_pact(1, 2, Pact::Alliance);
+    WorldBuilder::new(game).diplomatic_state(1, 2, Pact::Alliance, [6000; 2]);
+    writing
+}
+
 pub(super) fn execute(game: &mut Simulation, checks: &mut Checks) {
-    let writing = WorldBuilder::new(game).technology_trade_pair();
+    let writing = setup(game);
     WorldBuilder::new(game).civilization_identity(1, "rome");
     let ordinary = game
         .diplomatic_technology_value(1, 2, writing, false)

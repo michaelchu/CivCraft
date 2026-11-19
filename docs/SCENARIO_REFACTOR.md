@@ -1,7 +1,7 @@
 # Scenario boundary and coverage migration
 
-The registered gameplay catalog is `src/scenarios/catalog.rs`. Scenario definitions
-own their setup composition, actions, observations and named checks. The headless
+The registered gameplay catalog is `src/scenarios/definitions/mod.rs`. Scenario
+definitions own their setup composition, actions, observations and named checks. The headless
 runner owns tracing, analytics, turn advancement and report output. `sim` owns the
 rules, state, typed fixture construction and read-only queries.
 
@@ -10,16 +10,28 @@ normal-turn observations. A script may request preparatory turns; the runner exe
 them within the action boundary. This preserves diplomacy-parity's version, checks
 and report provenance without advancing the turn inside scenario code.
 
-World construction is under `sim/fixtures`. UI review's simulation setup is under
-`sim/ui_review`; rendering, input and screenshot capture remain with the client.
-Simulation code does not import the registered catalog.
+World construction is under `sim/fixtures`: `world`, `cities`, `units`,
+`diplomacy`, `economy`, `research` and `readiness` hold typed preparation APIs.
+`sim/fixtures.rs` only owns the builder lifecycle and shared imports. Blank terrain
+presets remain reusable simulation fixtures. Fixed rosters, coordinates, research
+weights and funding arrangements live with the scenario that chooses them.
+Strategy and funding unit tests reuse those setup functions through test-only
+exports; production simulation code does not depend on scenario definitions.
+
+The optional catalog, its constructors and every registered definition share one
+module gate on `scenarios::definitions`. The runtime lifecycle and `generated-ai`
+remain available without the `scenarios` feature. Simulation-only setup adapters
+retain gates at their owning module or implementation boundary where necessary.
+
+UI review's simulation setup is under `sim/ui_review`; rendering, input and
+screenshot capture remain with the client.
 
 ## Coverage decisions
 
 Every previously registered scenario keeps its CLI ID, registration order, named
-checks and provenance version. Their definitions now live directly under
-`src/scenarios`; the intermediate catalog wrappers and simulation-local check
-implementations are removed. Culture/history coverage is additionally registered
+checks and provenance version. Their definitions now live under
+`src/scenarios/definitions`; the intermediate catalog wrappers and simulation-local
+check implementations are removed. Culture/history coverage is additionally registered
 as `culture-history`.
 
 The old test-only helper tree is now `sim/tests/gameplay`, with scoped private-rule
@@ -53,6 +65,11 @@ Validated after the refactor:
   including all 29 original IDs and the new `culture-history`. Runs verify each
   named check, summary totals and provenance version. Normal runs use one turn,
   except `campaign-state-presets` (two) and `naval-ai-assault` (its 30-turn deadline).
+- The catalog/fixture organization follow-up compares all 30 scenarios against
+  the preceding release binary at seed 42. Reports match after excluding elapsed
+  time and working-tree status; all event, change, snapshot and shared-value
+  sidecars match byte for byte. The full Rust suite, Clippy, documentation tests
+  and feature-enabled/disabled builds also pass after that follow-up.
 - Retained unit helpers were compared against their original implementations:
   95 bodies match after identifier/formatting changes; two differ only in renamed
   fixture panic labels. Their ordinary Rust tests also pass.
@@ -67,10 +84,10 @@ helpers are fixtures, not an additional execution system.
 
 | Original source | Original helper | Disposition |
 | --- | --- | --- |
-| `src/sim/advisors/advisor_production.rs` | `expansion_balance_playtest` | Migrated to `src/scenarios/expansion_balance.rs`; existing coverage preserved |
-| `src/sim/ai_economy/funding/scenarios.rs` | `wartime_funding_scenario` | Migrated directly to `src/scenarios/wartime_funding.rs`; checks preserved in catalog coverage |
-| `src/sim/ai_strategy/scenarios.rs` | `shared_strategy_scenario` | Migrated directly to `src/scenarios/shared_strategy.rs`; checks preserved in catalog coverage |
-| `src/sim/diplomacy/relationships/scenarios.rs` | `relationship_memory_scenario` | Migrated directly to `src/scenarios/relationship_memory.rs`; checks preserved in catalog coverage |
+| `src/sim/advisors/advisor_production.rs` | `expansion_balance_playtest` | Migrated to `src/scenarios/definitions/expansion_balance.rs`; existing coverage preserved |
+| `src/sim/ai_economy/funding/scenarios.rs` | `wartime_funding_scenario` | Migrated directly to `src/scenarios/definitions/wartime_funding.rs`; checks preserved in catalog coverage |
+| `src/sim/ai_strategy/scenarios.rs` | `shared_strategy_scenario` | Migrated directly to `src/scenarios/definitions/shared_strategy.rs`; checks preserved in catalog coverage |
+| `src/sim/diplomacy/relationships/scenarios.rs` | `relationship_memory_scenario` | Migrated directly to `src/scenarios/definitions/relationship_memory.rs`; checks preserved in catalog coverage |
 | `src/sim/diplomacy/scenarios.rs` | `diplomacy_playtest_friendship` | Fixture: `src/sim/diplomacy/unit_cases.rs::diplomacy_test_friendship`; private treaty valuations, directional memory and observer timers |
 | `src/sim/diplomacy/scenarios.rs` | `diplomacy_playtest_alliance_offer_setup` | Fixture: `src/sim/diplomacy/unit_cases.rs::diplomacy_test_alliance_offer_setup`; private treaty valuations, directional memory and observer timers |
 | `src/sim/diplomacy/scenarios.rs` | `diplomacy_playtest_allied_trade_baseline` | Fixture: `src/sim/diplomacy/unit_cases.rs::diplomacy_test_allied_trade_baseline`; private treaty valuations, directional memory and observer timers |
@@ -83,15 +100,15 @@ helpers are fixtures, not an additional execution system.
 | `src/sim/diplomacy/scenarios.rs` | `city_clause_playtest` | Unit check: `src/sim/diplomacy/unit_cases.rs::city_clause_test`; private treaty valuations, directional memory and observer timers |
 | `src/sim/diplomacy/scenarios.rs` | `treaty_map_playtest` | Unit check: `src/sim/diplomacy/unit_cases.rs::treaty_map_test`; private treaty valuations, directional memory and observer timers |
 | `src/sim/diplomacy/scenarios.rs` | `city_clause_bundle_playtest` | Unit check: `src/sim/diplomacy/unit_cases.rs::city_clause_bundle_test`; private treaty valuations, directional memory and observer timers |
-| `src/sim/diplomacy/trade_policy/scenarios.rs` | `proactive_trade_scenario` | Migrated directly to `src/scenarios/proactive_trade.rs`; checks preserved in catalog coverage |
-| `src/sim/headless_scenarios.rs` | `capture_known_tiles` | Setup-only helper moved to `src/sim/fixtures.rs` |
-| `src/sim/headless_scenarios.rs` | `give_unit_full_movement` | Setup-only helper moved to `src/sim/fixtures.rs` |
-| `src/sim/headless_scenarios.rs` | `ai_paradrop_playtest` | Migrated to `src/scenarios/ai_paradrops.rs`; existing coverage preserved |
-| `src/sim/headless_scenarios.rs` | `great_leader_playtest` | Direct definition in `src/scenarios/great_leader.rs`; named checks preserved |
-| `src/sim/headless_scenarios.rs` | `city_healing_playtest` | Direct definition in `src/scenarios/unit_recovery.rs`; named checks preserved |
-| `src/sim/headless_scenarios.rs` | `settlement_ferry_production_playtest` | Migrated to `src/scenarios/settlement_ferry.rs`; existing coverage preserved |
-| `src/sim/headless_scenarios.rs` | `freeciv_combat_matrix_playtest` | Migrated to `src/scenarios/combat_matrix.rs`; existing coverage preserved |
-| `src/sim/lifecycle.rs` | `lifecycle_history_playtest` | Migrated to `src/scenarios/lifecycle_history.rs`; existing coverage preserved |
+| `src/sim/diplomacy/trade_policy/scenarios.rs` | `proactive_trade_scenario` | Migrated directly to `src/scenarios/definitions/proactive_trade.rs`; checks preserved in catalog coverage |
+| `src/sim/headless_scenarios.rs` | `capture_known_tiles` | Setup-only helper in `src/sim/fixtures/world.rs` |
+| `src/sim/headless_scenarios.rs` | `give_unit_full_movement` | Setup-only helper in `src/sim/fixtures/units.rs` |
+| `src/sim/headless_scenarios.rs` | `ai_paradrop_playtest` | Migrated to `src/scenarios/definitions/ai_paradrops.rs`; existing coverage preserved |
+| `src/sim/headless_scenarios.rs` | `great_leader_playtest` | Direct definition in `src/scenarios/definitions/great_leader.rs`; named checks preserved |
+| `src/sim/headless_scenarios.rs` | `city_healing_playtest` | Direct definition in `src/scenarios/definitions/unit_recovery.rs`; named checks preserved |
+| `src/sim/headless_scenarios.rs` | `settlement_ferry_production_playtest` | Migrated to `src/scenarios/definitions/settlement_ferry.rs`; existing coverage preserved |
+| `src/sim/headless_scenarios.rs` | `freeciv_combat_matrix_playtest` | Migrated to `src/scenarios/definitions/combat_matrix.rs`; existing coverage preserved |
+| `src/sim/lifecycle.rs` | `lifecycle_history_playtest` | Migrated to `src/scenarios/definitions/lifecycle_history.rs`; existing coverage preserved |
 | `src/sim/playtest/ai_scenarios.rs` | `ai_reserve_playtest` | Unit check: `src/sim/tests/gameplay/ai_tests.rs::ai_reserve_test`; private AI role selection, assignment and reserve calculations |
 | `src/sim/playtest/ai_scenarios.rs` | `civilian_upgrade_roster_playtest` | Unit check: `src/sim/tests/gameplay/ai_tests.rs::civilian_upgrade_roster_test`; private AI role selection, assignment and reserve calculations |
 | `src/sim/playtest/ai_scenarios.rs` | `ai_ground_invasion_playtest` | Unit check: `src/sim/tests/gameplay/ai_tests.rs::ai_ground_invasion_test`; private AI role selection, assignment and reserve calculations |
@@ -119,7 +136,7 @@ helpers are fixtures, not an additional execution system.
 | `src/sim/playtest/city_economy_scenarios.rs` | `city_worker_lifecycle_playtest` | Unit check: `src/sim/tests/gameplay/city_economy_tests.rs::city_worker_lifecycle_test`; private yield formulas, workforce allocation and city-manager policy |
 | `src/sim/playtest/city_economy_scenarios.rs` | `ai_city_manager_playtest` | Unit check: `src/sim/tests/gameplay/city_economy_tests.rs::ai_city_manager_test`; private yield formulas, workforce allocation and city-manager policy |
 | `src/sim/playtest/combat_scenarios.rs` | `combat_population_playtest` | Unit check: `src/sim/tests/gameplay/combat_tests.rs::combat_population_test`; population-loss rules and internal citizen rearrangement |
-| `src/sim/playtest/culture_scenarios.rs` | `culture_accumulation_playtest` | Migrated to `src/scenarios/culture_history.rs`; existing coverage preserved |
+| `src/sim/playtest/culture_scenarios.rs` | `culture_accumulation_playtest` | Migrated to `src/scenarios/definitions/culture_history.rs`; existing coverage preserved |
 | `src/sim/playtest/diplomacy_scenarios.rs` | `map_snapshot_playtest` | Unit check: `src/sim/tests/gameplay/diplomacy_tests.rs::map_snapshot_test`; directional contact, knowledge and treaty-state fixtures |
 | `src/sim/playtest/diplomacy_scenarios.rs` | `diplomacy_playtest_tick` | Unit check: `src/sim/tests/gameplay/diplomacy_tests.rs::diplomacy_test_tick`; directional contact, knowledge and treaty-state fixtures |
 | `src/sim/playtest/diplomacy_scenarios.rs` | `diplomacy_playtest_technologies` | Unit check: `src/sim/tests/gameplay/diplomacy_tests.rs::diplomacy_test_technologies`; directional contact, knowledge and treaty-state fixtures |
@@ -181,7 +198,7 @@ helpers are fixtures, not an additional execution system.
 | `src/sim/playtest/world_events_scenarios.rs` | `run_plague_playtest` | Unit check: `src/sim/tests/gameplay/world_events_tests.rs::run_plague_test`; seeded probability boundaries and literal native RNG oracles |
 | `src/sim/playtest/world_events_scenarios.rs` | `run_disaster_playtest` | Unit check: `src/sim/tests/gameplay/world_events_tests.rs::run_disaster_test`; seeded probability boundaries and literal native RNG oracles |
 | `src/sim/playtest/world_events_scenarios.rs` | `uprising_playtest` | Unit check: `src/sim/tests/gameplay/world_events_tests.rs::uprising_test`; seeded probability boundaries and literal native RNG oracles |
-| `src/sim/research_observation.rs` | `research_history_playtest` | Migrated to `src/scenarios/research_history.rs`; existing coverage preserved |
+| `src/sim/research_observation.rs` | `research_history_playtest` | Migrated to `src/scenarios/definitions/research_history.rs`; existing coverage preserved |
 | `src/sim/advisors/playtest.rs` | `ai_happiness_effects_playtest` | Unit check: `src/sim/advisors/unit_cases.rs::ai_happiness_effects_test`; private building/defender wants and internal forecast calculations |
 | `src/sim/advisors/playtest.rs` | `ai_wonder_advisor_playtest` | Unit check: `src/sim/advisors/unit_cases.rs::ai_wonder_advisor_test`; private building/defender wants and internal forecast calculations |
 | `src/sim/ai_economy/playtest.rs` | `ai_tax_manager_playtest` | Unit check: `src/sim/ai_economy/unit_cases.rs::ai_tax_manager_test`; tax manager arithmetic and private emergency/reserve thresholds |

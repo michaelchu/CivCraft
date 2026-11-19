@@ -7,8 +7,32 @@ use crate::{
 
 pub(super) const SCENARIO: Scenario = Scenario::new("shared-strategy", execute);
 
+/// Shared with focused strategy unit tests; all fixed policy choices live here.
+pub(crate) fn setup(game: &mut Simulation) -> (u32, Tech) {
+    let mut world = WorldBuilder::new(game);
+    world.clear_campaign_entities();
+    let mut cities = Vec::new();
+    for (owner, position) in [(1, (10, 24)), (2, (18, 30))] {
+        cities.push(world.founding_city(owner, position));
+        world.ai_control(owner, true);
+        world.known_technologies(owner, &[Tech::ALPHABET]);
+        world.research_project(owner, Tech::POTTERY, 0);
+        world.research_goal(owner, Tech::UNSET);
+        world.last_science(owner, 20);
+        world.treasury(owner, 5000);
+    }
+    let city = cities[0];
+    game.make_diplomatic_contact(1, 2);
+    game.sign_pact(1, 2, Pact::Peace);
+    let writing = Tech::all().find(|tech| tech.name() == "Writing").unwrap();
+    WorldBuilder::new(game).add_technology(2, writing);
+    WorldBuilder::new(game).research_wants(1, &[(Tech::POTTERY, 100.0), (writing, 100.0)]);
+    WorldBuilder::new(game).civilization_identity(1, "korea");
+    (city, writing)
+}
+
 fn execute(game: &mut Simulation, checks: &mut Checks) {
-    let (city, writing) = WorldBuilder::new(game).strategy_pair();
+    let (city, writing) = setup(game);
     WorldBuilder::new(game).civilization_identity(1, "rome");
     let ordinary = game.select_ai_research(1).0;
     WorldBuilder::new(game).research_goal(1, Tech::UNSET);

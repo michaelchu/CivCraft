@@ -233,6 +233,6 @@ attaches tracing and analytics, advances turns, and publishes reports.
 Simulation rules and fixture construction remain owned by `src/sim`.
 
 Private rule assertions remain ordinary Rust unit tests under `src/sim/tests`
-and subsystem test modules. Reusable setup lives in `src/sim/fixtures.rs`.
+and subsystem test modules. Reusable typed setup lives in the domain modules under `src/sim/fixtures/`.
 See [scenario boundaries and coverage](docs/SCENARIO_REFACTOR.md) for the
 architecture and the helper migration inventory.

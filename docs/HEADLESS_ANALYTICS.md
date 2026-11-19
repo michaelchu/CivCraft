@@ -45,17 +45,18 @@ Scenario actions therefore emit ordinary retained events and produce a typed
 snapshot before turn simulation begins. Generated campaigns and loaded saves
 without scripted actions omit that extra boundary.
 
-Fixture construction belongs in `src/sim/fixtures.rs`; registered scenario definitions
-and checks belong in `src/scenarios`. Scenario
+Typed fixture construction belongs in the domain modules under `src/sim/fixtures/`.
+Registered definitions and checks belong in `src/scenarios/definitions`. Scenario
 definitions compose setup, actions, and checks; desktop-only input/rendering
 assertions belong in the visual review path without coupling the headless
 runner to UI code.
 
 ### Registering a scenario
 
-Direct definitions live in `src/scenarios`; the `SCENARIOS` table in `src/scenarios/catalog.rs`
-registers scenarios with scripted actions or normal campaign turns. A scripted definition is a
-function over a newly generated campaign that records named checks:
+Direct definitions live in `src/scenarios/definitions`; the `SCENARIOS` table in
+`src/scenarios/definitions/mod.rs` registers scenarios with scripted actions or
+normal campaign turns. A scripted definition is a function over a newly generated
+campaign that records named checks:
 
 ```rust
 pub(super) const SCENARIO: Scenario = Scenario::new("example-action", execute);
@@ -166,13 +167,13 @@ normal turn completes the Worker, advances the Harbor from the worklist,
 and discovers Alphabet.
 
 The naval assault is defined in
-`src/scenarios/naval/ai_assault.rs`. Run it with
+`src/scenarios/definitions/naval/ai_assault.rs`. Run it with
 `--scenario naval-ai-assault --seed 42 --turns 30`. It starts with a blank sea
 map and an established war, then watches the original Galleon and its troops.
 The short run path is covered in the CLI integration tests. The registry unit
 test checks scenario names and exercises the scripted cases.
 
-The ship combat scenario in `src/scenarios/naval/ship_combat.rs` uses the
+The ship combat scenario in `src/scenarios/definitions/naval/ship_combat.rs` uses the
 same API. Run it with `--scenario naval-ship-combat --seed 42 --turns 1`.
 An elite Submarine intercepts a damaged Battleship on open water. The
 observer tracks both ships by ID and requires a combat kill credited to
