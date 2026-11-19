@@ -22,7 +22,7 @@ stable.
 Paired runtimes lend their comparison campaign through
 `ScenarioRun::comparison_game`. The headless runner advances the live
 comparison once per primary turn, including requested preparatory turns, before
-calling the observer. An ended companion stays stopped. Observers collect evidence
+calling the observer. An ended comparison stays stopped. Observers collect evidence
 and may drain trace events; they never advance a campaign clock. `trait-campaign`
 uses this path for its matched Rome/Korea comparison.
 
@@ -122,3 +122,46 @@ only for private unit tests.
 The runtime scenarios apply fixture changes before the next full turn. In a
 paired run the runner advances both campaigns. Read the comparison under
 `run.scenario.observations` and individual results under `run.scenario.checks`.
+
+## Desktop release feature footprint
+
+Measured at commit `227332b84e946f8bc58fd9159c9d8413b530c51c` on Linux x86_64
+(glibc 2.41), using `rustc 1.100.0 (0ef1bc386 2026-11-09)`. Both builds use the
+repository's release profile: optimization level 3, ThinLTO and one codegen unit.
+The only feature difference is `scenarios`.
+
+| Measurement | `desktop-audio` | `desktop-audio,scenarios` | Difference |
+| --- | ---: | ---: | ---: |
+| Unstripped ELF bytes | 10,370,104 | 10,363,696 | -6,408 |
+| Stripped ELF bytes | 9,012,800 | 9,005,952 | -6,848 |
+| `.text` bytes | 6,717,800 | 6,710,968 | -6,832 |
+| `.rodata` bytes | 1,203,982 | 1,203,982 | 0 |
+| Defined scenario symbols | 0 | 0 | 0 |
+| Defined `Drive` symbols | 0 | 0 | 0 |
+
+The scenario-enabled binary is 0.062% smaller before stripping and 0.076% smaller
+after stripping. Neither binary retains symbols under `civcraft::scenarios::` or
+`civcraft::sim::drive::`. This measured difference does not justify changing the
+default features. Keep the desktop-only CI build to verify the feature boundary;
+these size results describe this revision, platform and toolchain.
+
+To reproduce with GNU binutils installed, build both variants from the same clean
+revision and preserve each executable before building the next:
+
+```sh
+cargo build --locked --offline --release --no-default-features \
+  --features desktop-audio --bin civcraft
+cp target/release/civcraft /tmp/civcraft-desktop-only
+cargo build --locked --offline --release --no-default-features \
+  --features desktop-audio,scenarios --bin civcraft
+cp target/release/civcraft /tmp/civcraft-with-scenarios
+
+for binary in /tmp/civcraft-desktop-only /tmp/civcraft-with-scenarios; do
+  cp "$binary" "$binary.stripped"
+  strip --strip-unneeded "$binary.stripped"
+  wc -c "$binary" "$binary.stripped"
+  size -A "$binary"
+  nm --defined-only --demangle "$binary" \
+    | rg 'civcraft::(scenarios|sim::drive)::' || true
+done
+```
