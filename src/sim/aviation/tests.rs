@@ -2255,3 +2255,28 @@ fn paradrop_conquer_enters_and_captures_an_undefended_city() {
     assert_eq!(game.city_at(target.0, target.1).unwrap().owner, HUMAN);
     assert!(!game.can_begin_paradrop(landed));
 }
+
+#[test]
+fn ai_paratrooper_refuses_a_defended_city_and_captures_it_when_vacated() {
+    let mut game = Simulation::new(crate::test_support::seeded_map());
+    let (troop, target, gates) = game.paradrop_fixture();
+    assert!(gates);
+    let origin = game.unit_by_id(troop).map(|unit| (unit.x, unit.y)).unwrap();
+    game.spawn_unit(HUMAN, UnitKind::Warrior, origin.0, origin.1);
+    let defender = game.spawn_unit(1, UnitKind::Warrior, target.0, target.1);
+    game.refresh_visibility();
+    crate::sim::fixtures::capture_known_tiles(&mut game, HUMAN);
+    assert!(!game.run_ai_paratrooper(&game.unit_by_id(troop).unwrap().clone()));
+    assert_eq!(game.city_at(target.0, target.1).unwrap().owner, 1);
+    assert_eq!(
+        game.unit_by_id(troop).map(|unit| (unit.x, unit.y)),
+        Some(origin)
+    );
+    game.remove_units_with_cargo_because(
+        vec![defender],
+        crate::sim::lifecycle::UnitRemoval::Destroyed,
+    );
+    assert!(game.run_ai_paratrooper(&game.unit_by_id(troop).unwrap().clone()));
+    assert_eq!(game.city_at(target.0, target.1).unwrap().owner, HUMAN);
+    assert!(game.unit_by_id(troop).unwrap().paradropped);
+}

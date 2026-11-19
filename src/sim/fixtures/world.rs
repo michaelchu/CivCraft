@@ -260,10 +260,6 @@ impl WorldBuilder<'_> {
         self.game.game_over = None;
     }
 
-    pub(crate) fn remove_hut(&mut self, position: (i32, i32)) {
-        self.game.tile_mut(position.0, position.1).hut = false;
-    }
-
     pub(crate) fn refresh_visibility(&mut self) {
         self.game.refresh_visibility();
     }

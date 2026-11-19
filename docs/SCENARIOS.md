@@ -19,6 +19,13 @@ observations. A script may request preparatory turns; the runner executes them i
 the action boundary, which keeps each scenario's version, checks and report provenance
 stable.
 
+Paired runtimes lend their companion campaigns through
+`ScenarioRun::companion_campaigns`. The headless runner advances each live
+companion once per primary turn, including requested preparatory turns, before
+calling the observer. An ended companion stays stopped. Observers collect evidence
+and may drain trace events; they never advance a campaign clock. `trait-campaign`
+uses this path for its matched Rome/Korea comparison.
+
 Every definition uses `Scenario::new(id, version, kind)`. `ScenarioKind` selects one
 generated run, a deferred action script, or a prepared runtime, so actions and runtime
 setup cannot both be configured. `Control` and `RuntimeWorld` are explicit enum values.
@@ -68,3 +75,31 @@ within 16 turns. Use `--scenario settlement-ferry --seed 42 --turns 16`.
 CI builds `civcraft` with `--no-default-features --features desktop-audio` to keep
 the desktop build working without the scenario catalog, fixtures or `Drive`.
 Default feature selection is unchanged.
+
+`ai-paradrops` version 2 is another normal-turn workflow: run it for two turns.
+It checks airborne reinforcement before conquest and preservation of the home
+guard, with no combat-dependent outcome. The broad `Drive::run_ai_player` and
+`Drive::run_ai_paratrooper` wrappers are removed; focused landing-rule checks
+retain private access in the aviation unit tests.
+
+## Scripted-rule audit
+
+Full workflows use normal turns, including `ai-paradrops` and the paired
+`trait-campaign`. The remaining twelve `Actions` definitions control individual
+rule inputs or transitions. They retain `Drive` where they need a rule result or
+an explicit phase boundary, rather than scheduling an AI player's activities.
+
+| Definitions | Controlled contract |
+| --- | --- |
+| `combat-matrix` | Movement-triggered combat results under terrain and city-defense variants. |
+| `city-healing` | Unit restoration with and without the relevant healing improvement. |
+| `culture-history`, `lifecycle-history`, `research-history` | History/provenance for explicit production, capture, loss, research, treaty and upkeep operations. |
+| `great-leader` | Leader consumption and completion of a selected city improvement. |
+| `expansion-balance`, `shared-strategy`, `wartime-funding` | Advisor/cache repricing, shared policy weights, purchase quotes and upkeep/reserve constraints under changed inputs. |
+| `proactive-trade`, `peaceful-first-contact`, `relationship-memory` | Atomic diplomatic choices, valuation, first-contact rules and directional relationship memory. |
+
+`diplomacy-parity` is a runtime with focused actions for treaty expiry and atomic
+technology transfer. It requests a preparatory turn from the runner to check a
+real begin-phase war declaration. It does not sequence internal AI activities.
+Every remaining `Drive` method has a caller in this set; the whole-player AI
+convenience wrapper is compiled only for private unit tests.

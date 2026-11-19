@@ -39,6 +39,11 @@ pub(crate) trait ScenarioRun {
     fn records_turns(&self) -> bool {
         true
     }
+    /// Additional campaigns advanced by the runner before observing each turn.
+    /// Scenarios lend their state here; observers never advance campaign clocks.
+    fn companion_campaigns(&mut self) -> &mut [Simulation] {
+        &mut []
+    }
     fn observe_turn(&mut self, _game: &Simulation, _completed_turns: u32) -> serde_json::Value {
         serde_json::Value::Null
     }
@@ -204,7 +209,15 @@ mod tests {
             }
             let mut checks = runtime.execute_actions(&mut campaign);
             for _ in 0..runtime.action_turns() {
+                let before = campaign.turn();
                 campaign.simulate_turn();
+                if campaign.turn() != before {
+                    for companion in runtime.companion_campaigns() {
+                        if companion.game_over().is_none() {
+                            companion.simulate_turn();
+                        }
+                    }
+                }
             }
             checks.extend(runtime.complete_actions(&mut campaign));
             assert!(!checks.is_empty(), "{} made no checks", scenario.id);

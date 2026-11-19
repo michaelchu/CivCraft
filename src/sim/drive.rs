@@ -39,8 +39,6 @@ pub(crate) trait Drive {
     fn resolve_research_turn(&mut self, owner: usize, science: i32);
     fn restore_player_units(&mut self, owner: usize);
     fn run_ai_great_leader(&mut self, unit: &Unit) -> bool;
-    fn run_ai_paratrooper(&mut self, unit: &Unit) -> bool;
-    fn run_ai_player(&mut self, owner: usize);
     fn select_ai_research(&mut self, owner: usize) -> (Tech, i32, i32);
     fn sign_pact(&mut self, a: usize, b: usize, proposed: Pact);
     fn spend_ai_defense_gold_with_choices(
@@ -122,12 +120,6 @@ impl Drive for Simulation {
     }
     fn run_ai_great_leader(&mut self, unit: &Unit) -> bool {
         Simulation::run_ai_great_leader(self, unit)
-    }
-    fn run_ai_paratrooper(&mut self, unit: &Unit) -> bool {
-        Simulation::run_ai_paratrooper(self, unit)
-    }
-    fn run_ai_player(&mut self, owner: usize) {
-        Simulation::run_ai_player(self, owner)
     }
     fn select_ai_research(&mut self, owner: usize) -> (Tech, i32, i32) {
         Simulation::select_ai_research(self, owner)

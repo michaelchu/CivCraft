@@ -1,7 +1,9 @@
 //! Typed units preparation for deterministic fixtures.
 
 use super::WorldBuilder;
-use crate::sim::{Simulation, UnitKind};
+#[cfg(test)]
+use crate::sim::Simulation;
+use crate::sim::UnitKind;
 
 impl WorldBuilder<'_> {
     pub(crate) fn unit(&mut self, owner: usize, kind: UnitKind, position: (i32, i32)) -> u32 {
@@ -63,15 +65,9 @@ impl WorldBuilder<'_> {
     pub(crate) fn legacy_combat_rank(&mut self, id: u32, rank: usize) {
         self.unit_mut(id).c2c3_veteran = rank;
     }
-
-    /// Remove fixture entities without emitting gameplay loss events.
-    pub(crate) fn remove_fixture_units(&mut self, ids: &[u32], kind: Option<UnitKind>) {
-        self.game
-            .units
-            .retain(|unit| !ids.contains(&unit.id) && kind != Some(unit.kind));
-    }
 }
 
+#[cfg(test)]
 pub(crate) fn give_unit_full_movement(sim: &mut Simulation, id: u32, kind: UnitKind) {
     sim.units
         .iter_mut()

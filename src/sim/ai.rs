@@ -104,7 +104,7 @@ impl Simulation {
         victories[needed]
     }
 
-    #[cfg(any(test, feature = "scenarios"))]
+    #[cfg(test)]
     pub(in crate::sim) fn run_ai_player(&mut self, owner: usize) {
         if !self.run_ai_player_planning(owner) {
             return;
@@ -116,8 +116,7 @@ impl Simulation {
     /// Run the AI's non-worker first-activity unit planning. Campaign turn
     /// orchestration calls this in begin phase after activity and movement
     /// refresh and visibility; end phase runs worker automation before AI
-    /// last activities. `run_ai_player` remains a convenience wrapper for
-    /// isolated callers.
+    /// last activities. Tests can use `run_ai_player` as an isolated wrapper.
     pub(super) fn run_ai_player_planning(&mut self, owner: usize) -> bool {
         if owner != BARBARIANS && (owner >= self.civilization_count || !self.player_alive(owner)) {
             return false;

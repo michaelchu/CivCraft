@@ -107,6 +107,7 @@ pub(crate) fn run(config: Config) -> Result<(), String> {
         scenario.game.reconcile_research_observation();
         report.turn_profiles(scenario.game.trace.drain_profiles());
         turns += 1;
+        scenario.advance_companions();
         scenario.observe_turn(turns as u32);
         let dropped = scenario.game.trace.dropped();
         registry.gap(dropped - previous_dropped);
