@@ -641,7 +641,7 @@ impl Simulation {
             if self.ai_goto_is_sane(&actor, destination) {
                 self.ai_guard_for_destination(id, destination.0, destination.1);
                 self.unit_goto_tiles.insert(id, destination);
-                let result = self.ai_goto_unit(id, destination, GotoTask::Escort);
+                let result = self.ai_goto_unit_checked(id, destination, GotoTask::Escort, true);
                 // dai_gothere also returns false for a living guard which
                 // has not reached the rendezvous or an adjacent tile yet.
                 if !result.alive

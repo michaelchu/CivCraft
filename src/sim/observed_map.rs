@@ -263,10 +263,18 @@ impl Simulation {
         drop(_profile);
         let _profile = profiler.scope("visibility.refresh.remember_render_map");
         let render_scope = self.visibility_render_scope.take();
+        self.trace.count_operation(
+            if render_scope.is_some() {
+                "visibility.refresh.scoped"
+            } else {
+                "visibility.refresh.unscoped"
+            },
+            1,
+        );
         self.remember_render_positions_with_sight(&render_seen, render_scope.as_deref(), true);
         drop(_profile);
         let _profile = profiler.scope("visibility.refresh.share_render_memory");
-        self.share_render_memory();
+        self.share_render_memory(render_scope.as_deref());
     }
 
     pub(super) fn record_visibility_render_scope(
@@ -561,6 +569,7 @@ impl Simulation {
             occupied[self.map_wrap.index(unit.x, unit.y)] = true;
         }
         let mut city_snapshots = vec![None; self.cities.len()];
+        let mut index_dirty = false;
         for (owner, visible) in visible.iter().enumerate() {
             if owner == BARBARIANS {
                 continue;
@@ -570,6 +579,8 @@ impl Simulation {
                 .trace
                 .profiler()
                 .scope("visibility.render_memory.city_prune");
+            let indexed_before =
+                self.observed_map.cities.len() + self.observed_map.partial_sites.len();
             self.observed_map.cities.retain(|(viewer, _), (_, c)| {
                 let index = self.map_wrap.index(c.city.x, c.city.y);
                 *viewer != owner
@@ -583,6 +594,8 @@ impl Simulation {
                         || scope.is_some_and(|indices| indices.binary_search(&index).is_err())
                         || !visible[index]
                 });
+            index_dirty |= indexed_before
+                != self.observed_map.cities.len() + self.observed_map.partial_sites.len();
             drop(_prune_profile);
             let _tile_profile = self
                 .trace
@@ -645,14 +658,21 @@ impl Simulation {
                         .trace
                         .profiler()
                         .scope("visibility.render_memory.city_store");
-                    self.observed_map
+                    let replaced = self
+                        .observed_map
                         .cities
                         .insert((owner, city.id), (revision, observed));
+                    // The owner index only reads a city's position and owner.
+                    index_dirty |= replaced.is_none_or(|(_, old)| {
+                        (old.city.x, old.city.y, old.city.owner) != (city.x, city.y, city.owner)
+                    });
                     drop(_store_profile);
                 }
             }
         }
-        self.rebuild_observed_city_index();
+        if index_dirty {
+            self.rebuild_observed_city_index();
+        }
     }
 
     /// Reveal a remembered map circle without granting current sight or unit
@@ -715,13 +735,20 @@ impl Simulation {
         }
     }
 
-    pub(super) fn share_render_memory(&mut self) {
+    /// `scope` (sorted tile indices) limits sharing to tiles this refresh could
+    /// have changed; `None` shares everything.
+    pub(super) fn share_render_memory(&mut self, scope: Option<&[usize]>) {
         // Map-reveal effects can grant knowledge without direct sight. Capture
         // snapshots for direct reveals before moving any private knowledge.
         let revealers: Vec<_> = (0..self.players.len())
             .filter(|&owner| owner != BARBARIANS && self.reveals_map(owner))
             .collect();
-        for (index, tile) in self.tiles.iter().enumerate() {
+        for (index, tile) in self
+            .tiles
+            .iter()
+            .enumerate()
+            .filter(|_| !revealers.is_empty())
+        {
             for &owner in &revealers {
                 if self.observed_map.tiles.contains_key(&(owner, index)) {
                     continue;
@@ -745,7 +772,7 @@ impl Simulation {
             })
             .collect();
         for (giver, receiver) in shares {
-            self.transfer_map_observations(giver, receiver, TreatyMap::World, |_| true);
+            self.transfer_map_observations_in(giver, receiver, TreatyMap::World, |_| true, scope);
         }
     }
 
@@ -756,27 +783,50 @@ impl Simulation {
         map: TreatyMap,
         include: impl Fn(usize) -> bool,
     ) {
+        self.transfer_map_observations_in(giver, receiver, map, include, None);
+    }
+
+    /// With a sorted `scope`, only those tiles are examined (in the same
+    /// ascending order a full range scan would visit them).
+    fn transfer_map_observations_in(
+        &mut self,
+        giver: usize,
+        receiver: usize,
+        map: TreatyMap,
+        include: impl Fn(usize) -> bool,
+        scope: Option<&[usize]>,
+    ) {
         if giver == receiver || receiver == BARBARIANS {
             return;
         }
-        let tiles: Vec<_> = self
-            .observed_map
-            .tiles
-            .range((giver, 0)..=(giver, usize::MAX))
-            .filter(|((_, index), (revision, _))| {
-                let tile = &self.tiles[*index];
-                include(*index)
-                    && tile.known_by[giver]
-                    && (map != TreatyMap::Sea || tile.terrain.is_water())
-                    && !(receiver == HUMAN && tile.visible)
-                    && self
-                        .observed_map
-                        .tiles
-                        .get(&(receiver, *index))
-                        .is_none_or(|old| !tile.known_by[receiver] || old.0 < *revision)
-            })
-            .map(|((_, index), entry)| (*index, entry.clone()))
-            .collect();
+        let wanted = |index: usize, revision: u64| {
+            let tile = &self.tiles[index];
+            include(index)
+                && tile.known_by[giver]
+                && (map != TreatyMap::Sea || tile.terrain.is_water())
+                && !(receiver == HUMAN && tile.visible)
+                && self
+                    .observed_map
+                    .tiles
+                    .get(&(receiver, index))
+                    .is_none_or(|old| !tile.known_by[receiver] || old.0 < revision)
+        };
+        let tiles: Vec<_> = match scope {
+            Some(scope) => scope
+                .iter()
+                .filter_map(|&index| {
+                    let entry = self.observed_map.tiles.get(&(giver, index))?;
+                    wanted(index, entry.0).then(|| (index, entry.clone()))
+                })
+                .collect(),
+            None => self
+                .observed_map
+                .tiles
+                .range((giver, 0)..=(giver, usize::MAX))
+                .filter(|((_, index), (revision, _))| wanted(*index, *revision))
+                .map(|((_, index), entry)| (*index, entry.clone()))
+                .collect(),
+        };
 
         let mut transferred = std::collections::BTreeSet::new();
         for (index, entry) in tiles {

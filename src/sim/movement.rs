@@ -1157,10 +1157,18 @@ impl Simulation {
         if carrier.is_some() {
             self.record_transport_change(unit_id, carrier);
         }
-        if unit.owner == HUMAN {
+        // An AI-controlled HUMAN slot was already refreshed by enter_tile.
+        if unit.owner == HUMAN && !self.players[HUMAN].ai {
             self.refresh_visibility();
         }
         MoveResult::Moved
+    }
+
+    /// Moves refresh only the tiles around the mover unless an interactive
+    /// player needs the immediate full refresh. An AI-controlled HUMAN slot,
+    /// as in headless runs, behaves like any other AI civilization.
+    fn moves_use_scoped_visibility(&self, owner: usize) -> bool {
+        owner != HUMAN || self.players[HUMAN].ai
     }
 
     pub(super) fn enter_tile(
@@ -1203,7 +1211,7 @@ impl Simulation {
         }
         drop(_profile);
         let _profile = profiler.scope("movement.execute.enter_tile.unit_update");
-        if moving_unit.owner != HUMAN {
+        if self.moves_use_scoped_visibility(moving_unit.owner) {
             self.record_visibility_render_scope(&moving_unit, old_position, (nx, ny));
         }
         if moving_unit.transport.is_some() {
@@ -1233,7 +1241,7 @@ impl Simulation {
         // including AI discovery, before contact callbacks and hut outcomes.
         if self.visibility_refresh_deferred {
             self.visibility_refresh_pending = true;
-        } else if moving_unit.owner != HUMAN {
+        } else if self.moves_use_scoped_visibility(moving_unit.owner) {
             self.visibility_refresh_pending = true;
             self.flush_deferred_visibility();
         } else {
