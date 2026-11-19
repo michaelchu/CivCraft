@@ -28,13 +28,14 @@ package. It is derived from Freeciv's `civ2civ3` ruleset. Its sole Freeciv sourc
 
 The `game.ruleset` copy has intentional changes: its ruledit description
 paths point to `civcraft/engine/README.civ2civ3`, and its `[settings]` table
-records `victories = "SPACERACE|ALLIED"`, `landmass = 30`,
+records `victories = "SPACERACE|ALLIED|CULTURE"`, `landmass = 30`,
 `startpos = "DEFAULT"`, `specials = 250`, and `huts = 15` explicitly. These
-settings are inherited engine defaults that the upstream C2C3 table does not
-record: `victories` comes from `common/game.h::GAME_DEFAULT_VICTORY_CONDITIONS`,
-`landmass` and `startpos` from `common/map.h::MAP_DEFAULT_LANDMASS` and
-`MAP_DEFAULT_STARTPOS`, and `specials` and `huts` from `MAP_DEFAULT_RICHES` and
-`MAP_DEFAULT_HUTS`. The ruleset model validates the pinned ranges and typed
+settings make defaults explicit where the upstream C2C3 table omits them.
+The campaign adds `CULTURE` to the victory defaults in
+`common/game.h::GAME_DEFAULT_VICTORY_CONDITIONS`. For map generation,
+`landmass` and `startpos` use `common/map.h::MAP_DEFAULT_LANDMASS` and
+`MAP_DEFAULT_STARTPOS`. The `specials` and `huts` settings use
+`MAP_DEFAULT_RICHES` and `MAP_DEFAULT_HUTS`. The ruleset model validates the pinned ranges and typed
 values. Recording these inputs makes terrain, resource, and hut generation
 editable without relying on implicit server defaults. The `ocean_resources`
 parameter remains selected from C2C3 `terrain.ruleset` (default `FALSE`), where

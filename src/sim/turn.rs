@@ -415,11 +415,11 @@ mod tests {
     }
 
     #[test]
-    fn campaign_victory_flags_match_the_explicit_c2c3_defaults() {
+    fn campaign_victory_flags_match_the_selected_ruleset() {
         let game = Simulation::new(crate::mapgen::generate(42));
         assert!(game.victory_enabled(VictoryCondition::SpaceRace));
         assert!(game.victory_enabled(VictoryCondition::Allied));
-        assert!(!game.victory_enabled(VictoryCondition::Culture));
+        assert!(game.victory_enabled(VictoryCondition::Culture));
         assert!(!game.victory_enabled(VictoryCondition::WorldPeace));
     }
 
