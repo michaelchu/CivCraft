@@ -792,6 +792,8 @@ fn v2f_vassalage_payload_loads_when_it_shares_the_notification_header() {
     let mut world = fixtures::WorldBuilder::new(&mut game);
     world.vassalage_campaign(VassalKind::Capitulation);
     world.finish();
+    let offer = game.vassal_offer_view(1).unwrap();
+    assert!(game.propose_treaty(1, offer));
     let saved = SavedCampaignV2D::from_game(&game, Cow::Borrowed(&game.observed_map.partial_sites));
     let payload = codec(MAX_PAYLOAD)
         .serialize(&(saved, SavedWarObjectives::new(), game.save_vassalage()))
