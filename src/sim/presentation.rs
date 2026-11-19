@@ -116,9 +116,24 @@ impl Simulation {
                 duration,
             },
             VisualEvent::Combat(combat) => {
+                let mut attacker = self.rendered_unit_override_view(&combat.attacker);
+                let mut defender = self.rendered_unit_override_view(&combat.defender);
+                // Intentional Civ III-style presentation: face combatants
+                // toward each other. Freeciv keeps their stored facings.
+                // FLC rows use SW, S, SE, E, NE, N, NW, W order. Combatants
+                // should face one another regardless of their last move.
+                if let Some(direction) = (0..super::topology::CIV3_DIRS.len()).find(|&direction| {
+                    self.map_wrap
+                        .civ3_neighbor(attacker.x, attacker.y, direction)
+                        == Some((defender.x, defender.y))
+                }) && let Some(facing) = self.map_wrap.civ3_flic_direction_index(direction)
+                {
+                    attacker.facing = facing;
+                    defender.facing = (facing + 4) % 8;
+                }
                 PresentationEventView::Combat(Box::new(CombatPresentationView {
-                    attacker: self.rendered_unit_override_view(&combat.attacker),
-                    defender: self.rendered_unit_override_view(&combat.defender),
+                    attacker,
+                    defender,
                     hp: combat.hp,
                     city: combat
                         .city
@@ -173,6 +188,60 @@ impl Simulation {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn combat_view_for(sim: &Simulation, attacker: Unit, defender: Unit) -> CombatPresentationView {
+        let event = VisualEvent::Combat(Box::new(CombatVisual {
+            attacker,
+            defender,
+            hp: vec![(10, 10)],
+            city: None,
+            bombard_effects: false,
+            territory: vec![None; sim.tiles.len()],
+        }));
+        let PresentationEventView::Combat(combat) = sim.presentation_event_view_for_test(event)
+        else {
+            unreachable!("combat event remains a combat presentation")
+        };
+        *combat
+    }
+
+    #[test]
+    fn combat_presentation_faces_adjacent_units_toward_each_other_in_all_directions() {
+        let sim = Simulation::new(crate::mapgen::generate(42));
+        let attacker_at = (10, 24);
+
+        for direction in 0..super::super::topology::CIV3_DIRS.len() {
+            let defender_at = sim
+                .map_wrap
+                .civ3_neighbor(attacker_at.0, attacker_at.1, direction)
+                .expect("all directions are available away from map edges");
+            let mut attacker = Unit::new(1, HUMAN, UnitKind::Warrior, attacker_at.0, attacker_at.1);
+            let mut defender = Unit::new(2, 1, UnitKind::Warrior, defender_at.0, defender_at.1);
+            attacker.facing = 7;
+            defender.facing = 3;
+
+            let combat = combat_view_for(&sim, attacker, defender);
+            let expected_attacker_facing =
+                sim.map_wrap.civ3_flic_direction_index(direction).unwrap();
+            assert_eq!(combat.attacker.facing, expected_attacker_facing);
+            assert_eq!(combat.defender.facing, (expected_attacker_facing + 4) % 8);
+        }
+    }
+
+    #[test]
+    fn combat_presentation_preserves_facing_for_nonadjacent_units() {
+        let sim = Simulation::new(crate::mapgen::generate(42));
+        let mut attacker = Unit::new(1, HUMAN, UnitKind::Warrior, 10, 24);
+        let mut defender = Unit::new(2, 1, UnitKind::Warrior, 10, 30);
+        attacker.facing = 7;
+        defender.facing = 3;
+
+        let combat = combat_view_for(&sim, attacker, defender);
+
+        assert_eq!(combat.attacker.facing, 7);
+        assert_eq!(combat.defender.facing, 3);
+    }
+
     #[test]
     fn observer_records_real_results_without_changing_rng_or_saved_campaign() {
         for combat in [false, true] {
