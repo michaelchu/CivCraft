@@ -10,6 +10,8 @@ use crate::rules::engine_rules::{
     RequirementValue, ResolvedRequirementValue,
 };
 use std::collections::BTreeMap;
+mod refresh;
+pub(super) use refresh::VisibilityRefresh;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(in crate::sim) enum UnitVisionLayer {
     Main,
@@ -262,7 +264,7 @@ impl Simulation {
         self.remember_visible_borders();
         drop(_profile);
         let _profile = profiler.scope("visibility.refresh.remember_render_map");
-        let render_scope = self.visibility_render_scope.take();
+        let render_scope = self.visibility_refresh.take_render_scope();
         self.trace.count_operation(
             if render_scope.is_some() {
                 "visibility.refresh.scoped"
@@ -284,42 +286,25 @@ impl Simulation {
         to: (i32, i32),
     ) {
         let tile_count = self.tiles.len();
-        if self.visibility_pending_render_tiles.len() != tile_count {
-            self.visibility_pending_render_tiles = vec![false; tile_count];
-        }
+        self.visibility_refresh.prepare_render_tiles(tile_count);
         for (x, y) in [from, to] {
             let radius_sq = self.unit_vision_radius_sq_for(unit.owner, unit.kind, x, y);
             let radius = radius_sq.max(0).isqrt();
             for (tx, ty, distance) in self.map_wrap.civ3_radius(x, y, radius) {
                 if self.within_vision_distance_sq(distance, radius_sq) {
                     let index = self.map_wrap.index(tx, ty);
-                    self.visibility_pending_render_tiles[index] = true;
+                    self.visibility_refresh.mark_render_tile(index);
                 }
             }
         }
     }
 
     pub(super) fn flush_deferred_visibility(&mut self) {
-        if self.visibility_refresh_deferred || !self.visibility_refresh_pending {
+        if !self.visibility_refresh.start_flush() {
             return;
         }
-        self.visibility_refresh_pending = false;
-        let scope = self
-            .visibility_pending_render_tiles
-            .iter_mut()
-            .enumerate()
-            .filter_map(|(index, visible)| {
-                if *visible {
-                    *visible = false;
-                    Some(index)
-                } else {
-                    None
-                }
-            })
-            .collect();
-        self.visibility_render_scope = Some(scope);
         self.refresh_visibility();
-        self.visibility_render_scope = None;
+        self.visibility_refresh.finish_flush();
     }
 
     pub(super) fn human_known_tile(&self, x: i32, y: i32) -> Option<&Tile> {

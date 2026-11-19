@@ -1240,10 +1240,10 @@ impl Simulation {
         drop(_profile);
         // Native movement updates the moving player's vision immediately,
         // including AI discovery, before contact callbacks and hut outcomes.
-        if self.visibility_refresh_deferred {
-            self.visibility_refresh_pending = true;
+        if self.visibility_refresh.deferred() {
+            self.visibility_refresh.request_refresh();
         } else if self.moves_use_scoped_visibility(moving_unit.owner) {
-            self.visibility_refresh_pending = true;
+            self.visibility_refresh.request_refresh();
             self.flush_deferred_visibility();
         } else {
             let _profile = self
@@ -1659,11 +1659,10 @@ impl Simulation {
         unit_id: u32,
         path: impl IntoIterator<Item = (i32, i32)>,
     ) -> bool {
-        let defer_visibility_before = self.visibility_refresh_deferred;
         let defer_visibility = self
             .unit_by_id(unit_id)
             .is_some_and(|unit| unit.owner != HUMAN);
-        self.visibility_refresh_deferred = defer_visibility_before || defer_visibility;
+        let visibility_batch = self.visibility_refresh.begin_batch(defer_visibility);
         let mut moved = false;
         for (dx, dy) in path {
             let Some(direction) = CIV3_DIRS.iter().position(|&step| step == (dx, dy)) else {
@@ -1681,8 +1680,7 @@ impl Simulation {
                 break;
             }
         }
-        self.visibility_refresh_deferred = defer_visibility_before;
-        if !defer_visibility_before && self.visibility_refresh_pending {
+        if self.visibility_refresh.end_batch(visibility_batch) {
             let _profile = self
                 .trace
                 .profiler()
