@@ -106,6 +106,19 @@ Validate with the `relationship-memory` release scenario. Inspect
 each pair's directional `relationship_memory`; use event evidence to distinguish
 a completed action from an intention. Parameters live in `diplomacy.toml`.
 
+Needs-based negotiation extends that AI policy to bounded allied gold assistance,
+useful map exchanges/purchases and war recovery. Aid uses the recipient AI's own
+verified operating/urgent-defense shortfall, preserves the donor's reserves and
+does not fund speculative preparation. Maps are valued for newly revealed area;
+shared vision retains alliance and leakage safeguards. Peace recovery considers
+own deficits and currently visible enemy military pressure, while preserving
+ally obligations and treaty progression. Proposals and acceptance share values;
+incoming human offers still require approval. There is no open-borders clause.
+Validate with the `diplomatic-aid`, `diplomatic-maps` and `diplomatic-recovery`
+release playtests (one normal turn each). Inspect `diplomacy.negotiation_decisions`
+and `diplomacy.recent_negotiation_decisions`, then actual acceptance events.
+Repeated unmet decisions compact in lean mode and remain complete in verbose.
+
 ## Comparison source checkout
 
 The Freeciv source submodule at `reference/freeciv` tracks the public upstream

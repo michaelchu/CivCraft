@@ -226,16 +226,22 @@ impl Simulation {
         if give.shared_vision() && (after != Pact::Alliance || !self.vision_safe(owner, other)) {
             return None;
         }
-        let has_technology =
-            give.technologies().next().is_some() || receive.technologies().next().is_some();
-        if has_technology
-            && give.gold > receive.gold
+        if give.gold > receive.gold
             && i64::from(self.players[owner].gold) - i64::from(give.gold) + i64::from(receive.gold)
                 < i64::from(self.diplomatic_trade_reserve(owner))
         {
             return None;
         }
         let mut clauses = vec![-i64::from(give.gold), i64::from(receive.gold)];
+        if after == Pact::Alliance
+            && give == &diplomacy::Concessions::default().set_gold(give.gold)
+            && receive == &diplomacy::Concessions::default()
+            && give.gold <= self.diplomatic_aid_allowance(owner, other)
+        {
+            // A bounded contribution to an ally's verified need has strategic
+            // utility. This is not a general willingness to give away gold.
+            clauses.push(i64::from(give.gold));
+        }
         if give.embassy() {
             let love = self.diplomatic_love(owner, other);
             let turn = i64::from(self.turn);
@@ -250,7 +256,10 @@ impl Simulation {
             clauses.push(10);
         }
         for map in give.maps() {
-            clauses.push(self.ai_treaty_map_clause_value(owner, other, map, after));
+            clauses.push(self.diplomatic_map_value(owner, other, map, true, after)?);
+        }
+        for map in receive.maps() {
+            clauses.push(self.diplomatic_map_value(owner, other, map, false, after)?);
         }
         for &id in give.cities() {
             let city = self
@@ -285,7 +294,7 @@ impl Simulation {
         ))
     }
 
-    fn ai_treaty_map_clause_value(
+    pub(super) fn ai_treaty_map_clause_value(
         &self,
         owner: usize,
         other: usize,

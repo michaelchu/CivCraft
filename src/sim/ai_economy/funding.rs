@@ -42,6 +42,32 @@ impl trace::Payload for FundingDecision {
 }
 
 impl Simulation {
+    /// Cash that can avert operating losses or enable a selected urgent defense.
+    /// Routine reserve refills and speculative army purchases are not aid needs.
+    pub(in crate::sim) fn diplomatic_funding_shortfall(&self, owner: usize) -> i32 {
+        self.diplomatic_funding_target(owner)
+            .saturating_sub(self.players[owner].gold)
+            .max(0)
+    }
+
+    pub(in crate::sim) fn diplomatic_funding_target(&self, owner: usize) -> i32 {
+        let strategy = self.strategic_priorities(owner);
+        let military = self.ai_military_funding_need(owner, strategy.preparing);
+        let operating = if strategy.projected_income < 0 {
+            strategy.gold_reserve
+        } else {
+            0
+        };
+        let urgent = if military.urgent_purchase > 0 {
+            military
+                .urgent_purchase
+                .saturating_add(self.strategic_upkeep_buffer(owner))
+        } else {
+            0
+        };
+        operating.max(urgent)
+    }
+
     pub(super) fn ai_military_funding_need(&self, owner: usize, preparing: bool) -> MilitaryNeed {
         let mut need = MilitaryNeed {
             routine_purchase: 0,

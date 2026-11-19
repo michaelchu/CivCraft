@@ -126,6 +126,12 @@ impl Simulation {
     }
 
     pub(super) fn pact_clause_value(&self, owner: usize, other: usize, proposed: Pact) -> i64 {
+        if matches!(proposed, Pact::Ceasefire | Pact::Peace) {
+            let recovery = self.diplomatic_peace_value(owner, other);
+            if recovery > 0 {
+                return recovery;
+            }
+        }
         let empty = Relation::default();
         let relation = self
             .diplomacy

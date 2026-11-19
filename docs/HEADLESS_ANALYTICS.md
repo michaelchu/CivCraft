@@ -351,6 +351,21 @@ the latest eight events in `diplomacy.recent_relationship_memories`. Counts are
 directional: a completed bilateral trade normally credits both partners.
 Cooldowns and caps limit repeated credit; passive decay creates no event.
 Use the release `relationship-memory` scenario for focused verification.
+Needs-based gold, map and recovery proposals emit
+`diplomacy.negotiation_decision`; reason counts and the latest eight decisions
+appear under `diplomacy.negotiation_decisions` and
+`diplomacy.recent_negotiation_decisions`. Decisions include proposed terms,
+the actor's reserve, funding shortfall and recovery values. A selected proposal
+is an intention: follow its `offer_accepted`, `offer_rejected` or pending human
+offer evidence to establish execution. Map values count previously unknown
+transferable tiles, so repeated maps do not have recurring information value.
+Aid is bounded by verified need, trust, donor surplus and a per-offer cap.
+All these proposals share the persisted pair cadence with technology trade.
+Lean mode suppresses identical unsuccessful negotiation decisions independently
+of technology decisions; verbose retains them all. Run the release
+`diplomatic-aid`, `diplomatic-maps`, and `diplomatic-recovery` playtests with
+`--seed 42 --turns 1`. Their fixtures precede the initial snapshot, and checks
+match selected terms to actual accepted treaties during normal advisor turns.
 Government and diplomacy event counts are run-local and marked
 incomplete after collector overflow. Output filters do not filter analyzer input.
 

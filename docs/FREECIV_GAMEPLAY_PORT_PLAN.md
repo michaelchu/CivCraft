@@ -106,6 +106,22 @@ remain. Campaign format 0x2D appends this memory to 0x2C's governor schema;
 older supported campaigns load with neutral history. The `relationship-memory`
 scenario validates actual AI exchanges, ally support and betrayal handling.
 
+The next owner-authorized AI policy phase adds needs-based negotiations through
+existing treaty clauses. Allied aid is limited to an AI recipient's concrete
+operating or urgent-defense cash shortfall, capped against a solvent donor's
+surplus; donors retain reserves and do not assist while preparing their own war.
+Map purchases/exchanges use marginal transferable knowledge and shared canonical
+values, with trait priorities and export/leakage caution. This supersedes native
+map valuation policy (including zero receiver value), not map transfer mechanics.
+Recovery value from own deficits or currently visible military disadvantage can
+offset native peace reluctance; a reluctant counterpart may require affordable
+compensation. This supersedes corresponding AI pact valuation policy, while
+progression, ally commitments, legal clauses and atomic execution remain.
+Shared vision remains alliance-based; no open-borders mechanic was added.
+All proposals reuse the persisted pair cadence, preserve pending human offers
+and require human approval. The three `diplomatic-*` playtests cover normal
+campaign execution rather than directly invoking the advisors in their setup.
+
 The owner requested a funding correction after multi-seed validation showed
 that mapping all ongoing wars to the native war-footing tax flag suppressed
 science even with funded treasuries. `ai_economy/funding.rs` now starts from the

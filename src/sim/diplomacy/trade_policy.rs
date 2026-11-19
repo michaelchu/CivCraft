@@ -24,6 +24,7 @@ struct Policy {
     victory_technologies: Vec<String>,
     interests: BTreeMap<String, Vec<String>>,
     relationships: super::relationships::Policy,
+    negotiations: super::needs::Policy,
 }
 
 #[cfg(test)]
@@ -38,6 +39,7 @@ fn policy() -> &'static Policy {
         .expect("valid diplomacy policy");
         assert_eq!(policy.schema_version, 1);
         policy.relationships.validate();
+        policy.negotiations.validate();
         assert!(policy.cadence_turns > 0 && (1..=16).contains(&policy.technologies_per_side));
         assert!((1..=100).contains(&policy.seller_percent));
         assert_eq!(
@@ -428,9 +430,7 @@ impl Simulation {
                 || self.player_has_no_diplomacy(owner)
                 || self.player_has_no_diplomacy(other)
                 || !self.diplomatic_meeting_possible(owner, other)
-                || self
-                    .contacted_pact(owner, other)
-                    .is_none_or(|pact| pact == Pact::War)
+                || self.contacted_pact(owner, other).is_none()
             {
                 continue;
             }
@@ -441,6 +441,9 @@ impl Simulation {
             }
             self.diplomacy.get_mut(&key).unwrap().offer_after =
                 self.turn.saturating_add(policy().cadence_turns);
+            if self.advance_need_negotiation(owner, other, false) || self.at_war(owner, other) {
+                continue;
+            }
             let decision = self.choose_technology_trade(owner, other);
             let selected = decision.selected.clone();
             self.trace.emit(
@@ -454,23 +457,9 @@ impl Simulation {
                 || decision,
             );
             if let Some(choice) = selected {
-                self.trace_diplomacy(
-                    owner,
-                    other,
-                    "offer_proposed",
-                    "proactive_trade",
-                    self.contacted_pact(owner, other),
-                    Some(&choice.offer),
-                );
-                if self.players[other].ai {
-                    self.execute_offer(key.0, key.1, &choice.offer);
-                } else {
-                    self.diplomacy.get_mut(&key).unwrap().offer = Some(choice.offer);
-                    self.add_event(format!(
-                        "{} offers a technology trade.",
-                        self.players[owner].name
-                    ));
-                }
+                self.send_ai_negotiated_offer(owner, other, &choice.offer, "proactive_trade");
+            } else {
+                self.advance_need_negotiation(owner, other, true);
             }
         }
     }
@@ -478,4 +467,8 @@ impl Simulation {
 
 pub(super) fn relationship_policy() -> &'static super::relationships::Policy {
     &policy().relationships
+}
+
+pub(super) fn negotiation_policy() -> &'static super::needs::Policy {
+    &policy().negotiations
 }

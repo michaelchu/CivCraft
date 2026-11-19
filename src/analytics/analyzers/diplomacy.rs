@@ -16,16 +16,19 @@ pub(crate) struct Diplomacy {
     recent_trades: VecDeque<Value>,
     memory_counts: BTreeMap<String, u64>,
     recent_memories: VecDeque<Value>,
+    negotiation_counts: BTreeMap<String, u64>,
+    recent_negotiations: VecDeque<Value>,
 }
 impl Analyzer for Diplomacy {
     fn descriptor(&self) -> Descriptor {
         Descriptor {
             id: "diplomacy",
-            version: 5,
+            version: 6,
             events: vec![
                 "diplomacy.transition",
                 "diplomacy.trade_decision",
                 "diplomacy.relationship_memory",
+                "diplomacy.negotiation_decision",
             ],
             providers: vec!["diplomacy"],
             configuration: json!({"scope":"activity_and_outcomes", "recent_activity_limit":32}),
@@ -35,6 +38,25 @@ impl Analyzer for Diplomacy {
         self.on_boundary(snapshot, out);
     }
     fn on_event(&mut self, event: &Event, out: &mut AnalysisOutput) {
+        if event.kind == "diplomacy.negotiation_decision" {
+            if let Some(reason) = event.payload["reason"].as_str() {
+                *self
+                    .negotiation_counts
+                    .entry(reason.to_owned())
+                    .or_default() += 1;
+                self.recent_negotiations.push_back(json!({"turn":event.turn,
+                    "evidence":out.evidence(),"decision":event.payload}));
+                if self.recent_negotiations.len() > 8 {
+                    self.recent_negotiations.pop_front();
+                }
+                out.metric("negotiation_decisions", json!(self.negotiation_counts));
+                out.metric(
+                    "recent_negotiation_decisions",
+                    json!(self.recent_negotiations),
+                );
+            }
+            return;
+        }
         if event.kind == "diplomacy.relationship_memory" {
             if let Some(reason) = event.payload["reason"].as_str() {
                 *self.memory_counts.entry(reason.to_owned()).or_default() += 1;

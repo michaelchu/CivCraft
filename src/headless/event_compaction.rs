@@ -7,6 +7,7 @@ pub(super) struct EventCompaction {
     decisions: BTreeMap<usize, GovernmentDecision>,
     funding: BTreeMap<u64, serde_json::Value>,
     trades: BTreeMap<(u64, u64), serde_json::Value>,
+    negotiations: BTreeMap<(u64, u64), serde_json::Value>,
     pub counts: BTreeMap<String, usize>,
 }
 #[derive(serde::Deserialize)]
@@ -54,6 +55,13 @@ impl EventCompaction {
                         .zip(event.payload["other"].as_u64())
                         .is_some_and(|pair| self.trades.get(&pair) == Some(&event.payload))
             }
+            "diplomacy.negotiation_decision" => {
+                event.payload.get("selected") == Some(&serde_json::Value::Null)
+                    && event.payload["actor"]
+                        .as_u64()
+                        .zip(event.payload["other"].as_u64())
+                        .is_some_and(|pair| self.negotiations.get(&pair) == Some(&event.payload))
+            }
             "cities.growth_applied" => serde_json::from_value::<Growth>(event.payload.clone())
                 .ok()
                 .is_some_and(|g| {
@@ -98,6 +106,13 @@ impl EventCompaction {
         {
             self.trades.insert(pair, event.payload.clone());
         }
+        if event.kind == "diplomacy.negotiation_decision"
+            && let Some(pair) = event.payload["actor"]
+                .as_u64()
+                .zip(event.payload["other"].as_u64())
+        {
+            self.negotiations.insert(pair, event.payload.clone());
+        }
         if let Some(decision) = Self::decision(event) {
             self.decisions.insert(decision.advice.owner, decision);
         }
@@ -141,6 +156,24 @@ mod tests {
         event.payload["reserve"] = json!(20);
         assert!(!compaction.redundant(&event));
         event.payload["selected"] = json!({"actor_gain":10,"partner_gain":10});
+        compaction.retained(&event);
+        assert!(!compaction.redundant(&event));
+    }
+
+    #[test]
+    fn unmet_negotiations_compact_independently_of_technology_decisions() {
+        let mut compaction = EventCompaction::default();
+        let mut event = decision();
+        event.kind = "diplomacy.negotiation_decision".into();
+        event.payload =
+            json!({"actor":1,"other":2,"reason":"no_affordable_agreement","selected":null});
+        assert!(!compaction.redundant(&event));
+        compaction.retained(&event);
+        assert!(compaction.redundant(&event));
+        event.kind = "diplomacy.trade_decision".into();
+        assert!(!compaction.redundant(&event));
+        event.kind = "diplomacy.negotiation_decision".into();
+        event.payload["selected"] = json!({"pact":"Ceasefire"});
         compaction.retained(&event);
         assert!(!compaction.redundant(&event));
     }

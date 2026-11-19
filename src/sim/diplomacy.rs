@@ -6,6 +6,7 @@ mod attitude;
 mod contact;
 mod espionage;
 pub(in crate::sim) mod legacy;
+mod needs;
 pub(crate) mod observation;
 mod observer;
 mod offers;

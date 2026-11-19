@@ -11,6 +11,8 @@ mod campaign_readiness;
 mod city_governor;
 pub(crate) mod diplomacy;
 #[cfg(any(test, feature = "scenarios"))]
+mod diplomatic_needs;
+#[cfg(any(test, feature = "scenarios"))]
 mod harbor_trade;
 #[cfg(any(test, feature = "scenarios"))]
 mod naval;

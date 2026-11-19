@@ -545,7 +545,9 @@ fn established_sharing_keeps_inventory_until_human_accepts() {
 #[test]
 fn automatic_alliance_origination_is_a_pact_then_trusted_allied_sharing() {
     let mut game = war_planning_game();
-    // This test exercises the sharing threshold, not technology demand.
+    // Isolate the sharing threshold from technology and one-time map demand.
+    game.transfer_treaty_map(HUMAN, 1, TreatyMap::World);
+    game.transfer_treaty_map(1, HUMAN, TreatyMap::World);
     game.players[HUMAN].known = game.players[1].known.clone();
     let relation = game.diplomacy.get_mut(&(HUMAN, 1)).unwrap();
     relation.first_contact = Some(game.turn);

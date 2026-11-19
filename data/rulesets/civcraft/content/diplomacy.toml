@@ -40,3 +40,19 @@ attitude_divisor = 5
 trade_score_divisor = 10
 maximum_trade_adjustment_percent = 10
 war_threshold_per_score = 20
+
+# Proposals and acceptance share these bounded, needs-based values.
+[negotiations]
+aid_minimum_trust = 5000
+aid_surplus_percent = 25
+maximum_aid = 200
+map_minimum_trust = 1000
+map_minimum_tiles = 8
+map_tiles_per_gold = 2
+map_seller_percent = 65
+map_trait_bonus_percent = 25
+maximum_map_value = 300
+peace_income_horizon = 6
+peace_visible_force_ratio = 2
+peace_force_value = 10
+maximum_peace_value = 500

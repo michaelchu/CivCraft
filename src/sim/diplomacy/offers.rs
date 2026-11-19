@@ -653,11 +653,16 @@ impl Simulation {
                     }
                 }
             }
+            let reason = if self.trace_recovery_offer(owner, other, &offer) {
+                "war_recovery"
+            } else {
+                "ai_negotiation"
+            };
             self.trace_diplomacy(
                 owner,
                 other,
                 "offer_proposed",
-                "ai_negotiation",
+                reason,
                 self.contacted_pact(owner, other),
                 Some(&offer),
             );
