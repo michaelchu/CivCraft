@@ -764,9 +764,12 @@ impl Simulation {
         if let Some(mut map) = super::fuel_paths::FuelPaths::attack_sanity(self, unit) {
             return map.movement_cost(self, goal.0, goal.1).is_some();
         }
-        NormalPaths::goto_sanity_map(self, unit)
-            .movement_cost(self, goal.0, goal.1)
-            .is_some()
+        // Only reachability matters here, so steer the search toward the goal.
+        // Any complete search order answers the same question, and A* stops
+        // as soon as the goal is settled instead of flooding the reachable map.
+        let mut map = NormalPaths::goto_sanity_map(self, unit);
+        map.heuristic_goal = Some(self.map_wrap.index(goal.0, goal.1));
+        map.movement_cost(self, goal.0, goal.1).is_some()
     }
 
     pub(super) fn ai_goto_path(
@@ -804,6 +807,18 @@ impl Simulation {
         goal: (i32, i32),
         task: GotoTask,
     ) -> AiGotoResult {
+        self.ai_goto_unit_checked(id, goal, task, false)
+    }
+
+    /// `sanity_checked` lets a caller that has just run `ai_goto_is_sane` for
+    /// this unit and goal avoid repeating the identical search.
+    pub(super) fn ai_goto_unit_checked(
+        &mut self,
+        id: u32,
+        goal: (i32, i32),
+        task: GotoTask,
+        sanity_checked: bool,
+    ) -> AiGotoResult {
         let Some(unit) = self.unit_by_id(id).cloned() else {
             return AiGotoResult {
                 alive: false,
@@ -815,7 +830,7 @@ impl Simulation {
         if ferry {
             self.unit_goto_tiles.insert(id, goal);
         }
-        if (unit.x, unit.y) != goal && !self.ai_goto_is_sane(&unit, goal) {
+        if (unit.x, unit.y) != goal && !sanity_checked && !self.ai_goto_is_sane(&unit, goal) {
             if let Some(actor) = self.units.iter_mut().find(|actor| actor.id == id) {
                 actor.state = UnitState::Idle;
             }
