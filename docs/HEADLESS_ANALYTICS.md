@@ -1019,6 +1019,18 @@ Run `--scenario shared-strategy --turns 1` in release mode for controlled
 research/trade interest, wartime priority, reserve and recovery checks.
 
 
+Run `--scenario trait-campaign --seed 42 --turns 20` for a paired runtime
+comparison. The scenario clones the initial campaign and changes the subject's
+civilization from Rome (Commercial/Militaristic) to Korea
+(Commercial/Scientific). Starting assets, opponents, and RNG state are shared.
+The report's `run.scenario.observations[].state` contains both campaigns' city
+queues, production completions, rush purchases, research, accepted technology
+trades, and border-war objectives. The scenario checks that Rome starts preparing
+before Korea in this matchup. Compare the other outcomes in the observations.
+Both campaigns are observed through the same turn, up to the requested turn
+limit or an earlier game-over in the Rome campaign.
+The report's general analytics and sidecars describe the Rome campaign.
+
 ### AI funding evidence
 
 `economy.funding_decision` records native advice and selected `[science, tax,
