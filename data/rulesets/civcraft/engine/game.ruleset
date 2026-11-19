@@ -825,7 +825,7 @@ set =
       "aifill", 6
       "civilwarsize", 10
       "maxplayers", 500
-      "victories", "SPACERACE|ALLIED"
+      "victories", "SPACERACE|ALLIED|CULTURE"
       "generator", "FRACTAL"
       "landmass", 30
       "steepness", 30

@@ -898,14 +898,6 @@ impl Simulation {
                     hp,
                     city: self.city_at(nx, ny).cloned(),
                     bombard_effects: false,
-                    territory: (0..self.map_wrap.width() * self.map_wrap.height())
-                        .map(|i| {
-                            self.displayed_tile_owner(
-                                i % self.map_wrap.width(),
-                                i / self.map_wrap.width(),
-                            )
-                        })
-                        .collect(),
                 },
             )));
         }

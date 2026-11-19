@@ -8,7 +8,7 @@ use crate::{
 };
 pub(super) const SCENARIO: Scenario = Scenario::new(
     "culture-history",
-    1,
+    2,
     ScenarioKind::Actions {
         control: Control::Human,
         execute,
@@ -50,8 +50,8 @@ fn execute(game: &mut Simulation, checks: &mut Checks) {
         ),
         (
             "culture_victory_policy",
-            !game.victory_enabled(VictoryCondition::Culture),
-            "The selected C2C3 ruleset leaves culture victory disabled".into(),
+            game.victory_enabled(VictoryCondition::Culture),
+            "The campaign enables culture victory".into(),
         ),
     ]);
 }

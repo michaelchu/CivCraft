@@ -148,8 +148,8 @@ impl ClientSimulation {
         self.simulation.goto_preview_view(unit_id, x, y)
     }
 
-    pub(crate) fn displayed_tile_owner_view(&self, x: i32, y: i32) -> Option<usize> {
-        self.simulation.displayed_tile_owner_view(x, y)
+    pub(crate) fn territory_border_owner_view(&self, x: i32, y: i32) -> Option<usize> {
+        self.simulation.territory_border_owner_view(x, y)
     }
 
     pub(crate) fn render_tile_view(&self, x: i32, y: i32) -> RenderTileView {

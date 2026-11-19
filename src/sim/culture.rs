@@ -177,11 +177,26 @@ mod tests {
     }
 
     #[test]
-    fn c2c3_culture_victory_is_disabled_by_default() {
+    fn campaign_culture_victory_uses_c2c3_thresholds() {
         let game = Simulation::new(crate::mapgen::generate(42));
-        assert!(!game.victory_enabled(VictoryCondition::Culture));
+        assert!(game.victory_enabled(VictoryCondition::Culture));
         assert_eq!(culture_parameter("victory_min_points"), 20_000);
         assert_eq!(culture_parameter("victory_lead_pct"), 100);
+    }
+
+    #[test]
+    fn ai_culture_leader_wins_at_the_normal_turn_boundary() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        game.players[1].history = 20_000;
+        game.refresh_score_snapshot();
+        let winner = game.players[1].name.clone();
+
+        game.simulate_turn();
+
+        assert_eq!(
+            game.game_over(),
+            Some(format!("{winner} wins a cultural domination victory.").as_str())
+        );
     }
 
     #[test]

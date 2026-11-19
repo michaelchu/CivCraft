@@ -69,20 +69,6 @@ impl Playback {
     pub(super) fn pending(&self) -> bool {
         !self.events.is_empty()
     }
-    pub(super) fn tile_owner(&self, sim: &ClientSimulation, x: i32, y: i32) -> Option<usize> {
-        if let Some(owners) = self.events.iter().find_map(|event| {
-            if let PresentationEventView::Combat(combat) = event {
-                Some(&combat.territory)
-            } else {
-                None
-            }
-        }) {
-            let index = sim.map_wrap().index(x, y);
-            owners[index]
-        } else {
-            sim.displayed_tile_owner_view(x, y)
-        }
-    }
     pub(super) fn city_overrides(&self) -> BTreeMap<u32, RenderedCityView> {
         let mut cities = BTreeMap::new();
         for event in &self.events {
@@ -391,7 +377,6 @@ mod tests {
             hp: vec![(3, 3), (2, 1), (2, 0)],
             city: None,
             bombard_effects: false,
-            territory: Vec::new(),
         }));
         let requests = sound_requests_for(&sim, event, Some(attacker_id));
         assert_eq!(
@@ -516,7 +501,6 @@ mod tests {
                 hp,
                 city: None,
                 bombard_effects: false,
-                territory: Vec::new(),
             }));
             let requests = sound_requests_for(&sim, event, Some(attacker.id));
             assert_eq!(requests.len(), 2);
