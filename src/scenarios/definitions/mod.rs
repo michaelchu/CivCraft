@@ -28,6 +28,7 @@ mod trait_campaign;
 mod unit_recovery;
 mod upkeep_shock;
 mod vassalage;
+mod vassalage_ai;
 mod wartime_funding;
 
 #[cfg(test)]
@@ -59,6 +60,10 @@ impl Checks {
 pub(super) const SCENARIOS: &[Scenario] = &[
     vassalage::CAPITULATION,
     vassalage::VOLUNTARY,
+    vassalage_ai::CAPITULATION,
+    vassalage_ai::VOLUNTARY,
+    vassalage_ai::WAR_PEACE,
+    vassalage_ai::INDEPENDENCE,
     unit_recovery::SCENARIO,
     settlement_ferry::SCENARIO,
     state_presets::SCENARIO,

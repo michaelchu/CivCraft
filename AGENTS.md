@@ -129,6 +129,11 @@ of incoming offers and independent city/unit ownership. Do not equate military
 access with alliance scoring or transport rights. Mechanical thresholds live in
 `content/vassalage.toml`. Validate with the `vassal-capitulation` and
 `vassal-voluntary` release scenarios and the source-adjacent rule/save tests.
+For autonomous AI-to-AI behavior, run `ai-vassal-capitulation` and
+`ai-vassal-voluntary` for two turns, `ai-vassal-war-peace` for five, and
+`ai-vassal-independence` for three. These use normal turns with AI nations in
+slots 1 and 2; preserve shared acceptance policy for submission and conqueror
+requests, and consider capitulation before routine ceasefires.
 Colonies and resource tribute are deferred.
 
 ## Comparison source checkout

@@ -13,7 +13,10 @@ research. It cannot have its own vassals. Cycles, multiple masters, human
 subjects, barbarians and No_Diplomacy players are rejected.
 
 Submission is an exclusive treaty term, with no bundled purchases or gifts.
-Both proposal and acceptance use the same AI evaluation. A pending human offer
+Both proposal and acceptance use the same AI evaluation. AI conquerors consider
+enemy capitulation before routine ceasefires; threatened AI nations can also
+initiate submission to another AI. These paths share validation, acceptance,
+execution and negotiation cooldowns. A pending human offer
 requires explicit acceptance and is revalidated against current circumstances.
 
 The master controls the group's external war and peace. An attack on any
@@ -76,5 +79,26 @@ Private tests live beside `vassalage`; persistence tests live beside `save`.
 Registered `vassal-capitulation` and `vassal-voluntary` scenarios exercise AI
 proposals, human approval, inherited wars and an ordinary campaign turn. Run
 these through the release headless runner with one turn and inspect every
-scenario check. UI review requires the complete Civ III installation and an
-explicit baseline as described in `UI_REVIEW.md`.
+scenario check.
+
+The additional runtimes use AI nations in slots 1 and 2, with slot 0 outside
+the agreement. They start without vassal agreements and exercise the normal
+turn pipeline, with no scripted submission or acceptance:
+
+| Scenario | Turns | Evidence |
+| --- | --- | --- |
+| `ai-vassal-capitulation` | 2 | AI surrender is proposed, accepted and maintained. |
+| `ai-vassal-voluntary` | 2 | An AI obtains protection from another AI, which inherits its war. |
+| `ai-vassal-war-peace` | 5 | After formation, a prepared AI war plan produces declarations for both members; normal negotiation subsequently produces a shared ceasefire. |
+| `ai-vassal-independence` | 3 | Loss of two remote cities causes protection failure and automatic independence during ordinary turn processing. |
+
+The armies occupy visible islands separated by water so formation checks do not
+depend on combat rolls. The war scenario injects only a prepared war plan; the
+independence scenario injects city loss through the existing lifecycle step.
+Neither directly signs a treaty or changes a vassal agreement. Runtime checks
+require the expected number of turns and complete trace coverage. The regression
+suite additionally reverses the two AI slots and checks that a conqueror ready
+to negotiate requests capitulation before offering a ceasefire.
+
+UI review requires the complete Civ III installation and an explicit baseline
+as described in `UI_REVIEW.md`.

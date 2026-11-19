@@ -520,7 +520,7 @@ impl Simulation {
     }
 
     pub(in crate::sim) fn advance_diplomatic_offers_for(&mut self, owner: usize) {
-        self.advance_vassal_offers_for(owner);
+        self.advance_vassal_negotiations_for(owner);
         let mut vision_changed = false;
         if owner == BARBARIANS || !self.players[owner].ai || !self.player_alive(owner) {
             return;

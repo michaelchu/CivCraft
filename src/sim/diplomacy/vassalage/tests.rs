@@ -401,3 +401,21 @@ fn propagated_armistice_expiry_also_expels_subject_garrisons() {
     game.advance_diplomacy();
     assert!(game.unit_by_id(unit).is_none());
 }
+
+#[test]
+fn ai_conqueror_requests_capitulation_before_a_routine_ceasefire() {
+    let mut game = fixture();
+    game.players[0].ai = true;
+    game.sign_pact(0, 1, Pact::War);
+    game.ai_diplomatic_memory.entry((0, 1)).or_default().spam = 0;
+    game.trace = trace::Collector::enabled(["*".to_owned()].into(), 1000);
+    game.advance_diplomatic_offers_for(0);
+    assert_eq!(game.vassal_master(1), Some(0));
+    assert!(
+        game.trace
+            .pending_events()
+            .iter()
+            .any(|event| event.payload["action"] == "offer_proposed"
+                && event.payload["reason"] == "capitulation_request")
+    );
+}
