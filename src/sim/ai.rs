@@ -19,6 +19,8 @@ mod great_leader;
 mod ground_invasion;
 pub(super) use ground_invasion::SharedInvasionSupport;
 mod hunter;
+mod planning;
+pub(super) use planning::PlanningCaches;
 mod space_race;
 mod unit_automation;
 
@@ -125,8 +127,7 @@ impl Simulation {
         }
         // dai_do_first_activities assesses danger (and its research feedback)
         // before moving units; do_last_activities clears these wants later.
-        self.sync_list_order();
-        self.list_order.begin_planning(&self.units, &self.cities);
+        self.begin_ai_planning();
         let profiler = self.trace.profiler();
         let _profile = profiler.scope("ai.tech_and_registries");
         let _profile = profiler.scope("ai.first_activity.tech_wants");
@@ -280,7 +281,7 @@ impl Simulation {
         let mut ferry_managed = std::collections::HashSet::new();
         drop(_profile);
         let _profile = profiler.scope("ai.units");
-        *self.planning_guard_danger.get_mut() = Some(Default::default());
+        self.planning.begin_units();
         let unit_ids: Vec<u32> = self.player_units_ordered(owner).map(|u| u.id).collect();
         for id in unit_ids {
             let Some(unit) = self.unit_by_id(id).cloned() else {
@@ -454,10 +455,7 @@ impl Simulation {
             drop(_profile);
         }
         drop(_profile);
-        *self.planning_guard_danger.get_mut() = None;
-        self.planning_airfields.take();
-        self.planning_continents.take();
-        self.list_order.end_planning();
+        self.end_ai_planning();
         true
     }
 

@@ -1,5 +1,8 @@
 //! Technology availability, cost, and research progression.
 
+mod cache;
+pub(in crate::sim) use cache::ResearchCache;
+
 use super::*;
 use crate::rules::TechEra;
 use crate::rules::engine_rules::{ResearchRulesetSettings, RulesetData};
@@ -13,13 +16,6 @@ pub(super) fn campaign_research_settings() -> &'static ResearchRulesetSettings {
             .research_settings()
             .unwrap_or_else(|error| panic!("invalid C2C3 research settings: {error}"))
     })
-}
-
-#[derive(Clone, Default)]
-pub(super) struct ResearchKnowledge {
-    known: Vec<Tech>,
-    era: Option<TechEra>,
-    paths: std::collections::HashMap<usize, std::sync::Arc<[Tech]>>,
 }
 
 impl Simulation {
@@ -69,7 +65,11 @@ impl Simulation {
     /// preceding era. The result also gates access to later-era technologies.
     pub(crate) fn research_era(&self, owner: usize) -> TechEra {
         self.trace.count_operation("research_era.calls", 1);
-        if let Some(era) = self.current_knowledge(owner).era {
+        if let Some(era) = self
+            .caches
+            .research()
+            .era(owner, &self.players[owner].known)
+        {
             self.trace.count_operation("research_era.cache_hit", 1);
             return era;
         }
@@ -90,20 +90,10 @@ impl Simulation {
                 break;
             }
         }
-        self.current_knowledge(owner).era = Some(current);
+        self.caches
+            .research()
+            .remember_era(owner, &self.players[owner].known, current);
         current
-    }
-
-    fn current_knowledge(&self, owner: usize) -> std::cell::RefMut<'_, ResearchKnowledge> {
-        let mut table = self.research_knowledge.borrow_mut();
-        table.resize_with(self.players.len(), ResearchKnowledge::default);
-        let entry = &mut table[owner];
-        if entry.known != self.players[owner].known {
-            entry.known.clone_from(&self.players[owner].known);
-            entry.era = None;
-            entry.paths.clear();
-        }
-        std::cell::RefMut::map(table, |owners| &mut owners[owner])
     }
 
     #[cfg(test)]
@@ -113,7 +103,11 @@ impl Simulation {
 
     pub(super) fn shared_research_path(&self, owner: usize, goal: Tech) -> std::sync::Arc<[Tech]> {
         self.trace.count_operation("research_path.calls", 1);
-        if let Some(path) = self.current_knowledge(owner).paths.get(&goal.0).cloned() {
+        if let Some(path) = self
+            .caches
+            .research()
+            .path(owner, &self.players[owner].known, goal)
+        {
             self.trace.count_operation("research_path.cache_hit", 1);
             return path;
         }
@@ -167,9 +161,9 @@ impl Simulation {
         }
         visit(self, owner, goal, &mut path, era, &mut visited);
         let path: std::sync::Arc<[Tech]> = path.into();
-        self.current_knowledge(owner)
-            .paths
-            .insert(goal.0, path.clone());
+        self.caches
+            .research()
+            .remember_path(owner, &self.players[owner].known, goal, path.clone());
         path
     }
 

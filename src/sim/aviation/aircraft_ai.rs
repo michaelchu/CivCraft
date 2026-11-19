@@ -440,14 +440,7 @@ impl Simulation {
         if on_base && attack.is_none() && self.ai_assign_air_superiority(aircraft) {
             return;
         }
-        let static_sites = self.planning_airfields.get_or_init(|| {
-            self.tiles
-                .iter()
-                .enumerate()
-                .filter(|(_, tile)| matches!(tile.base, Some(Base::Airstrip | Base::Airbase)))
-                .map(|(i, _)| self.map_wrap.position(i))
-                .collect()
-        });
+        let static_sites = self.planning.airfields(&self.tiles, self.map_wrap);
         let mut bases: Vec<_> = self
             .cities
             .iter()
@@ -460,9 +453,7 @@ impl Simulation {
             }))
             .filter(|&(x, y)| !self.any_unit_at(x, y, |u| !self.allied(aircraft.owner, u.owner)))
             .collect();
-        if !self.list_order.planning_active() {
-            self.planning_airfields.take();
-        }
+        drop(static_sites);
         bases.sort_unstable_by_key(|&(x, y)| self.map_wrap.index(x, y));
         bases.dedup();
         let decks: Vec<_> = self

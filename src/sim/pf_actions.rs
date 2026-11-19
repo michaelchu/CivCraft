@@ -1,16 +1,10 @@
 //! Shared default PF action policy from common/aicore/pf_tools.c. Planning
 //! capabilities deliberately differ from legal action execution.
-use super::movement_rules::{MovementRules, MovementTile, campaign_move_fragments};
-use super::unit_catalog::UnitClass;
-use super::*;
-use std::{cell::RefCell, collections::HashMap};
+mod cache;
+pub(in crate::sim) use cache::MovementCache;
 
-/// Derived movement data lives with the code that constructs its cache keys.
-#[derive(Clone, Default)]
-pub(super) struct MovementCache {
-    step_cost: RefCell<HashMap<u32, i32>>,
-    native: RefCell<Vec<i8>>,
-}
+use super::movement_rules::{MovementRules, MovementTile, campaign_move_fragments};
+use super::*;
 
 impl UnitKind {
     // IgZOC and absence of UCF_ZOC are separate native exemptions.
@@ -34,29 +28,7 @@ impl Simulation {
         tile: MovementTile,
         class: super::unit_catalog::UnitClass,
     ) -> bool {
-        let index = ((class as usize) << MovementTile::CACHE_BITS) | tile.cache_index() as usize;
-        let cache_len = (UnitClass::Missile as usize + 1) << MovementTile::CACHE_BITS;
-        {
-            let mut cache = self.movement_cache.native.borrow_mut();
-            if cache.is_empty() {
-                cache.resize(cache_len, -1);
-            }
-            if cache[index] >= 0 {
-                return cache[index] != 0;
-            }
-        }
-        let native = MovementRules::campaign()
-            .movement_tile_native_to_class(
-                tile.terrain,
-                tile.road,
-                tile.railroad,
-                tile.river,
-                tile.base,
-                class,
-            )
-            .expect("campaign C2C3 movement native_to data");
-        self.movement_cache.native.borrow_mut()[index] = i8::from(native);
-        native
+        self.caches.movement().native_to_class(tile, class)
     }
 
     fn pf_class_can_occupy_city(kind: UnitKind) -> bool {
@@ -103,31 +75,14 @@ impl Simulation {
             dest.base,
         );
         let cardinal = self.pf_move_is_cardinal((unit.x, unit.y), (x, y));
-        const CLASS_BITS: u32 = 3;
-        const FLAG_BITS: u32 = 3;
-        const { assert!((UnitClass::Missile as u32) < 1 << CLASS_BITS) };
-        let tiles = (source_movement.cache_index() << MovementTile::CACHE_BITS)
-            | destination_movement.cache_index();
-        let key = (tiles << (CLASS_BITS + FLAG_BITS))
-            | ((class as u32) << FLAG_BITS)
-            | (u32::from(cardinal) << 2)
-            | (u32::from(restricted) << 1)
-            | u32::from(ignores);
-        if let Some(cost) = self.movement_cache.step_cost.borrow().get(&key).copied() {
-            return cost;
-        }
-        let cost = MovementRules::campaign()
-            .step_cost(
-                source_movement,
-                destination_movement,
-                class,
-                cardinal,
-                restricted,
-                ignores,
-            )
-            .expect("campaign C2C3 step movement data");
-        self.movement_cache.step_cost.borrow_mut().insert(key, cost);
-        cost
+        self.caches.movement().step_cost(
+            source_movement,
+            destination_movement,
+            class,
+            cardinal,
+            restricted,
+            ignores,
+        )
     }
     pub(super) fn pf_native_tile(&self, kind: UnitKind, x: i32, y: i32) -> bool {
         let tile = self.tile(x, y);
