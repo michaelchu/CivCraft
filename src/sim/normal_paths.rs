@@ -177,6 +177,9 @@ pub(super) struct NormalPaths {
     queue: NormalPathQueue,
     yielded_start: bool,
     heuristic_goal: Option<usize>,
+    /// Order the frontier by distance to `heuristic_goal` alone. Only valid
+    /// when the caller needs reachability, not a cost or a path.
+    reachability_only: bool,
     expanded: u64,
 }
 
@@ -261,6 +264,7 @@ impl NormalPaths {
             queue: NormalPathQueue::new(sim.tiles.len()),
             yielded_start: false,
             heuristic_goal: None,
+            reachability_only: false,
             expanded: 0,
         };
         map.initialize(sim, start, 0);
@@ -506,7 +510,12 @@ impl NormalPaths {
         let (x, y) = self.map_wrap.position(tile);
         let (goal_x, goal_y) = self.map_wrap.position(goal);
         let distance = self.map_wrap.civ3_distance(x, y, goal_x, goal_y);
-        total + i64::from(distance) * i64::from(TURN_FACTOR)
+        let heuristic = i64::from(distance) * i64::from(TURN_FACTOR);
+        if self.reachability_only {
+            heuristic
+        } else {
+            total + heuristic
+        }
     }
     fn moves_left(&self, cost: i32) -> i32 {
         if cost <= 0 {
@@ -762,13 +771,18 @@ impl Simulation {
         let _profile = self.trace.profiler().scope("ai.goto.sanity");
         self.trace.count_operation("ai.goto.sanity_checks", 1);
         if let Some(mut map) = super::fuel_paths::FuelPaths::attack_sanity(self, unit) {
+            let _fuel = self.trace.profiler().scope("ai.goto.sanity.fuel");
             return map.movement_cost(self, goal.0, goal.1).is_some();
         }
+        let _normal = self.trace.profiler().scope("ai.goto.sanity.normal");
         // Only reachability matters here, so steer the search toward the goal.
         // Any complete search order answers the same question, and A* stops
         // as soon as the goal is settled instead of flooding the reachable map.
         let mut map = NormalPaths::goto_sanity_map(self, unit);
         map.heuristic_goal = Some(self.map_wrap.index(goal.0, goal.1));
+        // Edge legality does not depend on accumulated cost while the unit can
+        // move, so a goal-directed order reaches the same yes/no answer.
+        map.reachability_only = map.rate > 0;
         map.movement_cost(self, goal.0, goal.1).is_some()
     }
 
