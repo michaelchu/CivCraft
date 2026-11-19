@@ -22,6 +22,24 @@ clears this group after validation and restoration; later queries repopulate it.
 Cache population or clearing must preserve encoded campaign bytes and future
 turn results.
 
+## AI planning caches
+
+`sim/ai::PlanningCaches` owns the airfield sites, continent labels and enemy city
+danger reused during one AI player's planning. Its storage is private; spatial
+queries take live tiles and topology, and only advisors can populate enemy danger.
+
+Planning starts and ends alongside list-order membership in one pair of helpers.
+Airfields and continent labels are built lazily and discarded when that player's
+planning finishes. Queries outside planning compute fresh data without retaining
+it. Enemy danger starts caching later, at the unit-movement loop, and is discarded
+at the same planning end. The danger cache stores only danger, urgency and grave
+threat counts; garrison defense is still recomputed as units move.
+
+These are transient phase snapshots, excluded from saves. Cloning preserves an
+active planning context with independent cache storage. Ending planning on the
+clone does not clear the original. Normal turn ordering and saved AI decisions
+remain unchanged.
+
 ## Durable knowledge and scheduled decisions
 
 `observed_map` contains remembered player knowledge and remains in campaign
@@ -36,6 +54,6 @@ existing persistence contracts.
 The trace collector already owns transient instrumentation and lifecycle/research
 ledgers. It remains separate from both query memoization and saved knowledge.
 
-AI planning/spatial caches and visibility batching still live on `Simulation`.
+Advisor spatial/threat-route caches and visibility batching still live on `Simulation`.
 Their phase boundaries and invalidation rules should be extracted in subsequent
 slices, preserving phase order, deterministic decisions and save compatibility.

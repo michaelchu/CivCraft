@@ -426,18 +426,11 @@ impl Simulation {
         if cache_enabled {
             self.trace.count_operation("guard_assessment.cache_miss", 1);
         }
-        let previous = self
-            .planning_guard_danger
-            .borrow()
-            .as_ref()
-            .and_then(|cities| cities.get(&city.id).copied());
-        let mut result = previous.unwrap_or_else(|| {
-            let mut result = GuardCityAssessment {
+        let danger = self.planning.guard_danger().get_or_init(city.id, || {
+            let mut result = super::planning::GuardDanger {
                 danger: 0,
                 urgency: 0,
                 grave: 0,
-                defense: 0,
-                defense_igwall: 0,
             };
             for (enemy, _, turns) in self.city_threat_arrivals(city) {
                 let occupies =
@@ -452,11 +445,15 @@ impl Simulation {
                 result.danger += danger * danger / turns.max(1);
             }
             result.urgency += 10 * result.grave;
-            if let Some(cities) = self.planning_guard_danger.borrow_mut().as_mut() {
-                cities.insert(city.id, result);
-            }
             result
         });
+        let mut result = GuardCityAssessment {
+            danger: danger.danger,
+            urgency: danger.urgency,
+            grave: danger.grave,
+            defense: 0,
+            defense_igwall: 0,
+        };
         // Native chooses 90 whenever danger is nonzero, 5 otherwise, then
         // finds the integer ceiling square root of wallvalue*10.
         let wall_value = if result.danger > 0 { 90 } else { 5 };

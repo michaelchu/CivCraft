@@ -290,10 +290,7 @@ pub(crate) struct Simulation {
     ai_government_cache: std::collections::BTreeMap<usize, government::GovernmentAdvisorCache>,
     diplomatic_contact_until: std::collections::BTreeMap<(usize, usize), i32>,
     founder_phase: bool,
-    planning_airfields: std::cell::OnceCell<Vec<(i32, i32)>>,
-    planning_continents: std::cell::OnceCell<std::sync::Arc<[usize]>>,
-    planning_guard_danger:
-        std::cell::RefCell<Option<std::collections::HashMap<u32, advisors::GuardCityAssessment>>>,
+    planning: ai::PlanningCaches,
     ai_advisor_cache_enabled: std::cell::Cell<bool>,
     ai_threat_route_cache_enabled: std::cell::Cell<bool>,
     ai_threat_arrival_cache:
@@ -599,9 +596,7 @@ impl Simulation {
             ai_government_cache: Default::default(),
             diplomatic_contact_until: Default::default(),
             founder_phase: false,
-            planning_airfields: Default::default(),
-            planning_continents: Default::default(),
-            planning_guard_danger: Default::default(),
+            planning: Default::default(),
             ai_advisor_cache_enabled: Default::default(),
             ai_threat_route_cache_enabled: Default::default(),
             ai_threat_arrival_cache: Default::default(),

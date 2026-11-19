@@ -93,36 +93,7 @@ impl Achievement<'_> {
 
 impl Simulation {
     pub(super) fn continent_labels(&self) -> std::sync::Arc<[usize]> {
-        if self.list_order.planning_active() {
-            return self
-                .planning_continents
-                .get_or_init(|| self.build_continent_labels())
-                .clone();
-        }
-        self.build_continent_labels()
-    }
-
-    fn build_continent_labels(&self) -> std::sync::Arc<[usize]> {
-        let mut labels = vec![0; self.tiles.len()];
-        let mut continent = 0;
-        for index in 0..self.tiles.len() {
-            if labels[index] != 0 || self.tiles[index].terrain.is_water() {
-                continue;
-            }
-            continent += 1;
-            labels[index] = continent;
-            let mut pending = vec![self.map_wrap.position(index)];
-            while let Some((x, y)) = pending.pop() {
-                for (nx, ny) in self.map_wrap.civ3_neighbors(x, y) {
-                    let index = self.map_wrap.index(nx, ny);
-                    if labels[index] == 0 && !self.tiles[index].terrain.is_water() {
-                        labels[index] = continent;
-                        pending.push((nx, ny));
-                    }
-                }
-            }
-        }
-        labels.into()
+        self.planning.continents(&self.tiles, self.map_wrap)
     }
 
     fn map_known_at_percent(&self, owner: usize, percent: i32) -> bool {
