@@ -19,6 +19,9 @@ struct Policy {
     war_military_bonus: i32,
     preparation_military_bonus: i32,
     space_science_bonus: i32,
+    space_max_missing_techs: usize,
+    space_min_city_shields: i32,
+    space_research_want: i32,
     deficit_reserve_turns: i32,
     upkeep_buffer_turns: i32,
     reserve_refill_turns: i32,
@@ -47,6 +50,8 @@ fn policy() -> &'static Policy {
             assert!((0..=100).contains(&value));
         }
         assert!(policy.reserve_refill_turns > 0);
+        assert!(policy.space_max_missing_techs > 0);
+        assert!(policy.space_min_city_shields > 0 && policy.space_research_want > 0);
         assert_eq!(policy.traits.len(), 8);
         for (name, weights) in &policy.traits {
             assert!(ai_traits::TRAITS.contains(&name.as_str()));
@@ -80,6 +85,8 @@ pub(crate) struct StrategicPriorities {
     pub wars: usize,
     pub preparing: bool,
     pub space_program: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub space_research_goal: Option<Tech>,
     // Full diagnostics retain the amounts; lean changes omit these noisy inputs.
     pub projected_income: i32,
     pub gold_reserve: i32,
@@ -93,6 +100,39 @@ impl StrategicPriorities {
 }
 
 impl Simulation {
+    pub(super) fn ai_space_commitment(&self, owner: usize) -> bool {
+        let ship = &self.spaceships[owner];
+        if !self.victory_enabled(crate::rules::engine_rules::VictoryCondition::SpaceRace) {
+            return false;
+        }
+        if ship.built != [0; 3] {
+            return true;
+        }
+        if self.research_era(owner) != crate::rules::TechEra::Modern {
+            return false;
+        }
+        let mut missing = std::collections::BTreeSet::new();
+        for goal in SPACE_RESEARCH_GOALS {
+            missing.extend(
+                self.shared_research_path(owner, goal)
+                    .iter()
+                    .map(|tech| tech.0),
+            );
+        }
+        missing.len() <= policy().space_max_missing_techs
+            && self
+                .cities_owned_by(owner)
+                .any(|city| city.has_building(Building::PALACE))
+            && self
+                .cities_owned_by(owner)
+                .filter(|city| {
+                    self.city_forecast(city).shield_surplus() >= space_min_city_shields()
+                })
+                .take(2)
+                .count()
+                == 2
+    }
+
     pub(crate) fn strategic_upkeep_buffer(&self, owner: usize) -> i32 {
         let (buildings, city_support): (i32, i32) = self
             .cities_owned_by(owner)
@@ -173,9 +213,14 @@ impl Simulation {
                 && !self.at_war(owner, target)
                 && plan.countdown >= 0
         });
-        let space_program = self
-            .victory_enabled(crate::rules::engine_rules::VictoryCondition::SpaceRace)
-            && self.spaceships[owner].built != [0; 3];
+        let space_program = self.ai_space_commitment(owner);
+        let space_research_goal = space_program
+            .then(|| {
+                SPACE_RESEARCH_GOALS
+                    .into_iter()
+                    .find(|&tech| !self.has_tech(owner, tech))
+            })
+            .flatten();
         if economic_crisis {
             economy += rules.crisis_economy_bonus;
         }
@@ -207,6 +252,7 @@ impl Simulation {
             wars,
             preparing,
             space_program,
+            space_research_goal,
             projected_income,
             gold_reserve,
         }
@@ -233,6 +279,22 @@ impl Simulation {
                 0.0
             }
     }
+}
+
+// Unlock the production sites, then Apollo and the three part types.
+const SPACE_RESEARCH_GOALS: [Tech; 4] = [
+    Tech::COMPUTERS,
+    Tech::SPACE_FLIGHT,
+    Tech::ECOLOGY,
+    Tech::SUPERCONDUCTOR,
+];
+
+pub(super) fn space_min_city_shields() -> i32 {
+    policy().space_min_city_shields
+}
+
+pub(super) fn space_research_want() -> i32 {
+    policy().space_research_want
 }
 
 pub(super) fn reserve_refill_turns() -> i32 {

@@ -9,6 +9,11 @@ pub(crate) const STRUCTURE_PARENT: [usize; 32] = [
 ];
 const COMPONENT_SUPPORT: [usize; 16] = [0, 12, 1, 13, 8, 12, 9, 13, 22, 28, 23, 29, 26, 28, 27, 29];
 const MODULE_SUPPORT: [usize; 12] = [0, 1, 10, 15, 14, 11, 18, 19, 20, 31, 30, 21];
+pub(super) const SPACE_PART_PROJECTS: [(Building, usize); 3] = [
+    (Building::SPACE_STRUCTURAL, 32),
+    (Building::SPACE_COMPONENT, 16),
+    (Building::SPACE_MODULE, 12),
+];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum ShipPart {
@@ -247,6 +252,12 @@ impl Simulation {
         } else {
             None
         }
+    }
+
+    #[cfg(any(test, feature = "scenarios"))]
+    pub(crate) fn spaceship_progress(&self, owner: usize) -> ([usize; 3], Option<f64>) {
+        let ship = &self.spaceships[owner];
+        (ship.built, ship.arrival_year())
     }
 
     pub(crate) fn can_launch_spaceship(&self, owner: usize) -> bool {

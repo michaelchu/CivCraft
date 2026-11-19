@@ -4,6 +4,9 @@ crisis_economy_bonus = 60
 war_military_bonus = 40
 preparation_military_bonus = 20
 space_science_bonus = 40
+space_max_missing_techs = 9
+space_min_city_shields = 8
+space_research_want = 200
 # Cushion for a projected deficit, shared by taxes, routine purchases and trade.
 deficit_reserve_turns = 3
 upkeep_buffer_turns = 2

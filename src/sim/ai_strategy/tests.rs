@@ -1,6 +1,23 @@
 use super::*;
 
 #[test]
+fn industrial_contender_commits_to_space_research_before_launch_infrastructure() {
+    let (game, _) = crate::scenarios::space_victory_fixture(crate::test_support::seeded_map());
+    let strategy = game.strategic_priorities(1);
+    assert_eq!(
+        strategy.space_research_goal,
+        Some(Tech::COMPUTERS),
+        "era={:?}, productive sites={:?}, capital={}",
+        game.research_era(1),
+        game.cities_owned_by(1)
+            .map(|city| game.city_forecast(city).shield_surplus())
+            .collect::<Vec<_>>(),
+        game.cities_owned_by(1)
+            .any(|city| city.has_building(Building::PALACE)),
+    );
+}
+
+#[test]
 fn assessments_are_read_only_and_missing_identity_has_neutral_preferences() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
     game.players[1].civilization_id = None;

@@ -13,7 +13,9 @@ pub(crate) use catalog::{all, find};
 mod definitions;
 
 #[cfg(test)]
-pub(crate) use definitions::{funding_campaign_fixture, strategy_pair_fixture};
+pub(crate) use definitions::{
+    funding_campaign_fixture, space_victory_fixture, strategy_pair_fixture,
+};
 
 /// One run of a scenario: actions, observations and final checks.
 /// Preparatory and ordinary turns are advanced by the runner.

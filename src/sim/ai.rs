@@ -19,6 +19,7 @@ mod great_leader;
 mod ground_invasion;
 pub(super) use ground_invasion::SharedInvasionSupport;
 mod hunter;
+mod space_race;
 mod unit_automation;
 
 impl Simulation {

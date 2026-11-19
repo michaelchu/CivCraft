@@ -409,13 +409,11 @@ fn requirement_name(requirement: Requirement) -> String {
     }
 }
 
-fn spaceship_part(building: Building) -> Option<(usize, usize)> {
-    match building {
-        Building::SPACE_STRUCTURAL => Some((0, 32)),
-        Building::SPACE_COMPONENT => Some((1, 16)),
-        Building::SPACE_MODULE => Some((2, 12)),
-        _ => None,
-    }
+pub(super) fn spaceship_part(building: Building) -> Option<(usize, usize)> {
+    spaceship::SPACE_PART_PROJECTS
+        .iter()
+        .enumerate()
+        .find_map(|(part, &(project, limit))| (project == building).then_some((part, limit)))
 }
 
 #[cfg(test)]

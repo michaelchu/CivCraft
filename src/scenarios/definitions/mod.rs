@@ -21,12 +21,15 @@ mod relationship_memory;
 mod research_history;
 mod settlement_ferry;
 mod shared_strategy;
+mod space_victory;
 mod state_presets;
 mod unit_recovery;
 mod wartime_funding;
 
 #[cfg(test)]
 pub(crate) use shared_strategy::setup as strategy_pair_fixture;
+#[cfg(test)]
+pub(crate) use space_victory::setup as space_victory_fixture;
 #[cfg(test)]
 pub(crate) use wartime_funding::setup as funding_campaign_fixture;
 
@@ -77,6 +80,7 @@ pub(super) const SCENARIOS: &[Scenario] = &[
     peaceful_first_contact::SCENARIO,
     proactive_trade::SCENARIO,
     shared_strategy::SCENARIO,
+    space_victory::SCENARIO,
     wartime_funding::SCENARIO,
     relationship_memory::SCENARIO,
     culture_history::SCENARIO,

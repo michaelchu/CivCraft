@@ -262,7 +262,23 @@ impl Simulation {
                 )
             })
             .collect();
-        let (values, goal_values) = Self::source_research_scores(&wants, &paths);
+        let (mut values, goal_values) = Self::source_research_scores(&wants, &paths);
+        let space_goal = strategy
+            .space_research_goal
+            .filter(|_| !strategy.economic_crisis);
+        if let Some(goal) = space_goal {
+            let path = self.shared_research_path(owner, goal);
+            let current = self.players[owner].researching;
+            let step = path
+                .iter()
+                .copied()
+                .filter(|&tech| self.tech_available(owner, tech))
+                .min_by_key(|&tech| (tech != current, self.target_cost(owner, tech), tech.0));
+            if let Some(step) = step {
+                values[step.0] = values[step.0]
+                    .saturating_add(ai_strategy::space_research_want() * cities as i32);
+            }
+        }
         let mut goal = None;
         let mut choice = None;
         for (index, &tech) in advances.iter().enumerate() {
@@ -280,7 +296,9 @@ impl Simulation {
                 choice = Some((tech, values[index]));
             }
         }
-        self.players[owner].research_goal = goal.map_or(Tech::UNSET, |(tech, _)| tech);
+        self.players[owner].research_goal = space_goal
+            .or(goal.map(|(tech, _)| tech))
+            .unwrap_or(Tech::UNSET);
         let cities = self
             .cities
             .iter()

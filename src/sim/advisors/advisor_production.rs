@@ -161,13 +161,20 @@ impl Simulation {
         &mut self,
         city: &City,
         wonder_city: Option<u32>,
+        coordinated_space_race: bool,
     ) -> Option<AiBuildChoice> {
+        let available_to_domestic_advisor = |production| {
+            !coordinated_space_race
+                || !matches!(production, Production::Building(building)
+                if building == Building::APOLLO_PROGRAM || buildings::spaceship_part(building).is_some())
+        };
         let cached = self.city_by_id(city.id).and_then(|current| {
             (self.turn < current.ai_building_next)
                 .then_some(current.ai_building_choice)
                 .flatten()
         });
         if let Some((production, want)) = cached
+            && available_to_domestic_advisor(production)
             && self.can_change_production(city, production)
         {
             self.trace.count_operation("advisor.building_hits", 1);
@@ -184,12 +191,16 @@ impl Simulation {
                 best = Some(candidate);
             }
         };
-        consider(self.domestic_build_choice_with_wonder_city(city, wonder_city));
-        for building in [
+        consider(
+            self.domestic_build_choice_with_wonder_city(city, wonder_city)
+                .filter(|choice| available_to_domestic_advisor(choice.production)),
+        );
+        let parts = [
             Building::SPACE_MODULE,
             Building::SPACE_COMPONENT,
             Building::SPACE_STRUCTURAL,
-        ] {
+        ];
+        for building in parts.into_iter().filter(|_| !coordinated_space_race) {
             if self.building_blocker(city, building).is_none() {
                 consider(Some(AiBuildChoice {
                     production: Production::Building(building),
@@ -778,7 +789,13 @@ impl Simulation {
         city: &City,
         wonder_city: Option<u32>,
     ) -> Option<AiBuildChoice> {
-        self.ai_build_choice_with_worker_cache(city, wonder_city, &mut Default::default())
+        let space_plan = self.space_production_plan(city.owner);
+        self.ai_build_choice_with_worker_cache(
+            city,
+            wonder_city,
+            &mut Default::default(),
+            space_plan.as_ref(),
+        )
     }
 
     fn ai_build_choice_with_worker_cache(
@@ -786,17 +803,26 @@ impl Simulation {
         city: &City,
         wonder_city: Option<u32>,
         worker_cache: &mut WorkMap,
+        space_plan: Option<&std::collections::BTreeMap<u32, Building>>,
     ) -> Option<AiBuildChoice> {
         let profiler = self.trace.profiler();
         let _profile = profiler.scope("advisor.build.military");
         let (_, military) = self.military_build_advice_with_wonder_city(city, wonder_city);
         drop(_profile);
+        if military.is_some_and(|choice| choice.want >= MILITARY_EMERGENCY_WANT)
+            && self.advisor_guard_city_assessment(city).urgency != 0
+        {
+            return military;
+        }
+        if let Some(&building) = space_plan.and_then(|plan| plan.get(&city.id)) {
+            return Some(AiBuildChoice {
+                production: Production::Building(building),
+                want: DOMESTIC_WANT_MAX,
+            });
+        }
         let wartime_demand =
             military.is_some_and(|choice| choice.want > 0.0) && self.ai_on_war_footing(city.owner);
-        if wartime_demand && wonder_city != Some(city.id)
-            || military.is_some_and(|choice| choice.want >= MILITARY_EMERGENCY_WANT)
-                && self.advisor_guard_city_assessment(city).urgency != 0
-        {
+        if wartime_demand && wonder_city != Some(city.id) {
             return military;
         }
 
@@ -820,7 +846,7 @@ impl Simulation {
             drop(_profile);
         }
         let _profile = profiler.scope("advisor.build.stable");
-        if let Some(choice) = self.cached_building_choice(city, wonder_city) {
+        if let Some(choice) = self.cached_building_choice(city, wonder_city, space_plan.is_some()) {
             consider(choice.production, choice.want);
         }
         drop(_profile);
@@ -850,6 +876,7 @@ impl Simulation {
             .map(|city| city.id)
             .collect();
         let wonder_city = self.ai_wonder_city(owner);
+        let space_plan = self.space_production_plan(owner);
         // Freeciv daicity.c:dai_manage_cities initializes infracache once
         // before contemplate_terrain_improvements visits the owner's cities.
         // This pass changes production targets, not the tiles, assignments,
@@ -866,9 +893,12 @@ impl Simulation {
             let _profile = profiler.scope("advisor.build.military_tech_wants");
             self.record_ai_military_tech_wants_for_wonder_city(&city, wonder_city);
             drop(_profile);
-            if let Some(choice) =
-                self.ai_build_choice_with_worker_cache(&city, wonder_city, &mut worker_cache)
-            {
+            if let Some(choice) = self.ai_build_choice_with_worker_cache(
+                &city,
+                wonder_city,
+                &mut worker_cache,
+                space_plan.as_ref(),
+            ) {
                 choices.insert(id, choice);
                 if city.production != choice.production {
                     self.change_production(id, choice.production);
