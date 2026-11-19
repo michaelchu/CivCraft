@@ -59,7 +59,7 @@ impl Simulation {
         self.list_order.unit(self.units.last().unwrap());
         self.trace
             .unit_created(self.turn, self.units.last().unwrap(), origin);
-        if self.visibility_refresh_deferred {
+        if self.visibility_refresh.deferred() {
             let unit = self.units.last().unwrap().clone();
             self.record_visibility_render_scope(&unit, (x, y), (x, y));
         }

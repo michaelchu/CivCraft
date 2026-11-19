@@ -61,6 +61,22 @@ worker/founder phase. Its city-count and phase-end invalidations go through the
 same owner and clear only those maps. Clone storage remains independent, saves
 omit the entire advisor-cache group, and loading starts with it inactive.
 
+## Visibility refresh batching
+
+`sim/observed_map::VisibilityRefresh` owns transient deferral, pending refreshes,
+dirty render tiles and the scope handed to the next refresh. Its storage is
+private and separate from `ObservedMap`, which holds saved player knowledge.
+
+Movement and exploration open conditional batches and restore the prior state
+with a batch token. Nested paths retain the enclosing deferral; only returning
+to an undeferred caller permits a pending flush. The owner coalesces dirty tiles
+in map-index order, clears them when flushing and consumes the render scope once.
+An empty scope remains distinct from an unscoped full refresh. Vision rules still
+choose which tiles to mark, and the existing callers retain their flush timing.
+
+Cloning copies pending work independently. Saving omits the batching state and
+preserves remembered knowledge; loading starts with no deferral or pending work.
+
 ## Durable knowledge and scheduled decisions
 
 `observed_map` contains remembered player knowledge and remains in campaign
@@ -75,6 +91,6 @@ existing persistence contracts.
 The trace collector already owns transient instrumentation and lifecycle/research
 ledgers. It remains separate from both query memoization and saved knowledge.
 
-Visibility batching still lives directly on `Simulation`. Its phase boundaries
-and invalidation rules should be extracted in a subsequent slice, preserving
-phase order, deterministic decisions and save compatibility.
+Campaign entities and durable AI memory still live directly on `Simulation`.
+Their ownership can be separated in later slices without treating remembered
+knowledge or scheduled decisions as disposable caches.

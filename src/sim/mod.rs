@@ -292,10 +292,7 @@ pub(crate) struct Simulation {
     founder_phase: bool,
     planning: ai::PlanningCaches,
     advisor_cache: advisors::AdvisorCaches,
-    visibility_refresh_deferred: bool,
-    visibility_refresh_pending: bool,
-    visibility_pending_render_tiles: Vec<bool>,
-    visibility_render_scope: Option<Vec<usize>>,
+    visibility_refresh: observed_map::VisibilityRefresh,
 }
 
 fn percent_of(value: i32, percent: i32) -> i32 {
@@ -563,10 +560,7 @@ impl Simulation {
             founder_phase: false,
             planning: Default::default(),
             advisor_cache: Default::default(),
-            visibility_refresh_deferred: false,
-            visibility_refresh_pending: false,
-            visibility_pending_render_tiles: Default::default(),
-            visibility_render_scope: None,
+            visibility_refresh: Default::default(),
         };
         for owner in 0..civilization_count {
             game.players[owner].researching = game.choose_research_target(owner);
