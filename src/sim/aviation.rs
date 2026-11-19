@@ -916,14 +916,6 @@ impl Simulation {
                         hp: hp_steps,
                         city: self.city_at(x, y).cloned(),
                         bombard_effects: attacker.kind.has_bombard_effects(),
-                        territory: (0..self.map_wrap.width() * self.map_wrap.height())
-                            .map(|i| {
-                                self.displayed_tile_owner(
-                                    i % self.map_wrap.width(),
-                                    i / self.map_wrap.width(),
-                                )
-                            })
-                            .collect(),
                     },
                 )));
             }

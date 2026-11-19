@@ -3,8 +3,9 @@
 use super::*;
 
 impl Simulation {
-    pub(crate) fn displayed_tile_owner_view(&self, x: i32, y: i32) -> Option<usize> {
-        self.displayed_tile_owner(x, y)
+    pub(crate) fn territory_border_owner_view(&self, x: i32, y: i32) -> Option<usize> {
+        let tile = self.tile(x, y);
+        tile.seen.then_some(tile.owner).flatten()
     }
 
     pub(crate) fn minimap_tile_view(&self, x: i32, y: i32) -> MinimapTileView {
@@ -201,5 +202,43 @@ impl Simulation {
             growth_label,
             production_label,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn territory_border_owner_tracks_current_claim_on_fogged_known_tiles() {
+        let mut sim = Simulation::new(crate::mapgen::generate(42));
+        let (x, y) = (20, 24);
+        sim.create_city(1, x, y);
+        assert_eq!(sim.tile(x, y).owner, Some(1));
+
+        let tile = sim.tile_mut(x, y);
+        tile.seen = true;
+        tile.visible = false;
+        tile.last_seen_owner = Some(1);
+
+        assert_eq!(sim.territory_border_owner_view(x, y), Some(1));
+
+        // A city loss changes live territory while the tile remains fogged.
+        sim.cities.retain(|city| city.owner != 1);
+        sim.rebuild_city_ownership();
+        assert_eq!(sim.tile(x, y).owner, None);
+        assert_eq!(sim.territory_border_owner_view(x, y), None);
+    }
+
+    #[test]
+    fn territory_border_owner_hides_never_seen_tiles() {
+        let mut sim = Simulation::new(crate::mapgen::generate(42));
+        let (x, y) = (20, 20);
+        let tile = sim.tile_mut(x, y);
+        tile.seen = false;
+        tile.visible = false;
+        tile.owner = Some(1);
+
+        assert_eq!(sim.territory_border_owner_view(x, y), None);
     }
 }

@@ -285,7 +285,6 @@ pub(crate) struct CombatPresentationView {
     pub(crate) hp: Vec<(i32, i32)>,
     pub(crate) city: Option<RenderedCityView>,
     pub(crate) bombard_effects: bool,
-    pub(crate) territory: Vec<Option<usize>>,
     pub(crate) duration: f64,
 }
 
