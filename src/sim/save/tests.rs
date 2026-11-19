@@ -303,6 +303,14 @@ fn current_campaign_round_trip_preserves_gameplay_and_topology_state() {
     game.year_0_hack = true;
     game.set_random_seed(42);
     game.rand_below(1000);
+    game.notifications[0].read = true;
+    game.add_contextual_notification(
+        "A city was captured.",
+        notifications::NotificationCategory::City,
+        notifications::NotificationPriority::Important,
+        Some(game.cities[0].id),
+        Some(1),
+    );
     game.validate_campaign().unwrap();
     game.save_campaign(&path).unwrap();
 
@@ -335,6 +343,12 @@ fn current_campaign_round_trip_preserves_gameplay_and_topology_state() {
     assert_eq!(loaded.global_advances, game.global_advances);
     assert_eq!(loaded.year, game.year);
     assert_eq!(loaded.year_0_hack, game.year_0_hack);
+    assert_eq!(loaded.notifications, game.notifications);
+    assert_eq!(loaded.next_notification_id, game.next_notification_id);
+    assert_eq!(
+        loaded.unread_notifications_view(),
+        game.unread_notifications_view()
+    );
     assert!(loaded.players[HUMAN].mobilized);
     assert_eq!(loaded.players[HUMAN].government, Government::Fundamentalism);
     assert_eq!(

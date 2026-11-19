@@ -234,6 +234,48 @@ impl<'a, S> SavedCampaignV2D<'a, S> {
     }
 }
 
+/// Format 0x2F appends durable player notifications and their ID counter.
+#[derive(Serialize, Deserialize)]
+pub(super) struct SavedCampaignV2E<'a, S> {
+    campaign: SavedCampaignV2D<'a, S>,
+    objectives: Vec<((usize, usize), diplomacy::WarObjective)>,
+    notifications: Cow<'a, [notifications::Notification]>,
+    next_notification_id: u64,
+}
+impl<'a, S> SavedCampaignV2E<'a, S> {
+    pub(super) fn from_game(game: &'a Simulation, partial_sites: S) -> Self {
+        let objectives = game
+            .ai_war_plans
+            .iter()
+            .filter_map(|(&pair, plan)| plan.objective.map(|objective| (pair, objective)))
+            .collect();
+        Self {
+            campaign: SavedCampaignV2D::from_game(game, partial_sites),
+            objectives,
+            notifications: Cow::Borrowed(&game.notifications),
+            next_notification_id: game.next_notification_id,
+        }
+    }
+    pub(super) fn into_game(self) -> Result<(Simulation, S), &'static str> {
+        let (mut game, partial_sites) = self.campaign.into_game()?;
+        for (pair, objective) in self.objectives {
+            let Some(plan) = game.ai_war_plans.get_mut(&pair) else {
+                return Err("War objective has no plan");
+            };
+            if plan.objective.is_some()
+                || !(0..game.map_wrap.width()).contains(&objective.staging.0)
+                || !(0..game.map_wrap.height()).contains(&objective.staging.1)
+            {
+                return Err("Invalid war objective");
+            }
+            plan.objective = Some(objective);
+        }
+        game.notifications = self.notifications.into_owned();
+        game.next_notification_id = self.next_notification_id;
+        Ok((game, partial_sites))
+    }
+}
+
 #[derive(Deserialize)]
 pub(super) struct LegacyCampaign<'a> {
     core: SavedCore<'a>,
@@ -305,7 +347,7 @@ impl<'a, A, S> SavedCampaign<'a, A, S> {
                 next_unit_id: game.next_unit_id,
                 next_city_id: game.next_city_id,
                 rng: game.rng,
-                events: Cow::Borrowed(&game.events),
+                events: Cow::Borrowed(&game.legacy_events),
                 game_over: Cow::Borrowed(&game.game_over),
                 climate_pressure: Cow::Borrowed(&game.climate_pressure),
             },
@@ -370,7 +412,9 @@ impl<'a, A, S> SavedCampaign<'a, A, S> {
             next_unit_id: core.next_unit_id,
             next_city_id: core.next_city_id,
             rng: core.rng,
-            events: core.events.into_owned(),
+            legacy_events: core.events.into_owned(),
+            #[cfg(test)]
+            events: Vec::new(),
             game_over: core.game_over.into_owned(),
             climate_pressure: core.climate_pressure.into_owned(),
             ai_purchase_reserve: ai.ai_purchase_reserve.into_owned(),
@@ -403,6 +447,39 @@ impl<'a, A, S> SavedCampaign<'a, A, S> {
 #[cfg(test)]
 mod treaty_schema_tests {
     use super::*;
+    use bincode::Options;
+
+    #[test]
+    fn previous_format_messages_migrate_as_read_notifications() {
+        let game = Simulation::new(crate::test_support::seeded_map());
+        let mut saved =
+            SavedCampaignV2D::from_game(&game, Cow::Borrowed(&game.observed_map.partial_sites));
+        saved.campaign.campaign.campaign.campaign.core.events = Cow::Owned(vec![
+            "Earlier campaign message.".to_owned(),
+            "Another earlier message.".to_owned(),
+        ]);
+        let payload = super::super::codec(super::super::MAX_PAYLOAD)
+            .serialize(&(saved, super::super::SavedWarObjectives::new()))
+            .unwrap();
+        let path = std::env::temp_dir().join(format!(
+            "civcraft-notification-migration-{}.save",
+            std::process::id()
+        ));
+        let mut bytes = super::super::V2E_HEADER.to_vec();
+        bytes.extend(payload);
+        std::fs::write(&path, bytes).unwrap();
+
+        let loaded = Simulation::load_campaign(&path).unwrap();
+        std::fs::remove_file(path).unwrap();
+
+        assert_eq!(loaded.notifications.len(), 2);
+        assert_eq!(loaded.notifications[0].text, "Earlier campaign message.");
+        assert_eq!(loaded.notifications[1].text, "Another earlier message.");
+        assert!(loaded.notifications.iter().all(|item| item.read));
+        assert_eq!(loaded.unread_notifications_view(), 0);
+        assert!(loaded.legacy_events.is_empty());
+    }
+
     #[test]
     fn extra_technology_clauses_require_an_existing_pending_offer() {
         let game = Simulation::new(crate::test_support::seeded_map());

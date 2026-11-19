@@ -1,7 +1,7 @@
 //! Current campaign persistence, input validation, and runtime restoration.
 //!
 //! Saves encode the durable part of [`Simulation`] with the current versioned
-//! binary format. Formats 0x26 through 0x2D are read and upgraded on save.
+//! binary format. Formats 0x26 through 0x2E are read and upgraded on save.
 //!
 //! When adding persistent fields, decide whether they belong in the save,
 //! update the round-trip and corruption checks. Runtime caches should remain excluded when
@@ -20,10 +20,11 @@ use std::{
 mod schema;
 use schema::{
     LegacyAiMap, LegacyCampaign, SavedCampaign, SavedCampaignV2A, SavedCampaignV2B,
-    SavedCampaignV2C, SavedCampaignV2D,
+    SavedCampaignV2C, SavedCampaignV2D, SavedCampaignV2E,
 };
 
-const HEADER: &[u8] = b"CIVCRAFT\0\x2E";
+const HEADER: &[u8] = b"CIVCRAFT\0\x2F";
+const V2E_HEADER: &[u8] = b"CIVCRAFT\0\x2E";
 const V2D_HEADER: &[u8] = b"CIVCRAFT\0\x2D";
 const V2C_HEADER: &[u8] = b"CIVCRAFT\0\x2C";
 const V2B_HEADER: &[u8] = b"CIVCRAFT\0\x2B";
@@ -72,15 +73,10 @@ impl Simulation {
     }
 
     pub(crate) fn encode_campaign(&self) -> io::Result<Vec<u8>> {
-        let objectives: SavedWarObjectives = self
-            .ai_war_plans
-            .iter()
-            .filter_map(|(&pair, plan)| plan.objective.map(|objective| (pair, objective)))
-            .collect();
         codec(MAX_PAYLOAD)
-            .serialize(&(
-                SavedCampaignV2D::from_game(self, Cow::Borrowed(&self.observed_map.partial_sites)),
-                objectives,
+            .serialize(&SavedCampaignV2E::from_game(
+                self,
+                Cow::Borrowed(&self.observed_map.partial_sites),
             ))
             .map_err(io::Error::other)
     }
@@ -90,8 +86,8 @@ impl Simulation {
         let mut header = [0; HEADER.len()];
         file.read_exact(&mut header)?;
         let max_payload = match header.as_slice() {
-            HEADER | V2D_HEADER | V2C_HEADER | V2B_HEADER | V2A_HEADER | V29_HEADER
-            | V28_HEADER | PACKED_LEGACY_HEADER => MAX_PAYLOAD,
+            HEADER | V2E_HEADER | V2D_HEADER | V2C_HEADER | V2B_HEADER | V2A_HEADER
+            | V29_HEADER | V28_HEADER | PACKED_LEGACY_HEADER => MAX_PAYLOAD,
             LEGACY_HEADER => LEGACY_MAX_PAYLOAD,
             _ => return Err(invalid("Unsupported CivCraft save format")),
         };
@@ -165,6 +161,14 @@ impl Simulation {
                 let (game, partial_sites) = saved.into_game().map_err(invalid)?;
                 (game, None, LegacyAiMap::default(), partial_sites)
             }
+            HEADER => {
+                let saved: SavedCampaignV2E<'_, observed_map::PartialCitySites> =
+                    codec(max_payload)
+                        .deserialize(&payload)
+                        .map_err(|error| invalid(error.to_string()))?;
+                let (game, partial_sites) = saved.into_game().map_err(invalid)?;
+                (game, None, LegacyAiMap::default(), partial_sites)
+            }
             _ => {
                 let (saved, objectives): (
                     SavedCampaignV2D<'_, observed_map::PartialCitySites>,
@@ -188,6 +192,7 @@ impl Simulation {
                 (game, None, LegacyAiMap::default(), partial_sites)
             }
         };
+        game.upgrade_legacy_notifications();
         game.validate_campaign()?;
         if game.city_governors.iter().any(|(&id, state)| {
             !state.settings.valid()
@@ -393,6 +398,9 @@ impl Simulation {
         let tech = |tech: Tech| tech == Tech::FUTURE || tech.data().is_some();
         let building = |building| Building::all().any(|known| known == building);
         let mut trade_route_pairs = std::collections::BTreeSet::new();
+        let notification_ids: std::collections::BTreeSet<_> =
+            self.notifications.iter().map(|item| item.id).collect();
+        let max_notification_id = notification_ids.iter().next_back().copied().unwrap_or(0);
         let production = |item| match item {
             Production::Building(item) => building(item),
             Production::Unit(_) => true,
@@ -402,6 +410,9 @@ impl Simulation {
             || self.nation_scores.len() != players
             || self.spaceships.len() != players
             || self.turn < 1
+            || notification_ids.len() != self.notifications.len()
+            || notification_ids.contains(&0)
+            || self.next_notification_id <= max_notification_id
             || (self.year_0_hack && self.year != 1)
             || self
                 .global_advances

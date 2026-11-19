@@ -127,6 +127,8 @@ pub(crate) enum UiAction {
     BlockMapClick,
     DismissIntro,
     ToggleMusicPanel,
+    ToggleNotifications,
+    NotificationsPage(usize),
     ToggleMusicMute,
     AdjustMusicVolume(i8),
     ToggleSfxMute,
@@ -228,8 +230,10 @@ pub(crate) enum UiAction {
 
 pub(crate) struct Game {
     pub(crate) sim: ClientSimulation,
-    client_messages: Vec<String>,
-    last_sim_messages: Vec<String>,
+    notifications_open: bool,
+    notification_page: usize,
+    last_notification_id: u64,
+    active_toast: Option<(String, f64)>,
     pub(crate) autosave_enabled: bool,
     pub(crate) music_open: bool,
     pub(crate) music_muted: bool,
@@ -315,11 +319,18 @@ impl Game {
         let (selected_unit, position) = sim.initial_client_focus_view();
         let position = position.unwrap_or((0, 0));
         let (x, y) = native_to_map(position.0, position.1);
-        let last_sim_messages = sim.campaign_messages_view();
+        let last_notification_id = sim
+            .campaign_notifications_view()
+            .iter()
+            .map(|item| item.id)
+            .max()
+            .unwrap_or(0);
         Self {
             sim,
-            client_messages: Vec::new(),
-            last_sim_messages,
+            notifications_open: false,
+            notification_page: 0,
+            last_notification_id,
+            active_toast: None,
             autosave_enabled: false,
             music_open: false,
             music_muted: false,
@@ -398,10 +409,11 @@ impl Game {
     }
 
     pub(super) fn notify(&mut self, message: impl Into<String>) {
-        self.client_messages.push(message.into());
-        if self.client_messages.len() > 10 {
-            self.client_messages.remove(0);
-        }
+        self.sim.notify(message);
+    }
+
+    pub(super) fn notify_important(&mut self, message: impl Into<String>) {
+        self.sim.notify_important(message);
     }
 
     fn found_city(&mut self, id: u32) -> bool {
@@ -622,7 +634,13 @@ impl Game {
             _ => {}
         }
         if self.selected_city_index().is_some() {
+            let notification_button = actions.iter().find_map(|(rect, action)| {
+                matches!(action, UiAction::ToggleNotifications).then_some(*rect)
+            });
             actions.clear();
+            if let Some(rect) = notification_button {
+                actions.push((rect, UiAction::ToggleNotifications));
+            }
             self.draw_city_manager(assets, &mut actions);
         }
         actions.extend(self.draw_stack_menu());
@@ -684,6 +702,7 @@ impl Game {
                 );
             }
         }
+        self.draw_notification_panel(&mut actions);
         actions
     }
 
@@ -862,18 +881,33 @@ mod tests {
     use super::*;
 
     #[test]
-    fn client_notices_are_transient_and_capped_without_mutating_campaign_events() {
+    fn client_notices_are_campaign_notifications() {
         let mut game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
-        let campaign_events = game.sim.review_simulation().events().to_vec();
+        let before = game.sim.campaign_notifications_view().len();
         for index in 0..11 {
             game.notify(format!("notice {index}"));
         }
-        assert_eq!(game.client_messages.len(), 10);
+        let notifications = game.sim.campaign_notifications_view();
+        assert_eq!(notifications.len(), before + 11);
         assert_eq!(
-            game.client_messages.first().map(String::as_str),
-            Some("notice 1")
+            notifications.last().map(|item| item.text.as_str()),
+            Some("notice 10")
         );
-        assert_eq!(game.sim.review_simulation().events(), campaign_events);
+        assert_eq!(game.sim.unread_notifications_view(), before + 11);
+        game.perform_action(UiAction::ToggleNotifications);
+        assert!(game.notifications_open);
+        assert_eq!(game.sim.unread_notifications_view(), 0);
+        assert!(
+            game.sim
+                .campaign_notifications_view()
+                .iter()
+                .all(|item| item.read)
+        );
+        game.notify("Arrived while the inbox is open.");
+        assert_eq!(game.sim.unread_notifications_view(), 1);
+        game.perform_action(UiAction::ToggleNotifications);
+        assert!(!game.notifications_open);
+        assert_eq!(game.sim.unread_notifications_view(), 1);
     }
 
     #[test]

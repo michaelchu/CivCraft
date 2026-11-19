@@ -11,14 +11,13 @@ impl Game {
             return;
         }
         if is_key_pressed(KeyCode::F5) {
-            let message = match self
+            match self
                 .sim
                 .save_campaign(std::path::Path::new(crate::QUICKSAVE_PATH))
             {
-                Ok(()) => "Campaign saved.".to_owned(),
-                Err(error) => format!("Save failed. {error}"),
-            };
-            self.notify(message);
+                Ok(()) => self.notify("Campaign saved."),
+                Err(error) => self.notify_important(format!("Save failed. {error}")),
+            }
             return;
         }
         if is_key_pressed(KeyCode::F9) {
@@ -41,7 +40,7 @@ impl Game {
                     self.sfx_volume = audio_settings.4;
                     self.notify("Campaign loaded.");
                 }
-                Err(error) => self.notify(format!("Load failed. {error}")),
+                Err(error) => self.notify_important(format!("Load failed. {error}")),
             }
             return;
         }

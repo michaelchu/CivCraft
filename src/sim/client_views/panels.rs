@@ -3,8 +3,22 @@
 use super::*;
 
 impl Simulation {
+    pub(crate) fn campaign_notifications_view(&self) -> Vec<super::notifications::Notification> {
+        self.notifications.clone()
+    }
+
+    pub(crate) fn unread_notifications_view(&self) -> usize {
+        self.notifications
+            .iter()
+            .filter(|notification| !notification.read)
+            .count()
+    }
+
     pub(crate) fn campaign_messages_view(&self) -> Vec<String> {
-        self.events.clone()
+        self.notifications
+            .iter()
+            .map(|item| item.text.clone())
+            .collect()
     }
 
     pub(crate) fn music_cue_view(&self, owner: usize) -> Option<MusicCueView> {

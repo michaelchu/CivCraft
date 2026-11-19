@@ -232,7 +232,7 @@ pub(crate) fn ui_review_observed_map_valid(sim: &Simulation, reobserved: bool) -
 }
 
 pub(crate) fn ui_review_first_contact(sim: &mut Simulation) {
-    sim.events.clear();
+    sim.clear_notifications();
     sim.diplomacy.remove(&(HUMAN, 1));
     sim.make_diplomatic_contact(HUMAN, 1);
 }
@@ -398,7 +398,7 @@ pub(crate) fn ui_review_rivers(sim: &mut Simulation, fogged: bool) {
         let (x, y) = offset_native_by_map(20, 24, 3, -1);
         sim.tile_mut(x, y).visible = false;
     }
-    sim.events.clear();
+    sim.clear_notifications();
     sim.add_event(
         "River artwork fixture: diagonal desert course, bends, forks and six lake outlets.",
     );

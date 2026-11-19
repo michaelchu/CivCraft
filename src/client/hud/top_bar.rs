@@ -18,11 +18,21 @@ fn controls_row_rect(button_start: f32, width: f32) -> Rect {
     )
 }
 
-/// Left edge of the floating button row: five buttons, plus one while a
+/// Left edge of the floating button row: six buttons, plus one while a
 /// spaceship status is shown, right-aligned to the HUD margin.
 pub(super) fn controls_start_x(screen_width: f32, has_spaceship: bool) -> f32 {
-    let count = 5 + usize::from(has_spaceship);
+    let count = 6 + usize::from(has_spaceship);
     screen_width - HUD_MARGIN - count as f32 * 42.0 + 4.0
+}
+
+fn unread_badge_label(unread: usize) -> Option<String> {
+    (unread > 0).then(|| {
+        if unread > 99 {
+            "99+".to_owned()
+        } else {
+            unread.to_string()
+        }
+    })
 }
 
 impl Game {
@@ -40,7 +50,7 @@ impl Game {
             return;
         };
         let status = view.spaceship_status;
-        let button_count = 5 + usize::from(status.is_some());
+        let button_count = 6 + usize::from(status.is_some());
         let button_width = 38.0;
         let step = button_width + 4.0;
         let button_start = controls_start_x(width, status.is_some());
@@ -90,6 +100,13 @@ impl Game {
                 view.can_launch_spaceship,
             ));
         }
+        controls.push((
+            HudIcon::Messages,
+            UiAction::ToggleNotifications,
+            "Notifications".to_owned(),
+            true,
+            self.notifications_open,
+        ));
 
         let mut tooltip = None;
         for (index, (icon, action, label, enabled, accent)) in controls.into_iter().enumerate() {
@@ -107,6 +124,28 @@ impl Game {
             };
             let center = vec2(rect.x + rect.w * 0.5, rect.y + 16.5);
             draw_hud_icon(icon, center, 21.0, color);
+            let is_notification_button = matches!(&action, UiAction::ToggleNotifications);
+            if is_notification_button {
+                let unread = self.sim.unread_notifications_view();
+                if let Some(label) = unread_badge_label(unread) {
+                    let badge = Rect::new(rect.right() - 15.0, rect.y - 2.0, 17.0, 15.0);
+                    draw_rectangle(
+                        badge.x,
+                        badge.y,
+                        badge.w,
+                        badge.h,
+                        Color::from_rgba(181, 54, 45, 255),
+                    );
+                    let tw = measure_text(&label, None, 10, 1.0).width;
+                    draw_text(
+                        &label,
+                        badge.x + (badge.w - tw) * 0.5,
+                        badge.y + 11.0,
+                        10.0,
+                        WHITE,
+                    );
+                }
+            }
             if enabled {
                 actions.push((rect, action));
             }
@@ -223,7 +262,7 @@ mod tests {
     fn controls_start_x_ends_at_the_margin_and_a_spaceship_button_widens_the_row() {
         let step = 42.0;
         let plain = controls_start_x(1280.0, false);
-        assert_eq!(plain + 5.0 * step - 4.0, 1280.0 - HUD_MARGIN);
+        assert_eq!(plain + 6.0 * step - 4.0, 1280.0 - HUD_MARGIN);
         assert_eq!(controls_start_x(1280.0, true), plain - step);
     }
 
@@ -241,5 +280,13 @@ mod tests {
     #[test]
     fn buttons_share_the_top_margin_with_the_messages() {
         assert_eq!(BUTTON_TOP, HUD_MARGIN);
+    }
+
+    #[test]
+    fn unread_badge_is_hidden_at_zero_and_caps_large_counts() {
+        assert_eq!(unread_badge_label(0), None);
+        assert_eq!(unread_badge_label(1).as_deref(), Some("1"));
+        assert_eq!(unread_badge_label(99).as_deref(), Some("99"));
+        assert_eq!(unread_badge_label(100).as_deref(), Some("99+"));
     }
 }

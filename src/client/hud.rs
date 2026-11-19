@@ -5,7 +5,23 @@ mod context_panel;
 mod icons;
 mod info_block;
 mod minimap;
+mod notifications;
 mod top_bar;
+
+fn new_important_toast(
+    notifications: &[crate::sim::Notification],
+    last_seen_id: u64,
+) -> (u64, Option<String>) {
+    let mut newest_seen = last_seen_id;
+    let mut toast = None;
+    for item in notifications.iter().filter(|item| item.id > last_seen_id) {
+        newest_seen = newest_seen.max(item.id);
+        if item.priority == crate::sim::NotificationPriority::Important {
+            toast = Some(item.text.clone());
+        }
+    }
+    (newest_seen, toast)
+}
 
 pub(super) use context_panel::{EMPTY_CARD_H, unit_card_height, unit_status_inline};
 pub(super) use icons::{HudIcon, draw_hud_icon};
@@ -103,41 +119,37 @@ impl Game {
     }
 
     fn draw_messages(&mut self, actions: &mut Vec<(Rect, UiAction)>, available: f32) {
+        let notifications = self.sim.campaign_notifications_view();
+        let (newest_seen, toast) = new_important_toast(&notifications, self.last_notification_id);
+        if let Some(message) = toast {
+            self.active_toast = Some((message, macroquad::time::get_time() + 6.0));
+        }
+        self.last_notification_id = newest_seen;
+        let Some((message, until)) = &self.active_toast else {
+            return;
+        };
+        if macroquad::time::get_time() > *until {
+            self.active_toast = None;
+            return;
+        }
         let width = (screen_width() * 0.65).min(620.0).min(available);
-        let sim_messages = self.sim.campaign_messages_view();
-        if sim_messages != self.last_sim_messages {
-            self.client_messages.clear();
-            self.last_sim_messages.clone_from(&sim_messages);
-        }
-        let latest = self
-            .client_messages
-            .iter()
-            .rev()
-            .chain(sim_messages.iter().rev())
-            .take(2);
-        for (i, message) in latest.enumerate() {
-            let color = if i == 0 {
-                Color::from_rgba(230, 228, 211, 255)
-            } else {
-                Color::from_rgba(174, 177, 171, 255)
-            };
-            let clipped = fit_text(message, 15.0, width - 16.0);
-            let rect = Rect::new(
-                HUD_MARGIN,
-                HUD_MARGIN + (1 - i) as f32 * 21.0,
-                measure_text(&clipped, None, 15, 1.0).width + 16.0,
-                21.0,
-            );
-            draw_rectangle(
-                rect.x,
-                rect.y,
-                rect.w,
-                rect.h,
-                Color::from_rgba(16, 20, 20, 218),
-            );
-            draw_text(&clipped, rect.x + 8.0, rect.y + 15.0, 15.0, color);
-            actions.push((rect, UiAction::BlockMapClick));
-        }
+        let clipped = fit_text(message, 15.0, width - 16.0);
+        let rect = Rect::new(
+            HUD_MARGIN,
+            HUD_MARGIN,
+            measure_text(&clipped, None, 15, 1.0).width + 16.0,
+            23.0,
+        );
+        draw_rectangle(
+            rect.x,
+            rect.y,
+            rect.w,
+            rect.h,
+            Color::from_rgba(35, 31, 21, 235),
+        );
+        draw_rectangle_lines(rect.x, rect.y, rect.w, rect.h, 1.0, GOLD);
+        draw_text(&clipped, rect.x + 8.0, rect.y + 16.0, 15.0, WHITE);
+        actions.push((rect, UiAction::BlockMapClick));
     }
 }
 
@@ -157,4 +169,52 @@ pub(super) fn draw_hud_card(card: Rect) {
         2.0,
         Color::from_rgba(160, 126, 61, 255),
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::sim::{Notification, NotificationCategory, NotificationPriority};
+
+    #[test]
+    fn only_new_important_notifications_create_toasts() {
+        let items = [
+            Notification {
+                id: 3,
+                turn: 2,
+                category: NotificationCategory::General,
+                priority: NotificationPriority::Important,
+                text: "Old important item".to_owned(),
+                related_city: None,
+                related_civilization: None,
+                read: false,
+            },
+            Notification {
+                id: 4,
+                turn: 2,
+                category: NotificationCategory::General,
+                priority: NotificationPriority::Routine,
+                text: "Routine item".to_owned(),
+                related_city: None,
+                related_civilization: None,
+                read: false,
+            },
+            Notification {
+                id: 5,
+                turn: 3,
+                category: NotificationCategory::Diplomacy,
+                priority: NotificationPriority::Important,
+                text: "New important item".to_owned(),
+                related_city: None,
+                related_civilization: Some(1),
+                read: false,
+            },
+        ];
+
+        assert_eq!(
+            new_important_toast(&items, 4),
+            (5, Some("New important item".to_owned()))
+        );
+        assert_eq!(new_important_toast(&items, 5), (5, None));
+    }
 }
