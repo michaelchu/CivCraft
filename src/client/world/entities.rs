@@ -413,11 +413,7 @@ impl Game {
             unit.moves_left > 0,
         );
         if !native_unit_drawn {
-            let color = if unit.moves_left > 0 {
-                player_color(unit.civilization_id.as_deref(), unit.owner)
-            } else {
-                Color::from_rgba(115, 120, 125, 255)
-            };
+            let color = player_color(unit.civilization_id.as_deref(), unit.owner);
             draw_ellipse(
                 center.x,
                 center.y - 9.0 * self.zoom,

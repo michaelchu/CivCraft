@@ -705,3 +705,36 @@ fn shared_vision_discovers_cities_and_retains_their_public_memory() {
     assert!(!sim.render_tile_view(20, 24).visible);
     assert!(sim.rendered_city_views().iter().any(|c| c.id == id));
 }
+
+#[test]
+fn exhausted_units_keep_their_surrounding_tiles_visible() {
+    let mut sim = Simulation::new(crate::mapgen::generate(42));
+    sim.units.clear();
+    sim.cities.clear();
+    for tile in &mut sim.tiles {
+        tile.terrain = Terrain::Grassland;
+    }
+    let id = sim.spawn_unit(HUMAN, UnitKind::Warrior, 20, 24);
+    sim.refresh_visibility();
+    let before: Vec<_> = sim.tiles.iter().map(|tile| tile.visible).collect();
+    assert!(before.iter().filter(|&&visible| visible).count() > 1);
+    sim.units
+        .iter_mut()
+        .find(|unit| unit.id == id)
+        .unwrap()
+        .moves_left = 0;
+    sim.refresh_visibility();
+    assert_eq!(
+        before,
+        sim.tiles
+            .iter()
+            .map(|tile| tile.visible)
+            .collect::<Vec<_>>()
+    );
+    for (index, &visible) in before.iter().enumerate() {
+        if visible {
+            let (x, y) = sim.map_wrap.position(index);
+            assert!(sim.render_tile_view(x, y).visible);
+        }
+    }
+}

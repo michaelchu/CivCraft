@@ -200,8 +200,11 @@ behavior without changing simulation visibility. The fog image uses the
 source palette's inverse-red alpha, transparent palette indices 254/255,
 nearest-neighbor sampling, and a 0.999-cell source crop. CivCraft remaps the
 alpha using `FOG_ALPHA_GAMMA` (currently 1.8; 1.0 preserves source opacity) to
-tighten the edge toward the original game's appearance. This code-level value
-is the tuning point; there is no runtime control. The fog pass follows
+tighten the edge toward the original game's appearance. Cells containing remembered
+corners use `REMEMBERED_FOG_ALPHA_GAMMA` (1.2) to make explored terrain outside
+current sight visibly darker. Fully visible cells remain skipped, and cells
+containing only unknown/visible corners retain the 1.8 curve. These code-level
+values are the tuning points; there is no runtime control. The fog pass follows
 map art and grid, then precedes units and labels, matching
 [OpenCiv3's FogOfWarLayer](https://github.com/C7-Game/OpenCiv3/blob/Development/C7/Map/FogOfWarLayer.cs)
 and its [PCX alpha decoder](https://github.com/C7-Game/OpenCiv3/blob/Development/C7/Textures/PCXToGodot.cs).

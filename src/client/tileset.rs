@@ -25,6 +25,8 @@ const DEFAULT_PCX_TRANSPARENT_INDICES: [u8; 2] = [254, 255];
 const TERRITORY_PCX_TRANSPARENT_INDICES: [u8; 3] = [1, 254, 255];
 // 1.0 preserves the source alpha; higher values tighten the black fog fade.
 const FOG_ALPHA_GAMMA: f32 = 1.8;
+// Lower gamma gives remembered terrain a stronger shade than current sight.
+const REMEMBERED_FOG_ALPHA_GAMMA: f32 = 1.2;
 
 /// Neighbor data used to choose Civ III's connected landform and vegetation
 /// sprites. It is derived by the map painter, so every map generator shares
@@ -87,9 +89,20 @@ pub(crate) fn load_source_fog_atlas(media: &Civ3MediaResolver) -> AssetResult<Im
     }
     // FogOfWar.pcx stores opacity inversely in its grayscale palette; magenta
     // color-key pixels stay transparent even though they also have a palette value.
-    for pixel in image.bytes.as_chunks_mut::<4>().0 {
+    for (index, pixel) in image.bytes.as_chunks_mut::<4>().0.iter_mut().enumerate() {
+        let col = (index % 1152) / 128;
+        let row = (index / 1152) / 64;
+        // Each atlas axis encodes two base-three knowledge states: unknown=0,
+        // remembered=1, visible=2. Strengthen cells with remembered corners;
+        // keep the unknown/visible boundary's existing fade curve.
+        let remembered = [col % 3, col / 3, row % 3, row / 3].contains(&1);
+        let gamma = if remembered {
+            REMEMBERED_FOG_ALPHA_GAMMA
+        } else {
+            FOG_ALPHA_GAMMA
+        };
         let opacity = (255.0 - f32::from(pixel[0])) / 255.0;
-        let curved_opacity = opacity.powf(FOG_ALPHA_GAMMA);
+        let curved_opacity = opacity.powf(gamma);
         pixel[3] = (f32::from(pixel[3]) * curved_opacity).round() as u8;
         pixel[0..3].fill(0);
     }
@@ -1924,7 +1937,7 @@ impl Civ3 {
         playback_duration_seconds: Option<f32>,
         center: Vec2,
         zoom: f32,
-        has_moves: bool,
+        _has_moves: bool,
     ) -> bool {
         let role = self.unit_animation_role(kind, era);
         let action_role = action
@@ -2013,17 +2026,10 @@ impl Civ3 {
         let size = vec2(art.width * scale, art.height * scale);
         let position = center - vec2(art.original_width * scale, art.original_height * scale) * 0.5
             + vec2(art.offset_left * scale, art.offset_top * scale);
-        let base_tint = if has_moves {
-            WHITE
-        } else {
-            Color::new(0.62, 0.66, 0.68, 1.0)
-        };
-        let team = super::player_color(civilization_id, owner);
-        let team_tint = if has_moves {
-            team
-        } else {
-            Color::new(team.r * 0.62, team.g * 0.66, team.b * 0.68, team.a)
-        };
+        // Movement exhaustion is shown by the movement indicator; it does not
+        // change sight or the unit's map colors.
+        let base_tint = WHITE;
+        let team_tint = super::player_color(civilization_id, owner);
         let draw_layer = |texture: &Texture2D, tint| {
             draw_texture_ex(
                 texture,
