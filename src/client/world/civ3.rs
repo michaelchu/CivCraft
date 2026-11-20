@@ -618,6 +618,14 @@ impl<'a> Civ3WorldPainter<'a> {
             }
         }
         for &(x, y, center) in &order {
+            let tile = game.sim.render_tile_view(x, y);
+            if tile.seen
+                && let Some(city) = cities.get(&(x, y)).copied()
+            {
+                game.draw_city_label(city, center);
+            }
+        }
+        for &(x, y, center) in &order {
             if let Some((unit, count)) = stacks.get(&(x, y)) {
                 // All visible city stacks use their representative unit, including
                 // idle defenders. Focused units have a later foreground layer.
@@ -638,14 +646,6 @@ impl<'a> Civ3WorldPainter<'a> {
         }
         for &(x, y, center) in &order {
             game.draw_visible_base_foreground(assets, x, y, center, tile_w, tile_h);
-        }
-        for &(x, y, center) in &order {
-            let tile = game.sim.render_tile_view(x, y);
-            if tile.seen
-                && let Some(city) = cities.get(&(x, y)).copied()
-            {
-                game.draw_city_label(city, center);
-            }
         }
         for &(x, y, center) in &order {
             if let Some((unit, count)) = stacks.get(&(x, y))

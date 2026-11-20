@@ -10,6 +10,11 @@ fn centered_text_baseline(row_top: f32, row_height: f32, metrics: TextDimensions
     row_top + (row_height - metrics.height) * 0.5 + metrics.offset_y
 }
 
+fn city_size_text_color(background: Color) -> Color {
+    let brightness = background.r * 0.299 + background.g * 0.587 + background.b * 0.114;
+    if brightness >= 0.52 { BLACK } else { WHITE }
+}
+
 impl Game {
     pub(in crate::client) fn draw_city_map(
         &self,
@@ -219,13 +224,15 @@ impl Game {
         // the label too, regardless of which unit is currently focused.
         let top = super::city_bar::label_top(center.y, zoom);
         let horizontal_padding = (6.0 * zoom).max(4.0);
-        let vertical_padding = (3.0 * zoom).max(2.0);
+        // Keep the two information rows close together, like the compact
+        // Civ III banner, while leaving a small inset above and below them.
+        let vertical_padding = (2.0 * zoom).max(1.5);
         let center_width = (top_metrics
             .width
             .max(bottom_metrics.as_ref().map_or(0.0, |metrics| metrics.width))
             + horizontal_padding * 2.0)
             .max((94.0 * zoom).max(82.0));
-        let row_height = (center_font + vertical_padding).max(12.0);
+        let row_height = (center_font + vertical_padding * 0.5).max(12.0);
         let row_count = if city.production_label.is_some() {
             2.0
         } else {
@@ -238,7 +245,7 @@ impl Game {
         let star_radius = (7.0 * zoom).max(5.5);
         let side_padding = (4.0 * zoom).max(2.5);
         let side_width = size_metrics.width.max(star_radius * 2.0) + side_padding * 2.0;
-        let width = center_width + side_width * 2.0;
+        let width = center_width + side_width * if city.capital { 2.0 } else { 1.0 };
         let left = center.x - width * 0.5;
         let civ_id = city.civilization_id.as_deref();
         let owner_color = player_color(civ_id, city.owner);
@@ -247,21 +254,35 @@ impl Game {
 
         // Civ III's city banner is a three-part bar: population, two centered
         // information rows, and a capital badge.
-        draw_rectangle(left, top, side_width, height, owner_color);
+        draw_rectangle(
+            left,
+            top,
+            side_width,
+            height,
+            Color {
+                a: 205,
+                ..owner_color
+            },
+        );
         draw_rectangle(
             left + side_width,
             top,
             center_width,
             height,
-            Color::from_rgba(19, 20, 18, 220),
+            Color::from_rgba(19, 20, 18, 185),
         );
-        draw_rectangle(
-            left + side_width + center_width,
-            top,
-            side_width,
-            height,
-            secondary_color,
-        );
+        if city.capital {
+            draw_rectangle(
+                left + side_width + center_width,
+                top,
+                side_width,
+                height,
+                Color {
+                    a: 205,
+                    ..secondary_color
+                },
+            );
+        }
         draw_rectangle_lines(
             left,
             top,
@@ -278,14 +299,16 @@ impl Game {
             1.0,
             Color::from_rgba(15, 15, 13, 235),
         );
-        draw_line(
-            left + side_width + center_width,
-            top,
-            left + side_width + center_width,
-            top + height,
-            1.0,
-            Color::from_rgba(15, 15, 13, 235),
-        );
+        if city.capital {
+            draw_line(
+                left + side_width + center_width,
+                top,
+                left + side_width + center_width,
+                top + height,
+                1.0,
+                Color::from_rgba(15, 15, 13, 235),
+            );
+        }
         if city.production_label.is_some() {
             draw_line(
                 left + side_width,
@@ -302,7 +325,7 @@ impl Game {
             left + (side_width - size_metrics.width) * 0.5,
             centered_text_baseline(top, height, size_metrics),
             size_font,
-            WHITE,
+            city_size_text_color(owner_color),
         );
 
         let text_left = left + side_width;
@@ -461,8 +484,14 @@ impl Game {
 
 #[cfg(test)]
 mod tests {
-    use super::{centered_sprite_position, centered_text_baseline};
-    use macroquad::prelude::{TextDimensions, vec2};
+    use super::{centered_sprite_position, centered_text_baseline, city_size_text_color};
+    use macroquad::prelude::{BLACK, Color, TextDimensions, WHITE, vec2};
+
+    #[test]
+    fn city_size_text_uses_black_on_light_and_white_on_dark_backgrounds() {
+        assert_eq!(city_size_text_color(Color::from_rgba(240, 220, 180, 255)), BLACK);
+        assert_eq!(city_size_text_color(Color::from_rgba(40, 70, 150, 255)), WHITE);
+    }
 
     #[test]
     fn city_sprite_bounds_are_centered_on_the_tile() {
