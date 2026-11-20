@@ -3224,7 +3224,7 @@ mod tests {
                 .iter()
                 .all(|file| file.source == RuleFileSource::SelectedRuleset)
         );
-        assert_eq!(rules.effects.len(), 514);
+        assert_eq!(rules.effects.len(), 510);
         assert_eq!(rules.actions.len(), 19);
         assert_eq!(rules.action_enablers.len(), 89);
         assert_eq!(
@@ -3272,7 +3272,7 @@ mod tests {
         let data_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data/rulesets");
         let rules = RulesetData::load_civcraft(&data_root).unwrap();
 
-        assert_eq!(rules.effects.len(), 514);
+        assert_eq!(rules.effects.len(), 510);
         assert_eq!(
             rules
                 .content

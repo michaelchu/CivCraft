@@ -533,9 +533,11 @@ that code has been added.
   `convert_speed=50`, each city rolls 1–1000 in stable player-city-list order
   before city activity; a successful roll converts one randomly selected
   foreign resident.
-- Borders now use selected C2C3 city radius, size effect, permanent radius,
-  border strength, and `Tile_Claimable` requirements. Distances and region
-  connectivity use CivCraft's horizontal-wrap, bounded-pole topology.
+- Borders no longer use the C2C3 city radius, size effect, permanent radius,
+  border strength or `Tile_Claimable` requirements: they and the ruleset's
+  `[borders]` section were removed. Borders and land claims follow the Civ III
+  culture model in the core culture design, on CivCraft's horizontal-wrap,
+  bounded-pole topology.
 - Migration uses the pinned Freeciv score and transfer order, selected C2C3
   `migration_pml` and citizen-nationality settings, destination size/food
   checks, nationality cohorts, size-one disband handling, and the server

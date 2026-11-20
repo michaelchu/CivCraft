@@ -76,8 +76,6 @@ identifier_enum! {
         MaxLatitude => "MaxLatitude",
         MaxTopUnitsOnTile => "MaxTopUnitsOnTile",
         MaxUnitsOnTile => "MaxUnitsOnTile",
-        MaxDistanceSq => "MaxDistanceSq",
-        MaxRegionTiles => "MaxRegionTiles",
         MinCalFrag => "MinCalFrag",
         MinCities => "MinCities",
         MinCulture => "MinCulture",
@@ -108,7 +106,6 @@ identifier_enum! {
         TerrainFlag => "TerrainFlag",
         Tiledef => "Tiledef",
         TiledefConnected => "TiledefConnected",
-        TileRel => "TileRel",
         Topology => "Topology",
         UnitClassFlag => "UnitClassFlag",
         UnitClass => "UnitClass",
@@ -400,7 +397,6 @@ identifier_enum! {
         PopcostFree => "Popcost_Free",
         HealUNitPct => "Heal_UNit_Pct",
         NukeBlastRadius1Sq => "Nuke_Blast_Radius_1_Sq",
-        BorderStrengthPct => "Border_Strength_Pct",
         ActionResistPct => "Action_Resist_Pct",
         OutputBonusAbsolute => "Output_Bonus_Absolute",
         MinHpPct => "Min_HP_Pct",
@@ -413,7 +409,6 @@ identifier_enum! {
         TechLeakage => "Tech_Leakage",
         ImprUpkeepReduction => "Impr_Upkeep_Reduction",
         CulturePct => "Culture_Pct",
-        TileClaimable => "Tile_Claimable",
         ArmisticeLengthPct => "Armistice_Length_Pct",
         CeasefireLengthPct => "Ceasefire_Length_Pct",
         UserEffect1 => "User_Effect_1",
@@ -430,13 +425,6 @@ pub(super) const CITY_STATUS_NAMES: &[&str] = &[
     "Celebration",
     "Transferred",
     "CapitalConnected",
-];
-
-pub(super) const TILE_REL_NAMES: &[&str] = &[
-    "Only Other Region",
-    "Region Surrounded",
-    "Same Region",
-    "Same Terrain Class",
 ];
 
 pub(super) const BUILDING_FLAG_NAMES: &[&str] = &[

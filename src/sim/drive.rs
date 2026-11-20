@@ -54,6 +54,7 @@ pub(crate) trait Drive {
         owner: usize,
         choices: &std::collections::BTreeMap<u32, AiBuildChoice>,
     );
+    fn stage_city_culture(&mut self, city_id: u32, history: i32);
     fn transfer_traded_city(&mut self, index: usize, buyer: usize);
     fn transfer_treaty_technology(&mut self, donor: usize, receiver: usize, tech: Tech) -> bool;
     fn try_move_unit_civ3(&mut self, unit_id: u32, direction: usize) -> MoveResult;
@@ -155,6 +156,9 @@ impl Drive for Simulation {
         choices: &std::collections::BTreeMap<u32, AiBuildChoice>,
     ) {
         Simulation::spend_ai_defense_gold_with_choices(self, owner, choices)
+    }
+    fn stage_city_culture(&mut self, city_id: u32, history: i32) {
+        Simulation::stage_city_culture(self, city_id, history)
     }
     fn transfer_traded_city(&mut self, index: usize, buyer: usize) {
         Simulation::transfer_traded_city(self, index, buyer)

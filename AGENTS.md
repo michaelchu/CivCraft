@@ -42,9 +42,16 @@ Use cumulative city culture, the audited `culture_per_turn` values in native
 building data, a per-building age bonus after 1,000 campaign years, threshold-
 based city border growth, and both single-city and empire-wide cultural
 victories. Captured buildings produce no culture for an occupier; an original
-builder resumes production after recapture without the age bonus. Existing
-C2C3 tile-claim legality and CivCraft topology remain adapters; culture
-flipping is deferred pending probability tuning and clear player-facing
+builder resumes production after recapture without the age bonus. Border
+shape and contests are Civ III, not Freeciv: a new city claims a 3×3 square and
+each threshold grows it into the "fat X" (21, 45, 77 and 117 tiles); city size,
+Freeciv border strength, incumbent retention and the permanent-radius lock do
+not apply. A tile goes to the nearest city by culture distance, then the city
+with more culture, then the older city, so the shared edge is the line of equal
+distance. Land claims are also Civ III: a border covers every tile in its
+shape, land or sea and seen or not, with no C2C3 `Tile_Claimable` restrictions
+and no `[borders]` ruleset settings. CivCraft topology remains the adapter;
+culture flipping is deferred pending probability tuning and clear player-facing
 warnings. Keep the design and implementation in
 `docs/superpowers/specs/2026-11-19-culture-core-design.md`.
 

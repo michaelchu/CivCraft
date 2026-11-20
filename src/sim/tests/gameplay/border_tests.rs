@@ -80,15 +80,20 @@ impl Simulation {
         self.create_city(1, rx, ry);
         self.cities[0].size = 1;
         self.cities[1].size = 1;
+        // Radius 2 (fat X) lets both cities reach the tile between them.
+        self.cities[0].history = 10;
+        self.cities[1].history = 10;
         self.rebuild_city_ownership();
         let owner = |game: &Self, step| {
             let (x, y) = point(step);
             game.tile(x, y).owner
         };
+        // The tile midway between them is equidistant: equal culture goes to
+        // the older city, and more culture takes it.
         let tie = owner(self, 2) == Some(HUMAN);
         self.cities[1].history = 1_000_000;
         self.rebuild_city_ownership();
-        let history_does_not_change_border_strength = owner(self, 2) == Some(HUMAN);
+        let culture_breaks_equidistant_ties = owner(self, 2) == Some(1);
 
         let mut size_growth = Simulation::new(crate::mapgen::generate(42));
         size_growth.units.clear();
@@ -112,14 +117,18 @@ impl Simulation {
         }
         size_growth.create_city(HUMAN, origin.0, origin.1);
         size_growth.rebuild_city_ownership();
-        let small_city = size_growth.tile(path[3].0, path[3].1).owner.is_none();
-        size_growth.cities[0].size = 4;
+        // Size never widens the border; culture does (radius 3 reaches two
+        // tiles due east, which the fat X of radius 2 does not).
+        size_growth.cities[0].size = 12;
         size_growth.rebuild_city_ownership();
-        let grown_city = size_growth.tile(path[3].0, path[3].1).owner == Some(HUMAN);
+        let small_city = size_growth.tile(path[2].0, path[2].1).owner.is_none();
+        size_growth.cities[0].history = 100;
+        size_growth.rebuild_city_ownership();
+        let grown_city = size_growth.tile(path[2].0, path[2].1).owner == Some(HUMAN);
 
         (
             tie,
-            history_does_not_change_border_strength,
+            culture_breaks_equidistant_ties,
             small_city && grown_city,
         )
     }
@@ -136,7 +145,7 @@ mod tests {
     }
 
     #[test]
-    fn city_border_test_uses_selected_c2c3_strength_and_radius() {
+    fn city_border_test_uses_civ3_culture_contest_and_radius() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         assert_eq!(game.city_borders_test(), (true, true, true));
     }

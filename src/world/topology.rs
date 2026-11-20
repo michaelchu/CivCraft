@@ -10,7 +10,9 @@
 //! before generation rather than changed after tiles and features are built.
 
 use super::{DEFAULT_CIVILIZATION_COUNT, PERCENT_SCALE, TILES_PER_PLAYER};
-use std::collections::{HashSet, VecDeque};
+use std::collections::HashSet;
+#[cfg(test)]
+use std::collections::VecDeque;
 
 pub(crate) const LAND_PERCENT: i32 = 30;
 pub(crate) const MAP_TARGET_TILES: i32 =
@@ -250,6 +252,30 @@ impl MapWrap {
         distance
     }
 
+    /// Whether `target` lies in the Civ III culture border shape of `radius`
+    /// around `source`. Radius 1 is the 3×3 square (the city and its eight
+    /// neighbors). Each larger radius extends every side outward by one tile
+    /// and trims the corner tiles, giving the 21-tile "fat X" at radius 2, 45
+    /// tiles at 3, and so on. The test is made in the doubled grid used by
+    /// `civ3_distance`: step distance at most `radius` and axis span at most
+    /// `2 * radius - 1` (never less than the square's span of 2).
+    pub(crate) fn civ3_border_shape_contains(
+        self,
+        source: (i32, i32),
+        target: (i32, i32),
+        radius: i32,
+    ) -> bool {
+        let source_x = 2 * source.0 + source.1.rem_euclid(2);
+        let target_x = 2 * target.0 + target.1.rem_euclid(2);
+        let horizontal_period = 2 * self.width();
+        let dy = (target.1 - source.1).abs();
+        let max_span = (2 * radius - 1).max(2);
+        (-1..=1).any(|horizontal_wrap| {
+            let dx = (target_x + horizontal_wrap * horizontal_period - source_x).abs();
+            dx + dy <= 2 * radius && dx.max(dy) <= max_span
+        })
+    }
+
     /// CivWiki's reverse-engineered culture-flip capital distance: max of the
     /// two diagonal-axis spans plus half the shorter span. Horizontal map
     /// wrapping shifts both axes, so compare the target's adjacent wrap images.
@@ -266,6 +292,25 @@ impl MapWrap {
             .fold(f64::INFINITY, f64::min)
     }
 
+    /// Twice the culture distance between two tiles, as an integer: twice the
+    /// longer diagonal-axis span plus the shorter span. Border contests rank
+    /// claims by this value, which, unlike the step count, does not give a
+    /// diamond of ties between two cities. Horizontal wrapping is handled as in
+    /// `civ3_culture_distance`.
+    pub(crate) fn civ3_culture_rank(self, ax: i32, ay: i32, bx: i32, by: i32) -> i32 {
+        let (ax, ay) = native_to_map(ax, ay);
+        let (bx, by) = native_to_map(bx, by);
+        (-1..=1)
+            .map(|wrap| {
+                let dx = (bx + wrap * self.width() - ax).abs();
+                let dy = (by - wrap * self.width() - ay).abs();
+                2 * dx.max(dy) + dx.min(dy)
+            })
+            .min()
+            .unwrap_or(i32::MAX)
+    }
+
+    #[cfg(test)]
     pub(crate) fn civ3_distances_from(self, x: i32, y: i32) -> Vec<i32> {
         let mut distances = vec![i32::MAX; (self.width() * self.height()) as usize];
         let origin = self.index(x, y);
