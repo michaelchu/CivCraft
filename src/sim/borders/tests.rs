@@ -112,13 +112,13 @@ fn selected_c2c3_radius_expands_with_city_size() {
     let rules = BorderRules::selected();
     assert_eq!(rules.city_radius_sq, 5);
     assert_eq!(rules.city_size_effect, 1);
-    assert_eq!(rules.city_border_radius_sq(&game, &game.cities[0]), 6);
+    assert_eq!(rules.city_border_base_radius_sq(&game.cities[0]), 6);
     game.rebuild_city_ownership();
     assert_eq!(game.tile(path[2].0, path[2].1).owner, Some(HUMAN));
     assert_eq!(game.tile(path[3].0, path[3].1).owner, None);
 
     game.cities[0].size = 4;
-    assert_eq!(rules.city_border_radius_sq(&game, &game.cities[0]), 9);
+    assert_eq!(rules.city_border_base_radius_sq(&game.cities[0]), 9);
     game.rebuild_city_ownership();
     assert_eq!(game.tile(path[3].0, path[3].1).owner, Some(HUMAN));
     assert_eq!(game.tile(path[4].0, path[4].1).owner, None);

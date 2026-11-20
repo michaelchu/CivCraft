@@ -283,6 +283,29 @@ impl MapWrap {
         }
         distances
     }
+
+    /// Civ III rank-distance field on the staggered grid. This produces the
+    /// fat-X contours used by the 21-tile city radius. Horizontal wrap images
+    /// are compared so the same contour is preserved across the map seam.
+    pub(crate) fn civ3_rank_distances_from(self, x: i32, y: i32) -> Vec<i32> {
+        let origin_grid_x = 2 * x + y.rem_euclid(2);
+        (0..self.tile_count())
+            .map(|index| {
+                let (tile_x, tile_y) = self.position(index);
+                let tile_grid_x = 2 * tile_x + tile_y.rem_euclid(2);
+                let dy = tile_y - y;
+                (-1..=1)
+                    .map(|wrap| {
+                        civ3_rank_distance(
+                            tile_grid_x + wrap * 2 * self.width() - origin_grid_x,
+                            dy,
+                        )
+                    })
+                    .min()
+                    .unwrap_or(i32::MAX)
+            })
+            .collect()
+    }
     pub(crate) fn civ3_radius(self, x: i32, y: i32, max_distance: i32) -> Vec<(i32, i32, i32)> {
         // Most calls cover unit or city sight. In three steps a tile moves at
         // most three columns and six rows, so one word can track visits.
