@@ -27,6 +27,10 @@ CIVCRAFT_SOURCE_DIR="/path/to/civ3-install" cargo run --release --features deskt
   --world-age 4 --landform continents --temperature temperate --tileset civ3
 ```
 
+Autosave is disabled by default. Pass `--autosave true` to save the campaign
+after each turn, or `--autosave false` to explicitly disable it. Automated smoke
+tests, screenshots, and UI reviews always disable autosave.
+
 Run a short desktop smoke test to verify that the game starts, loads the Civ III
 artwork, renders a frame, and advances a few normal turns:
 

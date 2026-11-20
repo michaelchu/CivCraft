@@ -26,6 +26,15 @@ fn parsed_argument(args: &[String], flag: &str) -> Result<Option<String>, String
         .map(Some)
         .ok_or_else(|| format!("{flag} requires a value"))
 }
+
+fn parsed_autosave(args: &[String]) -> Result<bool, String> {
+    match parsed_argument(args, "--autosave")?.as_deref() {
+        None | Some("false") => Ok(false),
+        Some("true") => Ok(true),
+        Some(_) => Err("--autosave accepts true or false".to_owned()),
+    }
+}
+
 /// Reads one command-line option and exits with a usage error if it is malformed.
 fn argument_value(flag: &str) -> Option<String> {
     match parsed_argument(&env::args().collect::<Vec<_>>(), flag) {
@@ -48,6 +57,10 @@ pub async fn run_desktop() {
         std::process::exit(2);
     }
     let args: Vec<_> = env::args().collect();
+    let autosave = parsed_autosave(&args).unwrap_or_else(|error| {
+        eprintln!("{error}");
+        std::process::exit(2);
+    });
     let world = WorldSetup::parse(mapgen::Civ3MapSize::Small, |flag| {
         parsed_argument(&args, flag)
     })
@@ -176,7 +189,7 @@ pub async fn run_desktop() {
         game.map_wrap(),
         tileset.name()
     );
-    game.autosave_enabled = !automated;
+    game.autosave_enabled = autosave && !automated;
     let mut music = MusicPlayer::new(&asset_context);
     let mut unit_sounds = UnitSoundPlayer::new(&asset_context);
     if ui_review.is_some() {
@@ -478,6 +491,26 @@ pub async fn run_desktop() {
 #[cfg(test)]
 mod argument_tests {
     use super::*;
+
+    #[test]
+    fn autosave_is_opt_in_and_requires_an_explicit_boolean() {
+        for (values, expected) in [
+            (vec!["game"], false),
+            (vec!["game", "--autosave", "false"], false),
+            (vec!["game", "--autosave", "true"], true),
+        ] {
+            let args: Vec<String> = values.into_iter().map(str::to_owned).collect();
+            assert_eq!(parsed_autosave(&args).unwrap(), expected);
+        }
+        for values in [
+            vec!["game", "--autosave"],
+            vec!["game", "--autosave", "--seed", "42"],
+            vec!["game", "--autosave", "yes"],
+        ] {
+            let args: Vec<String> = values.into_iter().map(str::to_owned).collect();
+            assert!(parsed_autosave(&args).is_err());
+        }
+    }
 
     #[test]
     fn map_size_argument_matches_civ3_presets_and_validates_custom_dimensions() {
