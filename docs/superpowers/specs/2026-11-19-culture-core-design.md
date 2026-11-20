@@ -20,8 +20,12 @@ the culture model for this explicit gameplay exception to the Freeciv port.
   1,000, and 10,000 each side extends one tile outward and the corners are
   trimmed: the 21-tile "fat X" (equal to the city work radius), then 45, 77 and
   117 tiles. The shape is `MapWrap::civ3_border_shape_contains`, evaluated on
-  CivCraft's Civ III map axes. Existing C2C3 tile claimability still resolves
-  which tiles an expanded border can claim. Workers need owned tiles, so a city
+  CivCraft's Civ III map axes. A tile reached by several borders goes to the
+  nearest city by culture distance (`MapWrap::civ3_culture_rank`), then to the
+  city with more culture, then to the older city (lower id). Ownership is
+  recomputed from the cities alone: no border strength, no retention of earlier
+  claims, no permanent-tile lock and no scan-order dependence. Existing C2C3
+  tile claimability still resolves which tiles an expanded border can claim. Workers need owned tiles, so a city
   works only its eight neighbors until it reaches 10 culture.
 - Civilization culture is permanent. When a city is lost or destroyed, its
   accumulated local culture moves into its former owner's national culture
