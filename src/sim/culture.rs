@@ -14,18 +14,16 @@ const CULTURE_VICTORY_STANDARD_EMPIRE_POINTS: i64 = 100_000;
 const CULTURE_BUILDING_AGE_BONUS_YEARS: i32 = 1_000;
 const CULTURE_BORDER_THRESHOLDS: [i64; 4] = [10, 100, 1_000, 10_000];
 
-/// Return the Civ III border radius for the culture tier, if a tier has been
-/// reached. Distances use CivCraft's existing Civ III map metric.
-pub(crate) fn city_culture_border_radius_sq(culture: i64) -> Option<i64> {
-    match CULTURE_BORDER_THRESHOLDS
+/// Return the city's border radius from its cumulative culture. Culture is the
+/// only source of border growth: a new city claims the 3×3 square (radius 1),
+/// and each threshold extends every side one tile outward as a "fat X" (see
+/// `MapWrap::civ3_border_shape_contains`).
+pub(crate) fn city_culture_border_radius(culture: i64) -> i32 {
+    let tiers = CULTURE_BORDER_THRESHOLDS
         .iter()
-        .rposition(|threshold| culture >= *threshold)?
-    {
-        0 => Some(9),
-        1 => Some(16),
-        2 => Some(25),
-        _ => Some(36),
-    }
+        .filter(|threshold| culture >= **threshold)
+        .count();
+    1 + tiers as i32
 }
 
 pub(crate) fn next_city_culture_border_threshold(culture: i64) -> Option<i64> {
@@ -128,12 +126,12 @@ impl Simulation {
     pub(super) fn record_city_history(&mut self, city_index: usize) -> bool {
         let city = &self.cities[city_index];
         let history = i64::from(city.history);
-        let before_tier = city_culture_border_radius_sq(self.city_culture_score(city));
+        let before_tier = city_culture_border_radius(self.city_culture_score(city));
         let gain = self.city_culture_per_turn(city);
         self.cities[city_index].history =
             i32::try_from(history.saturating_add(gain).max(0)).unwrap_or(i32::MAX);
         let city = &self.cities[city_index];
-        before_tier != city_culture_border_radius_sq(self.city_culture_score(city))
+        before_tier != city_culture_border_radius(self.city_culture_score(city))
     }
 
     /// Apply Freeciv national history at the end of national turn activities.
@@ -311,12 +309,12 @@ mod tests {
 
     #[test]
     fn city_culture_unlocks_border_tiers_at_civ_iii_thresholds() {
-        assert_eq!(city_culture_border_radius_sq(0), None);
-        assert_eq!(city_culture_border_radius_sq(9), None);
-        assert_eq!(city_culture_border_radius_sq(10), Some(9));
-        assert_eq!(city_culture_border_radius_sq(100), Some(16));
-        assert_eq!(city_culture_border_radius_sq(1_000), Some(25));
-        assert_eq!(city_culture_border_radius_sq(10_000), Some(36));
+        assert_eq!(city_culture_border_radius(0), 1);
+        assert_eq!(city_culture_border_radius(9), 1);
+        assert_eq!(city_culture_border_radius(10), 2);
+        assert_eq!(city_culture_border_radius(100), 3);
+        assert_eq!(city_culture_border_radius(1_000), 4);
+        assert_eq!(city_culture_border_radius(10_000), 5);
         assert_eq!(next_city_culture_border_threshold(10), Some(100));
         assert_eq!(next_city_culture_border_threshold(10_000), None);
     }

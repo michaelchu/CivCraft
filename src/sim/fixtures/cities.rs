@@ -78,6 +78,13 @@ impl WorldBuilder<'_> {
             .game
             .city_index_by_id(city_id)
             .expect("fixture city exists");
+        // Workers need owned tiles. Borders come only from culture, so a
+        // fixture city that works more than its 3×3 square holds the first
+        // culture expansion (the 21-tile fat X, equal to its work radius).
+        if count > 0 && self.game.city_culture_score(&self.game.cities[index]) < 10 {
+            self.game.cities[index].history = 10;
+        }
+        self.game.rebuild_city_ownership();
         let city = &self.game.cities[index];
         let worked: Vec<_> = self
             .game

@@ -8,7 +8,7 @@ use crate::rules::engine_rules::{
     EffectContext, Requirement, RequirementContext, RequirementEvaluationError, RequirementRange,
     RequirementValue, RulesetData,
 };
-use crate::sim::culture::city_culture_border_radius_sq;
+use crate::sim::culture::city_culture_border_radius;
 use std::collections::HashMap;
 
 #[cfg(test)]
@@ -17,10 +17,10 @@ mod tests;
 const CITY_MAP_MIN_RADIUS_SQ: i64 = 5;
 const CITY_MAP_MAX_RADIUS_SQ: i64 = 26;
 
+/// Border extent comes only from city culture (a CivCraft/Civ III adapter);
+/// the ruleset's `[borders]` `radius_sq_city` and `size_effect` are unused.
 #[derive(Clone, Copy, Debug)]
 struct BorderRules {
-    city_radius_sq: i64,
-    city_size_effect: i64,
     permanent_radius_sq: i64,
     initial_city_radius_sq: i64,
 }
@@ -29,8 +29,6 @@ impl BorderRules {
     fn selected() -> Self {
         let rules = RulesetData::campaign_default();
         Self {
-            city_radius_sq: ruleset_integer_parameter(rules, "borders", "radius_sq_city"),
-            city_size_effect: ruleset_integer_parameter(rules, "borders", "size_effect"),
             permanent_radius_sq: ruleset_integer_parameter(
                 rules,
                 "borders",
@@ -42,13 +40,6 @@ impl BorderRules {
                 "init_city_radius_sq",
             ),
         }
-    }
-
-    fn city_border_radius_sq(self, simulation: &Simulation, city: &City) -> i64 {
-        let base = self.city_radius_sq
-            + i64::from(city.size.min(CITY_MAP_MAX_RADIUS_SQ as i32)) * self.city_size_effect;
-        city_culture_border_radius_sq(simulation.city_culture_score(city))
-            .map_or(base, |culture_radius| base.max(culture_radius))
     }
 
     fn city_work_radius_sq(self, simulation: &Simulation, city: &City) -> i64 {
@@ -157,14 +148,30 @@ struct BorderSource {
     tile_index: usize,
     x: i32,
     y: i32,
-    radius_sq: i64,
-    culture_radius_sq: Option<i64>,
+    /// Culture border radius: 1 is the 3×3 square, larger values the fat X.
+    radius: i32,
+    /// Whether culture has earned a border expansion beyond the square, which
+    /// lets the border claim and reveal tiles the owner has not yet seen.
+    culture_expanded: bool,
     city_work_radius_sq: i64,
     strength: i64,
     distances: Vec<i32>,
 }
 
 impl BorderSource {
+    fn contains(&self, wrap: MapWrap, tile_index: usize) -> bool {
+        self.distances[tile_index] <= self.radius
+            && wrap.civ3_border_shape_contains(
+                (self.x, self.y),
+                wrap.position(tile_index),
+                self.radius,
+            )
+    }
+
+    fn within_cultural_radius(&self, wrap: MapWrap, tile_index: usize) -> bool {
+        self.culture_expanded && self.contains(wrap, tile_index)
+    }
+
     fn strength_at(&self, distance: i32) -> i64 {
         if distance == 0 {
             return i64::MAX;
@@ -398,8 +405,8 @@ impl Simulation {
                 tile_index: self.map_wrap.index(city.x, city.y),
                 x: city.x,
                 y: city.y,
-                radius_sq: rules.city_border_radius_sq(self, city),
-                culture_radius_sq: city_culture_border_radius_sq(self.city_culture_score(city)),
+                radius: city_culture_border_radius(self.city_culture_score(city)),
+                culture_expanded: city_culture_border_radius(self.city_culture_score(city)) > 1,
                 city_work_radius_sq: rules.city_work_radius_sq(self, city),
                 strength: rules.city_border_strength(self, city),
                 distances: self.map_wrap.civ3_distances_from(city.x, city.y),
@@ -430,11 +437,8 @@ impl Simulation {
             };
             let source = &sources[source_index];
             let distance = source.distances[tile_index];
-            let distance_sq = i64::from(distance) * i64::from(distance);
-            let within_cultural_radius = source
-                .culture_radius_sq
-                .is_some_and(|radius_sq| distance_sq <= radius_sq);
-            if distance_sq > source.radius_sq
+            let within_cultural_radius = source.within_cultural_radius(self.map_wrap, tile_index);
+            if !source.contains(self.map_wrap, tile_index)
                 || (distance != 0 && !tile.known_by[source.owner] && !within_cultural_radius)
                 || (distance != 0
                     && !tile_claimable(
@@ -457,8 +461,7 @@ impl Simulation {
         for source in &sources {
             for (tile_index, claim_slot) in claims.iter_mut().enumerate() {
                 let distance = source.distances[tile_index];
-                let distance_sq = i64::from(distance) * i64::from(distance);
-                if distance_sq > source.radius_sq {
+                if !source.contains(self.map_wrap, tile_index) {
                     continue;
                 }
                 if distance != 0
@@ -468,9 +471,8 @@ impl Simulation {
                 {
                     continue;
                 }
-                let within_cultural_radius = source
-                    .culture_radius_sq
-                    .is_some_and(|radius_sq| distance_sq <= radius_sq);
+                let within_cultural_radius =
+                    source.within_cultural_radius(self.map_wrap, tile_index);
                 if distance != 0
                     && !self.tiles[tile_index].known_by[source.owner]
                     && !within_cultural_radius
@@ -517,12 +519,7 @@ impl Simulation {
             tile.owner = claim.map(|claim| claim.owner);
             if let Some(claim) = claim {
                 let source = &sources[source_index_by_city[&claim.city_id]];
-                let distance = source.distances[tile_index];
-                let distance_sq = i64::from(distance) * i64::from(distance);
-                if source
-                    .culture_radius_sq
-                    .is_some_and(|radius_sq| distance_sq <= radius_sq)
-                {
+                if source.within_cultural_radius(self.map_wrap, tile_index) {
                     for &viewer in &recipients[claim.owner] {
                         if !tile.known_by[viewer] || (viewer == HUMAN && !tile.seen) {
                             discovered[viewer][tile_index] = true;

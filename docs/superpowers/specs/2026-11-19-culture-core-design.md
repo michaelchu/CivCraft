@@ -14,10 +14,15 @@ the culture model for this explicit gameplay exception to the Freeciv port.
 - A city's culture is cumulative. Its culture-producing buildings add points
   each city turn. Each building's rate doubles once it has existed for 1,000
   campaign years. Culture age is tracked per building and survives saves.
-- Local city culture expands that city's cultural border at the Civ III
-  thresholds 10, 100, 1,000, and 10,000. Existing C2C3 tile claimability and
-  CivCraft map topology continue to resolve which tiles the expanded border can
-  claim.
+- Local city culture is the only source of border growth (city size no longer
+  widens it; the ruleset's `radius_sq_city`/`size_effect` are unused). A new
+  city claims the 3×3 square (radius 1). At the Civ III thresholds 10, 100,
+  1,000, and 10,000 each side extends one tile outward and the corners are
+  trimmed: the 21-tile "fat X" (equal to the city work radius), then 45, 77 and
+  117 tiles. The shape is `MapWrap::civ3_border_shape_contains`, evaluated on
+  CivCraft's Civ III map axes. Existing C2C3 tile claimability still resolves
+  which tiles an expanded border can claim. Workers need owned tiles, so a city
+  works only its eight neighbors until it reaches 10 culture.
 - Civilization culture is permanent. When a city is lost or destroyed, its
   accumulated local culture moves into its former owner's national culture
   history. A captured city starts a fresh local culture history. An occupier

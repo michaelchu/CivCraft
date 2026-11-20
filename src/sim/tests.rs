@@ -69,7 +69,7 @@ fn civ3_map_roster_controls_active_players_and_score_standings() {
 }
 
 #[test]
-fn newly_founded_city_uses_c2c3_border_and_work_radii() {
+fn newly_founded_city_claims_a_square_and_culture_grows_it_to_the_work_radius() {
     for wrap in [MapWrap::X] {
         let mut game = Simulation::new(crate::mapgen::generate_with_wrap(42, wrap));
         game.cities.clear();
@@ -82,44 +82,44 @@ fn newly_founded_city_uses_c2c3_border_and_work_radii() {
         let (cx, cy) = (10, 24);
         game.create_city(HUMAN, cx, cy);
 
+        // A new city owns only its 3×3 square, so it can work just the eight
+        // adjacent tiles until culture earns the 21-tile fat X.
         let distances = game.map_wrap.civ3_distances_from(cx, cy);
-        let mut first_ring = 0;
-        let mut second_ring = 0;
-        let mut worked_candidate = None;
-        for (index, tile) in game.tiles.iter().enumerate() {
-            let rank = distances[index];
-            if rank == 1 {
-                first_ring += 1;
-                assert_eq!(tile.owner, Some(HUMAN), "wrap {wrap:?}");
-                worked_candidate.get_or_insert(game.map_wrap.position(index));
-            } else if rank == 2 {
-                second_ring += 1;
-                assert_eq!(tile.owner, Some(HUMAN), "wrap {wrap:?}");
-            } else if rank > 2 {
-                assert_eq!(
-                    tile.owner, None,
-                    "unexpected claim at index {index}, rank {rank}, wrap {wrap:?}"
-                );
-            }
+        let owned = |game: &Simulation| {
+            game.tiles
+                .iter()
+                .filter(|tile| tile.owner == Some(HUMAN))
+                .count()
+        };
+        assert_eq!(owned(&game), 9, "wrap {wrap:?}");
+        let map_wrap = game.map_wrap;
+        let rank_tiles = |rank: i32| {
+            distances
+                .iter()
+                .enumerate()
+                .filter(move |(_, d)| **d == rank)
+                .map(|(index, _)| map_wrap.position(index))
+                .collect::<Vec<_>>()
+        };
+        for (x, y) in rank_tiles(1) {
+            assert_eq!(game.tile(x, y).owner, Some(HUMAN), "wrap {wrap:?}");
+            assert!(game.tile_can_support_worker(&game.cities[0], x, y));
         }
-        assert_eq!(first_ring, 8, "wrap {wrap:?}");
-        assert_eq!(second_ring, 16, "wrap {wrap:?}");
-        let (inside_x, inside_y) = worked_candidate.unwrap();
-        assert!(game.can_assign_city_tile(&game.cities[0], inside_x, inside_y));
-        let second_ring_workable = distances.iter().enumerate().any(|(index, &rank)| {
-            if rank != 2 {
-                return false;
-            }
-            let (x, y) = game.map_wrap.position(index);
-            game.can_assign_city_tile(&game.cities[0], x, y)
-        });
-        assert!(second_ring_workable);
-        let outside = distances
-            .iter()
-            .position(|&rank| rank == 3)
-            .map(|index| game.map_wrap.position(index))
-            .unwrap();
-        assert!(!game.can_assign_city_tile(&game.cities[0], outside.0, outside.1));
+        for (x, y) in rank_tiles(2) {
+            assert_eq!(game.tile(x, y).owner, None, "wrap {wrap:?}");
+            assert!(!game.tile_can_support_worker(&game.cities[0], x, y));
+        }
+
+        game.cities[0].history = 10;
+        game.rebuild_city_ownership();
+        assert_eq!(owned(&game), 21, "wrap {wrap:?}");
+        let second_ring_workable = rank_tiles(2)
+            .into_iter()
+            .filter(|&(x, y)| game.tile_can_support_worker(&game.cities[0], x, y))
+            .count();
+        assert_eq!(second_ring_workable, 12, "wrap {wrap:?}");
+        let (x, y) = rank_tiles(3)[0];
+        assert!(!game.tile_can_support_worker(&game.cities[0], x, y));
     }
 }
 

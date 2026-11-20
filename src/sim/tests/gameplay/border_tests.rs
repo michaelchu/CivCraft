@@ -80,6 +80,9 @@ impl Simulation {
         self.create_city(1, rx, ry);
         self.cities[0].size = 1;
         self.cities[1].size = 1;
+        // Radius 2 (fat X) lets both cities reach the tile between them.
+        self.cities[0].history = 10;
+        self.cities[1].history = 10;
         self.rebuild_city_ownership();
         let owner = |game: &Self, step| {
             let (x, y) = point(step);
@@ -112,10 +115,14 @@ impl Simulation {
         }
         size_growth.create_city(HUMAN, origin.0, origin.1);
         size_growth.rebuild_city_ownership();
-        let small_city = size_growth.tile(path[3].0, path[3].1).owner.is_none();
-        size_growth.cities[0].size = 4;
+        // Size never widens the border; culture does (radius 3 reaches two
+        // tiles due east, which the fat X of radius 2 does not).
+        size_growth.cities[0].size = 12;
         size_growth.rebuild_city_ownership();
-        let grown_city = size_growth.tile(path[3].0, path[3].1).owner == Some(HUMAN);
+        let small_city = size_growth.tile(path[2].0, path[2].1).owner.is_none();
+        size_growth.cities[0].history = 100;
+        size_growth.rebuild_city_ownership();
+        let grown_city = size_growth.tile(path[2].0, path[2].1).owner == Some(HUMAN);
 
         (
             tie,

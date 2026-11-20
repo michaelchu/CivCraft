@@ -1,6 +1,5 @@
 use super::*;
 use crate::rules::engine_rules::{EffectSet, RulesetData, effect_value};
-use std::collections::HashSet;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct NativeBorderVector {
@@ -101,27 +100,59 @@ fn selected_effect_active(
         > 0
 }
 
+fn owned_tile_count(game: &Simulation) -> usize {
+    game.tiles
+        .iter()
+        .filter(|tile| tile.owner == Some(HUMAN))
+        .count()
+}
+
 #[test]
-fn selected_c2c3_radius_expands_with_city_size() {
+fn culture_tiers_grow_the_border_from_a_square_into_a_fat_x() {
     let mut game = flat_game(Terrain::Grassland);
-    let origin = (20, 20);
-    let path = straight_path(&game, origin, 2, 4);
+    let origin = (20, 24);
     game.create_city(HUMAN, origin.0, origin.1);
     reveal_all(&mut game);
 
-    let rules = BorderRules::selected();
-    assert_eq!(rules.city_radius_sq, 5);
-    assert_eq!(rules.city_size_effect, 1);
-    assert_eq!(rules.city_border_radius_sq(&game, &game.cities[0]), 6);
-    game.rebuild_city_ownership();
-    assert_eq!(game.tile(path[2].0, path[2].1).owner, Some(HUMAN));
-    assert_eq!(game.tile(path[3].0, path[3].1).owner, None);
+    // Thresholds 0/10/100/1,000/10,000 give radius 1..=5: the 3×3 square,
+    // then the 21-tile fat X, then each side one tile further out.
+    for (history, tiles) in [(0, 9), (10, 21), (100, 45), (1_000, 77), (10_000, 117)] {
+        game.cities[0].history = history;
+        game.rebuild_city_ownership();
+        assert_eq!(owned_tile_count(&game), tiles, "culture {history}");
+    }
+}
 
-    game.cities[0].size = 4;
-    assert_eq!(rules.city_border_radius_sq(&game, &game.cities[0]), 9);
+#[test]
+fn city_size_does_not_expand_the_border() {
+    let mut game = flat_game(Terrain::Grassland);
+    game.create_city(HUMAN, 20, 24);
+    reveal_all(&mut game);
     game.rebuild_city_ownership();
-    assert_eq!(game.tile(path[3].0, path[3].1).owner, Some(HUMAN));
-    assert_eq!(game.tile(path[4].0, path[4].1).owner, None);
+    let square = owned_tile_count(&game);
+    assert_eq!(square, 9);
+
+    game.cities[0].size = 12;
+    game.rebuild_city_ownership();
+    assert_eq!(owned_tile_count(&game), square);
+}
+
+#[test]
+fn fat_x_extends_one_tile_along_each_diagonal_edge_not_the_screen_axes() {
+    let mut game = flat_game(Terrain::Grassland);
+    let origin = (20, 24);
+    game.create_city(HUMAN, origin.0, origin.1);
+    reveal_all(&mut game);
+    game.cities[0].history = 10; // Radius 2: the 21-tile fat X.
+    game.rebuild_city_ownership();
+
+    // Two steps along a screen axis stay inside the square's reach only for
+    // one tile; the X's arms run along the diagonals (3,1) and (2,2).
+    let east = straight_path(&game, origin, 2, 2);
+    assert_eq!(game.tile(east[1].0, east[1].1).owner, Some(HUMAN));
+    assert_eq!(game.tile(east[2].0, east[2].1).owner, None);
+    let diagonal = straight_path(&game, origin, 3, 2);
+    assert_eq!(game.tile(diagonal[2].0, diagonal[2].1).owner, Some(HUMAN));
 }
 
 #[test]
@@ -153,6 +184,9 @@ fn stronger_claims_can_expand_beyond_permanent_tiles_and_ties_keep_map_order() {
     reveal_all(&mut game);
     game.cities[0].size = 1;
     game.cities[1].size = 5;
+    for city in &mut game.cities {
+        city.history = 100; // Radius 3 reaches the tile midway between them.
+    }
     let old_city = game.cities[0].id;
     game.tile_mut(route[2].0, route[2].1).border_city = Some(old_city);
     game.tile_mut(route[2].0, route[2].1).owner = Some(HUMAN);
@@ -164,6 +198,9 @@ fn stronger_claims_can_expand_beyond_permanent_tiles_and_ties_keep_map_order() {
     tied.create_city(HUMAN, route[0].0, route[0].1);
     tied.create_city(1, route[4].0, route[4].1);
     reveal_all(&mut tied);
+    for city in &mut tied.cities {
+        city.history = 100;
+    }
     for tile in &mut tied.tiles {
         tile.owner = None;
         tile.border_city = None;
@@ -283,67 +320,9 @@ fn tile_claimable_matches_selected_region_and_distance_requirements() {
     ));
 }
 
-#[test]
-fn native_c2c3_border_vectors_match_with_explicit_civ3_topology_expansion() {
-    let vectors = native_border_vectors();
-    let native_radius: Vec<_> = vectors
-        .iter()
-        .filter(|vector| vector.case == "radius" && vector.basis == "native")
-        .collect();
-    let topology_expansion: Vec<_> = vectors
-        .iter()
-        .filter(|vector| vector.case == "radius" && vector.basis == "civ3_topology")
-        .collect();
-    assert_eq!(native_radius.len(), 19);
-    assert_eq!(topology_expansion.len(), 6);
-    assert!(
-        native_radius
-            .iter()
-            .chain(&topology_expansion)
-            .all(|vector| (vector.source_x, vector.source_y) == (4, 6))
-    );
-
-    let mut game = flat_game(Terrain::Grassland);
-    reveal_all(&mut game);
-    game.create_city(HUMAN, 4, 6);
-    let city_id = game.cities[0].id;
-    game.rebuild_city_ownership();
-
-    let expected: HashSet<_> = native_radius
-        .iter()
-        .chain(&topology_expansion)
-        .map(|vector| (vector.x, vector.y))
-        .collect();
-    let actual: HashSet<_> = game
-        .tiles
-        .iter()
-        .enumerate()
-        .filter(|(_, tile)| tile.border_city == Some(city_id))
-        .map(|(index, _)| game.map_wrap.position(index))
-        .collect();
-    assert_eq!(actual, expected);
-
-    for vector in native_radius {
-        assert_eq!(
-            game.tile(vector.x, vector.y).owner,
-            Some(vector.owner),
-            "Freeciv native radius claim at ({},{})",
-            vector.x,
-            vector.y
-        );
-        assert_eq!(
-            game.tile(vector.x, vector.y).border_city,
-            Some(city_id),
-            "Freeciv source at ({},{})",
-            vector.x,
-            vector.y
-        );
-    }
-    for vector in topology_expansion {
-        assert_eq!(game.tile(vector.x, vector.y).owner, Some(vector.owner));
-        assert_eq!(game.tile(vector.x, vector.y).border_city, Some(city_id));
-    }
-}
+// The Freeciv native radius vectors (`radius_sq_city` + size) are not ported:
+// border extent comes only from culture, so the shape is covered by
+// `culture_tiers_grow_the_border_from_a_square_into_a_fat_x`.
 
 #[test]
 fn native_c2c3_border_vectors_match_strength_tie_and_permanent_claims() {
@@ -381,6 +360,9 @@ fn native_c2c3_border_vectors_match_strength_tie_and_permanent_claims() {
     stronger.create_city(HUMAN, 18, 8);
     stronger.create_city(1, 20, 12);
     stronger.cities[1].size = 5;
+    for city in &mut stronger.cities {
+        city.history = 1_000; // Radius 4 reaches the contested tile.
+    }
     stronger.rebuild_city_ownership();
     assert_source(&stronger, &vector("strong"));
 
@@ -388,6 +370,9 @@ fn native_c2c3_border_vectors_match_strength_tie_and_permanent_claims() {
     reveal_all(&mut tied);
     tied.create_city(HUMAN, 18, 22);
     tied.create_city(1, 20, 26);
+    for city in &mut tied.cities {
+        city.history = 1_000; // Radius 4 reaches the contested tile.
+    }
     tied.rebuild_city_ownership();
     assert_source(&tied, &vector("tie"));
 
@@ -396,6 +381,9 @@ fn native_c2c3_border_vectors_match_strength_tie_and_permanent_claims() {
     permanent.create_city(HUMAN, 24, 32);
     permanent.create_city(1, 22, 36);
     permanent.cities[1].size = 12;
+    for city in &mut permanent.cities {
+        city.history = 1_000; // Radius 4 reaches the contested tile.
+    }
     permanent.rebuild_city_ownership();
     assert_source(&permanent, &vector("permanent"));
 }
@@ -418,7 +406,16 @@ fn cultural_claims_discover_owned_tiles_without_granting_current_sight() {
     sim.cities.last_mut().unwrap().history = 100;
     sim.rebuild_city_ownership();
     sim.refresh_visibility();
-    let (x, y) = (23, 24); // Cultural radius 4; city sight radius 2.
+    // Radius 3 along east, east, south-east (outside the 21-tile fat X's
+    // reach of 2 and the city's sight radius).
+    let mut position = (20, 24);
+    for direction in [2, 2, 3] {
+        position = sim
+            .map_wrap
+            .civ3_neighbor(position.0, position.1, direction)
+            .unwrap();
+    }
+    let (x, y) = position;
     assert_eq!(sim.tile(x, y).owner, Some(HUMAN));
     let rendered = sim.render_tile_view(x, y);
     assert!(rendered.seen);
