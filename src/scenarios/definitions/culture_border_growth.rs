@@ -125,7 +125,10 @@ impl ScenarioRun for Audit {
                 .iter()
                 .all(|&(x, y)| game.tile(x, y).border_city == Some(self.weak))
             && game.tile(self.near_weak.0, self.near_weak.1).border_city == Some(self.weak)
-            && game.tile(self.near_strong.0, self.near_strong.1).border_city == Some(self.strong);
+            && game
+                .tile(self.near_strong.0, self.near_strong.1)
+                .border_city
+                == Some(self.strong);
         self.nearer_tiles_held.push(ring_held);
         let (_, weak_tiles) = game.city_border_extent(self.weak).unwrap_or((0, 0));
         let (_, strong_tiles) = game.city_border_extent(self.strong).unwrap_or((0, 0));
@@ -142,10 +145,9 @@ impl ScenarioRun for Audit {
 
     fn finish(self: Box<Self>, turns: u32) -> Vec<Check> {
         let exact = !self.ladder.is_empty()
-            && self
-                .ladder
-                .iter()
-                .all(|&(_, radius, tiles)| TILES_BY_RADIUS.get((radius - 1) as usize) == Some(&tiles));
+            && self.ladder.iter().all(|&(_, radius, tiles)| {
+                TILES_BY_RADIUS.get((radius - 1) as usize) == Some(&tiles)
+            });
         let radii: Vec<_> = self.ladder.iter().map(|&(_, radius, _)| radius).collect();
         let reached_every_tier = (1..=5).all(|radius| radii.contains(&radius));
         let monotonic = self
@@ -164,7 +166,8 @@ impl ScenarioRun for Audit {
             Check {
                 name: "border_never_shrinks_without_loss",
                 passed: monotonic,
-                detail: "Radius and tile count never decrease while culture only accumulates".into(),
+                detail: "Radius and tile count never decrease while culture only accumulates"
+                    .into(),
             },
             Check {
                 name: "equidistant_tile_follows_culture",
