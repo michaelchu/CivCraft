@@ -528,11 +528,11 @@ impl Simulation {
         if source.owner == target.owner {
             return i32::from(self.city_dominant_faith(to) != n.declared);
         }
-        if !self
+        if self
             .observed_map
             .cities
             .get(&(source.owner, to))
-            .is_some_and(|seen| seen.1.city.owner == target.owner)
+            .is_none_or(|seen| seen.1.city.owner != target.owner)
             || self.diplomatic_love(source.owner, target.owner) < 0
         {
             return 0;
