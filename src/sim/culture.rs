@@ -14,6 +14,17 @@ const CULTURE_VICTORY_STANDARD_EMPIRE_POINTS: i64 = 100_000;
 const CULTURE_BUILDING_AGE_BONUS_YEARS: i32 = 1_000;
 const CULTURE_BORDER_THRESHOLDS: [i64; 4] = [10, 100, 1_000, 10_000];
 
+/// How a change in a city's culture must refresh territory.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum BorderRefresh {
+    /// Nothing changes: no radius change and no contest to reorder.
+    None,
+    /// The culture gain passed a rival's culture next to a shared border.
+    Contest,
+    /// The border radius changed.
+    Expansion,
+}
+
 /// Return the city's border radius from its cumulative culture. Culture is the
 /// only source of border growth: a new city claims the 3×3 square (radius 1),
 /// and each threshold extends every side one tile outward as a "fat X" (see
@@ -121,13 +132,9 @@ impl Simulation {
         building_culture.saturating_add(i64::from(self.religion_culture(city)))
     }
 
-    /// Apply Civ III city culture after activity, production, and growth. The
-    /// return value says that borders must be rebuilt now: the border radius
-    /// changed, or a culture gain could change a contested tile because another
-    /// city's border can overlap this one. Exact culture breaks ties between
-    /// equally distant cities, so a gain inside a tier (100 to 101) matters
-    /// there even though the radius does not change.
-    pub(super) fn record_city_history(&mut self, city_index: usize) -> bool {
+    /// Apply Civ III city culture after activity, production, and growth, and
+    /// report which border refresh the change requires.
+    pub(super) fn record_city_history(&mut self, city_index: usize) -> BorderRefresh {
         let city = &self.cities[city_index];
         let history = i64::from(city.history);
         let before = self.city_culture_score(city);
@@ -136,21 +143,46 @@ impl Simulation {
             i32::try_from(history.saturating_add(gain).max(0)).unwrap_or(i32::MAX);
         let city = &self.cities[city_index];
         let after = self.city_culture_score(city);
-        let before_radius = city_culture_border_radius(before);
-        let after_radius = city_culture_border_radius(after);
-        before_radius != after_radius
-            || (before != after && self.city_border_may_overlap(city, after_radius))
+        if city_culture_border_radius(before) != city_culture_border_radius(after) {
+            BorderRefresh::Expansion
+        } else if self.culture_change_decides_contest(city, before, after) {
+            BorderRefresh::Contest
+        } else {
+            BorderRefresh::None
+        }
     }
 
-    /// Whether another city's border can reach this city's border, so that its
-    /// culture can decide a contested tile.
-    fn city_border_may_overlap(&self, city: &City, radius: i32) -> bool {
+    /// Rebuild borders after a city's culture changed. An expansion arranges
+    /// the city's workers over its new tiles, as when it is founded. A contest
+    /// refresh only moves a contested tile, so it keeps every worker and
+    /// specialist assignment that is still legal.
+    pub(super) fn refresh_borders_for_culture(&mut self, city_id: u32, refresh: BorderRefresh) {
+        match refresh {
+            BorderRefresh::Expansion => self.rebuild_city_ownership_for_city_event(city_id),
+            BorderRefresh::Contest => self.rebuild_city_ownership(),
+            BorderRefresh::None => {}
+        }
+    }
+
+    /// Exact culture breaks ties between equally distant cities, so a gain
+    /// inside a tier matters when it passes the culture of a rival whose border
+    /// can reach this one. Overlap with the same owner never changes who owns a
+    /// tile, and a gain that stays clear of every rival's culture cannot
+    /// reorder any tie.
+    fn culture_change_decides_contest(&self, city: &City, before: i64, after: i64) -> bool {
+        if before == after {
+            return false;
+        }
+        let (low, high) = (before.min(after), before.max(after));
+        let radius = city_culture_border_radius(after);
         self.cities.iter().any(|other| {
-            other.id != city.id
+            let other_score = self.city_culture_score(other);
+            other.owner != city.owner
+                && (low..=high).contains(&other_score)
                 && self
                     .map_wrap
                     .civ3_distance(city.x, city.y, other.x, other.y)
-                    <= radius + city_culture_border_radius(self.city_culture_score(other))
+                    <= radius + city_culture_border_radius(other_score)
         })
     }
 

@@ -150,6 +150,8 @@ fn nearest_city_owns_a_contested_tile_whatever_its_size() {
     assert_eq!(game.tile(route[3].0, route[3].1).border_city, Some(ids[1]));
 }
 
+use crate::sim::culture::BorderRefresh;
+
 #[test]
 fn culture_gain_inside_a_tier_refreshes_a_contested_tile() {
     let mut game = flat_game(Terrain::Grassland);
@@ -157,25 +159,58 @@ fn culture_gain_inside_a_tier_refreshes_a_contested_tile() {
     let (ids, route) = contest(&mut game, 4, [100, 100]);
     let middle = route[2];
     assert_eq!(game.tile(middle.0, middle.1).border_city, Some(ids[0]));
-    // 100 to 101 stays in radius 3, but it decides the equidistant tile, so
-    // the borders must be rebuilt before the next nation is processed.
-    assert!(game.record_city_history(1));
+    // 100 to 101 stays in radius 3 but passes the rival's 100, which decides
+    // the equidistant tile, so borders refresh before the next nation acts.
+    let refresh = game.record_city_history(1);
+    assert_eq!(refresh, BorderRefresh::Contest);
     assert_eq!(game.city_culture_score(&game.cities[1]), 101);
-    game.rebuild_city_ownership_for_city_event(ids[1]);
+    game.refresh_borders_for_culture(ids[1], refresh);
     assert_eq!(game.tile(middle.0, middle.1).border_city, Some(ids[1]));
 }
 
 #[test]
-fn culture_gain_without_an_overlapping_border_needs_no_rebuild() {
+fn culture_gain_that_cannot_reorder_a_contest_needs_no_rebuild() {
+    // No border nearby.
+    let mut alone = flat_game(Terrain::Grassland);
+    alone.create_city(HUMAN, 20, 24);
+    reveal_all(&mut alone);
+    alone.cities[0].history = 100;
+    assert_eq!(alone.record_city_history(0), BorderRefresh::None);
+    // A tier change is an expansion.
+    alone.cities[0].history = 999;
+    assert_eq!(alone.record_city_history(0), BorderRefresh::Expansion);
+
+    // A rival border overlaps, but its culture is nowhere near the gain.
+    let mut far = flat_game(Terrain::Grassland);
+    contest(&mut far, 4, [100, 500]);
+    assert_eq!(far.record_city_history(0), BorderRefresh::None);
+
+    // Overlapping borders of one owner never change who owns a tile.
+    let mut same = flat_game(Terrain::Grassland);
+    let route = straight_path(&same, (20, 20), 3, 4);
+    same.create_city(HUMAN, route[0].0, route[0].1);
+    same.create_city(HUMAN, route[4].0, route[4].1);
+    reveal_all(&mut same);
+    same.cities[0].history = 100;
+    same.cities[1].history = 100;
+    same.rebuild_city_ownership();
+    assert_eq!(same.record_city_history(0), BorderRefresh::None);
+}
+
+#[test]
+fn contest_refresh_keeps_a_cities_worker_assignments() {
     let mut game = flat_game(Terrain::Grassland);
-    game.create_city(HUMAN, 20, 24);
-    reveal_all(&mut game);
-    game.cities[0].history = 100;
-    // Palace gain inside the tier, with no other border nearby.
-    assert!(!game.record_city_history(0));
-    // A tier change still requests a rebuild.
-    game.cities[0].history = 999;
-    assert!(game.record_city_history(0));
+    let (ids, _) = contest(&mut game, 4, [100, 100]);
+    let owned_workable: Vec<_> = game
+        .map_city_radius(&game.cities[0])
+        .map(|(_, _, x, y)| (x, y))
+        .filter(|&(x, y)| game.tile_can_support_worker(&game.cities[0], x, y))
+        .collect();
+    // A deliberate choice: the last tile the city could work.
+    let chosen = *owned_workable.last().unwrap();
+    game.cities[0].worked_tiles = vec![chosen];
+    game.refresh_borders_for_culture(ids[0], BorderRefresh::Contest);
+    assert_eq!(game.cities[0].worked_tiles, vec![chosen]);
 }
 
 #[test]
