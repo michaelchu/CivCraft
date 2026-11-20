@@ -2,8 +2,8 @@
 
 use super::*;
 
-fn should_draw_territory_edge(owner: usize, neighbor: Option<(bool, Option<usize>)>) -> bool {
-    neighbor.is_none_or(|(seen, neighbor_owner)| seen && neighbor_owner != Some(owner))
+fn should_draw_territory_edge(owner: usize, neighbor: Option<Option<usize>>) -> bool {
+    neighbor != Some(Some(owner))
 }
 
 impl Game {
@@ -24,14 +24,10 @@ impl Game {
         // from the top-right edge, matching Civ III's staggered neighbors.
         for (dx, dy, row) in [(0, -1, 1), (1, 0, 3), (0, 1, 2), (-1, 0, 0)] {
             let neighbor = render_neighbor(self.sim.map_wrap(), x, y, dx, dy);
-            let neighbor_owner = neighbor.map(|(nx, ny)| {
-                (
-                    self.sim.render_tile_view(nx, ny).seen,
-                    self.sim.territory_border_owner_view(nx, ny),
-                )
-            });
-            // The map grid is drawn beneath fog. Use current territory for
-            // explored tiles, but don't invent an edge against unexplored land.
+            let neighbor_owner =
+                neighbor.map(|(nx, ny)| self.sim.territory_geometry_owner_view(nx, ny));
+            // Continue real contours beneath the fog fringe; the fog atlas
+            // clips them at the same boundary as terrain.
             if !should_draw_territory_edge(owner, neighbor_owner) {
                 continue;
             }
@@ -110,7 +106,12 @@ impl Game {
     }
 
     pub(super) fn draw_grid_layer(&self, assets: &Assets, x: i32, y: i32, geometry: TileGeometry) {
-        if let Some(owner) = self.sim.territory_border_owner_view(x, y) {
+        let owner = if self.sim.render_tile_view(x, y).seen {
+            self.sim.territory_border_owner_view(x, y)
+        } else {
+            self.sim.territory_geometry_owner_view(x, y)
+        };
+        if let Some(owner) = owner {
             self.draw_territory_border(
                 assets,
                 x,
@@ -128,10 +129,10 @@ mod tests {
     use super::should_draw_territory_edge;
 
     #[test]
-    fn territory_edges_use_known_current_neighbors_and_skip_unknown_neighbors() {
-        assert!(should_draw_territory_edge(1, Some((true, Some(2)))));
-        assert!(!should_draw_territory_edge(1, Some((true, Some(1)))));
-        assert!(!should_draw_territory_edge(1, Some((false, None))));
+    fn territory_edges_follow_ownership_beneath_the_fog_mask() {
+        assert!(should_draw_territory_edge(1, Some(Some(2))));
+        assert!(!should_draw_territory_edge(1, Some(Some(1))));
+        assert!(should_draw_territory_edge(1, Some(None)));
         assert!(should_draw_territory_edge(1, None));
     }
 }

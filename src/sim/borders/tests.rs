@@ -399,3 +399,34 @@ fn native_c2c3_border_vectors_match_strength_tie_and_permanent_claims() {
     permanent.rebuild_city_ownership();
     assert_source(&permanent, &vector("permanent"));
 }
+
+#[test]
+fn cultural_claims_discover_owned_tiles_without_granting_current_sight() {
+    let mut sim = Simulation::new(crate::mapgen::generate(42));
+    sim.units.clear();
+    sim.cities.clear();
+    sim.observed_map = Default::default();
+    for tile in &mut sim.tiles {
+        tile.terrain = Terrain::Grassland;
+        tile.known_by.fill(false);
+        tile.seen = false;
+        tile.visible = false;
+        tile.owner = None;
+        tile.border_city = None;
+    }
+    sim.create_city(HUMAN, 20, 24);
+    sim.cities.last_mut().unwrap().history = 100;
+    sim.rebuild_city_ownership();
+    sim.refresh_visibility();
+    let (x, y) = (23, 24); // Cultural radius 4; city sight radius 2.
+    assert_eq!(sim.tile(x, y).owner, Some(HUMAN));
+    let rendered = sim.render_tile_view(x, y);
+    assert!(rendered.seen);
+    assert!(!rendered.visible);
+    assert_eq!(
+        sim.human_known_tile(x, y).unwrap().terrain,
+        Terrain::Grassland
+    );
+    assert_eq!(sim.tile(x, y).last_seen_owner, Some(HUMAN));
+    assert!(!sim.render_tile_view(30, 24).seen);
+}

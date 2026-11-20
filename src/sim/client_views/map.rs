@@ -8,6 +8,11 @@ impl Simulation {
         tile.seen.then_some(tile.owner).flatten()
     }
 
+    // Used only beneath the fog mask, including its one-tile terrain fringe.
+    pub(crate) fn territory_geometry_owner_view(&self, x: i32, y: i32) -> Option<usize> {
+        self.tile(x, y).owner
+    }
+
     pub(crate) fn minimap_tile_view(&self, x: i32, y: i32) -> MinimapTileView {
         let known = self.human_known_tile(x, y);
         let tile = known.unwrap_or_else(|| self.tile(x, y));

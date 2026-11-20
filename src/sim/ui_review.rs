@@ -11,6 +11,10 @@ mod tests;
 pub(crate) struct ReviewFixture<'a>(pub(in crate::sim) &'a mut Simulation);
 
 impl ReviewFixture<'_> {
+    pub(crate) fn borders_fog_cities(&mut self) {
+        ui_review_borders_fog_cities(self.0)
+    }
+
     pub(crate) fn religion(&mut self, city: u32) {
         if !self.0.has_tech(HUMAN, Tech::MEDITATION) {
             self.0.players[HUMAN].known.push(Tech::MEDITATION);
@@ -1020,4 +1024,36 @@ pub(crate) fn manual_spaceship_fixture(sim: &mut Simulation) {
         .unwrap()
         .id;
     sim.finish_building(city, HUMAN, Building::APOLLO_PROGRAM, 600);
+}
+
+/// Three city knowledge states and two territories crossing the fog fringe.
+fn ui_review_borders_fog_cities(sim: &mut Simulation) {
+    ui_review_fog(sim);
+    sim.units.clear();
+    sim.observed_map = Default::default();
+    for (owner, x, name) in [
+        (HUMAN, 18, "Visible Rome"),
+        (1, 23, "Remembered Babylon"),
+        (1, 28, "Unknown City"),
+    ] {
+        sim.create_city(owner, x, 24);
+        sim.cities.last_mut().unwrap().name = name.into();
+    }
+    for y in 0..sim.map_wrap.height() {
+        for x in 0..sim.map_wrap.width() {
+            let distance = sim.map_wrap.civ3_distance(x, y, 20, 24);
+            let tile = sim.tile_mut(x, y);
+            tile.seen = distance <= 6;
+            tile.visible = distance <= 2;
+            tile.known_by.fill(false);
+            tile.known_by.set(HUMAN, tile.seen);
+            tile.owner = ((16..=29).contains(&x) && (20..=28).contains(&y)).then_some(if x <= 20 {
+                HUMAN
+            } else {
+                1
+            });
+            tile.last_seen_owner = if tile.seen { tile.owner } else { None };
+        }
+    }
+    ui_review_record_knowledge(sim);
 }

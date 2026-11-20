@@ -51,6 +51,7 @@ pub(crate) const UI_REVIEW_SCENES: &[&str] = &[
     "civ3-city-sprites",
     "civ3-water-depths",
     "religion",
+    "borders-fog-cities",
 ];
 /// Cloning preserves the complete RNG and campaign state. Fixtures are built
 /// once and kept immutable; every scenario receives an independent clone.
@@ -164,6 +165,12 @@ impl Game {
         let (city, _rival) = sources.ids;
         self.selected_unit = None;
         match scene {
+            46 => {
+                self.sim.review_fixture().borders_fog_cities();
+                self.zoom = 0.65;
+                self.focus_camera_on(22, 24);
+                return;
+            }
             1..=4 => {
                 self.selected_city = Some(city);
                 self.production_page = usize::from(scene == 2);
@@ -565,6 +572,36 @@ impl Game {
                 self.sim.review_fixture().clear_animation_events();
                 self.playback.finish();
                 return Ok(true);
+            }
+            return Ok(false);
+        }
+        if scene == 46 {
+            if phase == 1 {
+                let cities = self.sim.rendered_city_views();
+                sequence.check(
+                    "visible_city_drawn",
+                    cities.iter().any(|c| c.name == "Visible Rome"),
+                )?;
+                sequence.check(
+                    "remembered_ai_city_drawn",
+                    cities.iter().any(|c| c.name == "Remembered Babylon"),
+                )?;
+                sequence.check(
+                    "unknown_city_hidden",
+                    !cities.iter().any(|c| c.name == "Unknown City"),
+                )?;
+                sequence.check(
+                    "visible_tiles_present",
+                    self.sim.review_state().tile_visibility(20, 24) == (true, true),
+                )?;
+                sequence.check(
+                    "remembered_tiles_present",
+                    self.sim.review_state().tile_visibility(23, 24) == (true, false),
+                )?;
+                sequence.check(
+                    "unknown_tiles_present",
+                    self.sim.review_state().tile_visibility(28, 24) == (false, false),
+                )?;
             }
             return Ok(false);
         }

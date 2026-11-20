@@ -507,6 +507,11 @@ impl Simulation {
             }
         }
 
+        let recipients: Vec<_> = (0..self.players.len())
+            .map(|owner| self.vision_recipients(owner))
+            .collect();
+        let mut discovered = vec![vec![false; self.tiles.len()]; self.players.len()];
+        let mut discovered_any = false;
         for (tile_index, (tile, claim)) in self.tiles.iter_mut().zip(claims).enumerate() {
             tile.border_city = claim.map(|claim| claim.city_id);
             tile.owner = claim.map(|claim| claim.owner);
@@ -518,9 +523,23 @@ impl Simulation {
                     .culture_radius_sq
                     .is_some_and(|radius_sq| distance_sq <= radius_sq)
                 {
-                    tile.known_by.set(claim.owner, true);
+                    for &viewer in &recipients[claim.owner] {
+                        if !tile.known_by[viewer] || (viewer == HUMAN && !tile.seen) {
+                            discovered[viewer][tile_index] = true;
+                            discovered_any = true;
+                        }
+                        tile.known_by.set(viewer, true);
+                        if viewer == HUMAN {
+                            tile.seen = true;
+                            tile.last_seen_owner = tile.owner;
+                        }
+                    }
                 }
             }
+        }
+        // Cultural claims discover terrain without granting sight of units.
+        if discovered_any {
+            self.remember_render_map(&discovered);
         }
         self.remember_visible_borders();
         if let Some(city_id) = city_event {

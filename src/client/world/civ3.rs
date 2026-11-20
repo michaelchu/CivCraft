@@ -548,6 +548,20 @@ impl<'a> Civ3WorldPainter<'a> {
         for layer in map_layers::MAP_LAYERS {
             for &(x, y, center) in &order {
                 if !game.sim.render_tile_view(x, y).seen {
+                    if layer == map_layers::MapLayer::Grid
+                        && game
+                            .sim
+                            .map_wrap()
+                            .civ3_neighbors(x, y)
+                            .any(|(nx, ny)| game.sim.render_tile_view(nx, ny).seen)
+                    {
+                        game.draw_grid_layer(
+                            assets,
+                            x,
+                            y,
+                            TileGeometry::new(center, tile_w, tile_h),
+                        );
+                    }
                     continue;
                 }
                 let city = cities.get(&(x, y)).copied();

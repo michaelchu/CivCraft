@@ -680,3 +680,28 @@ fn civil_war_inherits_private_observations() {
         Some(Terrain::Grassland)
     );
 }
+
+#[test]
+fn shared_vision_discovers_cities_and_retains_their_public_memory() {
+    let mut sim = Simulation::new(crate::mapgen::generate(42));
+    sim.units.clear();
+    sim.observed_map = Default::default();
+    for tile in &mut sim.tiles {
+        tile.known_by.fill(false);
+        tile.seen = false;
+        tile.visible = false;
+        tile.terrain = Terrain::Grassland;
+    }
+    sim.create_city(1, 20, 24);
+    let id = sim.cities.last().unwrap().id;
+    sim.refresh_visibility();
+    assert!(!sim.render_city_markers().iter().any(|c| c.id == id));
+    sim.set_scenario_diplomacy(1, HUMAN, Pact::Alliance, sim.turn, [0, 0]);
+    sim.grant_scenario_vision(1, HUMAN);
+    sim.refresh_visibility();
+    assert!(sim.rendered_city_views().iter().any(|c| c.id == id));
+    assert!(sim.render_tile_view(20, 24).visible);
+    assert!(sim.cancel_shared_vision(1, HUMAN));
+    assert!(!sim.render_tile_view(20, 24).visible);
+    assert!(sim.rendered_city_views().iter().any(|c| c.id == id));
+}

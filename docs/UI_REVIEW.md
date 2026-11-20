@@ -312,3 +312,13 @@ panel. Its staged interaction cycles declared faith, selects Devout, confirms
 through normal hit testing, and checks the resulting declaration and cooldown.
 As with other scenes, capture/comparison requires the complete Civ III assets
 and an explicit baseline; do not overwrite the baseline implicitly.
+
+### Borders, fog and city discovery
+
+`--ui-scene borders-fog-cities` stages Visible Rome, Remembered Babylon and
+an undiscovered AI city beyond the black fog. Two territories cross the
+visible/remembered/unknown boundary. Six scene checks require the visible and
+remembered city views, reject the unknown city view, and verify all three tile
+knowledge states. Inspect the PNG for connected borders fading beneath the fog
+and city sprites/labels in known territory. This is an isolated rendering fixture;
+shared-vision pact transitions are covered by the simulation regression.
