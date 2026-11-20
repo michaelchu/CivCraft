@@ -613,6 +613,7 @@ struct LossAudit {
     destroyed_released: Vec<bool>,
     middle_inherited: Vec<bool>,
     captured_owner: Vec<bool>,
+    captured_square: Vec<bool>,
 }
 
 const LOSS_TURN: u32 = 3;
@@ -654,6 +655,9 @@ impl ScenarioRun for LossAudit {
                 owner(captured.path[0]) == Some(KOREA)
                     && border_city(game, captured.path[0]) == Some(captured.a),
             );
+            // Fresh culture under its new owner: back to the 3×3 square.
+            self.captured_square
+                .push(game.city_border_extent(captured.a) == Some((1, 9)));
         }
         json!({"rule_holds": self.rule.last(), "before_loss": before,
                "destroyed_middle": border_city(game, destroyed.path[2]),
@@ -676,6 +680,11 @@ impl ScenarioRun for LossAudit {
                 name: "destroyed_city_releases_its_tiles",
                 passed: all_true(&self.destroyed_released) && all_true(&self.middle_inherited),
                 detail: "The destroyed city's own tile becomes unowned and the middle tile passes to the other city".into(),
+            },
+            Check {
+                name: "captured_city_shrinks_to_its_square",
+                passed: all_true(&self.captured_square),
+                detail: "A captured city starts fresh culture, so its border falls back to the radius-1 square of nine tiles".into(),
             },
             Check {
                 name: "captured_city_keeps_tiles_for_new_owner",
