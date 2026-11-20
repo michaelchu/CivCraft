@@ -121,7 +121,7 @@ impl Game {
 
     fn draw_messages(&mut self, actions: &mut Vec<(Rect, UiAction)>, available: f32) {
         let notifications = self.sim.campaign_notifications_view();
-        let (newest_seen, toast) = new_important_toast(&notifications, self.last_notification_id);
+        let (newest_seen, toast) = new_important_toast(notifications, self.last_notification_id);
         if let Some(message) = toast {
             self.active_toast = Some((message, macroquad::time::get_time() + 6.0));
         }

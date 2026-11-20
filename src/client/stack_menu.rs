@@ -17,15 +17,15 @@ impl Game {
             None
         } else {
             self.selected_unit.and_then(|selected_id| {
-                let selected_kind = self.sim.unit_action_view(selected_id)?.kind;
+                let selected_kind = self.sim.unit_kind_view(selected_id)?;
                 menu.units.contains(&selected_id).then(|| {
                     menu.units
                         .iter()
                         .copied()
                         .filter(|id| {
                             self.sim
-                                .unit_action_view(*id)
-                                .is_some_and(|unit| unit.kind == selected_kind)
+                                .unit_kind_view(*id)
+                                .is_some_and(|kind| kind == selected_kind)
                         })
                         .collect::<Vec<_>>()
                 })
@@ -59,8 +59,7 @@ impl Game {
             .clamp(4.0, (screen_height() - height - 4.0).max(4.0));
         let title = if let Some(city_id) = menu.city_id {
             self.sim
-                .city_context_view(city_id)
-                .map(|city| city.name)
+                .city_name_view(city_id)
                 .unwrap_or_else(|| "CITY".to_owned())
         } else {
             format!("UNIT STACK · {}", menu.units.len())
@@ -96,7 +95,7 @@ impl Game {
             if let Some(ids) = same_kind
                 && let Some(active) = self
                     .selected_unit
-                    .and_then(|id| self.sim.unit_action_view(id))
+                    .and_then(|id| self.sim.unit_kind_view(id))
             {
                 let button = Rect::new(
                     panel.x + 5.0,
@@ -106,7 +105,7 @@ impl Game {
                 );
                 draw_ui_button(
                     button,
-                    &format!("Select all {}", Self::plural_unit_label(active.kind)),
+                    &format!("Select all {}", Self::plural_unit_label(active)),
                     true,
                     true,
                 );
@@ -168,14 +167,14 @@ impl Game {
             .take(visible_rows)
             .enumerate()
             .filter_map(|(index, id)| {
-                let unit = self.sim.unit_action_view(id)?;
+                let kind = self.sim.unit_kind_view(id)?;
                 let button = Rect::new(
                     panel.x + 5.0,
                     top + MENU_ROW_HEIGHT * index as f32,
                     panel.w - 10.0,
                     MENU_ROW_HEIGHT,
                 );
-                draw_ui_button(button, unit.unit_name, true, true);
+                draw_ui_button(button, kind.name(), true, true);
                 Some((button, UiAction::SelectUnit(id)))
             })
             .collect()

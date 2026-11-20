@@ -16,6 +16,34 @@ use crate::world::topology::MapWrap;
 use std::collections::VecDeque;
 use std::io;
 use std::path::Path;
+use std::{cell::RefCell, rc::Rc};
+
+/// A bounded cache of the last requested projection, including missing results.
+struct CachedProjection<K, V> {
+    key: K,
+    view: Option<Rc<V>>,
+}
+
+type ProjectionCache<K, V> = RefCell<Option<CachedProjection<K, V>>>;
+
+fn cached_projection<K: Eq, V>(
+    cache: &ProjectionCache<K, V>,
+    key: K,
+    build: impl FnOnce() -> Option<V>,
+) -> Option<Rc<V>> {
+    let mut entry = cache.borrow_mut();
+    if let Some(cached) = entry.as_ref()
+        && cached.key == key
+    {
+        return cached.view.clone();
+    }
+    let view = build().map(Rc::new);
+    *entry = Some(CachedProjection {
+        key,
+        view: view.clone(),
+    });
+    view
+}
 
 /// Client-facing simulation session. It exposes projections and commands,
 /// keeping screen code independent of campaign entity storage.
@@ -23,6 +51,8 @@ pub(crate) struct ClientSimulation {
     simulation: Simulation,
     view_revision: u64,
     unit_actions: std::cell::RefCell<Option<(u32, UnitActionView)>>,
+    city_manager: ProjectionCache<u32, CityManagerView>,
+    goto_preview: ProjectionCache<(u32, i32, i32), GotoPreview>,
 }
 
 impl ClientSimulation {
@@ -42,6 +72,8 @@ impl ClientSimulation {
             simulation,
             view_revision: 0,
             unit_actions: Default::default(),
+            city_manager: Default::default(),
+            goto_preview: Default::default(),
         }
     }
 
@@ -85,6 +117,8 @@ impl ClientSimulation {
     fn invalidate_views(&mut self) {
         self.view_revision = self.view_revision.wrapping_add(1);
         *self.unit_actions.get_mut() = None;
+        *self.city_manager.get_mut() = None;
+        *self.goto_preview.get_mut() = None;
     }
 
     pub(crate) fn view_revision(&self) -> u64 {
@@ -103,6 +137,14 @@ impl ClientSimulation {
             .is_some_and(|unit| unit.owner == super::HUMAN)
     }
 
+    pub(crate) fn unit_kind_view(&self, id: u32) -> Option<super::UnitKind> {
+        self.simulation.unit_by_id(id).map(|unit| unit.kind)
+    }
+
+    pub(crate) fn unit_moves_left_view(&self, id: u32) -> Option<i32> {
+        self.simulation.unit_by_id(id).map(|unit| unit.moves_left)
+    }
+
     pub(crate) fn city_exists(&self, id: u32) -> bool {
         self.simulation.city_by_id(id).is_some()
     }
@@ -115,7 +157,7 @@ impl ClientSimulation {
         self.simulation.initial_client_focus_view()
     }
 
-    pub(crate) fn campaign_notifications_view(&self) -> Vec<super::Notification> {
+    pub(crate) fn campaign_notifications_view(&self) -> &[super::Notification] {
         self.simulation.campaign_notifications_view()
     }
 
@@ -178,8 +220,10 @@ impl ClientSimulation {
         self.simulation.city_governor_preview(city_id)
     }
 
-    pub(crate) fn city_manager_view(&self, city_id: u32) -> Option<CityManagerView> {
-        self.simulation.city_manager_view(city_id)
+    pub(crate) fn city_manager_view(&self, city_id: u32) -> Option<Rc<CityManagerView>> {
+        cached_projection(&self.city_manager, city_id, || {
+            self.simulation.city_manager_view(city_id)
+        })
     }
 
     pub(crate) fn diplomacy_overview_view(&self) -> Vec<DiplomacyRivalView> {
@@ -227,8 +271,15 @@ impl ClientSimulation {
         self.simulation.city_name_view(city_id)
     }
 
-    pub(crate) fn goto_preview_view(&self, unit_id: u32, x: i32, y: i32) -> Option<GotoPreview> {
-        self.simulation.goto_preview_view(unit_id, x, y)
+    pub(crate) fn goto_preview_view(
+        &self,
+        unit_id: u32,
+        x: i32,
+        y: i32,
+    ) -> Option<Rc<GotoPreview>> {
+        cached_projection(&self.goto_preview, (unit_id, x, y), || {
+            self.simulation.goto_preview_view(unit_id, x, y)
+        })
     }
 
     pub(crate) fn territory_border_owner_view(&self, x: i32, y: i32) -> Option<usize> {
@@ -369,6 +420,94 @@ mod cache_tests {
     use super::*;
 
     #[test]
+    fn city_manager_cache_reuses_views_and_refreshes_treasury_and_removed_cities() {
+        let mut simulation = Simulation::new(crate::mapgen::generate(42));
+        simulation.create_city(super::super::HUMAN, 20, 24);
+        let id = simulation.cities.last().unwrap().id;
+        let mut client = ClientSimulation::new(simulation);
+        let original = client.city_manager_view(id).unwrap();
+        assert!(Rc::ptr_eq(
+            &original,
+            &client.city_manager_view(id).unwrap()
+        ));
+        let old_gold = original.treasury;
+        client.review_fixture().0.players[super::super::HUMAN].gold += 123;
+        let changed = client.city_manager_view(id).unwrap();
+        assert!(!Rc::ptr_eq(&original, &changed));
+        assert_eq!(changed.treasury, old_gold + 123);
+        client
+            .review_fixture()
+            .0
+            .cities
+            .retain(|city| city.id != id);
+        assert!(client.city_manager_view(id).is_none());
+    }
+
+    #[test]
+    fn goto_cache_tracks_actor_destination_and_movement_changes() {
+        let mut simulation = Simulation::new(crate::mapgen::generate(42));
+        simulation.units.clear();
+        for tile in &mut simulation.tiles {
+            tile.terrain = super::super::Terrain::Grassland;
+            tile.visible = true;
+            tile.seen = true;
+            tile.road = false;
+            tile.railroad = false;
+        }
+        let id =
+            simulation.spawn_unit(super::super::HUMAN, super::super::UnitKind::Warrior, 10, 24);
+        simulation.remember_visible_human_tiles();
+        let mut client = ClientSimulation::new(simulation);
+        let original = client.goto_preview_view(id, 12, 24).unwrap();
+        assert!(Rc::ptr_eq(
+            &original,
+            &client.goto_preview_view(id, 12, 24).unwrap()
+        ));
+        let other = client.goto_preview_view(id, 13, 24).unwrap();
+        assert_eq!(
+            (
+                other.points.last().unwrap().x,
+                other.points.last().unwrap().y
+            ),
+            (13, 24)
+        );
+        assert!(client.goto_preview_view(u32::MAX, 12, 24).is_none());
+        assert!(
+            client
+                .goto_preview_view(id, 12, client.map_wrap().height())
+                .is_none()
+        );
+        client.review_fixture().0.units[0].moves_left = 0;
+        let changed = client.goto_preview_view(id, 12, 24).unwrap();
+        assert_eq!(changed.points[0].moves_left, 0);
+        assert_eq!(
+            changed.as_ref(),
+            &client.simulation.goto_preview_view(id, 12, 24).unwrap()
+        );
+        client.apply(Command::EndTurn);
+        let changed = client.goto_preview_view(id, 12, 24).unwrap();
+        assert_eq!(
+            changed.as_ref(),
+            &client.simulation.goto_preview_view(id, 12, 24).unwrap()
+        );
+    }
+
+    #[test]
+    fn missing_projections_are_cached_until_the_key_changes() {
+        let cache = RefCell::new(None);
+        let calls = std::cell::Cell::new(0);
+        let build = || {
+            calls.set(calls.get() + 1);
+            None::<u32>
+        };
+        assert!(cached_projection(&cache, 1, build).is_none());
+        assert!(cached_projection(&cache, 1, build).is_none());
+        assert_eq!(calls.get(), 1);
+        assert!(cached_projection(&cache, 2, build).is_none());
+        assert_eq!(calls.get(), 2);
+    }
+
+    #[test]
     fn cached_actions_refresh_after_commands_and_fixture_mutations() {
         let mut client = ClientSimulation::new(Simulation::new(crate::mapgen::generate(42)));
         let id = client
@@ -379,18 +518,15 @@ mod cache_tests {
             .unwrap()
             .id;
         let first = client.unit_action_view(id).unwrap();
-        assert_eq!(
-            client.unit_action_view(id).unwrap().moves_left,
-            first.moves_left
-        );
+        assert_eq!(client.unit_action_view(id).unwrap().fortify, first.fortify);
         let revision = client.view_revision();
         assert!(client.apply(Command::EndTurn));
         assert_ne!(client.view_revision(), revision);
         assert!(client.unit_actions.borrow().is_none());
         let current = client.unit_action_view(id).unwrap();
         assert_eq!(
-            current.moves_left,
-            client.simulation.unit_by_id(id).unwrap().moves_left
+            current.work_left,
+            client.simulation.unit_by_id(id).unwrap().work_left
         );
         assert!(client.unit_actions.borrow().is_some());
         let revision = client.view_revision();

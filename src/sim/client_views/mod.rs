@@ -140,13 +140,11 @@ pub(crate) struct SpaceshipAssemblyView {
 
 #[derive(Clone)]
 pub(crate) struct UnitActionView {
-    pub(crate) kind: UnitKind,
     pub(crate) unit_name: &'static str,
     pub(crate) owner: usize,
     pub(crate) worker: bool,
     pub(crate) x: i32,
     pub(crate) y: i32,
-    pub(crate) moves_left: i32,
     pub(crate) work_left: i32,
     pub(crate) upgrade: Option<(UnitKind, i32, bool)>,
     pub(crate) paradrop: bool,

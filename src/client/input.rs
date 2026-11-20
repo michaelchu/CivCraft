@@ -224,8 +224,8 @@ impl Game {
     fn select_next_if_exhausted(&mut self, id: u32) {
         let exhausted = self
             .sim
-            .unit_action_view(id)
-            .is_none_or(|unit| unit.moves_left <= 0);
+            .unit_moves_left_view(id)
+            .is_none_or(|moves_left| moves_left <= 0);
         if exhausted {
             self.select_next_unit();
         }

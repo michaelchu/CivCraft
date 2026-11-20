@@ -139,13 +139,11 @@ impl Simulation {
             .map(|city| (city.id, city.name.clone()))
             .collect();
         Some(UnitActionView {
-            kind: unit.kind,
             unit_name: unit.kind.name(),
             owner: unit.owner,
             worker: unit.kind.stats().can_work,
             x: unit.x,
             y: unit.y,
-            moves_left: unit.moves_left,
             work_left,
             upgrade,
             paradrop: self.can_begin_paradrop(unit),

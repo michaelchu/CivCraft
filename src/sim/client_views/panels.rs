@@ -3,8 +3,8 @@
 use super::*;
 
 impl Simulation {
-    pub(crate) fn campaign_notifications_view(&self) -> Vec<super::notifications::Notification> {
-        self.notifications.clone()
+    pub(crate) fn campaign_notifications_view(&self) -> &[super::notifications::Notification] {
+        &self.notifications
     }
 
     pub(crate) fn unread_notifications_view(&self) -> usize {

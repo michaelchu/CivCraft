@@ -1029,8 +1029,8 @@ mod tests {
         assert!(game.waiting_units.contains(&units[0]));
         assert!(
             game.sim
-                .unit_action_view(units[0])
-                .is_some_and(|unit| unit.moves_left > 0)
+                .unit_moves_left_view(units[0])
+                .is_some_and(|moves_left| moves_left > 0)
         );
 
         game.wait_selected_unit();

@@ -2,7 +2,7 @@
 use super::*;
 
 impl Game {
-    pub(super) fn goto_preview(&self) -> Option<GotoPreview> {
+    pub(super) fn goto_preview(&self) -> Option<std::rc::Rc<GotoPreview>> {
         if (self.targeting != TargetingMode::Goto && self.goto_drag_unit.is_none())
             || self.playback.pending()
             || self.selected_city.is_some()

@@ -19,6 +19,11 @@ This is deliberately a small shared UI layer rather than a retained widget frame
 
 `ClientSimulation` caches the most recently requested unit action view and
 invalidates it before commands, smoke-test turns, and review-fixture mutations.
+The last city-manager projection and goto preview share this invalidation;
+the goto key includes the actor and destination and also caches unreachable
+results. These projections use shared immutable values so repeated frames do
+not clone their production catalogs or route points. Notification screens
+borrow the inbox, and stack labels use identity queries instead of action rules.
 Selection checks use lightweight identity queries. The world painter filters
 city and unit positions before calculating their display projections. Minimap
 terrain and fog use a nearest-filtered texture refreshed on the same client
