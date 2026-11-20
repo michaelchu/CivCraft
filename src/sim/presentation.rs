@@ -52,9 +52,9 @@ impl VisualEvent {
             // presentation pacing config stretches the complete clip to 1s.
             Self::FoundCity { .. } => 1.0,
             Self::Combat(combat) => {
-                let first = combat.hp.first().copied().unwrap_or_default();
-                let last = combat.hp.last().copied().unwrap_or_default();
-                ((first.0 - last.0 + first.1 - last.1).max(1) as f64 * 0.010) + 0.100
+                combat.hp.len().saturating_sub(1).max(1) as f64 * 0.5
+                    + 0.5
+                    + if combat.bombard_effects { 0.100 } else { 0.0 }
             }
         }
     }
@@ -130,6 +130,7 @@ impl Simulation {
                     attacker.facing = facing;
                     defender.facing = (facing + 4) % 8;
                 }
+                let round_durations = vec![0.5; combat.hp.len().saturating_sub(1).max(1)];
                 PresentationEventView::Combat(Box::new(CombatPresentationView {
                     attacker,
                     defender,
@@ -139,6 +140,8 @@ impl Simulation {
                         .as_ref()
                         .map(|city| self.rendered_city_override_view(city)),
                     bombard_effects: combat.bombard_effects,
+                    round_durations,
+                    result_duration: 0.5,
                     duration,
                 }))
             }

@@ -601,7 +601,8 @@ impl Game {
         self.sync_unit_selection();
         self.normalize_camera();
         let sound_unit = self.pending_sound_unit.take().or(self.selected_unit);
-        let events = self.sim.take_presentation_event_views();
+        let mut events = self.sim.take_presentation_event_views();
+        presentation::configure_combat_timing(&mut events, &assets.civ3);
         let now = get_time();
         for event in &events {
             if let PresentationEventView::Fortify { unit, .. } = event {

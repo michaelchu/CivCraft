@@ -2,6 +2,72 @@
 use super::*;
 use std::collections::{BTreeMap, VecDeque};
 
+const COMBAT_EXPLOSION_SECONDS: f64 = 0.100;
+
+fn combat_impact_duration(combat: &crate::sim::CombatPresentationView) -> f64 {
+    if combat.bombard_effects {
+        COMBAT_EXPLOSION_SECONDS
+    } else {
+        0.0
+    }
+}
+
+fn attack_action(round: usize) -> super::tileset::Civ3UnitAction {
+    use super::tileset::Civ3UnitAction::*;
+    [Attack, Attack2, Attack3][round % 3]
+}
+
+pub(super) fn configure_combat_timing(
+    events: &mut VecDeque<PresentationEventView>,
+    art: &super::tileset::Civ3,
+) {
+    use super::tileset::Civ3UnitAction::*;
+    for event in events {
+        if let PresentationEventView::Combat(combat) = event {
+            combat.round_durations = (0..combat.hp.len().saturating_sub(1).max(1))
+                .map(|round| {
+                    art.combat_clip_seconds(&combat.attacker, attack_action(round))
+                        .max(art.combat_clip_seconds(&combat.defender, Defend))
+                })
+                .collect();
+            let (a, d) = combat.hp.last().copied().unwrap_or((1, 1));
+            combat.result_duration = if a <= 0 {
+                art.combat_clip_seconds(&combat.attacker, Death)
+                    .max(art.combat_clip_seconds(&combat.defender, Victory))
+            } else if d <= 0 {
+                art.combat_clip_seconds(&combat.defender, Death)
+                    .max(art.combat_clip_seconds(&combat.attacker, Victory))
+            } else {
+                0.0
+            };
+            combat.duration = combat.round_durations.iter().sum::<f64>()
+                + combat.result_duration
+                + combat_impact_duration(combat);
+        }
+    }
+}
+
+/// HP changes only after a complete exchange; each clip receives its own clock.
+fn combat_phase(
+    combat: &crate::sim::CombatPresentationView,
+    elapsed: f64,
+) -> (usize, f32, f32, bool) {
+    let mut remaining = elapsed.max(0.0);
+    for (round, &seconds) in combat.round_durations.iter().enumerate() {
+        if remaining < seconds {
+            return (round, (remaining / seconds) as f32, seconds as f32, false);
+        }
+        remaining -= seconds;
+    }
+    let seconds = combat.result_duration.max(0.001);
+    (
+        combat.hp.len().saturating_sub(1),
+        (remaining / seconds).min(1.0) as f32,
+        seconds as f32,
+        true,
+    )
+}
+
 #[derive(Default)]
 pub(super) struct Playback {
     events: VecDeque<PresentationEventView>,
@@ -66,6 +132,15 @@ impl Playback {
             })
             .clamp(0.0, 1.0)
     }
+    pub(super) fn review_first_combat_clip(&mut self, fraction: f64) -> bool {
+        let Some(PresentationEventView::Combat(combat)) = self.events.front() else {
+            return false;
+        };
+        let seconds = combat.round_durations.first().copied().unwrap_or(0.5);
+        self.review_progress = Some((fraction * seconds / combat.duration) as f32);
+        true
+    }
+
     pub(super) fn pending(&self) -> bool {
         !self.events.is_empty()
     }
@@ -109,10 +184,7 @@ impl Playback {
                 Vec::new()
             }
             PresentationEventView::Combat(combat) => {
-                // Keep the last 100 ms for the reference five-frame explosion.
-                let battle_fraction = ((event.duration() - 0.100) / event.duration()) as f32;
-                let phase = (p / battle_fraction.max(0.01)).min(1.0);
-                let index = ((combat.hp.len() - 1) as f32 * phase).floor() as usize;
+                let (index, _, _, _) = combat_phase(combat, f64::from(p) * event.duration());
                 let mut a = combat.attacker.clone();
                 let mut d = combat.defender.clone();
                 (a.hp, d.hp) = combat.hp[index];
@@ -156,13 +228,13 @@ fn sound_requests(
             let steps = combat.hp.len().saturating_sub(1).max(1);
             let mut requests = Vec::with_capacity(steps * 2 + 2);
             for index in 0..steps {
-                let delay = event.duration() * index as f64 / steps as f64;
+                let delay = combat.round_durations.iter().take(index).sum();
                 let attack = ["ATTACK1", "ATTACK2", "ATTACK3"][index % 3];
                 requests.push(request(&combat.attacker, attack, delay));
                 requests.push(request(&combat.defender, "DEFEND", delay));
             }
             if let Some((attacker_hp, defender_hp)) = combat.hp.last().copied() {
-                let end = event.duration() * 0.90;
+                let end = combat.round_durations.iter().sum();
                 if attacker_hp <= 0 {
                     requests.push(request(&combat.attacker, "DEATH", end));
                     requests.push(request(&combat.defender, "VICTORY", end));
@@ -204,6 +276,8 @@ impl Game {
                 _ => project(unit.x, unit.y),
             };
             use super::tileset::Civ3UnitAction as Action;
+            let mut clip_progress = progress;
+            let mut clip_duration = event.duration() as f32;
             let action = match event {
                 PresentationEventView::Move { .. } => Action::Run,
                 PresentationEventView::Capture { .. } => Action::Capture,
@@ -222,16 +296,18 @@ impl Game {
                     } else {
                         attacker_hp
                     };
-                    if progress >= 0.90 && unit_hp <= 0 {
+                    let (round, local_progress, local_duration, result) =
+                        combat_phase(combat, f64::from(progress) * event.duration());
+                    clip_progress = local_progress;
+                    clip_duration = local_duration;
+                    if result && unit_hp <= 0 {
                         Action::Death
-                    } else if progress >= 0.90 && opponent_hp <= 0 {
+                    } else if result && opponent_hp <= 0 {
                         Action::Victory
+                    } else if result {
+                        Action::Default
                     } else if is_attacker {
-                        match (phase.y as usize) % 3 {
-                            0 => Action::Attack,
-                            1 => Action::Attack2,
-                            _ => Action::Attack3,
-                        }
+                        attack_action(round)
                     } else {
                         Action::Defend
                     }
@@ -245,62 +321,35 @@ impl Game {
                 center,
                 1,
                 action,
-                progress,
-                Some(event.duration() as f32),
+                clip_progress,
+                Some(clip_duration),
             );
             if matches!(event, PresentationEventView::Combat(_)) {
                 self.draw_unit_health(assets, &unit, center);
             }
         }
-        if let PresentationEventView::Combat(combat) = event {
+        if let PresentationEventView::Combat(combat) = event
+            && combat.bombard_effects
+        {
             let elapsed = self.playback.progress() as f64 * event.duration();
-            let explosion_start = event.duration() - 0.100;
+            let explosion_start = event.duration() - COMBAT_EXPLOSION_SECONDS;
             if elapsed >= explosion_start {
-                let final_hp = combat.hp.last().unwrap();
-                let loser = if final_hp.0 == 0 {
-                    Some(&combat.attacker)
-                } else if final_hp.1 == 0 {
-                    Some(&combat.defender)
-                } else {
-                    None
-                };
-                if combat.bombard_effects && loser.is_none() {
-                    let center = project(combat.defender.x, combat.defender.y);
-                    let frame = (((elapsed - explosion_start) / 0.020) as i32).min(4);
-                    let radius = (7.0 + frame as f32 * 3.0) * self.zoom;
-                    draw_circle(
-                        center.x,
-                        center.y,
-                        radius,
-                        Color::new(1.0, 0.42, 0.08, 0.72),
-                    );
-                    draw_circle_lines(
-                        center.x,
-                        center.y,
-                        radius,
-                        (2.0 * self.zoom).max(1.0),
-                        Color::from_rgba(255, 222, 115, 240),
-                    );
-                }
-                // Bombardment may leave both alive; it has no death explosion.
-                if let Some(loser) = loser {
-                    let center = project(loser.x, loser.y);
-                    let frame = (((elapsed - explosion_start) / 0.020) as i32).min(4);
-                    let radius = (7.0 + frame as f32 * 3.0) * self.zoom;
-                    draw_circle(
-                        center.x,
-                        center.y,
-                        radius,
-                        Color::new(1.0, 0.42, 0.08, 0.72),
-                    );
-                    draw_circle_lines(
-                        center.x,
-                        center.y,
-                        radius,
-                        (2.0 * self.zoom).max(1.0),
-                        Color::from_rgba(255, 222, 115, 240),
-                    );
-                }
+                let center = project(combat.defender.x, combat.defender.y);
+                let frame = (((elapsed - explosion_start) / 0.020) as i32).min(4);
+                let radius = (7.0 + frame as f32 * 3.0) * self.zoom;
+                draw_circle(
+                    center.x,
+                    center.y,
+                    radius,
+                    Color::new(1.0, 0.42, 0.08, 0.72),
+                );
+                draw_circle_lines(
+                    center.x,
+                    center.y,
+                    radius,
+                    (2.0 * self.zoom).max(1.0),
+                    Color::from_rgba(255, 222, 115, 240),
+                );
             }
         }
     }
@@ -361,6 +410,50 @@ mod tests {
         assert_eq!(requests[0].action, "RUN");
         playback.update(sim.take_presentation_event_views(), 10.01, Some(id));
         assert!(playback.take_sound_requests().is_empty());
+    }
+
+    #[test]
+    fn combat_rounds_complete_before_damage_and_result_clips_start() {
+        let mut sim = Simulation::new(crate::mapgen::generate(42));
+        let (id, _) = crate::sim::ui_review::ui_review_animation_setup(&mut sim, true);
+        let attacker = sim.unit_by_id(id).unwrap().clone();
+        let defender = sim
+            .units()
+            .iter()
+            .find(|u| u.owner != HUMAN)
+            .unwrap()
+            .clone();
+        let event = VisualEvent::Combat(Box::new(CombatVisual {
+            attacker,
+            defender,
+            hp: vec![(3, 3), (2, 3), (2, 0)],
+            city: None,
+            bombard_effects: false,
+        }));
+        let PresentationEventView::Combat(mut combat) = sim.presentation_event_view_for_test(event)
+        else {
+            unreachable!()
+        };
+        // Ordinary lethal combat ends with the unit's own death clip.
+        assert_eq!(combat_impact_duration(&combat), 0.0);
+        combat.bombard_effects = true;
+        assert_eq!(combat_impact_duration(&combat), 0.1);
+        combat.bombard_effects = false;
+        combat.round_durations = vec![0.5, 0.75];
+        combat.result_duration = 0.8;
+        combat.duration = 2.15;
+        assert_eq!(combat_phase(&combat, 0.0), (0, 0.0, 0.5, false));
+        let (hp_index, progress, _, result) = combat_phase(&combat, 0.49);
+        assert_eq!(hp_index, 0);
+        assert!(progress > 0.97 && !result);
+        assert_eq!(combat_phase(&combat, 0.5), (1, 0.0, 0.75, false));
+        assert_eq!(combat_phase(&combat, 1.25), (2, 0.0, 0.8, true));
+        assert_eq!(combat_phase(&combat, 2.10), (2, 1.0, 0.8, true));
+        let requests = sound_requests(&PresentationEventView::Combat(combat), Some(id));
+        assert_eq!(
+            requests.iter().map(|r| r.delay_seconds).collect::<Vec<_>>(),
+            vec![0.0, 0.5, 1.25]
+        );
     }
 
     #[test]

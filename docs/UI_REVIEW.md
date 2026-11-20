@@ -165,10 +165,16 @@ at 6 Hz during gameplay and holds frame zero for deterministic gallery captures.
   growth/famine; foreign-city bars exclude private stock information.
 - `unit-movement`, `city-combat`, and `city-combat-explosion` stage only their initial conditions, then
   issue real Move commands. The primary capture holds actual event playback
-  midway (or during the casualty explosion); `-next.png` captures the final state after playback finishes.
+  midway (or at the end of the casualty's death animation); `-next.png` captures the final state after playback finishes.
 
-Normal gameplay uses Freeciv's default 30 ms movement and 10 ms per lost HP,
-followed by five 20 ms explosion frames for a casualty. Playback is a bounded,
+Normal gameplay uses Freeciv's default 30 ms movement. Combat exchanges use
+resolved Civ III source clip timings and presentation pacing overrides, holding
+shorter clips at their final frame until both participants finish. Each exchange
+has a fresh animation clock; damage is displayed after that exchange. Death and
+victory receive a separate source-timed phase. Ordinary casualties use their
+unit death artwork alone. Only bombardment events with the explicit Bombard
+Effects flag receive a separate five-frame impact overlay (20 ms per frame). Missing defend/secondary attack clips and sounds fall back
+to the primary attack. Playback is a bounded,
 non-persistent observer of simulation movement/combat/bombardment results.
 It never makes gameplay decisions or consumes random draws. Native tests
 compare complete saved campaign bytes and the full gameplay RNG with the
@@ -329,3 +335,16 @@ shared-vision pact transitions are covered by the simulation regression.
 `--ui-scene ai-city-garrisons` shows idle, fortified and sentry AI defenders
 above cities in current sight, plus a remembered city whose defender stays hidden.
 The human map displays these defenders independently of military-access treaties.
+
+`--ui-scene combat-animation-frames` issues a real combat command and captures
+the first frame of the first attack, then 65% through that same exchange.
+HP remains at its pre-exchange values in both captures; the screenshot runner
+requires changed pixels. The legacy `city-combat-explosion` scene name now samples the final death
+animation without an explosion overlay, independently of combat length. Combat duration follows the resolved INI
+clip timings, including per-action presentation pacing overrides.
+
+Combat clips default to a 2.0 duration multiplier in
+`data/presentation/unit_animation_pacing.toml`, giving a source half-second
+attack one second to play. The same setting drives animation frames and round/
+result durations, so slower motion also extends the battle. Explicit per-unit,
+per-action pacing overrides still take precedence.

@@ -26,6 +26,7 @@ impl Default for FidgetPacing {
 #[serde(default, deny_unknown_fields)]
 struct PacingDefaults {
     work_cycle_duration_multiplier: f32,
+    combat_cycle_duration_multiplier: f32,
     fidget_play_seconds: f32,
     fidget_rest_seconds: f32,
 }
@@ -34,6 +35,7 @@ impl Default for PacingDefaults {
     fn default() -> Self {
         Self {
             work_cycle_duration_multiplier: 1.0,
+            combat_cycle_duration_multiplier: 2.0,
             fidget_play_seconds: 1.5,
             fidget_rest_seconds: 6.5,
         }
@@ -93,12 +95,18 @@ impl UnitAnimationPacing {
         action: &str,
         is_work_action: bool,
     ) -> f32 {
+        let default_multiplier = if is_work_action {
+            self.defaults.work_cycle_duration_multiplier
+        } else if matches!(
+            action.to_ascii_lowercase().as_str(),
+            "attack" | "attack2" | "attack3" | "defend" | "death" | "victory"
+        ) {
+            self.defaults.combat_cycle_duration_multiplier
+        } else {
+            1.0
+        };
         let Some(overrides) = self.unit_overrides(kind) else {
-            return if is_work_action {
-                self.defaults.work_cycle_duration_multiplier
-            } else {
-                1.0
-            };
+            return default_multiplier;
         };
         if let Some((_, pacing)) = overrides
             .actions
@@ -112,7 +120,7 @@ impl UnitAnimationPacing {
                 .work_cycle_duration_multiplier
                 .unwrap_or(self.defaults.work_cycle_duration_multiplier);
         }
-        1.0
+        default_multiplier
     }
 
     fn unit_overrides(&self, kind: UnitKind) -> Option<&UnitPacingOverrides> {
@@ -125,6 +133,10 @@ impl UnitAnimationPacing {
 
     fn validate(&self) -> Result<(), String> {
         let mut values = vec![
+            (
+                "defaults.combat_cycle_duration_multiplier",
+                self.defaults.combat_cycle_duration_multiplier,
+            ),
             (
                 "defaults.work_cycle_duration_multiplier",
                 self.defaults.work_cycle_duration_multiplier,

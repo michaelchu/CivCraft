@@ -291,6 +291,9 @@ pub(crate) struct CombatPresentationView {
     pub(crate) hp: Vec<(i32, i32)>,
     pub(crate) city: Option<RenderedCityView>,
     pub(crate) bombard_effects: bool,
+    /// Client may replace these defaults with the resolved source clip timings.
+    pub(crate) round_durations: Vec<f64>,
+    pub(crate) result_duration: f64,
     pub(crate) duration: f64,
 }
 

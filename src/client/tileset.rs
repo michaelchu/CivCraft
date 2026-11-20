@@ -1779,14 +1779,52 @@ impl Civ3 {
         let role = self.unit_animation_role(kind, era);
         let base_role = super::sprite_metadata::unit_art_role(kind);
         let action = action.to_ascii_uppercase();
-        self.unit_sound_sources
+        let source = self
+            .unit_sound_sources
             .get(&role)
             .and_then(|sounds| sounds.get(&action))
             .or_else(|| {
                 self.unit_sound_sources
                     .get(&base_role)
                     .and_then(|sounds| sounds.get(&action))
-            })
+            });
+        source.or_else(|| {
+            matches!(action.as_str(), "DEFEND" | "ATTACK2" | "ATTACK3")
+                .then(|| self.unit_sound_source(kind, era, "ATTACK1"))
+                .flatten()
+        })
+    }
+
+    /// Resolve combat timing without loading GPU textures during event setup.
+    pub(super) fn combat_clip_seconds(
+        &self,
+        unit: &RenderedUnitView,
+        action: Civ3UnitAction,
+    ) -> f64 {
+        let role = self.unit_animation_role(unit.kind, unit.era_index);
+        let primary = action.role_suffix().map(|suffix| format!("{role}{suffix}"));
+        let fallback = matches!(
+            action,
+            Civ3UnitAction::Attack2 | Civ3UnitAction::Attack3 | Civ3UnitAction::Defend
+        )
+        .then(|| format!("{role}-attack"));
+        let source = primary
+            .iter()
+            .chain(fallback.iter())
+            .chain(std::iter::once(&role))
+            .find_map(|role| self.unit_animation_sources.get(role));
+        let seconds = source
+            .and_then(|source| source.timing_seconds)
+            .unwrap_or(0.5);
+        f64::from(
+            (seconds
+                * self.animation_pacing.cycle_duration_multiplier(
+                    unit.kind,
+                    action.pacing_key(),
+                    false,
+                ))
+            .max(0.05),
+        )
     }
 
     fn load_unit_animation(&self, role: &str) -> AssetResult<()> {
@@ -1944,7 +1982,9 @@ impl Civ3 {
             .role_suffix()
             .map_or_else(|| role.clone(), |suffix| format!("{role}{suffix}"));
         let alternate_role = match action {
-            Civ3UnitAction::Attack2 | Civ3UnitAction::Attack3 => Some(format!("{role}-attack")),
+            Civ3UnitAction::Attack2 | Civ3UnitAction::Attack3 | Civ3UnitAction::Defend => {
+                Some(format!("{role}-attack"))
+            }
             Civ3UnitAction::FortifyHold => Some(format!("{role}-fortify")),
             Civ3UnitAction::PauseRoad => Some(format!("{role}-road")),
             Civ3UnitAction::PauseMine => Some(format!("{role}-mine")),
@@ -2000,7 +2040,13 @@ impl Civ3 {
             };
             let elapsed_cycles = progress.clamp(0.0, 1.0) * event_duration / cycle_duration;
             let cycle_progress = match action {
-                Civ3UnitAction::StopAtLastFrame => elapsed_cycles.min(1.0),
+                Civ3UnitAction::StopAtLastFrame
+                | Civ3UnitAction::Attack
+                | Civ3UnitAction::Attack2
+                | Civ3UnitAction::Attack3
+                | Civ3UnitAction::Defend
+                | Civ3UnitAction::Death
+                | Civ3UnitAction::Victory => elapsed_cycles.min(1.0),
                 Civ3UnitAction::Fortify => (progress.max(0.0) / cycle_duration).min(1.0),
                 _ => elapsed_cycles.fract(),
             };

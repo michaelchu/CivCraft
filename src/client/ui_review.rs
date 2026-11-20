@@ -53,6 +53,7 @@ pub(crate) const UI_REVIEW_SCENES: &[&str] = &[
     "religion",
     "borders-fog-cities",
     "ai-city-garrisons",
+    "combat-animation-frames",
 ];
 /// Cloning preserves the complete RNG and campaign state. Fixtures are built
 /// once and kept immutable; every scenario receives an independent clone.
@@ -307,10 +308,16 @@ impl Game {
                     0.7
                 };
             }
-            23..=25 => {
+            23..=25 | 48 => {
                 let (unit, _) = self.sim.review_fixture().animation_setup(scene != 23);
                 self.selected_unit = Some(unit);
-                self.playback.review_progress = Some(if scene == 25 { 0.9 } else { 0.5 });
+                self.playback.review_progress = Some(if scene == 25 {
+                    0.999
+                } else if scene == 48 {
+                    0.0
+                } else {
+                    0.5
+                });
                 self.zoom = 1.35;
             }
             22 => {
@@ -719,7 +726,7 @@ impl Game {
             }
             return Ok(false);
         }
-        if (23..=25).contains(&scene) {
+        if matches!(scene, 23..=25 | 48) {
             if phase == 1 {
                 let id = self.selected_unit.unwrap();
                 sequence.check(
@@ -734,6 +741,13 @@ impl Game {
                 )?;
             }
             if phase == 6 {
+                if scene == 48 {
+                    sequence.check(
+                        "advance_within_first_attack_clip",
+                        self.playback.review_first_combat_clip(0.65),
+                    )?;
+                    return Ok(true);
+                }
                 self.playback.finish();
                 sequence.check("animation_finished", self.playback.active().is_empty())?;
                 return Ok(true);

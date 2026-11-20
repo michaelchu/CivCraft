@@ -4,6 +4,9 @@
 
 [defaults]
 work_cycle_duration_multiplier = 1.0
+# Combat motion is deliberately slower than the source half-second clips.
+# The same multiplier drives rendered frames and complete exchange durations.
+combat_cycle_duration_multiplier = 2.0
 fidget_play_seconds = 1.5
 fidget_rest_seconds = 6.5
 
