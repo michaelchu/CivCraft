@@ -954,6 +954,17 @@ mod tests {
         });
         let tiles: std::collections::HashSet<(i32, i32)> =
             (0..40).flat_map(|y| (0..60).map(move |x| (x % w, y % h))).collect();
+        let view: std::collections::HashSet<(i32, i32)> =
+            (10..24).flat_map(|y| (4..24).map(move |x| (x, y))).collect();
+        time("render_city_markers (sources)", &|| {
+            std::hint::black_box(sim.render_city_markers());
+        });
+        time("rendered_city_views_in (20x14)", &|| {
+            std::hint::black_box(sim.rendered_city_views_in(&view));
+        });
+        time("rendered_unit_views_in (20x14)", &|| {
+            std::hint::black_box(sim.rendered_unit_views_in(&view));
+        });
         time("rendered_unit_views_in (60x40)", &|| {
             std::hint::black_box(sim.rendered_unit_views_in(&tiles));
         });
