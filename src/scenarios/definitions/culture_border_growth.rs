@@ -67,6 +67,7 @@ fn setup(map: GeneratedMap) -> (Simulation, Box<dyn ScenarioRun>) {
     let strong = world.city(HUMAN, path[4], 8);
     world.city_history(weak, 100);
     world.city_history(strong, 200); // Same radius 3, clearly more culture.
+    world.settle_borders();
     world.finish();
 
     (

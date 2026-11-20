@@ -233,6 +233,7 @@ fn setup_contests(map: GeneratedMap) -> (Simulation, Box<dyn ScenarioRun>) {
         (3, 3),
         (1_000, 1_000),
     );
+    world.settle_borders();
     world.finish();
 
     (
@@ -432,9 +433,11 @@ fn setup_land_claims(map: GeneratedMap) -> (Simulation, Box<dyn ScenarioRun>) {
     let mut world = WorldBuilder::new(&mut game);
     capitals(&mut world);
     let ids = [coast, island, unseen, seam, pole].map(|position| world.city(HUMAN, position, 3));
-    for (id, culture) in ids.into_iter().zip([100, 10, 100, 100, 100]) {
+    // The unseen-tile city starts one point short of its radius-3 expansion.
+    for (id, culture) in ids.into_iter().zip([100, 10, 99, 100, 100]) {
         world.city_history(id, culture);
     }
+    world.settle_borders();
     world.finish();
     let far_corner = axis(wrap, unseen, 3, 3)[3];
     let unknown_before = !game.tile(far_corner.0, far_corner.1).known_by[HUMAN];
@@ -478,6 +481,14 @@ fn shape_tiles(game: &Simulation, center: (i32, i32), radius: i32) -> Vec<(i32, 
 }
 
 impl ScenarioRun for LandAudit {
+    fn before_turn(&mut self, game: &mut Simulation, completed: u32) {
+        if completed == 0 {
+            // Cross the threshold on the first turn: the new border claims
+            // tiles beyond the city's sight and reveals them to its owner.
+            game.stage_city_culture(self.ids[2], 100);
+        }
+    }
+
     fn observe_turn(&mut self, game: &Simulation, _turn: u32) -> Value {
         self.rule.push(rule_holds(game));
         let city = |index: usize| game.city_by_id(self.ids[index]).map(|c| (c.x, c.y));
@@ -551,7 +562,7 @@ impl ScenarioRun for LandAudit {
                 name: "unseen_tiles_are_claimed_and_revealed",
                 passed: self.unknown_before && all_true(&self.unseen),
                 detail: format!(
-                    "The tile three steps out at {:?} was unknown before ({}); every shape tile is claimed and known afterwards",
+                    "The tile three steps out at {:?} was unknown before the expansion ({}); once culture reaches 100 every shape tile is claimed and known",
                     self.far_corner, self.unknown_before
                 ),
             },
@@ -593,6 +604,7 @@ fn setup_city_loss(map: GeneratedMap) -> (Simulation, Box<dyn ScenarioRun>) {
         (3, 3),
         (300, 200),
     );
+    world.settle_borders();
     world.finish();
     (
         game,

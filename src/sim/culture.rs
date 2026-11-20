@@ -122,16 +122,36 @@ impl Simulation {
     }
 
     /// Apply Civ III city culture after activity, production, and growth. The
-    /// return value indicates that a border milestone has just been reached.
+    /// return value says that borders must be rebuilt now: the border radius
+    /// changed, or a culture gain could change a contested tile because another
+    /// city's border can overlap this one. Exact culture breaks ties between
+    /// equally distant cities, so a gain inside a tier (100 to 101) matters
+    /// there even though the radius does not change.
     pub(super) fn record_city_history(&mut self, city_index: usize) -> bool {
         let city = &self.cities[city_index];
         let history = i64::from(city.history);
-        let before_tier = city_culture_border_radius(self.city_culture_score(city));
+        let before = self.city_culture_score(city);
         let gain = self.city_culture_per_turn(city);
         self.cities[city_index].history =
             i32::try_from(history.saturating_add(gain).max(0)).unwrap_or(i32::MAX);
         let city = &self.cities[city_index];
-        before_tier != city_culture_border_radius(self.city_culture_score(city))
+        let after = self.city_culture_score(city);
+        let before_radius = city_culture_border_radius(before);
+        let after_radius = city_culture_border_radius(after);
+        before_radius != after_radius
+            || (before != after && self.city_border_may_overlap(city, after_radius))
+    }
+
+    /// Whether another city's border can reach this city's border, so that its
+    /// culture can decide a contested tile.
+    fn city_border_may_overlap(&self, city: &City, radius: i32) -> bool {
+        self.cities.iter().any(|other| {
+            other.id != city.id
+                && self
+                    .map_wrap
+                    .civ3_distance(city.x, city.y, other.x, other.y)
+                    <= radius + city_culture_border_radius(self.city_culture_score(other))
+        })
     }
 
     /// Apply Freeciv national history at the end of national turn activities.

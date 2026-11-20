@@ -151,6 +151,34 @@ fn nearest_city_owns_a_contested_tile_whatever_its_size() {
 }
 
 #[test]
+fn culture_gain_inside_a_tier_refreshes_a_contested_tile() {
+    let mut game = flat_game(Terrain::Grassland);
+    // Each owner's first city holds the Palace and gains 1 culture per turn.
+    let (ids, route) = contest(&mut game, 4, [100, 100]);
+    let middle = route[2];
+    assert_eq!(game.tile(middle.0, middle.1).border_city, Some(ids[0]));
+    // 100 to 101 stays in radius 3, but it decides the equidistant tile, so
+    // the borders must be rebuilt before the next nation is processed.
+    assert!(game.record_city_history(1));
+    assert_eq!(game.city_culture_score(&game.cities[1]), 101);
+    game.rebuild_city_ownership_for_city_event(ids[1]);
+    assert_eq!(game.tile(middle.0, middle.1).border_city, Some(ids[1]));
+}
+
+#[test]
+fn culture_gain_without_an_overlapping_border_needs_no_rebuild() {
+    let mut game = flat_game(Terrain::Grassland);
+    game.create_city(HUMAN, 20, 24);
+    reveal_all(&mut game);
+    game.cities[0].history = 100;
+    // Palace gain inside the tier, with no other border nearby.
+    assert!(!game.record_city_history(0));
+    // A tier change still requests a rebuild.
+    game.cities[0].history = 999;
+    assert!(game.record_city_history(0));
+}
+
+#[test]
 fn nearest_city_wins_even_against_much_more_culture() {
     let mut game = flat_game(Terrain::Grassland);
     let (ids, route) = contest(&mut game, 5, [1_000, 1_000]);
