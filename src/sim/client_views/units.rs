@@ -204,19 +204,26 @@ impl Simulation {
         units
     }
 
+    fn selectable_units(&self) -> impl Iterator<Item = &Unit> {
+        self.units.iter().filter(|unit| {
+            unit.owner == HUMAN
+                && unit.moves_left > 0
+                && unit.work_left == 0
+                && !unit.automated
+                && !self.unit_goto_tiles.contains_key(&unit.id)
+                && unit.order.is_none()
+                && unit.state != UnitState::Sentry
+                && !matches!(unit.state, UnitState::Fortifying | UnitState::Fortified)
+        })
+    }
+
+    pub(crate) fn selectable_unit_ids_view(&self) -> impl Iterator<Item = u32> + '_ {
+        self.selectable_units().map(|unit| unit.id)
+    }
+
+    #[cfg(test)]
     pub(crate) fn selectable_units_view(&self) -> Vec<SelectableUnitView> {
-        self.units
-            .iter()
-            .filter(|unit| {
-                unit.owner == HUMAN
-                    && unit.moves_left > 0
-                    && unit.work_left == 0
-                    && !unit.automated
-                    && !self.unit_goto_tiles.contains_key(&unit.id)
-                    && unit.order.is_none()
-                    && unit.state != UnitState::Sentry
-                    && !matches!(unit.state, UnitState::Fortifying | UnitState::Fortified)
-            })
+        self.selectable_units()
             .map(|unit| SelectableUnitView {
                 id: unit.id,
                 transported: unit.transport.is_some(),

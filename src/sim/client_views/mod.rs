@@ -309,15 +309,17 @@ impl PresentationEventView {
         }
     }
 
-    pub(crate) fn actors(&self) -> Vec<&RenderedUnitView> {
+    pub(crate) fn actors(&self) -> impl Iterator<Item = &RenderedUnitView> {
         match self {
             Self::Move { unit, .. }
             | Self::Capture { unit, .. }
             | Self::FoundCity { unit, .. }
             | Self::WorkStarted { unit, .. }
-            | Self::Fortify { unit, .. } => vec![unit],
-            Self::Combat(combat) => vec![&combat.attacker, &combat.defender],
+            | Self::Fortify { unit, .. } => [Some(unit), None],
+            Self::Combat(combat) => [Some(&combat.attacker), Some(&combat.defender)],
         }
+        .into_iter()
+        .flatten()
     }
 }
 

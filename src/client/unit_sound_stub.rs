@@ -5,6 +5,7 @@ use std::path::PathBuf;
 
 #[derive(Clone)]
 pub(crate) struct UnitSoundRequest {
+    #[cfg(test)]
     pub(crate) unit_id: u32,
     pub(crate) kind: UnitKind,
     pub(crate) era_index: usize,

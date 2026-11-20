@@ -29,7 +29,10 @@ CIVCRAFT_SOURCE_DIR="/path/to/civ3-install" cargo run --release --features deskt
 
 Autosave is disabled by default. Pass `--autosave true` to save the campaign
 after each turn, or `--autosave false` to explicitly disable it. Automated smoke
-tests, screenshots, and UI reviews always disable autosave.
+tests, screenshots, and UI reviews always disable autosave. Turns run on a
+background worker while the window continues rendering. Autosave serialization
+runs with the turn, and a separate writer saves completed snapshots atomically
+without blocking normal play. The writer flushes its final pending save on exit.
 
 Run a short desktop smoke test to verify that the game starts, loads the Civ III
 artwork, renders a frame, and advances a few normal turns:

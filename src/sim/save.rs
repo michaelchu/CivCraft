@@ -65,6 +65,11 @@ fn restore_war_objectives(game: &mut Simulation, objectives: SavedWarObjectives)
 impl Simulation {
     pub(crate) fn save_campaign(&self, path: &Path) -> io::Result<()> {
         let payload = self.encode_campaign()?;
+        Self::write_campaign_payload(path, &payload)
+    }
+
+    /// Write an immutable encoded snapshot; safe to call from a save worker.
+    pub(crate) fn write_campaign_payload(path: &Path, payload: &[u8]) -> io::Result<()> {
         let filename = path
             .file_name()
             .ok_or_else(|| invalid("Missing save filename"))?;
@@ -81,7 +86,7 @@ impl Simulation {
             .open(&temp)?;
         let result = (|| {
             file.write_all(HEADER)?;
-            file.write_all(&payload)?;
+            file.write_all(payload)?;
             file.sync_all()?;
             drop(file);
             fs::rename(&temp, path)

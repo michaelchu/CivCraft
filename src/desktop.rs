@@ -190,6 +190,17 @@ pub async fn run_desktop() {
         tileset.name()
     );
     game.autosave_enabled = autosave && !automated;
+    let mut autosaves = if game.autosave_enabled {
+        match client::AutosaveWriter::new() {
+            Ok(writer) => Some(writer),
+            Err(error) => {
+                game.notify_important(format!("Could not start autosave writer. {error}"));
+                None
+            }
+        }
+    } else {
+        None
+    };
     let mut music = MusicPlayer::new(&asset_context);
     let mut unit_sounds = UnitSoundPlayer::new(&asset_context);
     if ui_review.is_some() {
@@ -225,6 +236,65 @@ pub async fn run_desktop() {
         .sum::<u32>();
 
     loop {
+        let was_processing_turn = game.turn_busy();
+        let completed_turn = match game.poll_background_turn(&assets) {
+            Ok(completed) => completed,
+            Err(error) => {
+                if automated {
+                    if let (Some(profile), Some(dir)) = (ui_profile.as_mut(), ui_review.as_ref()) {
+                        profile.check(15, "background_turn_completed", false);
+                        let _ = profile.finish(dir);
+                    }
+                    eprintln!("Background turn failed: {error}");
+                    std::process::exit(1);
+                }
+                game.notify_important(format!("Turn failed. {error}"));
+                false
+            }
+        };
+        if completed_turn && smoke_test {
+            completed_smoke_turns += 1;
+            println!(
+                "Smoke test: completed turn {completed_smoke_turns}/{smoke_turns} (game turn {})",
+                game.turn_for_smoke_test()
+            );
+        }
+        if completed_turn && let Some(expected) = sequence.pending_turn.take() {
+            let passed = game.turn_for_smoke_test() == expected;
+            ui_profile
+                .as_mut()
+                .unwrap()
+                .check(15, "normal_turn_advanced", passed);
+            if !passed {
+                let _ = ui_profile
+                    .as_mut()
+                    .unwrap()
+                    .finish(ui_review.as_ref().unwrap());
+                eprintln!("UI scenario turn did not advance");
+                std::process::exit(1);
+            }
+        }
+        if let Some(payload) = game.take_autosave_payload() {
+            let result = match autosaves.as_mut() {
+                Some(writer) => writer.enqueue(crate::AUTOSAVE_PATH.into(), payload),
+                None => Err("autosave writer is unavailable".to_owned()),
+            };
+            if let Err(error) = result {
+                game.notify_important(format!("Autosave failed. {error}"));
+            }
+        }
+        if let Some(writer) = autosaves.as_mut() {
+            for error in writer.poll_errors() {
+                game.notify_important(format!("Autosave failed. {error}"));
+            }
+        }
+        // Review phases advance only once per scripted action. Keep rendering
+        // while an asynchronous turn finishes, without repeating that action.
+        if ui_review.is_some() && was_processing_turn {
+            buttons = game.draw(&assets);
+            next_frame().await;
+            continue;
+        }
         if !automated {
             game.handle_keyboard();
             game.handle_mouse(&buttons);
@@ -348,13 +418,11 @@ pub async fn run_desktop() {
                 );
                 break;
             }
-            if game.sim.game_over_view().is_none() && completed_smoke_turns < smoke_turns {
-                game.simulate_turn_for_smoke_test();
-                completed_smoke_turns += 1;
-                println!(
-                    "Smoke test: completed turn {completed_smoke_turns}/{smoke_turns} (game turn {})",
-                    game.turn_for_smoke_test()
-                );
+            if !game.turn_busy()
+                && game.sim.game_over_view().is_none()
+                && completed_smoke_turns < smoke_turns
+            {
+                game.perform_action(UiAction::EndTurn);
             }
             if completed_smoke_turns >= smoke_turns || game.sim.game_over_view().is_some() {
                 smoke_final_frame_pending = true;

@@ -43,10 +43,20 @@ impl Game {
             28.0,
         );
         self.draw_context_panel(assets, context, end.y);
-        draw_ui_button(end, "", true, true);
+        draw_ui_button(end, "", !self.turn_busy(), true);
         let shortcut = "Shift+Enter";
         let shortcut_width = measure_text(shortcut, None, 11, 1.0).width;
-        draw_text("End Turn", end.x + 8.0, end.y + 18.0, 13.0, WHITE);
+        draw_text(
+            if self.turn_busy() {
+                "Processing turn..."
+            } else {
+                "End Turn"
+            },
+            end.x + 8.0,
+            end.y + 18.0,
+            13.0,
+            WHITE,
+        );
         draw_text(
             shortcut,
             end.right() - 8.0 - shortcut_width,

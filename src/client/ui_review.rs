@@ -165,7 +165,7 @@ impl Game {
             return;
         }
         let (city, _rival) = sources.ids;
-        self.selected_unit = None;
+        self.set_unit_selection(Vec::new(), None);
         match scene {
             47 => {
                 self.sim.review_fixture().ai_city_garrisons();
@@ -361,6 +361,7 @@ impl Game {
 pub(crate) struct UiReviewSequence {
     pub(crate) checks: Vec<(&'static str, bool)>,
     worker: Option<WorkerAssignmentSnapshot>,
+    pub(crate) pending_turn: Option<i32>,
 }
 impl UiReviewSequence {
     fn check(&mut self, label: &'static str, passed: bool) -> Result<(), &'static str> {
@@ -913,7 +914,8 @@ impl Game {
                 sequence.click(self, buttons, "end_turn_control", |action| {
                     matches!(action, UiAction::EndTurn)
                 })?;
-                sequence.check("normal_turn_advanced", self.sim.turn_view() == turn + 1)?;
+                sequence.check("normal_turn_started", self.turn_busy())?;
+                sequence.pending_turn = Some(turn + 1);
                 return Ok(true);
             }
             return Ok(false);

@@ -344,6 +344,7 @@ impl Flic {
         self.image_layers_with_team_palette(indices, palette, None)
     }
 
+    #[cfg(test)]
     fn image_layers_with_team_palette(
         &self,
         indices: &[u8],
@@ -389,6 +390,7 @@ impl Flic {
     /// Pack direction rows and their frames into two GPU-friendly image atlases.
     pub(super) fn image_atlases(&self) -> Result<(Image, Image), String> {
         self.image_atlases_with_team_palette(None)
+            .map(|(base, tint)| (base, tint.expect("untinted unit art includes a tint layer")))
     }
 
     /// Bake a Civ III team palette into its marked unit pixels while retaining
@@ -401,7 +403,7 @@ impl Flic {
     fn image_atlases_with_team_palette(
         &self,
         team_palette: Option<&[[u8; 3]; 256]>,
-    ) -> Result<(Image, Image), String> {
+    ) -> Result<(Image, Option<Image>), String> {
         let frame_count = self.animations.first().map_or(0, Vec::len);
         if frame_count == 0 || self.animations.is_empty() {
             return Err("FLC contains no animation frames".to_owned());
@@ -438,11 +440,15 @@ impl Flic {
             atlas_height as u16,
             macroquad::prelude::Color::from_rgba(0, 0, 0, 0),
         );
-        let mut tint = Image::gen_image_color(
-            atlas_width as u16,
-            atlas_height as u16,
-            macroquad::prelude::Color::from_rgba(0, 0, 0, 0),
-        );
+        // A baked team atlas has no separate tint layer. Write indexed pixels
+        // directly into the final atlases instead of allocating per-frame images.
+        let mut tint = team_palette.is_none().then(|| {
+            Image::gen_image_color(
+                atlas_width as u16,
+                atlas_height as u16,
+                macroquad::prelude::Color::from_rgba(0, 0, 0, 0),
+            )
+        });
         for (direction, frames) in self.animations.iter().enumerate() {
             for (frame_index, frame) in frames.iter().enumerate() {
                 let palette = self
@@ -450,20 +456,41 @@ impl Flic {
                     .get(direction)
                     .and_then(|palettes| palettes.get(frame_index))
                     .unwrap_or(&self.palette);
-                let (frame_base, frame_tint) =
-                    self.image_layers_with_team_palette(frame, palette, team_palette)?;
-                for y in 0..self.height {
-                    let src_start = y * self.width;
-                    let src_end = src_start + self.width;
-                    let frame_x = (frame_index % frame_columns) * self.width;
-                    let frame_y =
-                        (direction * frame_rows + frame_index / frame_columns) * self.height;
-                    let dst_start = (frame_y + y) * atlas_width + frame_x;
-                    let dst_end = dst_start + self.width;
-                    base.get_image_data_mut()[dst_start..dst_end]
-                        .copy_from_slice(&frame_base.get_image_data()[src_start..src_end]);
-                    tint.get_image_data_mut()[dst_start..dst_end]
-                        .copy_from_slice(&frame_tint.get_image_data()[src_start..src_end]);
+                if frame.len() != self.width * self.height {
+                    return Err("FLC frame pixel count does not match its dimensions".to_owned());
+                }
+                let frame_x = (frame_index % frame_columns) * self.width;
+                let frame_y = (direction * frame_rows + frame_index / frame_columns) * self.height;
+                for (y, row) in frame.chunks_exact(self.width).enumerate() {
+                    let destination_row = (frame_y + y) * atlas_width + frame_x;
+                    for (x, &palette_index) in row.iter().enumerate() {
+                        let destination = destination_row + x;
+                        let color = palette[usize::from(palette_index)];
+                        let pixel = if palette_index < 16
+                            || (palette_index < 64 && palette_index % 2 == 0)
+                        {
+                            if let Some(team_palette) = team_palette {
+                                let color = team_palette[usize::from(palette_index)];
+                                [color[0], color[1], color[2], 255]
+                            } else {
+                                tint.as_mut().unwrap().get_image_data_mut()[destination] =
+                                    [255, 255, 255, 255];
+                                [0, 0, 0, 0]
+                            }
+                        } else if (224..=239).contains(&palette_index) {
+                            [
+                                255,
+                                255,
+                                255,
+                                ((u16::from(palette_index - 224) * 255) / 15) as u8,
+                            ]
+                        } else if palette_index >= 240 {
+                            [0, 0, 0, (255 - palette_index) * 16]
+                        } else {
+                            [color[0], color[1], color[2], 255]
+                        };
+                        base.get_image_data_mut()[destination] = pixel;
+                    }
                 }
             }
         }
@@ -569,6 +596,81 @@ mod tests {
             .unwrap();
         assert_eq!(shadow.get_image_data()[0], [0, 0, 0, 240]);
         assert_eq!(shadow.get_image_data()[1], [0, 0, 0, 0]);
+    }
+
+    #[test]
+    fn direct_atlas_pixels_match_frame_layers_for_all_palette_ranges_and_wrapped_rows() {
+        let team_palette: [[u8; 3]; 256] = std::array::from_fn(|i| [i as u8, (255 - i) as u8, 91]);
+        for (width, height, directions, frames) in [(16, 16, 8, 3), (2048, 1, 2, 3)] {
+            let mut flic = decode_flic(&fixture()).unwrap();
+            flic.width = width;
+            flic.height = height;
+            flic.animations = (0..directions)
+                .map(|direction| {
+                    (0..frames)
+                        .map(|frame| {
+                            (0..width * height)
+                                .map(|i| (i + frame * 7 + direction * 17) as u8)
+                                .collect()
+                        })
+                        .collect()
+                })
+                .collect();
+            flic.frame_palettes = (0..directions)
+                .map(|direction| {
+                    (0..frames)
+                        .map(|frame| {
+                            std::array::from_fn(|i| [i as u8, direction as u8, frame as u8])
+                        })
+                        .collect()
+                })
+                .collect();
+            flic.frame_palettes[1].clear(); // Exercise fallback to the FLC palette too.
+            let columns = frames.min(4096 / width);
+            let rows = frames.div_ceil(columns);
+            for team in [None, Some(&team_palette)] {
+                let (base, tint) = flic.image_atlases_with_team_palette(team).unwrap();
+                assert_eq!(tint.is_some(), team.is_none());
+                let mut expected_base = Image::gen_image_color(
+                    (columns * width) as u16,
+                    (directions * rows * height) as u16,
+                    macroquad::prelude::Color::from_rgba(0, 0, 0, 0),
+                );
+                let mut expected_tint = expected_base.clone();
+                for (direction, frames) in flic.animations.iter().enumerate() {
+                    for (index, frame) in frames.iter().enumerate() {
+                        let palette = flic
+                            .frame_palettes
+                            .get(direction)
+                            .and_then(|p| p.get(index))
+                            .unwrap_or(&flic.palette);
+                        let (frame_base, frame_tint) = flic
+                            .image_layers_with_team_palette(frame, palette, team)
+                            .unwrap();
+                        for y in 0..height {
+                            let destination = ((direction * rows + index / columns) * height + y)
+                                * columns
+                                * width
+                                + (index % columns) * width;
+                            expected_base.get_image_data_mut()[destination..destination + width]
+                                .copy_from_slice(
+                                    &frame_base.get_image_data()[y * width..(y + 1) * width],
+                                );
+                            expected_tint.get_image_data_mut()[destination..destination + width]
+                                .copy_from_slice(
+                                    &frame_tint.get_image_data()[y * width..(y + 1) * width],
+                                );
+                        }
+                    }
+                }
+                assert_eq!(base.bytes, expected_base.bytes);
+                if let Some(tint) = tint {
+                    assert_eq!(tint.bytes, expected_tint.bytes);
+                }
+            }
+            flic.animations[0][0].pop();
+            assert!(flic.team_color_atlas(&team_palette).is_err());
+        }
     }
 
     #[test]

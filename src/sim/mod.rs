@@ -44,7 +44,7 @@ mod client_api;
 mod client_views;
 #[allow(dead_code)]
 #[cfg(feature = "desktop")]
-pub(crate) use client_api::ClientSimulation;
+pub(crate) use client_api::{ClientSimulation, CompletedTurn};
 #[cfg(feature = "desktop")]
 pub(crate) use client_views::{
     CityContextView, CityManagerView, DiplomacyMeetingView, DiplomacyRivalView, GameOverView,

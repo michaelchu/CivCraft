@@ -203,6 +203,21 @@ impl AudioAssetLoader {
             .map_err(|e| e.context(format!("Audio '{key}'")))?;
         Ok(Some((sound, cue.bus, cue.looped)))
     }
+    pub fn cached_sound(&self, path: &Path) -> Option<&Sound> {
+        self.decoded.get(path)
+    }
+
+    /// Register already decoded, boundary-validated worker output on the device thread.
+    pub async fn register_prepared(&mut self, path: &Path, wav: &[u8]) -> AssetResult<()> {
+        if !self.decoded.contains_key(path) {
+            let sound = load_sound_from_bytes(wav)
+                .await
+                .map_err(|error| AssetError::decode(path, error))?;
+            self.decoded.insert(path.to_owned(), sound);
+        }
+        Ok(())
+    }
+
     pub async fn load_path(&mut self, path: &Path) -> AssetResult<Sound> {
         // Resolved media paths have already passed boundary validation. Cached
         // sounds need no filesystem access on subsequent playback.

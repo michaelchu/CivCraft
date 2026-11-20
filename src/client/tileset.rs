@@ -1827,7 +1827,13 @@ impl Civ3 {
         )
     }
 
-    fn load_unit_animation(&self, role: &str) -> AssetResult<()> {
+    fn unit_team_palette_index(civilization_id: Option<&str>) -> Option<u8> {
+        civilization_id
+            .and_then(crate::rules::civilizations::by_id)
+            .map(|civilization| civilization.primary_color_index)
+    }
+
+    fn load_unit_animation(&self, role: &str, palette_index: Option<u8>) -> AssetResult<()> {
         if self.unit_art.borrow().contains_key(role) {
             return Ok(());
         }
@@ -1846,12 +1852,26 @@ impl Civ3 {
         let tint = Texture2D::from_image(&tint_image);
         base.set_filter(FilterMode::Nearest);
         tint.set_filter(FilterMode::Nearest);
+        drop((base_image, tint_image));
+        // Prepare the first owner's team atlas from the same decoded frames.
+        // Subsequent owners still load their palettes lazily below.
+        let mut team_textures = HashMap::new();
+        if let Some((index, palette)) = palette_index.and_then(|index| {
+            self.unit_team_palettes
+                .get(usize::from(index))
+                .map(|palette| (index, palette))
+        }) && let Ok(image) = flic.team_color_atlas(palette)
+        {
+            let texture = Texture2D::from_image(&image);
+            texture.set_filter(FilterMode::Nearest);
+            team_textures.insert(index, texture);
+        }
         self.unit_art.borrow_mut().insert(
             role.to_owned(),
             Civ3UnitArt {
                 base,
                 tint,
-                team_textures: HashMap::new(),
+                team_textures,
                 width: flic.width as f32,
                 height: flic.height as f32,
                 frame_count: flic.animations[0].len(),
@@ -1920,7 +1940,10 @@ impl Civ3 {
         has_moves: bool,
     ) -> bool {
         let role = self.unit_animation_role(kind, era);
-        if self.load_unit_animation(&role).is_err() {
+        if self
+            .load_unit_animation(&role, Self::unit_team_palette_index(civilization_id))
+            .is_err()
+        {
             return false;
         }
         let (frame_width, frame_height, original_width, original_height, offset_left, offset_top) = {
@@ -2004,12 +2027,13 @@ impl Civ3 {
         let Some(selected_role) = selected_role else {
             return false;
         };
-        if self.load_unit_animation(selected_role).is_err() {
+        let team_palette_index = Self::unit_team_palette_index(civilization_id);
+        if self
+            .load_unit_animation(selected_role, team_palette_index)
+            .is_err()
+        {
             return false;
         }
-        let team_palette_index = civilization_id
-            .and_then(crate::rules::civilizations::by_id)
-            .map(|civilization| civilization.primary_color_index);
         if let Some(palette_index) = team_palette_index {
             let _ = self.ensure_unit_team_texture(selected_role, palette_index);
         }

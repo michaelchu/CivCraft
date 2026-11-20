@@ -45,6 +45,23 @@ fn cached_projection<K: Eq, V>(
     view
 }
 
+/// Completed worker-owned campaign. Presentation may be prepared before commit.
+pub(crate) struct CompletedTurn {
+    simulation: Simulation,
+    events: VecDeque<PresentationEventView>,
+    autosave: Option<Result<Vec<u8>, String>>,
+}
+impl CompletedTurn {
+    pub(crate) fn take_events(&mut self) -> VecDeque<PresentationEventView> {
+        std::mem::take(&mut self.events)
+    }
+    pub(crate) fn commit(self, client: &mut ClientSimulation) -> Option<Result<Vec<u8>, String>> {
+        client.simulation = self.simulation;
+        client.invalidate_views();
+        self.autosave
+    }
+}
+
 /// Client-facing simulation session. It exposes projections and commands,
 /// keeping screen code independent of campaign entity storage.
 pub(crate) struct ClientSimulation {
@@ -97,15 +114,6 @@ impl ClientSimulation {
         self.simulation.map_wrap
     }
 
-    /// Advances the campaign through the normal turn pipeline for the
-    /// desktop smoke-test mode. This is intentionally not part of the UI
-    /// command surface; it exists to exercise startup, asset loading, frame
-    /// rendering, and turn processing together.
-    pub(crate) fn simulate_turn_for_smoke_test(&mut self) {
-        self.invalidate_views();
-        self.simulation.simulate_turn();
-    }
-
     pub(crate) fn turn_view(&self) -> i32 {
         self.simulation.turn()
     }
@@ -123,6 +131,33 @@ impl ClientSimulation {
 
     pub(crate) fn view_revision(&self) -> u64 {
         self.view_revision
+    }
+
+    pub(crate) fn start_background_turn(
+        &mut self,
+        autosave: bool,
+    ) -> Result<crate::background::Task<CompletedTurn>, String> {
+        // The UI copy is frozen for the job's lifetime. Only the worker owns and
+        // mutates the authoritative simulation; no graphics objects cross threads.
+        let mut frozen = self.simulation.clone();
+        frozen.take_visual_events();
+        let mut simulation = std::mem::replace(&mut self.simulation, frozen);
+        crate::background::Task::spawn("civcraft-turn", move || {
+            if !simulation.apply(Command::EndTurn) {
+                return Err("The turn could not be advanced.".to_owned());
+            }
+            let autosave = autosave.then(|| {
+                simulation
+                    .encode_campaign()
+                    .map_err(|error| error.to_string())
+            });
+            let events = simulation.take_presentation_event_views();
+            Ok(CompletedTurn {
+                simulation,
+                events,
+                autosave,
+            })
+        })
     }
 
     pub(crate) fn apply(&mut self, command: Command) -> bool {
@@ -306,8 +341,8 @@ impl ClientSimulation {
         self.simulation.human_units_at_view(x, y)
     }
 
-    pub(crate) fn selectable_units_view(&self) -> Vec<SelectableUnitView> {
-        self.simulation.selectable_units_view()
+    pub(crate) fn selectable_unit_ids_view(&self) -> impl Iterator<Item = u32> + '_ {
+        self.simulation.selectable_unit_ids_view()
     }
 
     pub(crate) fn unit_position_view(&self, id: u32) -> Option<(i32, i32)> {
@@ -418,6 +453,86 @@ impl ClientSimulation {
 #[cfg(test)]
 mod cache_tests {
     use super::*;
+
+    #[test]
+    fn background_turn_preserves_frozen_state_events_rng_and_autosave() {
+        let mut client = ClientSimulation::new(Simulation::new(crate::test_support::seeded_map()));
+        let before = client.simulation.encode_campaign().unwrap();
+        let mut expected = client.simulation.clone();
+        let foreground_started = std::time::Instant::now();
+        assert!(expected.apply(Command::EndTurn));
+        let expected_events: Vec<_> = expected
+            .take_presentation_event_views()
+            .iter()
+            .flat_map(|event| {
+                event
+                    .actors()
+                    .map(|unit| (unit.id, unit.x, unit.y))
+                    .collect::<Vec<_>>()
+            })
+            .collect();
+        let expected_bytes = expected.encode_campaign().unwrap();
+        let foreground_ms = foreground_started.elapsed().as_secs_f64() * 1000.0;
+        let started = std::time::Instant::now();
+        let job = client.start_background_turn(true).unwrap();
+        let handoff_ms = started.elapsed().as_secs_f64() * 1000.0;
+        let mut outcome = job.wait().unwrap();
+        println!(
+            "Turn pipeline {}x{}: foreground={foreground_ms:.3} ms, UI handoff={handoff_ms:.3} ms, background total={:.3} ms",
+            client.map_wrap().width(),
+            client.map_wrap().height(),
+            started.elapsed().as_secs_f64() * 1000.0
+        );
+        assert!(
+            client.simulation.encode_campaign().unwrap() == before,
+            "background turn changed campaign bytes"
+        );
+        let actual_events: Vec<_> = outcome
+            .take_events()
+            .iter()
+            .flat_map(|event| {
+                event
+                    .actors()
+                    .map(|unit| (unit.id, unit.x, unit.y))
+                    .collect::<Vec<_>>()
+            })
+            .collect();
+        assert_eq!(actual_events, expected_events);
+        let payload = outcome.commit(&mut client).unwrap().unwrap();
+        assert!(
+            payload == expected_bytes,
+            "background turn changed campaign bytes"
+        );
+        assert!(
+            client.simulation.encode_campaign().unwrap() == expected_bytes,
+            "background turn changed campaign bytes"
+        );
+        let path = std::env::temp_dir().join(format!(
+            "civcraft-background-turn-{}.save",
+            std::process::id()
+        ));
+        Simulation::write_campaign_payload(&path, &payload).unwrap();
+        let loaded = Simulation::load_campaign(&path).unwrap();
+        assert!(std::fs::read(&path).unwrap().ends_with(&payload));
+        assert_eq!(loaded.turn, expected.turn);
+        assert_eq!(loaded.rng, expected.rng);
+        assert!(
+            bincode::serialize(&loaded.units).unwrap()
+                == bincode::serialize(&expected.units).unwrap()
+        );
+        assert!(
+            bincode::serialize(&loaded.cities).unwrap()
+                == bincode::serialize(&expected.cities).unwrap()
+        );
+        std::fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn background_turn_without_autosave_returns_no_save_payload() {
+        let mut client = ClientSimulation::new(Simulation::new(crate::test_support::seeded_map()));
+        let outcome = client.start_background_turn(false).unwrap().wait().unwrap();
+        assert!(outcome.commit(&mut client).is_none());
+    }
 
     #[test]
     fn city_manager_cache_reuses_views_and_refreshes_treasury_and_removed_cities() {

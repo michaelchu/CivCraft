@@ -13,6 +13,9 @@
 //! through the normal frame path.
 
 mod actions;
+mod autosave;
+mod turn_processing;
+pub(crate) use autosave::AutosaveWriter;
 #[cfg(feature = "desktop-audio")]
 mod amb;
 mod asset_error;
@@ -237,8 +240,39 @@ pub(crate) enum UiAction {
     ShowCityInfo(u32),
 }
 
+/// Preserve ascending-ID cycling without allocating and sorting candidate lists.
+fn next_unit_id(
+    ids: impl Iterator<Item = u32>,
+    current: u32,
+    waiting: &std::collections::BTreeSet<u32>,
+) -> (Option<u32>, bool) {
+    let mut first = None;
+    let mut after = None;
+    let mut available_first = None;
+    let mut available_after = None;
+    for id in ids {
+        first = Some(first.map_or(id, |old: u32| old.min(id)));
+        if id > current {
+            after = Some(after.map_or(id, |old: u32| old.min(id)));
+        }
+        if !waiting.contains(&id) {
+            available_first = Some(available_first.map_or(id, |old: u32| old.min(id)));
+            if id > current {
+                available_after = Some(available_after.map_or(id, |old: u32| old.min(id)));
+            }
+        }
+    }
+    let available = available_after.or(available_first);
+    (available.or(after).or(first), available.is_none())
+}
+
 pub(crate) struct Game {
     pub(crate) sim: ClientSimulation,
+    background_turn: Option<crate::background::Task<crate::sim::CompletedTurn>>,
+    preparing_turn: Option<turn_processing::TurnPreparation>,
+    prepared_events: std::collections::VecDeque<PresentationEventView>,
+    pending_autosave: Option<Vec<u8>>,
+    pending_notices: Vec<(String, bool)>,
     minimap_cache: std::cell::RefCell<hud::MinimapCache>,
     religion_city: usize,
     religion_choice: usize,
@@ -341,6 +375,11 @@ impl Game {
             .unwrap_or(0);
         Self {
             sim,
+            background_turn: None,
+            preparing_turn: None,
+            prepared_events: Default::default(),
+            pending_autosave: None,
+            pending_notices: Vec::new(),
             minimap_cache: Default::default(),
             religion_city: 0,
             religion_choice: 0,
@@ -411,10 +450,6 @@ impl Game {
         self.sim.world_seed()
     }
 
-    pub(crate) fn simulate_turn_for_smoke_test(&mut self) {
-        self.sim.simulate_turn_for_smoke_test();
-    }
-
     pub(crate) fn turn_for_smoke_test(&self) -> i32 {
         self.sim.turn_view()
     }
@@ -428,11 +463,19 @@ impl Game {
     }
 
     pub(super) fn notify(&mut self, message: impl Into<String>) {
-        self.sim.notify(message);
+        if self.turn_busy() {
+            self.pending_notices.push((message.into(), false));
+        } else {
+            self.sim.notify(message);
+        }
     }
 
     pub(super) fn notify_important(&mut self, message: impl Into<String>) {
-        self.sim.notify_important(message);
+        if self.turn_busy() {
+            self.pending_notices.push((message.into(), true));
+        } else {
+            self.sim.notify_important(message);
+        }
     }
 
     fn found_city(&mut self, id: u32) -> bool {
@@ -541,31 +584,14 @@ impl Game {
 
     fn select_next_unit(&mut self) {
         let current = self.selected_unit.unwrap_or(0);
-        let mut candidates: Vec<u32> = self
-            .sim
-            .selectable_units_view()
-            .into_iter()
-            .map(|unit| unit.id)
-            .collect();
-        candidates.sort_unstable();
-        let available: Vec<_> = candidates
-            .iter()
-            .copied()
-            .filter(|id| !self.waiting_units.contains(id))
-            .collect();
-        let next = available
-            .iter()
-            .copied()
-            .find(|id| *id > current)
-            .or_else(|| available.first().copied())
-            .or_else(|| {
-                self.waiting_units.clear();
-                candidates
-                    .iter()
-                    .copied()
-                    .find(|id| *id > current)
-                    .or_else(|| candidates.first().copied())
-            });
+        let (next, reset_waiting) = next_unit_id(
+            self.sim.selectable_unit_ids_view(),
+            current,
+            &self.waiting_units,
+        );
+        if reset_waiting {
+            self.waiting_units.clear();
+        }
         self.action_page = 0;
         self.set_unit_selection(next.into_iter().collect(), next);
         self.selected_city = None;
@@ -589,9 +615,17 @@ impl Game {
     pub(crate) fn draw(&mut self, assets: &Assets) -> Vec<(Rect, UiAction)> {
         self.sync_unit_selection();
         self.normalize_camera();
-        let sound_unit = self.pending_sound_unit.take().or(self.selected_unit);
-        let mut events = self.sim.take_presentation_event_views();
-        presentation::configure_combat_timing(&mut events, &assets.civ3);
+        let sound_unit = if self.turn_busy() {
+            self.selected_unit
+        } else {
+            self.pending_sound_unit.take().or(self.selected_unit)
+        };
+        let mut events = std::mem::take(&mut self.prepared_events);
+        if !self.turn_busy() {
+            let mut incoming = self.sim.take_presentation_event_views();
+            presentation::configure_combat_timing(&mut incoming, &assets.civ3);
+            events.extend(incoming);
+        }
         let now = get_time();
         for event in &events {
             if let PresentationEventView::Fortify { unit, .. } = event {
@@ -601,7 +635,7 @@ impl Game {
         self.playback.update(events, now, sound_unit);
         self.unit_sound_requests
             .extend(self.playback.take_sound_requests());
-        if !self.overlay.hides_map() && self.overlay != Overlay::Intro {
+        if !self.turn_busy() && !self.overlay.hides_map() && self.overlay != Overlay::Intro {
             self.queue_fidget_sound(assets);
         } else {
             self.fidget_sound_cycle = None;
@@ -742,6 +776,7 @@ impl Game {
         if phase < pacing.play_seconds && self.fidget_sound_cycle != Some(cycle_key) {
             self.unit_sound_requests
                 .push_back(unit_sound::UnitSoundRequest {
+                    #[cfg(test)]
                     unit_id: unit.id,
                     kind: unit.kind,
                     era_index: unit.era_index,
@@ -889,6 +924,40 @@ mod tests {
     use super::*;
 
     #[test]
+    fn next_unit_selection_preserves_id_order_waiting_and_wraparound() {
+        for ids in [vec![], vec![7], vec![7, 2, 10, 4], vec![10, 7, 4, 2]] {
+            for mask in 0..(1 << ids.len()) {
+                let waiting: std::collections::BTreeSet<_> = ids
+                    .iter()
+                    .copied()
+                    .enumerate()
+                    .filter_map(|(index, id)| (mask & (1 << index) != 0).then_some(id))
+                    .collect();
+                for current in [0, 2, 3, 4, 7, 10, 99] {
+                    let mut ordered = ids.clone();
+                    ordered.sort_unstable();
+                    let available: Vec<_> = ordered
+                        .iter()
+                        .copied()
+                        .filter(|id| !waiting.contains(id))
+                        .collect();
+                    let reset_waiting = available.is_empty();
+                    let candidates = if reset_waiting { &ordered } else { &available };
+                    let expected = candidates
+                        .iter()
+                        .copied()
+                        .find(|id| *id > current)
+                        .or_else(|| candidates.first().copied());
+                    assert_eq!(
+                        next_unit_id(ids.iter().copied(), current, &waiting),
+                        (expected, reset_waiting)
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
     fn client_notices_are_campaign_notifications() {
         let mut game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
         let before = game.sim.campaign_notifications_view().len();
@@ -1014,12 +1083,7 @@ mod tests {
     #[test]
     fn waiting_defers_focus_until_other_active_units_are_handled() {
         let mut game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
-        let mut units: Vec<_> = game
-            .sim
-            .selectable_units_view()
-            .into_iter()
-            .map(|unit| unit.id)
-            .collect();
+        let mut units: Vec<_> = game.sim.selectable_unit_ids_view().collect();
         units.sort_unstable();
         assert!(units.len() >= 2);
         game.selected_unit = Some(units[0]);

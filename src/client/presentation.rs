@@ -21,29 +21,36 @@ pub(super) fn configure_combat_timing(
     events: &mut VecDeque<PresentationEventView>,
     art: &super::tileset::Civ3,
 ) {
-    use super::tileset::Civ3UnitAction::*;
     for event in events {
-        if let PresentationEventView::Combat(combat) = event {
-            combat.round_durations = (0..combat.hp.len().saturating_sub(1).max(1))
-                .map(|round| {
-                    art.combat_clip_seconds(&combat.attacker, attack_action(round))
-                        .max(art.combat_clip_seconds(&combat.defender, Defend))
-                })
-                .collect();
-            let (a, d) = combat.hp.last().copied().unwrap_or((1, 1));
-            combat.result_duration = if a <= 0 {
-                art.combat_clip_seconds(&combat.attacker, Death)
-                    .max(art.combat_clip_seconds(&combat.defender, Victory))
-            } else if d <= 0 {
-                art.combat_clip_seconds(&combat.defender, Death)
-                    .max(art.combat_clip_seconds(&combat.attacker, Victory))
-            } else {
-                0.0
-            };
-            combat.duration = combat.round_durations.iter().sum::<f64>()
-                + combat.result_duration
-                + combat_impact_duration(combat);
-        }
+        configure_event_combat_timing(event, art);
+    }
+}
+
+pub(super) fn configure_event_combat_timing(
+    event: &mut PresentationEventView,
+    art: &super::tileset::Civ3,
+) {
+    use super::tileset::Civ3UnitAction::*;
+    if let PresentationEventView::Combat(combat) = event {
+        combat.round_durations = (0..combat.hp.len().saturating_sub(1).max(1))
+            .map(|round| {
+                art.combat_clip_seconds(&combat.attacker, attack_action(round))
+                    .max(art.combat_clip_seconds(&combat.defender, Defend))
+            })
+            .collect();
+        let (a, d) = combat.hp.last().copied().unwrap_or((1, 1));
+        combat.result_duration = if a <= 0 {
+            art.combat_clip_seconds(&combat.attacker, Death)
+                .max(art.combat_clip_seconds(&combat.defender, Victory))
+        } else if d <= 0 {
+            art.combat_clip_seconds(&combat.defender, Death)
+                .max(art.combat_clip_seconds(&combat.attacker, Victory))
+        } else {
+            0.0
+        };
+        combat.duration = combat.round_durations.iter().sum::<f64>()
+            + combat.result_duration
+            + combat_impact_duration(combat);
     }
 }
 
@@ -71,6 +78,8 @@ fn combat_phase(
 #[derive(Default)]
 pub(super) struct Playback {
     events: VecDeque<PresentationEventView>,
+    unit_overrides: BTreeMap<u32, RenderedUnitView>,
+    city_overrides: BTreeMap<u32, RenderedCityView>,
     started: f64,
     front_sound_started: bool,
     sound_requests: VecDeque<super::unit_sound::UnitSoundRequest>,
@@ -86,6 +95,7 @@ impl Playback {
         if self.events.is_empty() {
             self.started = now;
         }
+        let mut changed = !incoming.is_empty();
         self.events.extend(incoming);
         // Native clients cap simultaneous animation work too. Keep this
         // bounded even when an entire AI turn generates many visible steps.
@@ -93,11 +103,15 @@ impl Playback {
         while self.events.len() > 256 {
             self.events.pop_front();
             dropped_front = true;
+            changed = true;
         }
         if dropped_front {
             self.front_sound_started = false;
         }
         if self.review_progress.is_some() {
+            if changed {
+                self.rebuild_overrides();
+            }
             return;
         }
         while let Some(event) = self.events.front() {
@@ -111,7 +125,11 @@ impl Playback {
             }
             self.started += event.duration();
             self.events.pop_front();
+            changed = true;
             self.front_sound_started = false;
+        }
+        if changed {
+            self.rebuild_overrides();
         }
     }
     pub(super) fn take_sound_requests(&mut self) -> VecDeque<super::unit_sound::UnitSoundRequest> {
@@ -119,6 +137,8 @@ impl Playback {
     }
     pub(super) fn finish(&mut self) {
         self.events.clear();
+        self.unit_overrides.clear();
+        self.city_overrides.clear();
         self.sound_requests.clear();
         self.front_sound_started = false;
         self.review_progress = None;
@@ -144,30 +164,34 @@ impl Playback {
     pub(super) fn pending(&self) -> bool {
         !self.events.is_empty()
     }
-    pub(super) fn city_overrides(&self) -> BTreeMap<u32, RenderedCityView> {
-        let mut cities = BTreeMap::new();
+    fn rebuild_overrides(&mut self) {
+        self.unit_overrides.clear();
+        self.city_overrides.clear();
         for event in &self.events {
+            for unit in event.actors() {
+                self.unit_overrides
+                    .entry(unit.id)
+                    .or_insert_with(|| unit.clone());
+            }
             if let PresentationEventView::Combat(combat) = event
                 && let Some(city) = &combat.city
             {
-                cities.entry(city.id).or_insert_with(|| (*city).clone());
+                self.city_overrides
+                    .entry(city.id)
+                    .or_insert_with(|| city.clone());
             }
         }
-        cities
     }
-    pub(super) fn overrides(&self) -> BTreeMap<u32, RenderedUnitView> {
-        let mut units = BTreeMap::new();
-        for event in &self.events {
-            for unit in event.actors() {
-                units.entry(unit.id).or_insert_with(|| (*unit).clone());
-            }
-        }
-        units
+    pub(super) fn city_overrides(&self) -> &BTreeMap<u32, RenderedCityView> {
+        &self.city_overrides
+    }
+    pub(super) fn overrides(&self) -> &BTreeMap<u32, RenderedUnitView> {
+        &self.unit_overrides
     }
     pub(super) fn is_active(&self, id: u32) -> bool {
         self.events
             .front()
-            .is_some_and(|event| event.actors().iter().any(|unit| unit.id == id))
+            .is_some_and(|event| event.actors().any(|unit| unit.id == id))
     }
     pub(super) fn active(&self) -> Vec<(RenderedUnitView, Vec2)> {
         let Some(event) = self.events.front() else {
@@ -198,19 +222,31 @@ fn sound_requests(
     event: &PresentationEventView,
     active_unit: Option<u32>,
 ) -> Vec<super::unit_sound::UnitSoundRequest> {
-    let request = |unit: &RenderedUnitView, action: &str, delay_seconds: f64| {
-        super::unit_sound::UnitSoundRequest {
-            unit_id: unit.id,
-            kind: unit.kind,
-            era_index: unit.era_index,
-            action: action.to_owned(),
-            delay_seconds,
+    let Some(active_unit) = active_unit.filter(|id| event.actors().any(|unit| unit.id == *id))
+    else {
+        return Vec::new();
+    };
+    let capacity = match event {
+        PresentationEventView::Combat(combat) => combat.hp.len().saturating_sub(1).max(1) + 1,
+        _ => 1,
+    };
+    let mut requests = Vec::with_capacity(capacity);
+    let mut request = |unit: &RenderedUnitView, action: &str, delay_seconds: f64| {
+        if unit.id == active_unit {
+            requests.push(super::unit_sound::UnitSoundRequest {
+                #[cfg(test)]
+                unit_id: unit.id,
+                kind: unit.kind,
+                era_index: unit.era_index,
+                action: action.to_owned(),
+                delay_seconds,
+            });
         }
     };
     match event {
-        PresentationEventView::Move { unit, .. } => vec![request(unit, "RUN", 0.0)],
-        PresentationEventView::Capture { unit, .. } => vec![request(unit, "CAPTURE", 0.0)],
-        PresentationEventView::FoundCity { unit, .. } => vec![request(unit, "BUILD", 0.0)],
+        PresentationEventView::Move { unit, .. } => request(unit, "RUN", 0.0),
+        PresentationEventView::Capture { unit, .. } => request(unit, "CAPTURE", 0.0),
+        PresentationEventView::FoundCity { unit, .. } => request(unit, "BUILD", 0.0),
         PresentationEventView::WorkStarted { unit, kind, .. } => {
             let action = match kind {
                 WorkKind::Road | WorkKind::Railroad => "ROAD",
@@ -221,34 +257,31 @@ fn sound_requests(
                 WorkKind::BuildBase(_) | WorkKind::Clean(_) => "BUILD",
                 WorkKind::Pillage(_) => return Vec::new(),
             };
-            vec![request(unit, action, 0.0)]
+            request(unit, action, 0.0);
         }
-        PresentationEventView::Fortify { unit, .. } => vec![request(unit, "FORTIFY", 0.0)],
+        PresentationEventView::Fortify { unit, .. } => request(unit, "FORTIFY", 0.0),
         PresentationEventView::Combat(combat) => {
             let steps = combat.hp.len().saturating_sub(1).max(1);
-            let mut requests = Vec::with_capacity(steps * 2 + 2);
+            let mut delay = 0.0;
             for index in 0..steps {
-                let delay = combat.round_durations.iter().take(index).sum();
                 let attack = ["ATTACK1", "ATTACK2", "ATTACK3"][index % 3];
-                requests.push(request(&combat.attacker, attack, delay));
-                requests.push(request(&combat.defender, "DEFEND", delay));
+                request(&combat.attacker, attack, delay);
+                request(&combat.defender, "DEFEND", delay);
+                delay += combat.round_durations.get(index).copied().unwrap_or(0.0);
             }
             if let Some((attacker_hp, defender_hp)) = combat.hp.last().copied() {
                 let end = combat.round_durations.iter().sum();
                 if attacker_hp <= 0 {
-                    requests.push(request(&combat.attacker, "DEATH", end));
-                    requests.push(request(&combat.defender, "VICTORY", end));
+                    request(&combat.attacker, "DEATH", end);
+                    request(&combat.defender, "VICTORY", end);
                 } else if defender_hp <= 0 {
-                    requests.push(request(&combat.defender, "DEATH", end));
-                    requests.push(request(&combat.attacker, "VICTORY", end));
+                    request(&combat.defender, "DEATH", end);
+                    request(&combat.attacker, "VICTORY", end);
                 }
             }
-            requests
         }
     }
-    .into_iter()
-    .filter(|request| Some(request.unit_id) == active_unit)
-    .collect()
+    requests
 }
 impl Game {
     pub(super) fn draw_playback(&self, assets: &Assets) {
@@ -395,6 +428,83 @@ mod tests {
         assert!(!playback.pending());
         assert!(playback.overrides().is_empty());
         assert!(playback.city_overrides().is_empty());
+    }
+
+    #[test]
+    fn playback_overrides_follow_queue_append_completion_and_finish() {
+        let mut sim = Simulation::new(crate::mapgen::generate(42));
+        let (id, target) = crate::sim::ui_review::ui_review_animation_setup(&mut sim, true);
+        let attacker = sim.unit_by_id(id).unwrap().clone();
+        let defender = sim
+            .units()
+            .iter()
+            .find(|unit| unit.owner != HUMAN)
+            .unwrap()
+            .clone();
+        let city = sim
+            .cities()
+            .iter()
+            .find(|city| (city.x, city.y) == target)
+            .unwrap()
+            .clone();
+        let city_id = city.id;
+        let mut first =
+            sim.presentation_event_view_for_test(VisualEvent::Combat(Box::new(CombatVisual {
+                attacker,
+                defender,
+                hp: vec![(3, 3), (2, 0)],
+                city: Some(city),
+                bombard_effects: false,
+            })));
+        let PresentationEventView::Combat(combat) = &mut first else {
+            unreachable!()
+        };
+        combat.duration = 1.0;
+        let initial_size = combat.city.as_ref().unwrap().size;
+        let mut second = first.clone();
+        let PresentationEventView::Combat(combat) = &mut second else {
+            unreachable!()
+        };
+        combat.city.as_mut().unwrap().size += 1;
+        let mut playback = Playback::default();
+        playback.update(VecDeque::from([first]), 0.0, None);
+        playback.update(VecDeque::from([second]), 0.2, None);
+        assert_eq!(playback.city_overrides()[&city_id].size, initial_size);
+        assert_eq!(playback.overrides().len(), 2);
+        playback.update(VecDeque::new(), 1.1, None);
+        assert_eq!(playback.city_overrides()[&city_id].size, initial_size + 1);
+        playback.finish();
+        assert!(playback.overrides().is_empty());
+        assert!(playback.city_overrides().is_empty());
+    }
+
+    #[test]
+    fn playback_overrides_preserve_first_retained_snapshot_when_queue_is_capped() {
+        let mut sim = Simulation::new(crate::mapgen::generate(42));
+        let (id, _) = crate::sim::ui_review::ui_review_animation_setup(&mut sim, false);
+        let unit = sim.rendered_unit_override_view(sim.unit_by_id(id).unwrap());
+        let event = |x| {
+            let mut unit = unit.clone();
+            unit.x = x;
+            PresentationEventView::Move {
+                unit,
+                from: (0, 24),
+                to: (1, 24),
+                duration: 1.0,
+            }
+        };
+        let mut playback = Playback {
+            review_progress: Some(0.5),
+            ..Default::default()
+        };
+        playback.update((0..300).map(event).collect(), 0.0, None);
+        assert_eq!(playback.events.len(), 256);
+        assert_eq!(playback.overrides()[&id].x, 44);
+        playback.update(VecDeque::from([event(300)]), 0.1, None);
+        assert_eq!(playback.overrides()[&id].x, 45);
+        playback.review_progress = None;
+        playback.update(VecDeque::new(), 1.1, None);
+        assert_eq!(playback.overrides()[&id].x, 46);
     }
 
     #[test]

@@ -30,6 +30,57 @@ terrain and fog use a nearest-filtered texture refreshed on the same client
 revision; city playback markers and the camera outline remain dynamic. New
 client mutation paths must invalidate these cached views.
 
+Post-turn unit selection scans eligible IDs once while preserving ascending-ID
+cycling and the waiting-list fallback. Playback retains its first queued unit
+and city overrides until the queue changes; actor iteration and inactive sound
+filtering avoid temporary lists. Initial unit-art loading builds the first team
+palette texture from the same FLC decode as the base art. Other team palettes
+remain lazy, and decoded frames are not retained after texture preparation.
+Atlas packing writes directly into the final images; baked team atlases omit
+the unused tint image. Pixel comparisons cover palette animation, team colors,
+smoke, shadows, direction rows, and frame rows spanning the texture-width limit.
+
+Turn execution owns the live simulation on a worker thread. The UI keeps one
+frozen campaign copy and accepts no gameplay commands until completion; audio
+controls and window rendering remain available. UI notices arriving during a
+turn are queued and appended after completion, preserving notification IDs.
+A completed turn projects its
+visual events and encodes optional autosave data on that worker. The UI prepares
+animation metadata in batches of at most 64 events with a two-millisecond soft
+budget, then installs the campaign and presentation queue together. One event
+always makes progress even if it exceeds the budget. The frozen copy itself is
+created on the UI thread, so very large campaigns still have a copy cost.
+
+Autosave disk writes use a separate ordered worker and the existing temporary
+file, flush, and atomic-rename protocol. Its queue is bounded; if disk writes
+fall behind, only the latest unsent snapshot is retained. Shutdown flushes that
+snapshot. Unit audio uses another bounded worker for AMB parsing, component
+lookup, and waveform decoding; successes and failures are cached. Raw waveform
+buffers are released after device registration while cue metadata stays cached.
+The device
+thread registers at most one new sound per frame and drops muted requests.
+Cues more than 250 milliseconds late expire to prevent catch-up bursts after
+cold loading or a backgrounded window.
+Smoke-test turns use the same asynchronous action path. UI review pauses its
+scripted frame counter while a turn is processing, then checks its result.
+UI-review action timings measure dispatch cost; full turn latency also includes
+the wait for worker completion and presentation preparation.
+
+Native macOS release measurements on 2026-11-20 used seed 42, an 80×80 small
+map, a human-founded Rome, music and sound effects enabled, and 12 early turns
+per autosave setting. After startup warmup, median UI handoff was 0.28 ms with
+autosave off and 0.27 ms with it on. Median time through the first `next_frame`
+after turn completion was 66.4/66.8 ms; this is a frame-loop measurement, not a
+GPU scanout timestamp. Median frame intervals were 16.7 ms in both runs, with
+maxima of 29.3/19.4 ms. Background save writes had a 5.3 ms median, all 12
+succeeded, and the final save reloaded and advanced successfully. A separate
+artificially delayed turn still allowed the audio panel to open. These are
+early-game responsiveness checks, not late-game or bulk-animation benchmarks.
+Temporary timing probes and the delay were removed from the normal build.
+The rebuilt native gallery passed all 49 scenes and 177 checks. Fixture setup
+now clears the complete selected-unit group, preventing the idle-garrison scene
+from restoring a previously selected unit on its first draw.
+
 ## Reviewed surfaces
 
 | Surface | Cleanup |
@@ -87,7 +138,7 @@ threshold fails the run. Any non-identical image writes a `*-diff.png`
 visualization beside the current capture. The default threshold is `0.99` when
 `--ui-baseline` is used.
 
-The gallery covers 44 scenarios, including the campaign intro and three campaign flows built from an ordinary seeded new game. Those flows found a city, change worker allocation and restore it, change taxes, and end a turn through the real UI hit-testing and action-dispatch functions. The `diplomacy-negotiation` fixture first offers peace without compensation and verifies the rejection, then adds gold, resubmits, and checks that peace is signed and gold deducted. Other scenarios provide controlled examples for developed cities, diplomacy, first contact and war status, leader avatars, research, touching national borders, and six-direction rivers with lake outlets and fog; `report.json` identifies each scene as `campaign` or `fixture`.
+The gallery covers 49 scenarios, including the campaign intro and three campaign flows built from an ordinary seeded new game. Those flows found a city, change worker allocation and restore it, change taxes, and end a turn through the real UI hit-testing and action-dispatch functions. The `diplomacy-negotiation` fixture first offers peace without compensation and verifies the rejection, then adds gold, resubmits, and checks that peace is signed and gold deducted. Other scenarios provide controlled examples for developed cities, diplomacy, first contact and war status, leader avatars, research, touching national borders, and six-direction rivers with lake outlets and fog; `report.json` identifies each scene as `campaign` or `fixture`.
 
 The `world` scene reveals every generated tile and centers the map at the minimum zoom. Use a wide window (1600×900) to inspect landmass shape, biome bands, and polar edges across generation settings. It does not change normal game visibility.
 

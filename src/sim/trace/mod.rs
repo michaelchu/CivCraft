@@ -2,7 +2,10 @@
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use std::time::Instant;
-use std::{cell::RefCell, rc::Rc};
+use std::{
+    cell::RefCell,
+    sync::{Arc, Mutex},
+};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -59,7 +62,7 @@ pub(crate) struct Collector {
     profile_turn: Option<TurnProfileInProgress>,
     profiles: Vec<TurnProfile>,
     operations: RefCell<BTreeMap<&'static str, u64>>,
-    span_recorder: Rc<RefCell<SpanRecorder>>,
+    span_recorder: Arc<Mutex<SpanRecorder>>,
 }
 
 struct TurnProfileInProgress {
@@ -94,10 +97,10 @@ struct SpanAggregate {
 }
 
 #[derive(Clone)]
-pub(crate) struct ProfileHandle(Rc<RefCell<SpanRecorder>>);
+pub(crate) struct ProfileHandle(Option<Arc<Mutex<SpanRecorder>>>);
 
 pub(crate) struct ProfileSpan {
-    recorder: Rc<RefCell<SpanRecorder>>,
+    recorder: Arc<Mutex<SpanRecorder>>,
     id: u64,
 }
 
@@ -199,12 +202,15 @@ impl Collector {
     }
     pub fn enable_profiling(&mut self) {
         self.profile_enabled = true;
-        self.span_recorder.borrow_mut().enabled = true;
+        self.span_recorder
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .enabled = true;
     }
     /// A cheap cloned handle lets profiling scopes coexist with mutable access
     /// to the simulation while a module performs its work.
     pub fn profiler(&self) -> ProfileHandle {
-        ProfileHandle(self.span_recorder.clone())
+        ProfileHandle(self.profile_enabled.then(|| self.span_recorder.clone()))
     }
     pub fn begin_turn_profile(&mut self, turn: i32, city_count: usize, unit_count: usize) {
         if !self.profile_enabled {
@@ -213,7 +219,7 @@ impl Collector {
         let now = Instant::now();
         self.operations.get_mut().clear();
         {
-            let mut recorder = self.span_recorder.borrow_mut();
+            let mut recorder = self.span_recorder.lock().unwrap_or_else(|e| e.into_inner());
             recorder.active.clear();
             recorder.completed.clear();
         }
@@ -238,7 +244,11 @@ impl Collector {
             return;
         };
         debug_assert!(
-            self.span_recorder.borrow().active.is_empty(),
+            self.span_recorder
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .active
+                .is_empty(),
             "all profiling scopes must close before the turn profile is finished"
         );
         let now = Instant::now();
@@ -246,15 +256,21 @@ impl Collector {
             phase: current.phase,
             elapsed_seconds: now.duration_since(current.phase_started).as_secs_f64(),
         });
-        let spans = std::mem::take(&mut self.span_recorder.borrow_mut().completed)
-            .into_iter()
-            .map(|(name, aggregate)| SpanProfile {
-                name,
-                calls: aggregate.calls,
-                inclusive_seconds: aggregate.inclusive_seconds,
-                exclusive_seconds: aggregate.exclusive_seconds,
-            })
-            .collect();
+        let spans = std::mem::take(
+            &mut self
+                .span_recorder
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .completed,
+        )
+        .into_iter()
+        .map(|(name, aggregate)| SpanProfile {
+            name,
+            calls: aggregate.calls,
+            inclusive_seconds: aggregate.inclusive_seconds,
+            exclusive_seconds: aggregate.exclusive_seconds,
+        })
+        .collect();
         self.profiles.push(TurnProfile {
             turn: current.turn,
             city_count: current.city_count,
@@ -344,7 +360,8 @@ impl ProfileHandle {
     /// Start a named timing scope. Scopes nest and aggregate by stable name for
     /// the current turn; when profiling is disabled this returns immediately.
     pub fn scope(&self, name: &'static str) -> Option<ProfileSpan> {
-        let mut recorder = self.0.borrow_mut();
+        let shared = self.0.as_ref()?;
+        let mut recorder = shared.lock().unwrap_or_else(|e| e.into_inner());
         if !recorder.enabled {
             return None;
         }
@@ -356,7 +373,7 @@ impl ProfileHandle {
             child_elapsed: std::time::Duration::ZERO,
         });
         Some(ProfileSpan {
-            recorder: self.0.clone(),
+            recorder: shared.clone(),
             id,
         })
     }
@@ -365,7 +382,7 @@ impl ProfileHandle {
 impl Drop for ProfileSpan {
     fn drop(&mut self) {
         let now = Instant::now();
-        let mut recorder = self.recorder.borrow_mut();
+        let mut recorder = self.recorder.lock().unwrap_or_else(|e| e.into_inner());
         let Some(active) = recorder.active.pop() else {
             return;
         };

@@ -25,7 +25,17 @@ impl Game {
     }
 
     pub(crate) fn perform_action(&mut self, action: UiAction) {
-        if self.pending_city_view.is_some() {
+        if (self.turn_busy()
+            && !matches!(
+                action,
+                UiAction::ToggleMusicPanel
+                    | UiAction::ToggleMusicMute
+                    | UiAction::AdjustMusicVolume(_)
+                    | UiAction::ToggleSfxMute
+                    | UiAction::AdjustSfxVolume(_)
+            ))
+            || self.pending_city_view.is_some()
+        {
             return;
         }
         if self.sim.game_over_view().is_some()
@@ -275,19 +285,7 @@ impl Game {
             UiAction::PlaceShipPart(part) => {
                 self.sim.apply(Command::PlaceShipPart { part });
             }
-            UiAction::EndTurn => {
-                if self.sim.apply(Command::EndTurn) {
-                    self.waiting_units.clear();
-                    if self.autosave_enabled
-                        && let Err(error) = self
-                            .sim
-                            .save_campaign(std::path::Path::new(crate::AUTOSAVE_PATH))
-                    {
-                        self.notify_important(format!("Autosave failed. {error}"));
-                    }
-                }
-                self.select_next_unit();
-            }
+            UiAction::EndTurn => self.start_background_turn(),
             UiAction::CloseCity => {
                 self.selected_city = None;
             }

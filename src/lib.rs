@@ -6,6 +6,8 @@
 
 mod analytics;
 #[cfg(feature = "desktop")]
+mod background;
+#[cfg(feature = "desktop")]
 mod client;
 #[cfg(feature = "desktop")]
 mod desktop;

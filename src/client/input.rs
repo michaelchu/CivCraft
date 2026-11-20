@@ -4,6 +4,9 @@ use super::*;
 
 impl Game {
     pub(crate) fn handle_keyboard(&mut self) {
+        if self.turn_busy() {
+            return;
+        }
         if self.overlay == Overlay::Intro {
             if is_key_pressed(KeyCode::Enter) || is_key_pressed(KeyCode::Escape) {
                 self.perform_action(UiAction::DismissIntro);
@@ -350,6 +353,15 @@ impl Game {
     }
 
     pub(crate) fn handle_mouse(&mut self, buttons: &[(Rect, UiAction)]) {
+        if self.turn_busy() {
+            if is_mouse_button_pressed(MouseButton::Left) {
+                let pointer = ui_pointer();
+                if let Some(action) = Self::ui_action_at(pointer, buttons) {
+                    self.perform_action(action);
+                }
+            }
+            return;
+        }
         if self.pending_city_view.is_some() {
             return;
         }
