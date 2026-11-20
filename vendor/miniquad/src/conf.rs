@@ -231,14 +231,15 @@ pub struct Conf {
     pub window_resizable: bool,
 
     /// Smallest client size, in `(width, height)`, the user can resize a
-    /// resizable window to. `None` leaves the minimum unbounded.
+    /// resizable window to. Applied on Windows and macOS only; other
+    /// platforms ignore it. `None` leaves the minimum unbounded.
     /// Defaults to `None`.
     pub window_min_size: Option<(i32, i32)>,
 
     /// Width-to-height ratio, as `(width, height)`, that a resizable window
-    /// keeps while the user drags its edges. Supported on X11, Windows and
-    /// macOS; Wayland has no protocol for it, so the hint is ignored there.
-    /// `None` leaves the ratio free. Defaults to `None`.
+    /// keeps while the user drags its edges. Applied on Windows and macOS
+    /// only; other platforms ignore it. `None` leaves the ratio free.
+    /// Defaults to `None`.
     pub window_aspect_ratio: Option<(i32, i32)>,
 
     /// Optional icon data used by the OS where applicable:

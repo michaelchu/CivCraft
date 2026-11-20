@@ -1207,16 +1207,6 @@ where
                     conf.window_height
                 );
             }
-        } else if let Some((min_width, min_height)) = conf.window_min_size {
-            // xdg_shell has no aspect-ratio request, so window_aspect_ratio
-            // is not applied on Wayland.
-            wl_request!(
-                display.client,
-                display.xdg_toplevel,
-                extensions::xdg_shell::xdg_toplevel::set_min_size,
-                min_width,
-                min_height
-            );
         }
 
         if conf.fullscreen {

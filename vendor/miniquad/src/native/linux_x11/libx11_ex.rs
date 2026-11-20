@@ -229,22 +229,6 @@ impl LibX11 {
             (*hints).min_height = conf.window_height;
             (*hints).max_width = conf.window_width;
             (*hints).max_height = conf.window_height;
-        } else {
-            if let Some((min_width, min_height)) = conf.window_min_size {
-                (*hints).flags |= PMinSize;
-                (*hints).min_width = min_width;
-                (*hints).min_height = min_height;
-            }
-            if let Some((aspect_w, aspect_h)) = conf.window_aspect_ratio {
-                // Xutil.h: PAspect = 1 << 7. Both bounds are the same ratio,
-                // which locks the window to it.
-                const PASPECT: libc::c_long = 1 << 7;
-                (*hints).flags |= PASPECT;
-                (*hints).min_aspect.x = aspect_w;
-                (*hints).min_aspect.y = aspect_h;
-                (*hints).max_aspect.x = aspect_w;
-                (*hints).max_aspect.y = aspect_h;
-            }
         }
         (*hints).win_gravity = StaticGravity;
         (self.XSetWMNormalHints)(display, window, hints);
