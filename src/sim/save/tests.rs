@@ -263,6 +263,8 @@ fn current_campaign_round_trip_preserves_gameplay_and_topology_state() {
         .unwrap()
         .order = Some(UnitOrder::PrecisionBombard { x: 15, y: 20 });
     game.cities[0].history = 375;
+    // Loading rebuilds borders and workers, so save a settled state.
+    game.rebuild_city_ownership();
     game.players[HUMAN].history = 125;
     let culture_without_achievement = game.civilization_culture(HUMAN);
     game.nation_scores[HUMAN]
