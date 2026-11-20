@@ -88,10 +88,12 @@ impl Simulation {
             let (x, y) = point(step);
             game.tile(x, y).owner
         };
+        // The tile midway between them is equidistant: equal culture goes to
+        // the older city, and more culture takes it.
         let tie = owner(self, 2) == Some(HUMAN);
         self.cities[1].history = 1_000_000;
         self.rebuild_city_ownership();
-        let history_does_not_change_border_strength = owner(self, 2) == Some(HUMAN);
+        let culture_breaks_equidistant_ties = owner(self, 2) == Some(1);
 
         let mut size_growth = Simulation::new(crate::mapgen::generate(42));
         size_growth.units.clear();
@@ -126,7 +128,7 @@ impl Simulation {
 
         (
             tie,
-            history_does_not_change_border_strength,
+            culture_breaks_equidistant_ties,
             small_city && grown_city,
         )
     }
@@ -143,7 +145,7 @@ mod tests {
     }
 
     #[test]
-    fn city_border_test_uses_selected_c2c3_strength_and_radius() {
+    fn city_border_test_uses_civ3_culture_contest_and_radius() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         assert_eq!(game.city_borders_test(), (true, true, true));
     }

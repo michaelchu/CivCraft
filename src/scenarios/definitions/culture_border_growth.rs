@@ -1,5 +1,6 @@
 //! Culture-only borders growing over several turns: the square, the fat X and
-//! each later expansion, plus a strength contest where two borders meet.
+//! each later expansion, plus the Civ III contest where two borders meet: the
+//! nearer city owns a tile, and culture decides only equidistant tiles.
 
 use super::*;
 use crate::{
@@ -22,7 +23,7 @@ const STAGED_CULTURE: [(u32, i32); 3] = [(3, 99), (5, 999), (7, 9_999)];
 
 pub(super) const SCENARIO: Scenario = Scenario::new(
     "culture-border-growth",
-    1,
+    2,
     ScenarioKind::Runtime {
         control: Control::Human,
         world: RuntimeWorld::Custom,
@@ -54,7 +55,8 @@ fn setup(map: GeneratedMap) -> (Simulation, Box<dyn ScenarioRun>) {
     world.city_history(lone, 8);
 
     // Two cities four steps apart along a map axis, both already at radius 3.
-    // The larger city's border strength wins the tile between them.
+    // The tile between them is equidistant, so the city with more culture takes
+    // it, and a much larger city still cannot take tiles nearer the other.
     let weak_position = (22, 34);
     let mut path = vec![weak_position];
     for _ in 0..4 {
@@ -64,7 +66,7 @@ fn setup(map: GeneratedMap) -> (Simulation, Box<dyn ScenarioRun>) {
     let weak = world.city(OWNER, path[0], 1);
     let strong = world.city(HUMAN, path[4], 8);
     world.city_history(weak, 100);
-    world.city_history(strong, 100);
+    world.city_history(strong, 200); // Same radius 3, clearly more culture.
     world.finish();
 
     (
@@ -75,6 +77,8 @@ fn setup(map: GeneratedMap) -> (Simulation, Box<dyn ScenarioRun>) {
             strong,
             weak_position,
             midpoint: path[2],
+            near_weak: path[1],
+            near_strong: path[3],
             ..Default::default()
         }),
     )
@@ -87,10 +91,12 @@ struct Audit {
     strong: u32,
     weak_position: (i32, i32),
     midpoint: (i32, i32),
+    near_weak: (i32, i32),
+    near_strong: (i32, i32),
     /// (completed turn, radius, tiles) for the lone capital.
     ladder: Vec<(u32, i32, usize)>,
-    midpoint_held_by_stronger: Vec<bool>,
-    weaker_ring_held: Vec<bool>,
+    midpoint_follows_culture: Vec<bool>,
+    nearer_tiles_held: Vec<bool>,
 }
 
 impl ScenarioRun for Audit {
@@ -106,25 +112,31 @@ impl ScenarioRun for Audit {
         let (radius, tiles) = game.city_border_extent(self.lone).unwrap_or((0, 0));
         self.ladder.push((turn, radius, tiles));
         let strong_city = game.tile(self.midpoint.0, self.midpoint.1).border_city;
-        self.midpoint_held_by_stronger
+        self.midpoint_follows_culture
             .push(strong_city == Some(self.strong));
         let ring: Vec<_> = game
             .map_wrap
             .civ3_neighbors(self.weak_position.0, self.weak_position.1)
             .collect();
+        // Tiles nearer the small city stay with it, whatever the other city's
+        // size or culture; likewise on the large city's side.
         let ring_held = !ring.is_empty()
             && ring
                 .iter()
-                .all(|&(x, y)| game.tile(x, y).border_city == Some(self.weak));
-        self.weaker_ring_held.push(ring_held);
+                .all(|&(x, y)| game.tile(x, y).border_city == Some(self.weak))
+            && game.tile(self.near_weak.0, self.near_weak.1).border_city == Some(self.weak)
+            && game.tile(self.near_strong.0, self.near_strong.1).border_city == Some(self.strong);
+        self.nearer_tiles_held.push(ring_held);
         let (_, weak_tiles) = game.city_border_extent(self.weak).unwrap_or((0, 0));
         let (_, strong_tiles) = game.city_border_extent(self.strong).unwrap_or((0, 0));
         json!({
             "lone_city": {"radius": radius, "tiles": tiles,
                 "culture": game.city_by_id(self.lone).map(|c| game.city_culture_score(c))},
             "contest": {"weak_tiles": weak_tiles, "strong_tiles": strong_tiles,
+                "weak_culture": game.city_by_id(self.weak).map(|c| game.city_culture_score(c)),
+                "strong_culture": game.city_by_id(self.strong).map(|c| game.city_culture_score(c)),
                 "midpoint_owner": game.tile(self.midpoint.0, self.midpoint.1).owner,
-                "weaker_ring_held": ring_held},
+                "nearer_tiles_held": ring_held},
         })
     }
 
@@ -155,21 +167,21 @@ impl ScenarioRun for Audit {
                 detail: "Radius and tile count never decrease while culture only accumulates".into(),
             },
             Check {
-                name: "stronger_city_wins_contested_tile",
-                passed: !self.midpoint_held_by_stronger.is_empty()
-                    && self.midpoint_held_by_stronger.iter().all(|held| *held),
+                name: "equidistant_tile_follows_culture",
+                passed: !self.midpoint_follows_culture.is_empty()
+                    && self.midpoint_follows_culture.iter().all(|held| *held),
                 detail: format!(
-                    "Midpoint held by the size-8 city on every observed turn: {:?}",
-                    self.midpoint_held_by_stronger
+                    "The equidistant tile belongs to the city with more culture (200 against about 100) on every observed turn: {:?}",
+                    self.midpoint_follows_culture
                 ),
             },
             Check {
-                name: "weaker_city_keeps_adjacent_tiles",
-                passed: !self.weaker_ring_held.is_empty()
-                    && self.weaker_ring_held.iter().all(|held| *held),
+                name: "nearer_tiles_stay_with_the_nearer_city",
+                passed: !self.nearer_tiles_held.is_empty()
+                    && self.nearer_tiles_held.iter().all(|held| *held),
                 detail: format!(
-                    "All eight neighbors of the size-1 city stay its own despite the stronger border: {:?}",
-                    self.weaker_ring_held
+                    "The size-1 city keeps its neighbors and the tile nearer it, and the size-8 city the tile nearer it: {:?}",
+                    self.nearer_tiles_held
                 ),
             },
         ]

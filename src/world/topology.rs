@@ -290,6 +290,24 @@ impl MapWrap {
             .fold(f64::INFINITY, f64::min)
     }
 
+    /// Twice the culture distance between two tiles, as an integer: twice the
+    /// longer diagonal-axis span plus the shorter span. Border contests rank
+    /// claims by this value, which, unlike the step count, does not give a
+    /// diamond of ties between two cities. Horizontal wrapping is handled as in
+    /// `civ3_culture_distance`.
+    pub(crate) fn civ3_culture_rank(self, ax: i32, ay: i32, bx: i32, by: i32) -> i32 {
+        let (ax, ay) = native_to_map(ax, ay);
+        let (bx, by) = native_to_map(bx, by);
+        (-1..=1)
+            .map(|wrap| {
+                let dx = (bx + wrap * self.width() - ax).abs();
+                let dy = (by - wrap * self.width() - ay).abs();
+                2 * dx.max(dy) + dx.min(dy)
+            })
+            .min()
+            .unwrap_or(i32::MAX)
+    }
+
     pub(crate) fn civ3_distances_from(self, x: i32, y: i32) -> Vec<i32> {
         let mut distances = vec![i32::MAX; (self.width() * self.height()) as usize];
         let origin = self.index(x, y);

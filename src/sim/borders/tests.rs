@@ -1,37 +1,6 @@
 use super::*;
 use crate::rules::engine_rules::{EffectSet, RulesetData, effect_value};
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct NativeBorderVector {
-    case: String,
-    x: i32,
-    y: i32,
-    owner: usize,
-    source_x: i32,
-    source_y: i32,
-    basis: String,
-}
-
-fn native_border_vectors() -> Vec<NativeBorderVector> {
-    include_str!("../../../tests/fixtures/freeciv_border_vectors.tsv")
-        .lines()
-        .filter(|line| !line.starts_with('#') && !line.is_empty())
-        .map(|line| {
-            let fields: Vec<_> = line.split('\t').collect();
-            assert_eq!(fields.len(), 7, "invalid native border vector: {line}");
-            NativeBorderVector {
-                case: fields[0].to_owned(),
-                x: fields[1].parse().expect("vector x coordinate"),
-                y: fields[2].parse().expect("vector y coordinate"),
-                owner: fields[3].parse().expect("vector owner"),
-                source_x: fields[4].parse().expect("source x coordinate"),
-                source_y: fields[5].parse().expect("source y coordinate"),
-                basis: fields[6].to_owned(),
-            }
-        })
-        .collect()
-}
-
 fn flat_game(terrain: Terrain) -> Simulation {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
@@ -175,52 +144,94 @@ fn enabled_borders_only_claim_known_tiles_beyond_the_city_source() {
     assert_eq!(game.tile(neighbor.0, neighbor.1).owner, Some(HUMAN));
 }
 
-#[test]
-fn stronger_claims_can_expand_beyond_permanent_tiles_and_ties_keep_map_order() {
-    let mut game = flat_game(Terrain::Grassland);
-    let route = straight_path(&game, (20, 20), 2, 4);
+/// Two cities `gap` steps apart along a map axis; returns their ids and the
+/// straight path between them. Both are given enough culture to reach it.
+fn contest(game: &mut Simulation, gap: usize, history: [i32; 2]) -> ([u32; 2], Vec<(i32, i32)>) {
+    let route = straight_path(game, (20, 20), 3, gap);
     game.create_city(HUMAN, route[0].0, route[0].1);
-    game.create_city(1, route[4].0, route[4].1);
-    reveal_all(&mut game);
-    game.cities[0].size = 1;
-    game.cities[1].size = 5;
-    for city in &mut game.cities {
-        city.history = 100; // Radius 3 reaches the tile midway between them.
+    game.create_city(1, route[gap].0, route[gap].1);
+    reveal_all(game);
+    for (city, culture) in game.cities.iter_mut().zip(history) {
+        city.history = culture;
     }
-    let old_city = game.cities[0].id;
-    game.tile_mut(route[2].0, route[2].1).border_city = Some(old_city);
-    game.tile_mut(route[2].0, route[2].1).owner = Some(HUMAN);
     game.rebuild_city_ownership();
-    assert_eq!(game.tile(route[2].0, route[2].1).owner, Some(1));
+    ([game.cities[0].id, game.cities[1].id], route)
+}
 
-    let mut tied = flat_game(Terrain::Grassland);
-    let route = straight_path(&tied, (20, 20), 2, 4);
-    tied.create_city(HUMAN, route[0].0, route[0].1);
-    tied.create_city(1, route[4].0, route[4].1);
-    reveal_all(&mut tied);
-    for city in &mut tied.cities {
-        city.history = 100;
+#[test]
+fn nearest_city_owns_a_contested_tile_whatever_its_size() {
+    let mut game = flat_game(Terrain::Grassland);
+    let (ids, route) = contest(&mut game, 5, [1_000, 1_000]);
+    game.cities[0].size = 1;
+    game.cities[1].size = 12;
+    game.rebuild_city_ownership();
+    // Two steps from the small city, three from the big one.
+    assert_eq!(game.tile(route[2].0, route[2].1).border_city, Some(ids[0]));
+    assert_eq!(game.tile(route[3].0, route[3].1).border_city, Some(ids[1]));
+}
+
+#[test]
+fn nearest_city_wins_even_against_much_more_culture() {
+    let mut game = flat_game(Terrain::Grassland);
+    let (ids, route) = contest(&mut game, 5, [1_000, 1_000]);
+    game.cities[1].history = 1_000_000;
+    game.rebuild_city_ownership();
+    assert_eq!(game.tile(route[2].0, route[2].1).border_city, Some(ids[0]));
+}
+
+#[test]
+fn equidistant_tile_goes_to_higher_culture_then_older_city() {
+    let mut game = flat_game(Terrain::Grassland);
+    let (ids, route) = contest(&mut game, 4, [100, 100]);
+    let middle = route[2];
+    // Equal culture: the older (first founded) city keeps it.
+    assert_eq!(game.tile(middle.0, middle.1).border_city, Some(ids[0]));
+    game.cities[1].history = 101;
+    game.rebuild_city_ownership();
+    assert_eq!(game.tile(middle.0, middle.1).border_city, Some(ids[1]));
+    game.cities[1].history = 100;
+    game.rebuild_city_ownership();
+    assert_eq!(game.tile(middle.0, middle.1).border_city, Some(ids[0]));
+}
+
+#[test]
+fn shared_border_is_the_line_of_equal_distance_and_ignores_history() {
+    let mut game = flat_game(Terrain::Grassland);
+    let (ids, _) = contest(&mut game, 4, [1_000, 1_000]);
+    game.cities[0].size = 2;
+    game.cities[1].size = 9;
+    game.rebuild_city_ownership();
+    let centers = [
+        (game.cities[0].x, game.cities[0].y),
+        (game.cities[1].x, game.cities[1].y),
+    ];
+    let first_pass: Vec<_> = game.tiles.iter().map(|tile| tile.border_city).collect();
+    let mut contested = 0;
+    for (index, tile) in game.tiles.iter().enumerate() {
+        let Some(owner) = tile.border_city else {
+            continue;
+        };
+        let (x, y) = game.map_wrap.position(index);
+        let ranks = centers.map(|(cx, cy)| game.map_wrap.civ3_culture_rank(cx, cy, x, y));
+        let nearest = if ranks[0] <= ranks[1] { ids[0] } else { ids[1] };
+        if ranks[0] != ranks[1] {
+            // Never taken from the nearer city, never a size effect.
+            assert_eq!(owner, nearest, "tile ({x},{y}) ranks {ranks:?}");
+            contested += 1;
+        }
     }
-    for tile in &mut tied.tiles {
-        tile.owner = None;
+    assert!(contested > 0);
+
+    // Ownership is a pure function of the cities: no dependence on earlier
+    // claims or on the order the cities are scanned.
+    for tile in &mut game.tiles {
         tile.border_city = None;
+        tile.owner = None;
     }
-    tied.rebuild_city_ownership();
-    assert_eq!(tied.tile(route[2].0, route[2].1).owner, Some(HUMAN));
-
-    let mut permanent = flat_game(Terrain::Grassland);
-    let route = straight_path(&permanent, (20, 20), 2, 2);
-    permanent.create_city(HUMAN, route[0].0, route[0].1);
-    permanent.create_city(1, route[2].0, route[2].1);
-    reveal_all(&mut permanent);
-    permanent.cities[0].size = 1;
-    permanent.cities[1].size = 12;
-    let old_city = permanent.cities[0].id;
-    permanent.tile_mut(route[1].0, route[1].1).border_city = Some(old_city);
-    permanent.tile_mut(route[1].0, route[1].1).owner = Some(HUMAN);
-    assert_eq!(BorderRules::selected().permanent_radius_sq, -3);
-    permanent.rebuild_city_ownership();
-    assert_eq!(permanent.tile(route[1].0, route[1].1).owner, Some(HUMAN));
+    game.cities.reverse();
+    game.rebuild_city_ownership();
+    let second_pass: Vec<_> = game.tiles.iter().map(|tile| tile.border_city).collect();
+    assert_eq!(first_pass, second_pass);
 }
 
 #[test]
@@ -323,70 +334,6 @@ fn tile_claimable_matches_selected_region_and_distance_requirements() {
 // The Freeciv native radius vectors (`radius_sq_city` + size) are not ported:
 // border extent comes only from culture, so the shape is covered by
 // `culture_tiers_grow_the_border_from_a_square_into_a_fat_x`.
-
-#[test]
-fn native_c2c3_border_vectors_match_strength_tie_and_permanent_claims() {
-    let vectors = native_border_vectors();
-    let vector = |case: &str| {
-        vectors
-            .iter()
-            .find(|vector| vector.case == case)
-            .unwrap_or_else(|| panic!("missing native {case} border vector"))
-            .clone()
-    };
-    let assert_source = |game: &Simulation, vector: &NativeBorderVector| {
-        let tile = game.tile(vector.x, vector.y);
-        assert_eq!(
-            tile.owner,
-            Some(vector.owner),
-            "native {} owner",
-            vector.case
-        );
-        let city = game
-            .cities
-            .iter()
-            .find(|city| city.x == vector.source_x && city.y == vector.source_y)
-            .unwrap_or_else(|| panic!("missing native {} source city", vector.case));
-        assert_eq!(
-            tile.border_city,
-            Some(city.id),
-            "native {} claimer",
-            vector.case
-        );
-    };
-
-    let mut stronger = flat_game(Terrain::Grassland);
-    reveal_all(&mut stronger);
-    stronger.create_city(HUMAN, 18, 8);
-    stronger.create_city(1, 20, 12);
-    stronger.cities[1].size = 5;
-    for city in &mut stronger.cities {
-        city.history = 1_000; // Radius 4 reaches the contested tile.
-    }
-    stronger.rebuild_city_ownership();
-    assert_source(&stronger, &vector("strong"));
-
-    let mut tied = flat_game(Terrain::Grassland);
-    reveal_all(&mut tied);
-    tied.create_city(HUMAN, 18, 22);
-    tied.create_city(1, 20, 26);
-    for city in &mut tied.cities {
-        city.history = 1_000; // Radius 4 reaches the contested tile.
-    }
-    tied.rebuild_city_ownership();
-    assert_source(&tied, &vector("tie"));
-
-    let mut permanent = flat_game(Terrain::Grassland);
-    reveal_all(&mut permanent);
-    permanent.create_city(HUMAN, 24, 32);
-    permanent.create_city(1, 22, 36);
-    permanent.cities[1].size = 12;
-    for city in &mut permanent.cities {
-        city.history = 1_000; // Radius 4 reaches the contested tile.
-    }
-    permanent.rebuild_city_ownership();
-    assert_source(&permanent, &vector("permanent"));
-}
 
 #[test]
 fn cultural_claims_discover_owned_tiles_without_granting_current_sight() {

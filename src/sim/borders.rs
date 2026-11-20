@@ -17,11 +17,11 @@ mod tests;
 const CITY_MAP_MIN_RADIUS_SQ: i64 = 5;
 const CITY_MAP_MAX_RADIUS_SQ: i64 = 26;
 
-/// Border extent comes only from city culture (a CivCraft/Civ III adapter);
-/// the ruleset's `[borders]` `radius_sq_city` and `size_effect` are unused.
+/// Border extent and contests follow the Civ III culture model, not Freeciv's
+/// border sources: the ruleset's `[borders]` radius, size effect, permanent
+/// radius and strength are all unused. Only the work radius is read here.
 #[derive(Clone, Copy, Debug)]
 struct BorderRules {
-    permanent_radius_sq: i64,
     initial_city_radius_sq: i64,
 }
 
@@ -29,11 +29,6 @@ impl BorderRules {
     fn selected() -> Self {
         let rules = RulesetData::campaign_default();
         Self {
-            permanent_radius_sq: ruleset_integer_parameter(
-                rules,
-                "borders",
-                "radius_sq_city_permanent",
-            ),
             initial_city_radius_sq: ruleset_integer_parameter(
                 rules,
                 "civstyle",
@@ -47,13 +42,6 @@ impl BorderRules {
             SimulationRequirementContext::for_city_at(simulation, city, Some((city.x, city.y)));
         let bonus = context.effect(EffectKind::CityRadiusSq);
         (self.initial_city_radius_sq + bonus).clamp(CITY_MAP_MIN_RADIUS_SQ, CITY_MAP_MAX_RADIUS_SQ)
-    }
-
-    fn city_border_strength(self, simulation: &Simulation, city: &City) -> i64 {
-        let context =
-            SimulationRequirementContext::for_city_at(simulation, city, Some((city.x, city.y)));
-        let percent = context.effect(EffectKind::BorderStrengthPct);
-        (i64::from(city.size) + 2) * (100 + percent) / 100
     }
 }
 
@@ -153,8 +141,8 @@ struct BorderSource {
     /// Whether culture has earned a border expansion beyond the square, which
     /// lets the border claim and reveal tiles the owner has not yet seen.
     culture_expanded: bool,
-    city_work_radius_sq: i64,
-    strength: i64,
+    /// Local culture score; breaks ties between equally distant cities.
+    culture: i64,
     distances: Vec<i32>,
 }
 
@@ -171,21 +159,15 @@ impl BorderSource {
     fn within_cultural_radius(&self, wrap: MapWrap, tile_index: usize) -> bool {
         self.culture_expanded && self.contains(wrap, tile_index)
     }
-
-    fn strength_at(&self, distance: i32) -> i64 {
-        if distance == 0 {
-            return i64::MAX;
-        }
-        let distance_sq = i64::from(distance) * i64::from(distance);
-        self.strength * self.strength / distance_sq
-    }
 }
 
 #[derive(Clone, Copy, Debug)]
 struct BorderClaim {
     city_id: u32,
     owner: usize,
-    strength: i64,
+    /// Contest key; the smallest wins: culture distance, then higher culture,
+    /// then the older (lower id) city.
+    key: (i32, i64, u32),
 }
 
 /// The shared requirement evaluator resolves ordinary universals. This narrow
@@ -406,7 +388,6 @@ impl Simulation {
         self.ai_ground_targets
             .retain(|_, id| self.cities.iter().any(|city| city.id == *id));
 
-        let rules = BorderRules::selected();
         let regions = BorderRegions::from_simulation(self);
         let mut sources: Vec<_> = self
             .cities
@@ -419,8 +400,7 @@ impl Simulation {
                 y: city.y,
                 radius: city_culture_border_radius(self.city_culture_score(city)),
                 culture_expanded: city_culture_border_radius(self.city_culture_score(city)) > 1,
-                city_work_radius_sq: rules.city_work_radius_sq(self, city),
-                strength: rules.city_border_strength(self, city),
+                culture: self.city_culture_score(city),
                 distances: self.map_wrap.civ3_distances_from(city.x, city.y),
             })
             .collect();
@@ -435,47 +415,19 @@ impl Simulation {
             .iter()
             .map(|source| (source.tile_index, source.city_id))
             .collect();
-        let mut claims = vec![None; self.tiles.len()];
+        let mut claims: Vec<Option<BorderClaim>> = vec![None; self.tiles.len()];
 
-        // Existing claims are kept so equal-strength challengers do not
-        // displace the earlier claimant. Invalid, unknown, out-of-radius, or
-        // no-longer-claimable claims are dropped before source processing.
-        for (tile_index, tile) in self.tiles.iter().enumerate() {
-            let Some(city_id) = tile.border_city else {
-                continue;
-            };
-            let Some(&source_index) = source_index_by_city.get(&city_id) else {
-                continue;
-            };
-            let source = &sources[source_index];
-            let distance = source.distances[tile_index];
-            let within_cultural_radius = source.within_cultural_radius(self.map_wrap, tile_index);
-            if !source.contains(self.map_wrap, tile_index)
-                || (distance != 0 && !tile.known_by[source.owner] && !within_cultural_radius)
-                || (distance != 0
-                    && !tile_claimable(
-                        self,
-                        &regions,
-                        source.owner,
-                        self.map_wrap.position(tile_index),
-                        (source.x, source.y),
-                    ))
-            {
-                continue;
-            }
-            claims[tile_index] = Some(BorderClaim {
-                city_id,
-                owner: source.owner,
-                strength: source.strength_at(distance),
-            });
-        }
-
+        // Civ III contest: of the cities whose border shape reaches a tile, the
+        // nearest by culture distance owns it. Equally distant cities go to the
+        // one with more culture, then to the older city. Nothing depends on
+        // earlier ownership or scan order, so the shared edge is the line of
+        // equal distance and only a larger culture moves it.
         for source in &sources {
             for (tile_index, claim_slot) in claims.iter_mut().enumerate() {
-                let distance = source.distances[tile_index];
                 if !source.contains(self.map_wrap, tile_index) {
                     continue;
                 }
+                let distance = source.distances[tile_index];
                 if distance != 0
                     && city_center_by_tile
                         .get(&tile_index)
@@ -483,11 +435,9 @@ impl Simulation {
                 {
                     continue;
                 }
-                let within_cultural_radius =
-                    source.within_cultural_radius(self.map_wrap, tile_index);
                 if distance != 0
                     && !self.tiles[tile_index].known_by[source.owner]
-                    && !within_cultural_radius
+                    && !source.within_cultural_radius(self.map_wrap, tile_index)
                 {
                     continue;
                 }
@@ -495,29 +445,20 @@ impl Simulation {
                 if !tile_claimable(self, &regions, source.owner, target, (source.x, source.y)) {
                     continue;
                 }
-                let old = *claim_slot;
-                if old.is_some_and(|claim| claim.city_id == source.city_id) {
-                    continue;
+                let rank = if distance == 0 {
+                    -1
+                } else {
+                    self.map_wrap
+                        .civ3_culture_rank(source.x, source.y, target.0, target.1)
+                };
+                let key = (rank, -source.culture, source.city_id);
+                if claim_slot.is_none_or(|claim| key < claim.key) {
+                    *claim_slot = Some(BorderClaim {
+                        city_id: source.city_id,
+                        owner: source.owner,
+                        key,
+                    });
                 }
-                if let Some(old_claim) = old
-                    && distance != 0
-                {
-                    let old_source = &sources[source_index_by_city[&old_claim.city_id]];
-                    let old_distance = old_source.distances[tile_index];
-                    let old_distance_sq = i64::from(old_distance) * i64::from(old_distance);
-                    if old_distance_sq <= old_source.city_work_radius_sq + rules.permanent_radius_sq
-                    {
-                        continue;
-                    }
-                    if source.strength_at(distance) <= old_claim.strength {
-                        continue;
-                    }
-                }
-                *claim_slot = Some(BorderClaim {
-                    city_id: source.city_id,
-                    owner: source.owner,
-                    strength: source.strength_at(distance),
-                });
             }
         }
 
