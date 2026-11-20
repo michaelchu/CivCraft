@@ -351,6 +351,18 @@ impl Simulation {
         BorderRules::selected().city_work_radius_sq(self, city)
     }
 
+    /// Culture border radius and the number of tiles the city currently holds.
+    pub(crate) fn city_border_extent(&self, city_id: u32) -> Option<(i32, usize)> {
+        let city = self.city_by_id(city_id)?;
+        let radius = city_culture_border_radius(self.city_culture_score(city));
+        let tiles = self
+            .tiles
+            .iter()
+            .filter(|tile| tile.border_city == Some(city_id))
+            .count();
+        Some((radius, tiles))
+    }
+
     pub(crate) fn displayed_tile_owner(&self, x: i32, y: i32) -> Option<usize> {
         let tile = self.tile(x, y);
         if tile.visible {

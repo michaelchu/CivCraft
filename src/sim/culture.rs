@@ -235,6 +235,14 @@ impl Simulation {
 
 impl Simulation {
     #[cfg(any(test, feature = "scenarios"))]
+    /// Set a city's accumulated culture for a scripted scenario. Borders update
+    /// at the next culture milestone, as for ordinary accumulation.
+    pub(in crate::sim) fn stage_city_culture(&mut self, city_id: u32, history: i32) {
+        if let Some(index) = self.city_index_by_id(city_id) {
+            self.cities[index].history = history.max(0);
+        }
+    }
+
     pub(crate) fn city_history(&self, id: u32) -> Option<i32> {
         self.city_by_id(id).map(|city| city.history)
     }
