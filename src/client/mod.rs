@@ -239,6 +239,7 @@ pub(crate) enum UiAction {
 
 pub(crate) struct Game {
     pub(crate) sim: ClientSimulation,
+    minimap_cache: std::cell::RefCell<hud::MinimapCache>,
     religion_city: usize,
     religion_choice: usize,
     religion_draft: Option<(Option<u32>, crate::sim::FaithPolicy)>,
@@ -340,6 +341,7 @@ impl Game {
             .unwrap_or(0);
         Self {
             sim,
+            minimap_cache: Default::default(),
             religion_city: 0,
             religion_choice: 0,
             religion_draft: None,
@@ -477,12 +479,7 @@ impl Game {
     pub(super) fn set_unit_selection(&mut self, ids: Vec<u32>, active: Option<u32>) {
         let mut unique = Vec::new();
         for id in ids {
-            if !unique.contains(&id)
-                && self
-                    .sim
-                    .unit_action_view(id)
-                    .is_some_and(|unit| unit.owner == HUMAN)
-            {
+            if !unique.contains(&id) && self.sim.is_human_unit(id) {
                 unique.push(id);
             }
         }
@@ -518,18 +515,10 @@ impl Game {
     }
 
     fn sync_unit_selection(&mut self) {
-        self.selected_units.retain(|id| {
-            self.sim
-                .unit_action_view(*id)
-                .is_some_and(|unit| unit.owner == HUMAN)
-        });
+        self.selected_units.retain(|id| self.sim.is_human_unit(*id));
         if let Some(active) = self.selected_unit {
             if !self.selected_units.contains(&active) {
-                if self
-                    .sim
-                    .unit_action_view(active)
-                    .is_some_and(|unit| unit.owner == HUMAN)
-                {
+                if self.sim.is_human_unit(active) {
                     self.selected_units = vec![active];
                 } else {
                     self.selected_unit = self.selected_units.first().copied();
@@ -542,12 +531,12 @@ impl Game {
 
     fn selected_unit_index(&self) -> Option<usize> {
         let id = self.selected_unit?;
-        self.sim.unit_action_view(id).map(|_| 0)
+        self.sim.is_human_unit(id).then_some(0)
     }
 
     fn selected_city_index(&self) -> Option<usize> {
         let id = self.selected_city?;
-        self.sim.city_context_view(id).map(|_| 0)
+        self.sim.city_exists(id).then_some(0)
     }
 
     fn select_next_unit(&mut self) {

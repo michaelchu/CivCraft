@@ -204,6 +204,11 @@ impl AudioAssetLoader {
         Ok(Some((sound, cue.bus, cue.looped)))
     }
     pub async fn load_path(&mut self, path: &Path) -> AssetResult<Sound> {
+        // Resolved media paths have already passed boundary validation. Cached
+        // sounds need no filesystem access on subsequent playback.
+        if let Some(sound) = self.decoded.get(path) {
+            return Ok(sound.clone());
+        }
         let path = self.library.media.existing(path)?;
         if let Some(sound) = self.decoded.get(&path) {
             return Ok(sound.clone());

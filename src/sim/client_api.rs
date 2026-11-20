@@ -21,6 +21,8 @@ use std::path::Path;
 /// keeping screen code independent of campaign entity storage.
 pub(crate) struct ClientSimulation {
     simulation: Simulation,
+    view_revision: u64,
+    unit_actions: std::cell::RefCell<Option<(u32, UnitActionView)>>,
 }
 
 impl ClientSimulation {
@@ -36,7 +38,11 @@ impl ClientSimulation {
 
     pub(crate) fn new(mut simulation: Simulation) -> Self {
         simulation.enable_visual_events();
-        Self { simulation }
+        Self {
+            simulation,
+            view_revision: 0,
+            unit_actions: Default::default(),
+        }
     }
 
     pub(crate) fn load_campaign(path: &Path) -> io::Result<Self> {
@@ -64,6 +70,7 @@ impl ClientSimulation {
     /// command surface; it exists to exercise startup, asset loading, frame
     /// rendering, and turn processing together.
     pub(crate) fn simulate_turn_for_smoke_test(&mut self) {
+        self.invalidate_views();
         self.simulation.simulate_turn();
     }
 
@@ -75,8 +82,29 @@ impl ClientSimulation {
         self.simulation.world_seed
     }
 
+    fn invalidate_views(&mut self) {
+        self.view_revision = self.view_revision.wrapping_add(1);
+        *self.unit_actions.get_mut() = None;
+    }
+
+    pub(crate) fn view_revision(&self) -> u64 {
+        self.view_revision
+    }
+
     pub(crate) fn apply(&mut self, command: Command) -> bool {
+        // Failed commands can also emit feedback or partially update client state.
+        self.invalidate_views();
         self.simulation.apply(command)
+    }
+
+    pub(crate) fn is_human_unit(&self, id: u32) -> bool {
+        self.simulation
+            .unit_by_id(id)
+            .is_some_and(|unit| unit.owner == super::HUMAN)
+    }
+
+    pub(crate) fn city_exists(&self, id: u32) -> bool {
+        self.simulation.city_by_id(id).is_some()
     }
 
     pub(crate) fn take_presentation_event_views(&mut self) -> VecDeque<PresentationEventView> {
@@ -112,7 +140,15 @@ impl ClientSimulation {
     }
 
     pub(crate) fn unit_action_view(&self, id: u32) -> Option<UnitActionView> {
-        self.simulation.unit_action_view(id)
+        let mut cached = self.unit_actions.borrow_mut();
+        if let Some((cached_id, view)) = cached.as_ref()
+            && *cached_id == id
+        {
+            return Some(view.clone());
+        }
+        let view = self.simulation.unit_action_view(id)?;
+        *cached = Some((id, view.clone()));
+        Some(view)
     }
 
     pub(crate) fn bombardable_targets_in_range(&self, id: u32) -> Vec<(i32, i32)> {
@@ -271,6 +307,20 @@ impl ClientSimulation {
         self.simulation.rendered_city_views()
     }
 
+    pub(crate) fn rendered_city_views_in(
+        &self,
+        tiles: &std::collections::HashSet<(i32, i32)>,
+    ) -> Vec<RenderedCityView> {
+        self.simulation.rendered_city_views_in(tiles)
+    }
+
+    pub(crate) fn rendered_unit_views_in(
+        &self,
+        tiles: &std::collections::HashSet<(i32, i32)>,
+    ) -> Vec<RenderedUnitView> {
+        self.simulation.rendered_unit_views_in(tiles)
+    }
+
     pub(crate) fn rendered_unit_views(&self) -> Vec<RenderedUnitView> {
         self.simulation.rendered_unit_views()
     }
@@ -300,6 +350,7 @@ impl ClientSimulation {
     }
 
     pub(crate) fn review_fixture(&mut self) -> ReviewFixture<'_> {
+        self.invalidate_views();
         ReviewFixture(&mut self.simulation)
     }
 
@@ -310,5 +361,42 @@ impl ClientSimulation {
     #[cfg(test)]
     pub(crate) fn review_simulation(&self) -> &Simulation {
         &self.simulation
+    }
+}
+
+#[cfg(test)]
+mod cache_tests {
+    use super::*;
+
+    #[test]
+    fn cached_actions_refresh_after_commands_and_fixture_mutations() {
+        let mut client = ClientSimulation::new(Simulation::new(crate::mapgen::generate(42)));
+        let id = client
+            .simulation
+            .units
+            .iter()
+            .find(|unit| unit.owner == super::super::HUMAN)
+            .unwrap()
+            .id;
+        let first = client.unit_action_view(id).unwrap();
+        assert_eq!(
+            client.unit_action_view(id).unwrap().moves_left,
+            first.moves_left
+        );
+        let revision = client.view_revision();
+        assert!(client.apply(Command::EndTurn));
+        assert_ne!(client.view_revision(), revision);
+        assert!(client.unit_actions.borrow().is_none());
+        let current = client.unit_action_view(id).unwrap();
+        assert_eq!(
+            current.moves_left,
+            client.simulation.unit_by_id(id).unwrap().moves_left
+        );
+        assert!(client.unit_actions.borrow().is_some());
+        let revision = client.view_revision();
+        client.review_fixture().0.units.retain(|unit| unit.id != id);
+        assert_ne!(client.view_revision(), revision);
+        assert!(client.unit_action_view(id).is_none());
+        assert!(!client.is_human_unit(id));
     }
 }

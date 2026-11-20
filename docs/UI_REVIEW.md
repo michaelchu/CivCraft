@@ -17,6 +17,14 @@ The client uses Macroquad's immediate-mode renderer. View files own their screen
 
 This is deliberately a small shared UI layer rather than a retained widget framework. Screen-specific game state and graph rendering remain in their existing modules. Some view coordinates still use local offsets; the UI is more consistent but is not completely free of duplicated layout code.
 
+`ClientSimulation` caches the most recently requested unit action view and
+invalidates it before commands, smoke-test turns, and review-fixture mutations.
+Selection checks use lightweight identity queries. The world painter filters
+city and unit positions before calculating their display projections. Minimap
+terrain and fog use a nearest-filtered texture refreshed on the same client
+revision; city playback markers and the camera outline remain dynamic. New
+client mutation paths must invalidate these cached views.
+
 ## Reviewed surfaces
 
 | Surface | Cleanup |

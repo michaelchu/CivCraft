@@ -439,11 +439,9 @@ impl<'a> Civ3WorldPainter<'a> {
             order.iter().map(|&(x, y, _)| (x, y)).collect();
         let observed_cities: Vec<_> = game
             .sim
-            .rendered_city_views()
+            .rendered_city_views_in(&visible_tiles)
             .into_iter()
-            .filter(|city| {
-                visible_tiles.contains(&(city.x, city.y)) && !city_overrides.contains_key(&city.id)
-            })
+            .filter(|city| !city_overrides.contains_key(&city.id))
             .collect();
         let overridden_cities: Vec<_> = city_overrides
             .values()
@@ -457,7 +455,7 @@ impl<'a> Civ3WorldPainter<'a> {
         let overridden_units: Vec<_> = overrides.values().cloned().collect();
         let units = game
             .sim
-            .rendered_unit_views()
+            .rendered_unit_views_in(&visible_tiles)
             .into_iter()
             .filter(|unit| !overrides.contains_key(&unit.id))
             .chain(overridden_units)

@@ -138,6 +138,7 @@ pub(crate) struct SpaceshipAssemblyView {
     pub(crate) module_enabled: [bool; 3],
 }
 
+#[derive(Clone)]
 pub(crate) struct UnitActionView {
     pub(crate) kind: UnitKind,
     pub(crate) unit_name: &'static str,
@@ -179,6 +180,7 @@ pub(crate) struct UnitActionView {
     pub(crate) disband_cities: Vec<(u32, String)>,
 }
 
+#[derive(Clone)]
 pub(crate) struct UnitCityActionView {
     pub(crate) id: u32,
     pub(crate) name: String,

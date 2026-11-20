@@ -5,6 +5,7 @@ mod context_panel;
 mod icons;
 mod info_block;
 mod minimap;
+pub(super) use minimap::MinimapCache;
 mod notifications;
 mod top_bar;
 

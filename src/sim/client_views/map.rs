@@ -84,6 +84,27 @@ impl Simulation {
             .collect()
     }
 
+    pub(crate) fn rendered_city_views_in(
+        &self,
+        tiles: &std::collections::HashSet<(i32, i32)>,
+    ) -> Vec<RenderedCityView> {
+        self.render_cities_where(|city| tiles.contains(&(city.x, city.y)))
+            .iter()
+            .map(|observed| self.rendered_city_view_from_observed(observed))
+            .collect()
+    }
+
+    pub(crate) fn rendered_unit_views_in(
+        &self,
+        tiles: &std::collections::HashSet<(i32, i32)>,
+    ) -> Vec<RenderedUnitView> {
+        self.units
+            .iter()
+            .filter(|unit| tiles.contains(&(unit.x, unit.y)) && self.unit_visible_to_human(unit))
+            .map(|unit| self.rendered_unit_view(unit))
+            .collect()
+    }
+
     pub(crate) fn rendered_city_override_view(&self, city: &City) -> RenderedCityView {
         let observed = self.observed_city(city);
         self.rendered_city_view_from_observed(&observed)
@@ -92,8 +113,8 @@ impl Simulation {
     pub(crate) fn rendered_unit_views(&self) -> Vec<RenderedUnitView> {
         self.units
             .iter()
+            .filter(|unit| self.unit_visible_to_human(unit))
             .map(|unit| self.rendered_unit_view(unit))
-            .filter(|unit| unit.visible)
             .collect()
     }
 
@@ -213,6 +234,58 @@ impl Simulation {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn viewport_projections_preserve_visible_entities_and_city_labels() {
+        let mut sim = Simulation::new(crate::mapgen::generate(42));
+        sim.create_city(HUMAN, 20, 24);
+        sim.create_city(HUMAN, 40, 24);
+        sim.spawn_unit(HUMAN, UnitKind::Warrior, 20, 24);
+        sim.spawn_unit(1, UnitKind::Warrior, 10, 10);
+        let tiles = std::collections::HashSet::from([(20, 24), (10, 10)]);
+        let all_cities = sim.rendered_city_views();
+        let expected: Vec<_> = all_cities
+            .iter()
+            .filter(|city| tiles.contains(&(city.x, city.y)))
+            .map(|city| {
+                (
+                    city.id,
+                    &city.name,
+                    &city.growth_label,
+                    &city.production_label,
+                )
+            })
+            .collect();
+        let filtered = sim.rendered_city_views_in(&tiles);
+        let actual: Vec<_> = filtered
+            .iter()
+            .map(|city| {
+                (
+                    city.id,
+                    &city.name,
+                    &city.growth_label,
+                    &city.production_label,
+                )
+            })
+            .collect();
+        assert!(!actual.is_empty());
+        assert_eq!(actual, expected);
+        let expected: Vec<_> = sim
+            .rendered_unit_views()
+            .iter()
+            .filter(|unit| tiles.contains(&(unit.x, unit.y)))
+            .map(|unit| (unit.id, unit.hp, unit.movement_rate, unit.visible))
+            .collect();
+        let actual: Vec<_> = sim
+            .rendered_unit_views_in(&tiles)
+            .iter()
+            .map(|unit| (unit.id, unit.hp, unit.movement_rate, unit.visible))
+            .collect();
+        assert!(!actual.is_empty());
+        assert_eq!(actual, expected);
+        assert!(sim.rendered_city_views_in(&Default::default()).is_empty());
+        assert!(sim.rendered_unit_views_in(&Default::default()).is_empty());
+    }
 
     #[test]
     fn territory_border_owner_tracks_current_claim_on_fogged_known_tiles() {
