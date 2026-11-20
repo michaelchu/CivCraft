@@ -44,9 +44,11 @@ impl BorderRules {
         }
     }
 
-    fn city_border_base_radius_sq(self, city: &City) -> i64 {
-        self.city_radius_sq
-            + i64::from(city.size.min(CITY_MAP_MAX_RADIUS_SQ as i32)) * self.city_size_effect
+    fn city_border_radius_sq(self, simulation: &Simulation, city: &City) -> i64 {
+        let base = self.city_radius_sq
+            + i64::from(city.size.min(CITY_MAP_MAX_RADIUS_SQ as i32)) * self.city_size_effect;
+        city_culture_border_radius_sq(simulation.city_culture_score(city))
+            .map_or(base, |culture_radius| base.max(culture_radius))
     }
 
     fn city_work_radius_sq(self, simulation: &Simulation, city: &City) -> i64 {
@@ -160,7 +162,6 @@ struct BorderSource {
     city_work_radius_sq: i64,
     strength: i64,
     distances: Vec<i32>,
-    border_distances: Vec<i32>,
 }
 
 impl BorderSource {
@@ -169,13 +170,6 @@ impl BorderSource {
             return i64::MAX;
         }
         let distance_sq = i64::from(distance) * i64::from(distance);
-        self.strength * self.strength / distance_sq
-    }
-    fn strength_at_culture_rank(&self, rank_distance: i32) -> i64 {
-        if rank_distance == 0 {
-            return i64::MAX;
-        }
-        let distance_sq = i64::from(rank_distance) * i64::from(rank_distance);
         self.strength * self.strength / distance_sq
     }
 }
@@ -404,12 +398,11 @@ impl Simulation {
                 tile_index: self.map_wrap.index(city.x, city.y),
                 x: city.x,
                 y: city.y,
-                radius_sq: rules.city_border_base_radius_sq(city),
+                radius_sq: rules.city_border_radius_sq(self, city),
                 culture_radius_sq: city_culture_border_radius_sq(self.city_culture_score(city)),
                 city_work_radius_sq: rules.city_work_radius_sq(self, city),
                 strength: rules.city_border_strength(self, city),
                 distances: self.map_wrap.civ3_distances_from(city.x, city.y),
-                border_distances: self.map_wrap.civ3_rank_distances_from(city.x, city.y),
             })
             .collect();
         // Freeciv map_calculate_borders() scans source tiles in map order.
@@ -438,12 +431,10 @@ impl Simulation {
             let source = &sources[source_index];
             let distance = source.distances[tile_index];
             let distance_sq = i64::from(distance) * i64::from(distance);
-            let border_distance = source.border_distances[tile_index];
-            let border_distance_sq = i64::from(border_distance) * i64::from(border_distance);
             let within_cultural_radius = source
                 .culture_radius_sq
-                .is_some_and(|radius_sq| border_distance_sq <= radius_sq);
-            if distance_sq > source.radius_sq && !within_cultural_radius
+                .is_some_and(|radius_sq| distance_sq <= radius_sq);
+            if distance_sq > source.radius_sq
                 || (distance != 0 && !tile.known_by[source.owner] && !within_cultural_radius)
                 || (distance != 0
                     && !tile_claimable(
@@ -467,12 +458,7 @@ impl Simulation {
             for (tile_index, claim_slot) in claims.iter_mut().enumerate() {
                 let distance = source.distances[tile_index];
                 let distance_sq = i64::from(distance) * i64::from(distance);
-                let border_distance = source.border_distances[tile_index];
-                let border_distance_sq = i64::from(border_distance) * i64::from(border_distance);
-                let within_cultural_radius = source
-                    .culture_radius_sq
-                    .is_some_and(|radius_sq| border_distance_sq <= radius_sq);
-                if distance_sq > source.radius_sq && !within_cultural_radius {
+                if distance_sq > source.radius_sq {
                     continue;
                 }
                 if distance != 0
@@ -482,6 +468,9 @@ impl Simulation {
                 {
                     continue;
                 }
+                let within_cultural_radius = source
+                    .culture_radius_sq
+                    .is_some_and(|radius_sq| distance_sq <= radius_sq);
                 if distance != 0
                     && !self.tiles[tile_index].known_by[source.owner]
                     && !within_cultural_radius
@@ -506,25 +495,7 @@ impl Simulation {
                     {
                         continue;
                     }
-                    let in_cultural_overlap =
-                        source.culture_radius_sq.is_some_and(|radius_sq| {
-                            let distance = i64::from(border_distance);
-                            distance * distance <= radius_sq
-                        }) || old_source.culture_radius_sq.is_some_and(|radius_sq| {
-                            let distance = i64::from(old_source.border_distances[tile_index]);
-                            distance * distance <= radius_sq
-                        });
-                    if source.owner != old_claim.owner && in_cultural_overlap {
-                        // Cultural claims grow in Civ III rank-distance rings.
-                        // Compare their power on that same fat-X metric so all
-                        // tiles in an expansion ring resolve consistently.
-                        let candidate_strength = source.strength_at_culture_rank(border_distance);
-                        let incumbent_strength = old_source
-                            .strength_at_culture_rank(old_source.border_distances[tile_index]);
-                        if candidate_strength <= incumbent_strength {
-                            continue;
-                        }
-                    } else if source.strength_at(distance) <= old_claim.strength {
+                    if source.strength_at(distance) <= old_claim.strength {
                         continue;
                     }
                 }
@@ -541,11 +512,11 @@ impl Simulation {
             tile.owner = claim.map(|claim| claim.owner);
             if let Some(claim) = claim {
                 let source = &sources[source_index_by_city[&claim.city_id]];
-                let border_distance = source.border_distances[tile_index];
-                let border_distance_sq = i64::from(border_distance) * i64::from(border_distance);
+                let distance = source.distances[tile_index];
+                let distance_sq = i64::from(distance) * i64::from(distance);
                 if source
                     .culture_radius_sq
-                    .is_some_and(|radius_sq| border_distance_sq <= radius_sq)
+                    .is_some_and(|radius_sq| distance_sq <= radius_sq)
                 {
                     tile.known_by.set(claim.owner, true);
                 }

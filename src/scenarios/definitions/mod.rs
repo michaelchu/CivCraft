@@ -8,7 +8,6 @@ mod campaign_readiness;
 mod city_governor;
 mod combat_matrix;
 mod competing_partners;
-mod culture_border_scenarios;
 mod culture_borders;
 mod culture_empire_victory;
 mod culture_history;
@@ -127,10 +126,6 @@ pub(super) const SCENARIOS: &[Scenario] = &[
     relationship_memory::SCENARIO,
     culture_history::SCENARIO,
     culture_borders::SCENARIO,
-    culture_border_scenarios::GROWTH,
-    culture_border_scenarios::NEARBY_CITY,
-    culture_border_scenarios::MULTI_CITY,
-    culture_border_scenarios::CONQUEST,
     culture_wonders::SCENARIO,
     culture_empire_victory::SCENARIO,
 ];

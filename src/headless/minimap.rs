@@ -20,7 +20,7 @@ pub(super) fn write_final(
         "format":"png", "path":path.file_name().unwrap().to_string_lossy(),
         "turn":turn, "phase":phase, "width":map.width, "height":map.height,
         "civilizations":map.civilizations,
-        "lookup":"Final state only. Full map without fog of war; terrain tinted by current owner and outlined city markers. Colors are listed in civilizations. No per-turn minimap history is recorded."
+        "lookup":"Final state only. Full map without fog of war; terrain tinted by current owner, outlined city markers. Colors are listed in civilizations. No per-turn minimap history is recorded."
     }))
 }
 
@@ -127,40 +127,5 @@ mod tests {
         assert_eq!(serde_json::to_value(&map).unwrap(), before);
         map.owners.pop();
         assert!(render(&map).is_err());
-    }
-
-    #[test]
-    fn renders_claimed_tiles_without_frontier_guides() {
-        let width = 8;
-        let height = 8;
-        let owners = (0..height)
-            .flat_map(|_| (0..width).map(|x| Some(if x < width / 2 { 0 } else { 1 })))
-            .collect();
-        let map = MinimapSnapshot {
-            width: width as i32,
-            height: height as i32,
-            terrain: vec![[100, 100, 100]; width * height],
-            owners,
-            cities: vec![],
-            civilizations: vec![
-                crate::sim::observation::MinimapCivilization {
-                    id: 0,
-                    name: "A".into(),
-                    color: [200, 0, 0],
-                    alive: true,
-                },
-                crate::sim::observation::MinimapCivilization {
-                    id: 1,
-                    name: "B".into(),
-                    color: [0, 0, 200],
-                    alive: true,
-                },
-            ],
-        };
-        let image = render(&map).unwrap();
-        let expected_a = [162, 37, 37];
-        let expected_b = [37, 37, 162];
-        assert_eq!(image.get_pixel(42, 3).0, expected_a);
-        assert_eq!(image.get_pixel(54, 3).0, expected_b);
     }
 }
