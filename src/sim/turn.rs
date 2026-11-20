@@ -200,11 +200,6 @@ impl Simulation {
         });
         drop(_profile);
         self.trace.phase(trace::Phase::TurnEnd);
-        self.add_event(format!(
-            "Turn {} begins - {}.",
-            self.turn,
-            year_label(self.year)
-        ));
     }
 
     /// Runs Freeciv's `ai_start_phase()` for the campaign civilizations after

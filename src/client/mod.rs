@@ -130,8 +130,6 @@ pub(crate) enum UiAction {
     BlockMapClick,
     DismissIntro,
     ToggleMusicPanel,
-    ToggleNotifications,
-    NotificationsPage(usize),
     ToggleMusicMute,
     AdjustMusicVolume(i8),
     ToggleSfxMute,
@@ -278,8 +276,6 @@ pub(crate) struct Game {
     religion_choice: usize,
     religion_draft: Option<(Option<u32>, crate::sim::FaithPolicy)>,
     religion_feedback: String,
-    notifications_open: bool,
-    notification_page: usize,
     last_notification_id: u64,
     active_toast: Option<(String, f64)>,
     pub(crate) autosave_enabled: bool,
@@ -385,8 +381,6 @@ impl Game {
             religion_choice: 0,
             religion_draft: None,
             religion_feedback: String::new(),
-            notifications_open: false,
-            notification_page: 0,
             last_notification_id,
             active_toast: None,
             autosave_enabled: false,
@@ -676,13 +670,7 @@ impl Game {
             _ => {}
         }
         if self.selected_city_index().is_some() {
-            let notification_button = actions.iter().find_map(|(rect, action)| {
-                matches!(action, UiAction::ToggleNotifications).then_some(*rect)
-            });
             actions.clear();
-            if let Some(rect) = notification_button {
-                actions.push((rect, UiAction::ToggleNotifications));
-            }
             self.draw_city_manager(assets, &mut actions);
         }
         actions.extend(self.draw_stack_menu());
@@ -744,7 +732,6 @@ impl Game {
                 );
             }
         }
-        self.draw_notification_panel(&mut actions);
         actions
     }
 
@@ -970,21 +957,6 @@ mod tests {
             notifications.last().map(|item| item.text.as_str()),
             Some("notice 10")
         );
-        assert_eq!(game.sim.unread_notifications_view(), before + 11);
-        game.perform_action(UiAction::ToggleNotifications);
-        assert!(game.notifications_open);
-        assert_eq!(game.sim.unread_notifications_view(), 0);
-        assert!(
-            game.sim
-                .campaign_notifications_view()
-                .iter()
-                .all(|item| item.read)
-        );
-        game.notify("Arrived while the inbox is open.");
-        assert_eq!(game.sim.unread_notifications_view(), 1);
-        game.perform_action(UiAction::ToggleNotifications);
-        assert!(!game.notifications_open);
-        assert_eq!(game.sim.unread_notifications_view(), 1);
     }
 
     #[test]

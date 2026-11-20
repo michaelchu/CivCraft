@@ -90,14 +90,6 @@ impl Simulation {
         );
     }
 
-    pub(crate) fn add_category_event(
-        &mut self,
-        text: impl Into<String>,
-        category: NotificationCategory,
-    ) {
-        self.add_notification(text, category, NotificationPriority::Routine);
-    }
-
     pub(crate) fn add_notification(
         &mut self,
         text: impl Into<String>,
@@ -138,6 +130,7 @@ impl Simulation {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn mark_notifications_read(&mut self) {
         for notification in &mut self.notifications {
             notification.read = true;

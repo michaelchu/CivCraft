@@ -6,7 +6,6 @@ mod icons;
 mod info_block;
 mod minimap;
 pub(super) use minimap::MinimapCache;
-mod notifications;
 mod top_bar;
 
 fn new_important_toast(
@@ -136,31 +135,65 @@ impl Game {
             self.active_toast = Some((message, macroquad::time::get_time() + 6.0));
         }
         self.last_notification_id = newest_seen;
-        let Some((message, until)) = &self.active_toast else {
-            return;
-        };
-        if macroquad::time::get_time() > *until {
+        if self
+            .active_toast
+            .as_ref()
+            .is_some_and(|(_, until)| macroquad::time::get_time() > *until)
+        {
             self.active_toast = None;
-            return;
         }
         let width = (screen_width() * 0.65).min(620.0).min(available);
-        let clipped = fit_text(message, 15.0, width - 16.0);
-        let rect = Rect::new(
-            HUD_MARGIN,
-            HUD_MARGIN,
-            measure_text(&clipped, None, 15, 1.0).width + 16.0,
-            23.0,
-        );
-        draw_rectangle(
-            rect.x,
-            rect.y,
-            rect.w,
-            rect.h,
-            Color::from_rgba(35, 31, 21, 235),
-        );
-        draw_rectangle_lines(rect.x, rect.y, rect.w, rect.h, 1.0, GOLD);
-        draw_text(&clipped, rect.x + 8.0, rect.y + 16.0, 15.0, WHITE);
-        actions.push((rect, UiAction::BlockMapClick));
+        let mut routine = notifications
+            .iter()
+            .filter(|item| item.priority == crate::sim::NotificationPriority::Routine)
+            .rev()
+            .take(2)
+            .collect::<Vec<_>>();
+        routine.reverse();
+        let toast_visible = self.active_toast.is_some();
+        if let Some((message, _)) = &self.active_toast {
+            let clipped = fit_text(message, 15.0, width - 16.0);
+            let rect = Rect::new(
+                HUD_MARGIN,
+                HUD_MARGIN,
+                measure_text(&clipped, None, 15, 1.0).width + 16.0,
+                23.0,
+            );
+            draw_rectangle(
+                rect.x,
+                rect.y,
+                rect.w,
+                rect.h,
+                Color::from_rgba(35, 31, 21, 235),
+            );
+            draw_rectangle_lines(rect.x, rect.y, rect.w, rect.h, 1.0, GOLD);
+            draw_text(&clipped, rect.x + 8.0, rect.y + 16.0, 15.0, WHITE);
+            actions.push((rect, UiAction::BlockMapClick));
+        }
+        for (index, notification) in routine.iter().enumerate() {
+            let clipped = fit_text(&notification.text, 15.0, width - 16.0);
+            let y = HUD_MARGIN + if toast_visible { 25.0 } else { 0.0 } + (1 - index) as f32 * 21.0;
+            let rect = Rect::new(
+                HUD_MARGIN,
+                y,
+                measure_text(&clipped, None, 15, 1.0).width + 16.0,
+                21.0,
+            );
+            draw_rectangle(
+                rect.x,
+                rect.y,
+                rect.w,
+                rect.h,
+                Color::from_rgba(16, 20, 20, 218),
+            );
+            let color = if index + 1 == routine.len() {
+                Color::from_rgba(230, 228, 211, 255)
+            } else {
+                Color::from_rgba(174, 177, 171, 255)
+            };
+            draw_text(&clipped, rect.x + 8.0, rect.y + 15.0, 15.0, color);
+            actions.push((rect, UiAction::BlockMapClick));
+        }
     }
 }
 

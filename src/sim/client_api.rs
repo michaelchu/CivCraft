@@ -196,16 +196,8 @@ impl ClientSimulation {
         self.simulation.campaign_notifications_view()
     }
 
-    pub(crate) fn unread_notifications_view(&self) -> usize {
-        self.simulation.unread_notifications_view()
-    }
-
     pub(crate) fn campaign_messages_view(&self) -> Vec<String> {
         self.simulation.campaign_messages_view()
-    }
-
-    pub(crate) fn mark_notifications_read(&mut self) {
-        self.simulation.mark_notifications_read();
     }
 
     pub(crate) fn notify(&mut self, text: impl Into<String>) {

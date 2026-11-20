@@ -7,6 +7,7 @@ impl Simulation {
         &self.notifications
     }
 
+    #[cfg(test)]
     pub(crate) fn unread_notifications_view(&self) -> usize {
         self.notifications
             .iter()

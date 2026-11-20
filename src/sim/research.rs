@@ -699,9 +699,12 @@ impl Simulation {
             }
         }
         if owner == HUMAN {
-            self.add_category_event(
+            self.add_contextual_notification(
                 format!("Research complete: {}.", tech.name()),
                 notifications::NotificationCategory::Research,
+                notifications::NotificationPriority::Important,
+                None,
+                None,
             );
         }
         // techtools.c:found_new_tech clears a completed goal for every
