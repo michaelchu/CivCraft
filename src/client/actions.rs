@@ -33,8 +33,6 @@ impl Game {
                 action,
                 UiAction::EndTurn
                     | UiAction::ToggleMusicPanel
-                    | UiAction::ToggleNotifications
-                    | UiAction::NotificationsPage(_)
                     | UiAction::ToggleMusicMute
                     | UiAction::AdjustMusicVolume(_)
                     | UiAction::ToggleSfxMute
@@ -47,14 +45,6 @@ impl Game {
             UiAction::BlockMapClick => {}
             UiAction::DismissIntro => self.overlay.close(Overlay::Intro),
             UiAction::ToggleMusicPanel => self.music_open = !self.music_open,
-            UiAction::ToggleNotifications => {
-                self.notifications_open = !self.notifications_open;
-                if self.notifications_open {
-                    self.notification_page = 0;
-                    self.sim.mark_notifications_read();
-                }
-            }
-            UiAction::NotificationsPage(page) => self.notification_page = page,
             UiAction::ToggleMusicMute => self.music_muted = !self.music_muted,
             UiAction::AdjustMusicVolume(delta) => {
                 self.music_volume =
