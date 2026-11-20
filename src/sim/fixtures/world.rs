@@ -234,6 +234,13 @@ impl WorldBuilder<'_> {
         }
     }
 
+    /// Rebuild territory after cities and their culture are preset, so the
+    /// initial snapshot and the first turn's decisions see the borders that
+    /// culture implies rather than those from founding.
+    pub(crate) fn settle_borders(&mut self) {
+        self.game.rebuild_city_ownership();
+    }
+
     pub(crate) fn terrain(&mut self, position: (i32, i32), terrain: Terrain) {
         self.game.tile_mut(position.0, position.1).terrain = terrain;
     }

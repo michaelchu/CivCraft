@@ -14,18 +14,27 @@ const CULTURE_VICTORY_STANDARD_EMPIRE_POINTS: i64 = 100_000;
 const CULTURE_BUILDING_AGE_BONUS_YEARS: i32 = 1_000;
 const CULTURE_BORDER_THRESHOLDS: [i64; 4] = [10, 100, 1_000, 10_000];
 
-/// Return the Civ III border radius for the culture tier, if a tier has been
-/// reached. Distances use CivCraft's existing Civ III map metric.
-pub(crate) fn city_culture_border_radius_sq(culture: i64) -> Option<i64> {
-    match CULTURE_BORDER_THRESHOLDS
+/// How a change in a city's culture must refresh territory.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum BorderRefresh {
+    /// Nothing changes: no radius change and no contest to reorder.
+    None,
+    /// The culture gain passed a rival's culture next to a shared border.
+    Contest,
+    /// The border radius changed.
+    Expansion,
+}
+
+/// Return the city's border radius from its cumulative culture. Culture is the
+/// only source of border growth: a new city claims the 3×3 square (radius 1),
+/// and each threshold extends every side one tile outward as a "fat X" (see
+/// `MapWrap::civ3_border_shape_contains`).
+pub(crate) fn city_culture_border_radius(culture: i64) -> i32 {
+    let tiers = CULTURE_BORDER_THRESHOLDS
         .iter()
-        .rposition(|threshold| culture >= *threshold)?
-    {
-        0 => Some(9),
-        1 => Some(16),
-        2 => Some(25),
-        _ => Some(36),
-    }
+        .filter(|threshold| culture >= **threshold)
+        .count();
+    1 + tiers as i32
 }
 
 pub(crate) fn next_city_culture_border_threshold(culture: i64) -> Option<i64> {
@@ -123,17 +132,63 @@ impl Simulation {
         building_culture.saturating_add(i64::from(self.religion_culture(city)))
     }
 
-    /// Apply Civ III city culture after activity, production, and growth. The
-    /// return value indicates that a border milestone has just been reached.
-    pub(super) fn record_city_history(&mut self, city_index: usize) -> bool {
+    /// Apply Civ III city culture after activity, production, and growth, and
+    /// report which border refresh the change requires.
+    pub(super) fn record_city_history(&mut self, city_index: usize) -> BorderRefresh {
         let city = &self.cities[city_index];
         let history = i64::from(city.history);
-        let before_tier = city_culture_border_radius_sq(self.city_culture_score(city));
+        let before = self.city_culture_score(city);
         let gain = self.city_culture_per_turn(city);
         self.cities[city_index].history =
             i32::try_from(history.saturating_add(gain).max(0)).unwrap_or(i32::MAX);
         let city = &self.cities[city_index];
-        before_tier != city_culture_border_radius_sq(self.city_culture_score(city))
+        let after = self.city_culture_score(city);
+        if city_culture_border_radius(before) != city_culture_border_radius(after) {
+            BorderRefresh::Expansion
+        } else if self.culture_change_decides_contest(city, before, after) {
+            BorderRefresh::Contest
+        } else {
+            BorderRefresh::None
+        }
+    }
+
+    /// Rebuild borders after a city's culture changed. An expansion arranges
+    /// the city's workers over its new tiles, as when it is founded. A contest
+    /// refresh only moves a contested tile, so it keeps every worker and
+    /// specialist assignment that is still legal.
+    pub(super) fn refresh_borders_for_culture(&mut self, city_id: u32, refresh: BorderRefresh) {
+        match refresh {
+            BorderRefresh::Expansion => self.rebuild_city_ownership_for_city_event(city_id),
+            BorderRefresh::Contest => self.rebuild_city_ownership(),
+            BorderRefresh::None => {}
+        }
+    }
+
+    /// Exact culture breaks ties between equally distant cities: more culture
+    /// wins, then the older city. A change matters only when it flips this
+    /// city's priority against a rival of another owner whose border can reach
+    /// this one. Overlap with the same owner never changes who owns a tile, and
+    /// a gain that leaves every such comparison as it was cannot move a tile.
+    fn culture_change_decides_contest(&self, city: &City, before: i64, after: i64) -> bool {
+        if before == after {
+            return false;
+        }
+        let radius = city_culture_border_radius(after);
+        self.cities.iter().any(|other| {
+            let other_score = self.city_culture_score(other);
+            if other.owner == city.owner
+                || self
+                    .map_wrap
+                    .civ3_distance(city.x, city.y, other.x, other.y)
+                    > radius + city_culture_border_radius(other_score)
+            {
+                return false;
+            }
+            let rival = (-other_score, other.id);
+            let wins_before = (-before, city.id) < rival;
+            let wins_after = (-after, city.id) < rival;
+            wins_before != wins_after
+        })
     }
 
     /// Apply Freeciv national history at the end of national turn activities.
@@ -237,6 +292,14 @@ impl Simulation {
 
 impl Simulation {
     #[cfg(any(test, feature = "scenarios"))]
+    /// Set a city's accumulated culture for a scripted scenario. Borders update
+    /// at the next culture milestone, as for ordinary accumulation.
+    pub(in crate::sim) fn stage_city_culture(&mut self, city_id: u32, history: i32) {
+        if let Some(index) = self.city_index_by_id(city_id) {
+            self.cities[index].history = history.max(0);
+        }
+    }
+
     pub(crate) fn city_history(&self, id: u32) -> Option<i32> {
         self.city_by_id(id).map(|city| city.history)
     }
@@ -311,12 +374,12 @@ mod tests {
 
     #[test]
     fn city_culture_unlocks_border_tiers_at_civ_iii_thresholds() {
-        assert_eq!(city_culture_border_radius_sq(0), None);
-        assert_eq!(city_culture_border_radius_sq(9), None);
-        assert_eq!(city_culture_border_radius_sq(10), Some(9));
-        assert_eq!(city_culture_border_radius_sq(100), Some(16));
-        assert_eq!(city_culture_border_radius_sq(1_000), Some(25));
-        assert_eq!(city_culture_border_radius_sq(10_000), Some(36));
+        assert_eq!(city_culture_border_radius(0), 1);
+        assert_eq!(city_culture_border_radius(9), 1);
+        assert_eq!(city_culture_border_radius(10), 2);
+        assert_eq!(city_culture_border_radius(100), 3);
+        assert_eq!(city_culture_border_radius(1_000), 4);
+        assert_eq!(city_culture_border_radius(10_000), 5);
         assert_eq!(next_city_culture_border_threshold(10), Some(100));
         assert_eq!(next_city_culture_border_threshold(10_000), None);
     }

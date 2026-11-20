@@ -480,6 +480,10 @@ impl Simulation {
         // unless activity is ACTIVITY_GOTO. This engine has no queued native
         // GOTO activity; task destinations are reconstructed by the advisors.
         game.unit_goto_tiles.clear();
+        // Borders follow culture and the map alone. A save written under an
+        // earlier border rule (such as size-based territory) would otherwise
+        // keep its stale claims, workers and discoveries until a turn ends.
+        game.rebuild_city_ownership();
         game.rebuild_observed_city_index();
         game.refresh_diplomatic_intelligence();
         // Restoration may query entities while validating and repairing state.

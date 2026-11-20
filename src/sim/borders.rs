@@ -2,13 +2,8 @@
 
 use super::action_rules::SimulationRequirementContext;
 use super::*;
-use crate::rules::engine_rules::RequirementKind;
-use crate::rules::engine_rules::campaign_effect;
-use crate::rules::engine_rules::{
-    EffectContext, Requirement, RequirementContext, RequirementEvaluationError, RequirementRange,
-    RequirementValue, RulesetData,
-};
-use crate::sim::culture::city_culture_border_radius_sq;
+use crate::rules::engine_rules::RulesetData;
+use crate::sim::culture::city_culture_border_radius;
 use std::collections::HashMap;
 
 #[cfg(test)]
@@ -17,11 +12,10 @@ mod tests;
 const CITY_MAP_MIN_RADIUS_SQ: i64 = 5;
 const CITY_MAP_MAX_RADIUS_SQ: i64 = 26;
 
+/// Borders and land claims follow the Civ III culture model; the ruleset has no
+/// border settings. Only the city work radius is read from it here.
 #[derive(Clone, Copy, Debug)]
 struct BorderRules {
-    city_radius_sq: i64,
-    city_size_effect: i64,
-    permanent_radius_sq: i64,
     initial_city_radius_sq: i64,
 }
 
@@ -29,13 +23,6 @@ impl BorderRules {
     fn selected() -> Self {
         let rules = RulesetData::campaign_default();
         Self {
-            city_radius_sq: ruleset_integer_parameter(rules, "borders", "radius_sq_city"),
-            city_size_effect: ruleset_integer_parameter(rules, "borders", "size_effect"),
-            permanent_radius_sq: ruleset_integer_parameter(
-                rules,
-                "borders",
-                "radius_sq_city_permanent",
-            ),
             initial_city_radius_sq: ruleset_integer_parameter(
                 rules,
                 "civstyle",
@@ -44,25 +31,11 @@ impl BorderRules {
         }
     }
 
-    fn city_border_radius_sq(self, simulation: &Simulation, city: &City) -> i64 {
-        let base = self.city_radius_sq
-            + i64::from(city.size.min(CITY_MAP_MAX_RADIUS_SQ as i32)) * self.city_size_effect;
-        city_culture_border_radius_sq(simulation.city_culture_score(city))
-            .map_or(base, |culture_radius| base.max(culture_radius))
-    }
-
     fn city_work_radius_sq(self, simulation: &Simulation, city: &City) -> i64 {
         let context =
             SimulationRequirementContext::for_city_at(simulation, city, Some((city.x, city.y)));
         let bonus = context.effect(EffectKind::CityRadiusSq);
         (self.initial_city_radius_sq + bonus).clamp(CITY_MAP_MIN_RADIUS_SQ, CITY_MAP_MAX_RADIUS_SQ)
-    }
-
-    fn city_border_strength(self, simulation: &Simulation, city: &City) -> i64 {
-        let context =
-            SimulationRequirementContext::for_city_at(simulation, city, Some((city.x, city.y)));
-        let percent = context.effect(EffectKind::BorderStrengthPct);
-        (i64::from(city.size) + 2) * (100 + percent) / 100
     }
 }
 
@@ -81,75 +54,6 @@ fn ruleset_integer_parameter(rules: &RulesetData, section: &str, key: &str) -> i
         .unwrap_or_else(|| panic!("selected C2C3 [{section}].{key} has no integer value"))
 }
 
-#[derive(Debug)]
-struct BorderRegions {
-    region_by_tile: Vec<usize>,
-    sizes: Vec<usize>,
-    surrounder: Vec<Option<usize>>,
-}
-
-impl BorderRegions {
-    fn from_simulation(simulation: &Simulation) -> Self {
-        let mut region_by_tile = vec![usize::MAX; simulation.tiles.len()];
-        let mut sizes = Vec::new();
-        for start in 0..simulation.tiles.len() {
-            if region_by_tile[start] != usize::MAX {
-                continue;
-            }
-            let is_water = simulation.tiles[start].terrain.is_water();
-            let region = sizes.len();
-            sizes.push(0);
-            region_by_tile[start] = region;
-            let mut pending = vec![start];
-            while let Some(index) = pending.pop() {
-                sizes[region] += 1;
-                let (x, y) = simulation.map_wrap.position(index);
-                for (nx, ny) in simulation.map_wrap.civ3_neighbors(x, y) {
-                    let neighbor = simulation.map_wrap.index(nx, ny);
-                    if region_by_tile[neighbor] == usize::MAX
-                        && simulation.tiles[neighbor].terrain.is_water() == is_water
-                    {
-                        region_by_tile[neighbor] = region;
-                        pending.push(neighbor);
-                    }
-                }
-            }
-        }
-
-        // Freeciv's Region Surrounded requirement is true only when one
-        // distinct adjacent region surrounds the candidate region. Full map
-        // terrain is available in this simulation, so no unknown-region
-        // three-state case is needed here.
-        let mut surrounder = vec![None; sizes.len()];
-        let mut mixed = vec![false; sizes.len()];
-        for (index, _) in simulation.tiles.iter().enumerate() {
-            let region = region_by_tile[index];
-            let (x, y) = simulation.map_wrap.position(index);
-            for (nx, ny) in simulation.map_wrap.civ3_neighbors(x, y) {
-                let neighbor_region = region_by_tile[simulation.map_wrap.index(nx, ny)];
-                if neighbor_region == region {
-                    continue;
-                }
-                if let Some(previous) = surrounder[region] {
-                    mixed[region] |= previous != neighbor_region;
-                } else {
-                    surrounder[region] = Some(neighbor_region);
-                }
-            }
-        }
-        for (region, is_mixed) in mixed.into_iter().enumerate() {
-            if is_mixed {
-                surrounder[region] = None;
-            }
-        }
-        Self {
-            region_by_tile,
-            sizes,
-            surrounder,
-        }
-    }
-}
-
 #[derive(Clone, Debug)]
 struct BorderSource {
     city_id: u32,
@@ -157,20 +61,15 @@ struct BorderSource {
     tile_index: usize,
     x: i32,
     y: i32,
-    radius_sq: i64,
-    culture_radius_sq: Option<i64>,
-    city_work_radius_sq: i64,
-    strength: i64,
-    distances: Vec<i32>,
+    /// Culture border radius: 1 is the 3×3 square, larger values the fat X.
+    radius: i32,
+    /// Local culture score; breaks ties between equally distant cities.
+    culture: i64,
 }
 
 impl BorderSource {
-    fn strength_at(&self, distance: i32) -> i64 {
-        if distance == 0 {
-            return i64::MAX;
-        }
-        let distance_sq = i64::from(distance) * i64::from(distance);
-        self.strength * self.strength / distance_sq
+    fn contains(&self, wrap: MapWrap, tile_index: usize) -> bool {
+        wrap.civ3_border_shape_contains((self.x, self.y), wrap.position(tile_index), self.radius)
     }
 }
 
@@ -178,170 +77,26 @@ impl BorderSource {
 struct BorderClaim {
     city_id: u32,
     owner: usize,
-    strength: i64,
-}
-
-/// The shared requirement evaluator resolves ordinary universals. This narrow
-/// adapter supplies the two-tile context required by selected C2C3
-/// Tile_Claimable effects and handles only their tile relation/distance/region
-/// universals.
-struct BorderTileClaimContext<'a> {
-    simulation: &'a Simulation,
-    ordinary: SimulationRequirementContext<'a>,
-    regions: &'a BorderRegions,
-    target: (i32, i32),
-    source: (i32, i32),
-}
-
-impl BorderTileClaimContext<'_> {
-    fn region_at(&self, (x, y): (i32, i32)) -> usize {
-        self.regions.region_by_tile[self.simulation.map_wrap.index(x, y)]
-    }
-
-    fn tile_relation(&self, requirement: &Requirement) -> Result<bool, RequirementEvaluationError> {
-        let RequirementValue::String(relation) = &requirement.name else {
-            return Err(unsupported_border_requirement(requirement));
-        };
-        let target_region = self.region_at(self.target);
-        let source_region = self.region_at(self.source);
-        let mut adjacent = Vec::new();
-        if matches!(requirement.range, RequirementRange::Adjacent) {
-            adjacent.extend(
-                self.simulation
-                    .map_wrap
-                    .civ3_neighbors(self.target.0, self.target.1)
-                    .map(|position| self.region_at(position)),
-            );
-        }
-        match relation.to_ascii_lowercase().as_str() {
-            "same region"
-                if matches!(
-                    requirement.range,
-                    RequirementRange::Tile | RequirementRange::Adjacent
-                ) =>
-            {
-                Ok(target_region == source_region
-                    || adjacent.into_iter().any(|region| region == source_region))
-            }
-            "only other region" if requirement.range == RequirementRange::Adjacent => Ok(adjacent
-                .into_iter()
-                .all(|region| region == target_region || region == source_region)),
-            "region surrounded"
-                if matches!(
-                    requirement.range,
-                    RequirementRange::Tile | RequirementRange::Adjacent
-                ) =>
-            {
-                Ok(
-                    self.regions.surrounder[target_region] == Some(source_region)
-                        || adjacent
-                            .into_iter()
-                            .any(|region| self.regions.surrounder[region] == Some(source_region)),
-                )
-            }
-            _ => Err(unsupported_border_requirement(requirement)),
-        }
-    }
-
-    fn max_distance_sq(
-        &self,
-        requirement: &Requirement,
-    ) -> Result<bool, RequirementEvaluationError> {
-        if requirement.range != RequirementRange::Tile {
-            return Err(unsupported_border_requirement(requirement));
-        }
-        let maximum = integer_requirement_value(requirement)
-            .ok_or_else(|| unsupported_border_requirement(requirement))?;
-        let distance = self.simulation.map_wrap.civ3_distance(
-            self.target.0,
-            self.target.1,
-            self.source.0,
-            self.source.1,
-        );
-        let distance_sq = i64::from(distance) * i64::from(distance);
-        Ok(distance_sq <= maximum)
-    }
-
-    fn max_region_tiles(
-        &self,
-        requirement: &Requirement,
-    ) -> Result<bool, RequirementEvaluationError> {
-        let maximum = integer_requirement_value(requirement)
-            .ok_or_else(|| unsupported_border_requirement(requirement))?;
-        let target_region = self.region_at(self.target);
-        let actual = match requirement.range {
-            RequirementRange::Continent => self.regions.sizes[target_region] as i64,
-            RequirementRange::Adjacent => {
-                let same_region_neighbors = self
-                    .simulation
-                    .map_wrap
-                    .civ3_neighbors(self.target.0, self.target.1)
-                    .filter(|&(x, y)| self.region_at((x, y)) == target_region)
-                    .count();
-                1 + same_region_neighbors as i64
-            }
-            _ => return Err(unsupported_border_requirement(requirement)),
-        };
-        Ok(actual <= maximum)
-    }
-}
-
-impl RequirementContext for BorderTileClaimContext<'_> {
-    fn is_present(&self, requirement: &Requirement) -> Result<bool, RequirementEvaluationError> {
-        match requirement.kind {
-            RequirementKind::TileRel => self.tile_relation(requirement),
-            RequirementKind::MaxDistanceSq => self.max_distance_sq(requirement),
-            RequirementKind::MaxRegionTiles => self.max_region_tiles(requirement),
-            _ => self.ordinary.is_present(requirement),
-        }
-    }
-}
-
-impl EffectContext for BorderTileClaimContext<'_> {
-    fn multiplier_percent(&self, multiplier: &str) -> Option<i64> {
-        self.ordinary.multiplier_percent(multiplier)
-    }
-}
-
-fn integer_requirement_value(requirement: &Requirement) -> Option<i64> {
-    match &requirement.name {
-        RequirementValue::Integer(value) => Some(*value),
-        RequirementValue::String(value) => value.parse().ok(),
-        RequirementValue::Bool(_) => None,
-    }
-}
-
-fn unsupported_border_requirement(requirement: &Requirement) -> RequirementEvaluationError {
-    RequirementEvaluationError::Unsupported {
-        kind: requirement.kind.name().to_owned(),
-        name: requirement.name.clone(),
-    }
-}
-
-fn tile_claimable(
-    simulation: &Simulation,
-    regions: &BorderRegions,
-    owner: usize,
-    target: (i32, i32),
-    source: (i32, i32),
-) -> bool {
-    if target == source {
-        return true;
-    }
-    let ordinary = SimulationRequirementContext::for_player_at(simulation, owner, Some(target));
-    let context = BorderTileClaimContext {
-        simulation,
-        ordinary,
-        regions,
-        target,
-        source,
-    };
-    campaign_effect(EffectKind::TileClaimable, &context) > 0
+    /// Contest key; the smallest wins: culture distance, then higher culture,
+    /// then the older (lower id) city.
+    key: (i32, i64, u32),
 }
 
 impl Simulation {
     pub(super) fn city_work_radius_sq(&self, city: &City) -> i64 {
         BorderRules::selected().city_work_radius_sq(self, city)
+    }
+
+    /// Culture border radius and the number of tiles the city currently holds.
+    pub(crate) fn city_border_extent(&self, city_id: u32) -> Option<(i32, usize)> {
+        let city = self.city_by_id(city_id)?;
+        let radius = city_culture_border_radius(self.city_culture_score(city));
+        let tiles = self
+            .tiles
+            .iter()
+            .filter(|tile| tile.border_city == Some(city_id))
+            .count();
+        Some((radius, tiles))
     }
 
     pub(crate) fn displayed_tile_owner(&self, x: i32, y: i32) -> Option<usize> {
@@ -387,9 +142,7 @@ impl Simulation {
         self.ai_ground_targets
             .retain(|_, id| self.cities.iter().any(|city| city.id == *id));
 
-        let rules = BorderRules::selected();
-        let regions = BorderRegions::from_simulation(self);
-        let mut sources: Vec<_> = self
+        let sources: Vec<_> = self
             .cities
             .iter()
             .map(|city| BorderSource {
@@ -398,112 +151,49 @@ impl Simulation {
                 tile_index: self.map_wrap.index(city.x, city.y),
                 x: city.x,
                 y: city.y,
-                radius_sq: rules.city_border_radius_sq(self, city),
-                culture_radius_sq: city_culture_border_radius_sq(self.city_culture_score(city)),
-                city_work_radius_sq: rules.city_work_radius_sq(self, city),
-                strength: rules.city_border_strength(self, city),
-                distances: self.map_wrap.civ3_distances_from(city.x, city.y),
+                radius: city_culture_border_radius(self.city_culture_score(city)),
+                culture: self.city_culture_score(city),
             })
-            .collect();
-        // Freeciv map_calculate_borders() scans source tiles in map order.
-        sources.sort_by_key(|source| source.tile_index);
-        let source_index_by_city: HashMap<_, _> = sources
-            .iter()
-            .enumerate()
-            .map(|(index, source)| (source.city_id, index))
             .collect();
         let city_center_by_tile: HashMap<_, _> = sources
             .iter()
             .map(|source| (source.tile_index, source.city_id))
             .collect();
-        let mut claims = vec![None; self.tiles.len()];
+        let mut claims: Vec<Option<BorderClaim>> = vec![None; self.tiles.len()];
 
-        // Existing claims are kept so equal-strength challengers do not
-        // displace the earlier claimant. Invalid, unknown, out-of-radius, or
-        // no-longer-claimable claims are dropped before source processing.
-        for (tile_index, tile) in self.tiles.iter().enumerate() {
-            let Some(city_id) = tile.border_city else {
-                continue;
-            };
-            let Some(&source_index) = source_index_by_city.get(&city_id) else {
-                continue;
-            };
-            let source = &sources[source_index];
-            let distance = source.distances[tile_index];
-            let distance_sq = i64::from(distance) * i64::from(distance);
-            let within_cultural_radius = source
-                .culture_radius_sq
-                .is_some_and(|radius_sq| distance_sq <= radius_sq);
-            if distance_sq > source.radius_sq
-                || (distance != 0 && !tile.known_by[source.owner] && !within_cultural_radius)
-                || (distance != 0
-                    && !tile_claimable(
-                        self,
-                        &regions,
-                        source.owner,
-                        self.map_wrap.position(tile_index),
-                        (source.x, source.y),
-                    ))
-            {
-                continue;
-            }
-            claims[tile_index] = Some(BorderClaim {
-                city_id,
-                owner: source.owner,
-                strength: source.strength_at(distance),
-            });
-        }
-
+        // Civ III land claim: a city's border covers every tile in its culture
+        // shape, land or sea, seen or not. Of the cities whose shape reaches a
+        // tile, the nearest by culture distance owns it; equally distant cities
+        // go to the one with more culture, then to the older city. Nothing
+        // depends on earlier ownership or scan order, so the shared edge is the
+        // line of equal distance and only a larger culture moves it.
         for source in &sources {
             for (tile_index, claim_slot) in claims.iter_mut().enumerate() {
-                let distance = source.distances[tile_index];
-                let distance_sq = i64::from(distance) * i64::from(distance);
-                if distance_sq > source.radius_sq {
+                if !source.contains(self.map_wrap, tile_index) {
                     continue;
                 }
-                if distance != 0
+                let is_center = tile_index == source.tile_index;
+                if !is_center
                     && city_center_by_tile
                         .get(&tile_index)
                         .is_some_and(|city_id| *city_id != source.city_id)
                 {
                     continue;
                 }
-                let within_cultural_radius = source
-                    .culture_radius_sq
-                    .is_some_and(|radius_sq| distance_sq <= radius_sq);
-                if distance != 0
-                    && !self.tiles[tile_index].known_by[source.owner]
-                    && !within_cultural_radius
-                {
-                    continue;
+                let rank = if is_center {
+                    -1
+                } else {
+                    let (x, y) = self.map_wrap.position(tile_index);
+                    self.map_wrap.civ3_culture_rank(source.x, source.y, x, y)
+                };
+                let key = (rank, -source.culture, source.city_id);
+                if claim_slot.is_none_or(|claim| key < claim.key) {
+                    *claim_slot = Some(BorderClaim {
+                        city_id: source.city_id,
+                        owner: source.owner,
+                        key,
+                    });
                 }
-                let target = self.map_wrap.position(tile_index);
-                if !tile_claimable(self, &regions, source.owner, target, (source.x, source.y)) {
-                    continue;
-                }
-                let old = *claim_slot;
-                if old.is_some_and(|claim| claim.city_id == source.city_id) {
-                    continue;
-                }
-                if let Some(old_claim) = old
-                    && distance != 0
-                {
-                    let old_source = &sources[source_index_by_city[&old_claim.city_id]];
-                    let old_distance = old_source.distances[tile_index];
-                    let old_distance_sq = i64::from(old_distance) * i64::from(old_distance);
-                    if old_distance_sq <= old_source.city_work_radius_sq + rules.permanent_radius_sq
-                    {
-                        continue;
-                    }
-                    if source.strength_at(distance) <= old_claim.strength {
-                        continue;
-                    }
-                }
-                *claim_slot = Some(BorderClaim {
-                    city_id: source.city_id,
-                    owner: source.owner,
-                    strength: source.strength_at(distance),
-                });
             }
         }
 
@@ -516,28 +206,21 @@ impl Simulation {
             tile.border_city = claim.map(|claim| claim.city_id);
             tile.owner = claim.map(|claim| claim.owner);
             if let Some(claim) = claim {
-                let source = &sources[source_index_by_city[&claim.city_id]];
-                let distance = source.distances[tile_index];
-                let distance_sq = i64::from(distance) * i64::from(distance);
-                if source
-                    .culture_radius_sq
-                    .is_some_and(|radius_sq| distance_sq <= radius_sq)
-                {
-                    for &viewer in &recipients[claim.owner] {
-                        if !tile.known_by[viewer] || (viewer == HUMAN && !tile.seen) {
-                            discovered[viewer][tile_index] = true;
-                            discovered_any = true;
-                        }
-                        tile.known_by.set(viewer, true);
-                        if viewer == HUMAN {
-                            tile.seen = true;
-                            tile.last_seen_owner = tile.owner;
-                        }
+                // A claim reveals its terrain to the owner and allies.
+                for &viewer in &recipients[claim.owner] {
+                    if !tile.known_by[viewer] || (viewer == HUMAN && !tile.seen) {
+                        discovered[viewer][tile_index] = true;
+                        discovered_any = true;
+                    }
+                    tile.known_by.set(viewer, true);
+                    if viewer == HUMAN {
+                        tile.seen = true;
+                        tile.last_seen_owner = tile.owner;
                     }
                 }
             }
         }
-        // Cultural claims discover terrain without granting sight of units.
+        // Claims discover terrain without granting sight of units.
         if discovered_any {
             self.remember_render_map(&discovered);
         }

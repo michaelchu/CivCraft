@@ -863,10 +863,9 @@ fn requirement_value_is_valid(requirement: &Requirement, rules: &RulesetData) ->
         RequirementKind::MaxLatitude | RequirementKind::MinLatitude => {
             integer_value(&name).is_some_and(|value| (-1000..=1000).contains(&value))
         }
-        RequirementKind::MaxTopUnitsOnTile
-        | RequirementKind::MaxUnitsOnTile
-        | RequirementKind::MaxDistanceSq => integer_value(&name).is_some_and(|value| value >= 0),
-        RequirementKind::MaxRegionTiles => integer_value(&name).is_some_and(|value| value > 0),
+        RequirementKind::MaxTopUnitsOnTile | RequirementKind::MaxUnitsOnTile => {
+            integer_value(&name).is_some_and(|value| value >= 0)
+        }
         RequirementKind::MinCalFrag => integer_value(&name).is_some_and(|value| value >= 0),
         RequirementKind::MinCities
         | RequirementKind::MinCulture
@@ -938,9 +937,6 @@ fn requirement_value_is_valid(requirement: &Requirement, rules: &RulesetData) ->
         ),
         RequirementKind::Tiledef | RequirementKind::TiledefConnected => {
             record_name_exists(rules, "tile_definition", &name)
-        }
-        RequirementKind::TileRel => {
-            super::identifiers::contains_case_insensitive(super::identifiers::TILE_REL_NAMES, &name)
         }
         RequirementKind::Topology => {
             super::identifiers::contains_case_insensitive(super::identifiers::TOPOLOGY_NAMES, &name)

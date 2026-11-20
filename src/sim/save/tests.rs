@@ -263,6 +263,8 @@ fn current_campaign_round_trip_preserves_gameplay_and_topology_state() {
         .unwrap()
         .order = Some(UnitOrder::PrecisionBombard { x: 15, y: 20 });
     game.cities[0].history = 375;
+    // Loading rebuilds borders and workers, so save a settled state.
+    game.rebuild_city_ownership();
     game.players[HUMAN].history = 125;
     let culture_without_achievement = game.civilization_culture(HUMAN);
     game.nation_scores[HUMAN]
@@ -869,4 +871,49 @@ fn v31_campaign_migrates_to_empty_religion_without_losing_notifications() {
         loaded.encode_campaign().unwrap(),
         game.encode_campaign().unwrap()
     );
+}
+
+#[test]
+fn loading_a_campaign_rebuilds_borders_from_culture() {
+    let path = temporary_save("stale-borders");
+    let mut game = Simulation::new(crate::test_support::seeded_map());
+    game.units.clear();
+    game.cities.clear();
+    for tile in &mut game.tiles {
+        tile.terrain = crate::world::Terrain::Grassland;
+        tile.known_by.fill(true);
+        tile.owner = None;
+        tile.border_city = None;
+    }
+    game.create_city(HUMAN, 20, 24);
+    game.rebuild_city_ownership();
+    let city_id = game.cities[0].id;
+    let square = game.city_border_extent(city_id).unwrap();
+    assert_eq!(square, (1, 9));
+
+    // A save from the size-based rule: a zero-culture city holding two rings.
+    let (cx, cy) = (game.cities[0].x, game.cities[0].y);
+    let mut stale = Vec::new();
+    for index in 0..game.tiles.len() {
+        let (x, y) = game.map_wrap.position(index);
+        if game.map_wrap.civ3_distance(cx, cy, x, y) <= 2 {
+            game.tiles[index].owner = Some(HUMAN);
+            game.tiles[index].border_city = Some(city_id);
+            stale.push((x, y));
+        }
+    }
+    assert!(stale.len() > 9);
+    game.save_campaign(&path).unwrap();
+
+    let loaded = Simulation::load_campaign(&path).unwrap();
+    fs::remove_file(path).unwrap();
+    assert_eq!(loaded.city_border_extent(city_id), Some(square));
+    for (x, y) in stale {
+        let near = loaded.map_wrap.civ3_distance(cx, cy, x, y) <= 1;
+        assert_eq!(
+            loaded.tile(x, y).border_city,
+            near.then_some(city_id),
+            "tile ({x},{y})"
+        );
+    }
 }

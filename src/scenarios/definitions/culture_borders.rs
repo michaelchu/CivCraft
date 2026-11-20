@@ -6,7 +6,7 @@ use crate::sim::{HUMAN, Simulation, fixtures::WorldBuilder};
 
 pub(super) const SCENARIO: Scenario = Scenario::new(
     "culture-borders",
-    1,
+    2,
     ScenarioKind::Actions {
         control: Control::Human,
         execute,
@@ -22,15 +22,17 @@ fn execute(game: &mut Simulation, checks: &mut Checks) {
 
     let origin = (10, 24);
     let mut path = vec![origin];
-    for _ in 0..4 {
+    for _ in 0..3 {
         let previous = *path.last().unwrap();
         path.push(
             game.map_wrap
-                .civ3_neighbor(previous.0, previous.1, 2)
+                .civ3_neighbor(previous.0, previous.1, 3)
                 .unwrap(),
         );
     }
-    let target = path[4];
+    // Three steps along a map axis: outside the 21-tile fat X (radius 2) but
+    // inside the next expansion (radius 3).
+    let target = path[3];
     let unclaimed_before = game.tile(target.0, target.1).owner.is_none();
     game.process_player_cities(HUMAN);
 
@@ -44,7 +46,7 @@ fn execute(game: &mut Simulation, checks: &mut Checks) {
         (
             "culture_expands_claimed_territory",
             unclaimed_before && game.tile(target.0, target.1).owner == Some(HUMAN),
-            "A tile four Civ III map steps away is claimed when the culture border tier expands"
+            "A tile three Civ III map steps away along a map axis is claimed when the culture border tier expands"
                 .into(),
         ),
     ]);
