@@ -164,25 +164,30 @@ impl Simulation {
         }
     }
 
-    /// Exact culture breaks ties between equally distant cities, so a gain
-    /// inside a tier matters when it passes the culture of a rival whose border
-    /// can reach this one. Overlap with the same owner never changes who owns a
-    /// tile, and a gain that stays clear of every rival's culture cannot
-    /// reorder any tie.
+    /// Exact culture breaks ties between equally distant cities: more culture
+    /// wins, then the older city. A change matters only when it flips this
+    /// city's priority against a rival of another owner whose border can reach
+    /// this one. Overlap with the same owner never changes who owns a tile, and
+    /// a gain that leaves every such comparison as it was cannot move a tile.
     fn culture_change_decides_contest(&self, city: &City, before: i64, after: i64) -> bool {
         if before == after {
             return false;
         }
-        let (low, high) = (before.min(after), before.max(after));
         let radius = city_culture_border_radius(after);
         self.cities.iter().any(|other| {
             let other_score = self.city_culture_score(other);
-            other.owner != city.owner
-                && (low..=high).contains(&other_score)
-                && self
+            if other.owner == city.owner
+                || self
                     .map_wrap
                     .civ3_distance(city.x, city.y, other.x, other.y)
-                    <= radius + city_culture_border_radius(other_score)
+                    > radius + city_culture_border_radius(other_score)
+            {
+                return false;
+            }
+            let rival = (-other_score, other.id);
+            let wins_before = (-before, city.id) < rival;
+            let wins_after = (-after, city.id) < rival;
+            wins_before != wins_after
         })
     }
 

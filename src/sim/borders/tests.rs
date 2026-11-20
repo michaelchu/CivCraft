@@ -198,6 +198,22 @@ fn culture_gain_that_cannot_reorder_a_contest_needs_no_rebuild() {
 }
 
 #[test]
+fn culture_gain_that_leaves_the_tie_break_unchanged_needs_no_rebuild() {
+    let mut game = flat_game(Terrain::Grassland);
+    // Equal culture: the older city already wins every equidistant tile.
+    contest(&mut game, 4, [100, 100]);
+    assert_eq!(game.record_city_history(0), BorderRefresh::None);
+    // The younger city catching up to a tie at 101 does not overtake it.
+    game.cities[0].history = 101;
+    game.cities[1].history = 100;
+    assert_eq!(game.record_city_history(1), BorderRefresh::None);
+    assert_eq!(game.city_culture_score(&game.cities[1]), 101);
+    // Passing it does.
+    game.cities[1].history = 101;
+    assert_eq!(game.record_city_history(1), BorderRefresh::Contest);
+}
+
+#[test]
 fn contest_refresh_keeps_a_cities_worker_assignments() {
     let mut game = flat_game(Terrain::Grassland);
     let (ids, _) = contest(&mut game, 4, [100, 100]);
