@@ -1,5 +1,4 @@
 use super::*;
-use crate::rules::engine_rules::{EffectSet, RulesetData, effect_value};
 
 fn flat_game(terrain: Terrain) -> Simulation {
     let mut game = Simulation::new(crate::test_support::seeded_map());
@@ -36,37 +35,6 @@ fn straight_path(
         );
     }
     path
-}
-
-fn selected_effect_active(
-    game: &Simulation,
-    regions: &BorderRegions,
-    owner: usize,
-    target: (i32, i32),
-    source: (i32, i32),
-    effect_name: &str,
-) -> bool {
-    let rules = RulesetData::campaign_default();
-    let effect = rules
-        .effects
-        .iter()
-        .find(|effect| effect.rule_name.eq_ignore_ascii_case(effect_name))
-        .unwrap_or_else(|| panic!("missing selected C2C3 effect {effect_name}"));
-    let ordinary = SimulationRequirementContext::for_player_at(game, owner, Some(target));
-    let context = BorderTileClaimContext {
-        simulation: game,
-        ordinary,
-        regions,
-        target,
-        source,
-    };
-    effect_value(
-        &EffectSet::from(vec![effect.clone()]),
-        EffectKind::TileClaimable,
-        &context,
-    )
-    .unwrap_or_else(|error| panic!("{effect_name} evaluation failed: {error:?}"))
-        > 0
 }
 
 fn owned_tile_count(game: &Simulation) -> usize {
@@ -125,23 +93,35 @@ fn fat_x_extends_one_tile_along_each_diagonal_edge_not_the_screen_axes() {
 }
 
 #[test]
-fn enabled_borders_only_claim_known_tiles_beyond_the_city_source() {
+fn borders_claim_every_tile_in_the_shape_seen_or_not() {
     let mut game = flat_game(Terrain::Grassland);
-    let origin = (20, 20);
-    let neighbor = game.map_wrap.civ3_neighbor(origin.0, origin.1, 2).unwrap();
+    let origin = (20, 24);
     game.create_city(HUMAN, origin.0, origin.1);
+    game.cities[0].history = 10; // Radius 2: the 21-tile fat X.
     for tile in &mut game.tiles {
         tile.known_by.fill(false);
     }
     game.rebuild_city_ownership();
-    assert_eq!(game.tile(origin.0, origin.1).owner, Some(HUMAN));
-    assert_eq!(game.tile(neighbor.0, neighbor.1).owner, None);
-
-    game.tile_mut(neighbor.0, neighbor.1)
-        .known_by
-        .set(HUMAN, true);
-    game.rebuild_city_ownership();
+    assert_eq!(owned_tile_count(&game), 21);
+    // The claim reveals the terrain it covers to its owner.
+    let neighbor = game.map_wrap.civ3_neighbor(origin.0, origin.1, 2).unwrap();
     assert_eq!(game.tile(neighbor.0, neighbor.1).owner, Some(HUMAN));
+    assert!(game.tile(neighbor.0, neighbor.1).known_by[HUMAN]);
+}
+
+#[test]
+fn borders_claim_water_as_well_as_land() {
+    let mut game = flat_game(Terrain::Ocean);
+    let origin = (20, 24);
+    game.tile_mut(origin.0, origin.1).terrain = Terrain::Grassland;
+    game.create_city(HUMAN, origin.0, origin.1);
+    game.cities[0].history = 100; // Radius 3: 45 tiles, all of them ocean but one.
+    reveal_all(&mut game);
+    game.rebuild_city_ownership();
+    assert_eq!(owned_tile_count(&game), 45);
+    let far = straight_path(&game, origin, 3, 3)[3];
+    assert_eq!(game.tile(far.0, far.1).terrain, Terrain::Ocean);
+    assert_eq!(game.tile(far.0, far.1).owner, Some(HUMAN));
 }
 
 /// Two cities `gap` steps apart along a map axis; returns their ids and the
@@ -232,103 +212,6 @@ fn shared_border_is_the_line_of_equal_distance_and_ignores_history() {
     game.rebuild_city_ownership();
     let second_pass: Vec<_> = game.tiles.iter().map(|tile| tile.border_city).collect();
     assert_eq!(first_pass, second_pass);
-}
-
-#[test]
-fn tile_claimable_matches_selected_region_and_distance_requirements() {
-    let source = (20, 20);
-    let path = {
-        let game = flat_game(Terrain::Grassland);
-        straight_path(&game, source, 2, 3)
-    };
-
-    let land = flat_game(Terrain::Grassland);
-    let regions = BorderRegions::from_simulation(&land);
-    assert!(selected_effect_active(
-        &land,
-        &regions,
-        HUMAN,
-        path[2],
-        source,
-        "claim_land"
-    ));
-
-    let mut disconnected_land = flat_game(Terrain::Ocean);
-    disconnected_land.tile_mut(source.0, source.1).terrain = Terrain::Grassland;
-    disconnected_land.tile_mut(path[2].0, path[2].1).terrain = Terrain::Grassland;
-    let regions = BorderRegions::from_simulation(&disconnected_land);
-    assert!(!selected_effect_active(
-        &disconnected_land,
-        &regions,
-        HUMAN,
-        path[2],
-        source,
-        "claim_land"
-    ));
-
-    let mut ocean = flat_game(Terrain::Ocean);
-    ocean.tile_mut(source.0, source.1).terrain = Terrain::Grassland;
-    let regions = BorderRegions::from_simulation(&ocean);
-    assert!(selected_effect_active(
-        &ocean,
-        &regions,
-        HUMAN,
-        path[1],
-        source,
-        "claim_ocean_adj"
-    ));
-    assert!(!selected_effect_active(
-        &ocean,
-        &regions,
-        HUMAN,
-        path[2],
-        source,
-        "claim_ocean_adj"
-    ));
-
-    let mut lake = flat_game(Terrain::Grassland);
-    lake.tile_mut(path[2].0, path[2].1).terrain = Terrain::Ocean;
-    let regions = BorderRegions::from_simulation(&lake);
-    assert!(selected_effect_active(
-        &lake,
-        &regions,
-        HUMAN,
-        path[2],
-        source,
-        "claim_ocean_lake"
-    ));
-
-    let mut large_lake = flat_game(Terrain::Grassland);
-    let water_path = straight_path(&large_lake, path[2], 2, 20);
-    for &(x, y) in &water_path[1..] {
-        large_lake.tile_mut(x, y).terrain = Terrain::Ocean;
-    }
-    large_lake.tile_mut(path[2].0, path[2].1).terrain = Terrain::Ocean;
-    let regions = BorderRegions::from_simulation(&large_lake);
-    assert!(!selected_effect_active(
-        &large_lake,
-        &regions,
-        HUMAN,
-        path[2],
-        source,
-        "claim_ocean_lake"
-    ));
-
-    let mut bay = flat_game(Terrain::Grassland);
-    let channel = straight_path(&bay, path[2], 2, 22);
-    for &(x, y) in &channel[1..] {
-        bay.tile_mut(x, y).terrain = Terrain::Ocean;
-    }
-    bay.tile_mut(path[2].0, path[2].1).terrain = Terrain::Ocean;
-    let regions = BorderRegions::from_simulation(&bay);
-    assert!(selected_effect_active(
-        &bay,
-        &regions,
-        HUMAN,
-        path[2],
-        source,
-        "claim_ocean_bay"
-    ));
 }
 
 // The Freeciv native radius vectors (`radius_sq_city` + size) are not ported:

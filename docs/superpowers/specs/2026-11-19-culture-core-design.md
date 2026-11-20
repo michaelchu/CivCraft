@@ -15,7 +15,7 @@ the culture model for this explicit gameplay exception to the Freeciv port.
   each city turn. Each building's rate doubles once it has existed for 1,000
   campaign years. Culture age is tracked per building and survives saves.
 - Local city culture is the only source of border growth (city size no longer
-  widens it; the ruleset's `radius_sq_city`/`size_effect` are unused). A new
+  widens it, and the ruleset has no `[borders]` settings). A new
   city claims the 3×3 square (radius 1). At the Civ III thresholds 10, 100,
   1,000, and 10,000 each side extends one tile outward and the corners are
   trimmed: the 21-tile "fat X" (equal to the city work radius), then 45, 77 and
@@ -24,9 +24,11 @@ the culture model for this explicit gameplay exception to the Freeciv port.
   nearest city by culture distance (`MapWrap::civ3_culture_rank`), then to the
   city with more culture, then to the older city (lower id). Ownership is
   recomputed from the cities alone: no border strength, no retention of earlier
-  claims, no permanent-tile lock and no scan-order dependence. Existing C2C3
-  tile claimability still resolves which tiles an expanded border can claim. Workers need owned tiles, so a city
-  works only its eight neighbors until it reaches 10 culture.
+  claims, no permanent-tile lock and no scan-order dependence. Land claims are
+  Civ III's: a border covers every tile in its shape, land or sea and seen or
+  not, and a claim reveals its terrain to the owner. There are no C2C3
+  `Tile_Claimable` region or ocean restrictions. Workers need owned tiles, so a
+  city works only its eight neighbors until it reaches 10 culture.
 - Civilization culture is permanent. When a city is lost or destroyed, its
   accumulated local culture moves into its former owner's national culture
   history. A captured city starts a fresh local culture history. An occupier

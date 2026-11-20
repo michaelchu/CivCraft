@@ -10,7 +10,9 @@
 //! before generation rather than changed after tiles and features are built.
 
 use super::{DEFAULT_CIVILIZATION_COUNT, PERCENT_SCALE, TILES_PER_PLAYER};
-use std::collections::{HashSet, VecDeque};
+use std::collections::HashSet;
+#[cfg(test)]
+use std::collections::VecDeque;
 
 pub(crate) const LAND_PERCENT: i32 = 30;
 pub(crate) const MAP_TARGET_TILES: i32 =
@@ -308,6 +310,7 @@ impl MapWrap {
             .unwrap_or(i32::MAX)
     }
 
+    #[cfg(test)]
     pub(crate) fn civ3_distances_from(self, x: i32, y: i32) -> Vec<i32> {
         let mut distances = vec![i32::MAX; (self.width() * self.height()) as usize];
         let origin = self.index(x, y);

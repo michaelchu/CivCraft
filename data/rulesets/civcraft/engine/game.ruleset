@@ -291,23 +291,6 @@ nuke_pop_loss_pct = 49
 ; 0 no defenders will survive. When set to 100 all defenders will survive.
 nuke_defender_survival_chance_pct = 0
 
-[borders]
-; Base border radius from city.
-radius_sq_city = 5
-
-; Border radius square increased by this amount / point of city size
-size_effect    = 1
-
-; Difference between city workable area and area permanently claimed by
-; city (these tiles cannot be stolen by stronger border sources).
-; 0 means exactly city workable area is immune to border stealing.
-; Negative value means outer workable tiles can be stolen; highly negative
-; value (more than max city radius_sq) means any workable tile can be stolen.
-; If City_Radius_Sq is variable, so is the set of locked tiles; this is
-; a squared value, so the radius of the ring of tiles which are workable
-; but not locked (or vice versa) varies but the area is constant.
-radius_sq_city_permanent = -3
-
 [research]
 ; Method of calculating technology costs
 ;   "Civ I|II"      - Civ (I|II) style. Every new tech add base_tech_cost to
