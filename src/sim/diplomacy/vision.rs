@@ -94,11 +94,7 @@ impl Simulation {
     pub(crate) fn unit_visible_to_human(&self, unit: &Unit) -> bool {
         let tile = self.tile(unit.x, unit.y);
         let allied = self.allied(HUMAN, unit.owner);
-        if self.cities.iter().any(|city| {
-            (city.x, city.y) == (unit.x, unit.y) && !self.military_access(HUMAN, city.owner)
-        }) {
-            return false;
-        }
+        // The human map shows city defenders whenever current sight permits it.
         allied
             || (tile.visible
                 && unit.transport.is_none()

@@ -52,6 +52,7 @@ pub(crate) const UI_REVIEW_SCENES: &[&str] = &[
     "civ3-water-depths",
     "religion",
     "borders-fog-cities",
+    "ai-city-garrisons",
 ];
 /// Cloning preserves the complete RNG and campaign state. Fixtures are built
 /// once and kept immutable; every scenario receives an independent clone.
@@ -165,6 +166,12 @@ impl Game {
         let (city, _rival) = sources.ids;
         self.selected_unit = None;
         match scene {
+            47 => {
+                self.sim.review_fixture().ai_city_garrisons();
+                self.zoom = 0.65;
+                self.focus_camera_on(21, 25);
+                return;
+            }
             46 => {
                 self.sim.review_fixture().borders_fog_cities();
                 self.zoom = 0.65;
@@ -572,6 +579,24 @@ impl Game {
                 self.sim.review_fixture().clear_animation_events();
                 self.playback.finish();
                 return Ok(true);
+            }
+            return Ok(false);
+        }
+        if scene == 47 {
+            if phase == 1 {
+                let units = self.sim.rendered_unit_views();
+                sequence.check(
+                    "three_visible_city_defenders",
+                    units.iter().filter(|u| u.owner == 1).count() == 3,
+                )?;
+                sequence.check(
+                    "remembered_city_has_no_live_defender",
+                    !units.iter().any(|u| u.y == 30),
+                )?;
+                sequence.check(
+                    "four_city_sprites",
+                    self.sim.rendered_city_views().len() == 4,
+                )?;
             }
             return Ok(false);
         }

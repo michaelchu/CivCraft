@@ -11,6 +11,34 @@ mod tests;
 pub(crate) struct ReviewFixture<'a>(pub(in crate::sim) &'a mut Simulation);
 
 impl ReviewFixture<'_> {
+    pub(crate) fn ai_city_garrisons(&mut self) {
+        let sim = &mut self.0;
+        ui_review_fog(sim);
+        sim.units.clear();
+        sim.observed_map = Default::default();
+        for (x, y, name, state) in [
+            (17, 24, "Idle Defender", UnitState::Idle),
+            (21, 24, "Fortified Defender", UnitState::Fortified),
+            (25, 24, "Sentry Defender", UnitState::Sentry),
+            (21, 30, "Remembered City", UnitState::Fortified),
+        ] {
+            sim.create_city(1, x, y);
+            sim.cities.last_mut().unwrap().name = name.into();
+            let id = sim.spawn_unit(1, UnitKind::Spearman, x, y);
+            sim.units.iter_mut().find(|u| u.id == id).unwrap().state = state;
+        }
+        for y in 0..sim.map_wrap.height() {
+            for x in 0..sim.map_wrap.width() {
+                let known = sim.map_wrap.civ3_distance(x, y, 21, 25) <= 7;
+                let tile = sim.tile_mut(x, y);
+                tile.seen = known;
+                tile.visible = known && y <= 26;
+                tile.known_by.set(HUMAN, known);
+            }
+        }
+        ui_review_record_knowledge(sim);
+    }
+
     pub(crate) fn borders_fog_cities(&mut self) {
         ui_review_borders_fog_cities(self.0)
     }

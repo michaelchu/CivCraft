@@ -621,14 +621,9 @@ impl<'a> Civ3WorldPainter<'a> {
         }
         for &(x, y, center) in &order {
             if let Some((unit, count)) = stacks.get(&(x, y)) {
-                // Ordinary city garrisons are hidden, but fortifying units
-                // remain visible above the city. Focused units have a later
-                // foreground layer.
-                if (!cities.contains_key(&(x, y))
-                    || matches!(unit.state, UnitState::Fortifying | UnitState::Fortified))
-                    && Some(unit.id) != game.selected_unit
-                    && !game.playback.is_active(unit.id)
-                {
+                // All visible city stacks use their representative unit, including
+                // idle defenders. Focused units have a later foreground layer.
+                if Some(unit.id) != game.selected_unit && !game.playback.is_active(unit.id) {
                     let action = unit_animation_action(unit);
                     let (action, progress, duration) = unit_animation_progress(
                         action,

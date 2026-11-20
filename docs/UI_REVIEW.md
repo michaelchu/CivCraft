@@ -325,3 +325,7 @@ remembered city views, reject the unknown city view, and verify all three tile
 knowledge states. Inspect the PNG for connected borders fading beneath the fog
 and city sprites/labels in known territory. This is an isolated rendering fixture;
 shared-vision pact transitions are covered by the simulation regression.
+
+`--ui-scene ai-city-garrisons` shows idle, fortified and sentry AI defenders
+above cities in current sight, plus a remembered city whose defender stays hidden.
+The human map displays these defenders independently of military-access treaties.

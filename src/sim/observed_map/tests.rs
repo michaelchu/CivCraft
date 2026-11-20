@@ -738,3 +738,38 @@ fn exhausted_units_keep_their_surrounding_tiles_visible() {
         }
     }
 }
+
+#[test]
+fn foreign_city_defenders_draw_in_sight_and_disappear_in_memory() {
+    let mut sim = Simulation::new(crate::mapgen::generate(42));
+    sim.units.clear();
+    sim.cities.clear();
+    sim.tile_mut(20, 24).terrain = Terrain::Grassland;
+    sim.create_city(1, 20, 24);
+    let defender = sim.spawn_unit(1, UnitKind::Warrior, 20, 24);
+    let scout = sim.spawn_unit(HUMAN, UnitKind::Warrior, 19, 24);
+    for state in [
+        UnitState::Idle,
+        UnitState::Fortifying,
+        UnitState::Fortified,
+        UnitState::Sentry,
+    ] {
+        sim.units
+            .iter_mut()
+            .find(|u| u.id == defender)
+            .unwrap()
+            .state = state;
+        sim.refresh_visibility();
+        assert!(sim.rendered_unit_views().iter().any(|u| u.id == defender));
+    }
+    let scout = sim.units.iter_mut().find(|u| u.id == scout).unwrap();
+    scout.x = 4;
+    scout.y = 24;
+    sim.refresh_visibility();
+    assert!(
+        sim.rendered_city_views()
+            .iter()
+            .any(|c| c.x == 20 && c.y == 24)
+    );
+    assert!(!sim.rendered_unit_views().iter().any(|u| u.id == defender));
+}
