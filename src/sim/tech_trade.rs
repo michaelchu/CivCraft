@@ -373,7 +373,7 @@ mod arithmetic_tests {
         let mut sim = Simulation::new(crate::mapgen::generate(42));
         sim.players[1].known.clear();
         sim.turn = 3;
-        let mut wants = vec![0.0; Tech::all().count()];
+        let mut wants = vec![0.0; Tech::storage_len()];
         wants[Tech::POTTERY.0] = 67_108_864.0;
         sim.ai_tech_wants.insert(1, wants);
         let base = 3 * sim.target_cost(1, Tech::POTTERY);
@@ -408,7 +408,7 @@ mod arithmetic_tests {
                 sim.technology_gold_equivalent(owner, Tech::POTTERY, false)
             );
         }
-        let mut wants = vec![0.0; Tech::all().count()];
+        let mut wants = vec![0.0; Tech::storage_len()];
         wants[Tech::POTTERY.0] = 17.75;
         sim.ai_tech_wants.insert(1, wants);
         let cached = sim.technology_gold_equivalent(1, Tech::POTTERY, true);

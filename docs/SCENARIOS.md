@@ -187,3 +187,80 @@ steps directly. Inspect their scenario observations and `diplomacy.transition`
 events for the matching AI participants, actual acceptance, group pact changes
 and `protection_failed` departure. These controlled island fixtures establish
 behavior under explicit conditions, rather than campaign-wide frequency or balance.
+
+### Religion
+
+The custom religion extension has sixteen normal-turn scenarios:
+
+| Scenario | Turns | Required outcome |
+| --- | --- | --- |
+| `religion-ai-culture` | 3 | A culture-focused AI chooses Tolerant and gains more actual history than a parallel Devout control |
+| `religion-ai-saturated-spread` | 8 | Three own sources already cap incoming pressure; Tolerant converts five targets at the same rate as a Missionary control while producing more culture |
+| `religion-diplomacy-shared` | 1 | Shared declared faith tips a marginal alliance offer into acceptance; the undeclared control refuses |
+| `religion-diplomacy-different` | 1 | Different Devout faiths block a marginal alliance that the undeclared control accepts |
+| `religion-diplomacy-tolerant` | 1 | Tolerant removes the receiver's different-faith penalty and permits the same alliance; the other direction stays hostile |
+| `religion-diplomacy-war` | 1 | Religious tension tips a marginal optional war plan into preparation while both campaigns remain at Peace |
+| `religion-ai-research-race` | 1 | An AI-selected religious research project completes and the AI founds its unlocked religion |
+| `religion-ai-rival-claim` | 1 | A rival claim removes the old religious incentive; the AI selects and founds an alternative |
+| `religion-ai-recovery` | 1 | A financial shock removes optional religious research interest while normal accounting continues |
+| `religion-ai-missionary` | 5 | AI chooses Missionary and converts two tracked cities before a parallel Tolerant control |
+| `religion-ai-goals` | 1 | Science, culture and economic priorities lead three AI nations to different appropriate religions |
+| `religion-ai-coalition` | 1 | An AI adopts an ally's present minority faith while preserving the alliance |
+| `religion-tech-unlocks` | 2 | Normal research completes Meditation and Divine Right; Buddhism and Islam can then be founded |
+| `religion-spread` | 12 | A prepared domestic minority becomes dominant and a foreign trading partner gains presence |
+| `religion-competition` | 2 | Competing minorities stay mixed; different declared faiths produce directional hostility while Peace remains intact |
+| `religion-ai` | 2 | An AI founds a faith and chooses a beneficial declaration/policy through normal turn processing |
+
+`religion-spread` starts its domestic target with 90 influence to keep the
+regression short; it does not start converted. The competition target has two
+180-influence minorities. Founding/declaration use `Drive`; influence preparation
+uses `WorldBuilder::city_religion`. Observations include raw city influence,
+dominance and national faith/policy state. Run with `--snapshot-providers
+cities,civilizations,religion,diplomacy` to inspect
+transitions. The source-adjacent tests cover spread from an initially empty
+city and save/resume behavior as well.
+
+The research-race fixtures start with the other technologies known and a stable,
+content government so unrelated discoveries/revolutions do not obscure the
+policy test. They call the ordinary AI research selector, record its legal
+choice and interest, and only then prepare the final research beaker. Research
+completion and founding must occur through a normal turn, with matching trace
+events. These are focused end-of-project regressions, not benchmarks of a full
+research campaign from turn one.
+
+The rival-claim variant founds the selected religion for a rival before the AI
+reevaluates. The recovery variant instead installs an explicit maintenance
+shock and checks that the religious incentive falls to zero. It does not assert
+that all research stops: native research may remain useful for other reasons.
+
+The Missionary fixture starts two domestic minorities at 90 influence. Its
+comparison game has the same AI control and starting state but holds Tolerant
+policy through a valid declaration cooldown. The runner advances both games
+once per turn. Five turns must produce two conversion events in the AI-selected
+Missionary game while both control cities remain mixed. All four new scenarios
+are exercised at seeds 42, 7 and 99 in source-adjacent tests.
+
+The four diplomacy counterfactuals clone the same starting world and change only
+the AI's declared faith or policy. Both legal faith choices are already present
+in its capital; valid declaration cooldowns preserve the comparison during the
+normal turn. Alliance cases submit the same affordable 5,000-gold offer through
+the ordinary human treaty command, exercising actual AI acceptance and atomic
+execution. Initial raw trust is 980 for the shared-faith case and 1,020 for the
+different-faith cases, placing the receiver near the alliance love threshold of
+100. Observations retain initial and final directional trust/faith attitudes,
+pacts, accepted offers, war plans and strategy. The war case starts at -2,540 raw
+trust; native peaceful attitude gain/decay takes both runs to -2,290 before
+planning. Neutral faith does not cross the strict optional-war threshold, while
+Devout's -4 attitude shifts it by 40 trust units. It requires identical final
+raw trust, a `war_plan_started` event, and checks that preparation has
+not bypassed the existing Peace treaty. These are controlled decision boundaries,
+not evidence that religious differences usually cause war or prevent alliances.
+
+The effectiveness scenarios compare actual history accumulation and city
+influence through normal turns. Both start three Hindu-majority cities; the
+capped-spread case also prepares five nearby minorities at 90 influence. Each
+target already receives the six-point incoming cap without Missionary policy.
+The control holds its legal Devout/Missionary policy for the ten-turn cooldown.
+The AI must stay Tolerant, earn at least three additional history points per
+turn, and, in the spread case, convert all five cities with exactly the same
+influence as the Missionary control. Run both at seeds 42, 7 and 99.

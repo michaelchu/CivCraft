@@ -23,14 +23,14 @@ impl Simulation {
 
     pub(in crate::sim) fn clear_ai_tech_wants(&mut self, owner: usize) {
         self.ai_tech_wants
-            .insert(owner, vec![0.0; Tech::all().count()]);
+            .insert(owner, vec![0.0; Tech::storage_len()]);
     }
 
     pub(in crate::sim) fn add_ai_tech_want(&mut self, owner: usize, tech: Tech, want: f32) {
         let wants = self
             .ai_tech_wants
             .entry(owner)
-            .or_insert_with(|| vec![0.0; Tech::all().count()]);
+            .or_insert_with(|| vec![0.0; Tech::storage_len()]);
         if let Some(value) = wants.get_mut(tech.0) {
             *value += want;
         }

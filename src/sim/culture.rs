@@ -105,20 +105,22 @@ impl Simulation {
     }
 
     pub(crate) fn city_culture_per_turn(&self, city: &City) -> i64 {
-        if city.owner < self.players.len() && self.players[city.owner].mobilized {
-            // Civ III halves building culture while the nation is mobilized.
-            return city
-                .buildings
-                .iter()
-                .filter(|building| building.data().genus != Genus::Special)
-                .map(|&building| self.culture_building_history(city, building) / 2)
-                .fold(0_i64, i64::saturating_add);
-        }
-        city.buildings
-            .iter()
-            .filter(|building| building.data().genus != Genus::Special)
-            .map(|&building| self.culture_building_history(city, building))
-            .fold(0_i64, i64::saturating_add)
+        let building_culture =
+            if city.owner < self.players.len() && self.players[city.owner].mobilized {
+                // Civ III halves building culture while the nation is mobilized.
+                city.buildings
+                    .iter()
+                    .filter(|building| building.data().genus != Genus::Special)
+                    .map(|&building| self.culture_building_history(city, building) / 2)
+                    .fold(0_i64, i64::saturating_add)
+            } else {
+                city.buildings
+                    .iter()
+                    .filter(|building| building.data().genus != Genus::Special)
+                    .map(|&building| self.culture_building_history(city, building))
+                    .fold(0_i64, i64::saturating_add)
+            };
+        building_culture.saturating_add(i64::from(self.religion_culture(city)))
     }
 
     /// Apply Civ III city culture after activity, production, and growth. The

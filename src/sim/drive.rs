@@ -14,6 +14,13 @@ use crate::{
 };
 
 pub(crate) trait Drive {
+    fn found_religion(&mut self, owner: usize, city: u32, faith: u32) -> bool;
+    fn declare_faith(
+        &mut self,
+        owner: usize,
+        faith: Option<u32>,
+        policy: super::FaithPolicy,
+    ) -> bool;
     fn advance_diplomacy(&mut self);
     fn advance_diplomatic_offers_for(&mut self, owner: usize);
     fn advance_proactive_trades_for(&mut self, owner: usize);
@@ -53,6 +60,17 @@ pub(crate) trait Drive {
 }
 
 impl Drive for Simulation {
+    fn found_religion(&mut self, owner: usize, city: u32, faith: u32) -> bool {
+        Simulation::found_religion(self, owner, city, faith)
+    }
+    fn declare_faith(
+        &mut self,
+        owner: usize,
+        faith: Option<u32>,
+        policy: super::FaithPolicy,
+    ) -> bool {
+        Simulation::declare_faith(self, owner, faith, policy)
+    }
     fn advance_diplomacy(&mut self) {
         Simulation::advance_diplomacy(self)
     }

@@ -539,6 +539,66 @@ impl Game {
                 self.reviewed_offer = None;
                 self.sim.apply(Command::DeclineOffer(other));
             }
+            UiAction::ToggleReligion => {
+                self.overlay.toggle(Overlay::Religion);
+                self.religion_draft = None;
+                self.religion_feedback.clear();
+            }
+            UiAction::ReligionCity(index) => self.religion_city = index,
+            UiAction::ReligionFoundingChoice => {
+                self.religion_choice =
+                    (self.religion_choice + 1) % self.sim.religion_management_view().founding.len()
+            }
+            UiAction::ReligionFaith => {
+                let view = self.sim.religion_management_view();
+                let (faith, policy) = self
+                    .religion_draft
+                    .unwrap_or((view.current.declared, view.current.policy));
+                let choices: Vec<_> = std::iter::once(None)
+                    .chain(view.faiths.iter().map(|(id, _)| Some(*id)))
+                    .collect();
+                let i = choices.iter().position(|f| *f == faith).unwrap_or(0);
+                self.religion_draft = Some((choices[(i + 1) % choices.len()], policy));
+            }
+            UiAction::ReligionPolicy(policy) => {
+                let view = self.sim.religion_management_view();
+                self.religion_draft = Some((
+                    self.religion_draft.map_or(view.current.declared, |x| x.0),
+                    policy,
+                ));
+            }
+            UiAction::FoundReligion => {
+                let view = self.sim.religion_management_view();
+                if let Some((id, _)) = view
+                    .cities
+                    .get(self.religion_city.min(view.cities.len().saturating_sub(1)))
+                {
+                    let ok = self.sim.apply(Command::FoundReligion(
+                        *id,
+                        view.founding[self.religion_choice % view.founding.len()].id,
+                    ));
+                    self.religion_feedback = if ok {
+                        "Religion founded. You can now declare it below."
+                    } else {
+                        "Cannot found: check required technology, founding city and availability."
+                    }
+                    .into();
+                }
+            }
+            UiAction::ConfirmReligion => {
+                if let Some((faith, policy)) = self.religion_draft {
+                    let ok = self.sim.apply(Command::DeclareFaith(faith, policy));
+                    self.religion_feedback = if ok {
+                        "Declared faith and policy updated."
+                    } else {
+                        "No change applied. Check cooldown and faith presence."
+                    }
+                    .into();
+                    if ok {
+                        self.religion_draft = None;
+                    }
+                }
+            }
             UiAction::ToggleGovernment => self.overlay.toggle(Overlay::Government),
             UiAction::ChangeGovernment(target) => {
                 self.sim.apply(Command::Government(target));

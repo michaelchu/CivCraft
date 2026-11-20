@@ -139,3 +139,15 @@ Do not update baselines merely to make a migration pass.
 
 Civ III art files remain a separate runtime asset dependency. This change does
 not replace or remove those assets.
+
+## Religion
+
+The owner-authorized religion extension uses
+`data/rulesets/civcraft/content/religion.toml`. Like the existing custom diplomacy
+policy fragments, these values are embedded at build time; rebuild after editing.
+It controls influence bounds/decay, city thresholds, local and trade pressure,
+policy benefits, diplomatic modifiers and change cooldowns. The typed loader
+rejects unknown fields and invalid ranges. Each fixed faith entry specifies its stable ID, name, technology prerequisite
+and bonus. Government does not restrict policy choices. Meditation and Divine
+Right are owner-authorized custom additions in `src/rules/technologies.rs`;
+their persistent IDs are appended after the existing Future/Unset sentinels.

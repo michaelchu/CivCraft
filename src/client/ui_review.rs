@@ -50,6 +50,7 @@ pub(crate) const UI_REVIEW_SCENES: &[&str] = &[
     "resource-shadows",
     "civ3-city-sprites",
     "civ3-water-depths",
+    "religion",
 ];
 /// Cloning preserves the complete RNG and campaign state. Fixtures are built
 /// once and kept immutable; every scenario receives an independent clone.
@@ -168,6 +169,11 @@ impl Game {
                 self.production_page = usize::from(scene == 2);
                 self.city_tiles = scene == 3;
                 self.worklist_page = (scene == 4).then_some(0);
+            }
+            45 => {
+                self.sim.review_fixture().religion(city);
+                self.overlay = Overlay::Religion;
+                self.religion_choice = 0;
             }
             5 => self.overlay = Overlay::Government,
             6 => self.overlay = Overlay::Diplomacy,
@@ -371,6 +377,27 @@ impl Game {
         assets: &Assets,
         sequence: &mut UiReviewSequence,
     ) -> Result<bool, &'static str> {
+        if scene == 45 && phase == 6 {
+            sequence.click(self, buttons, "religion_choose_faith", |a| {
+                matches!(a, UiAction::ReligionFaith)
+            })?;
+            let panel = self.draw_religion();
+            sequence.click(self, &panel, "religion_devout_policy", |a| {
+                matches!(a, UiAction::ReligionPolicy(crate::sim::FaithPolicy::Devout))
+            })?;
+            let panel = self.draw_religion();
+            sequence.click(self, &panel, "religion_confirm", |a| {
+                matches!(a, UiAction::ConfirmReligion)
+            })?;
+            let view = self.sim.religion_management_view();
+            sequence.check(
+                "religion_declared_through_ui",
+                view.current.declared.is_some()
+                    && view.current.policy == crate::sim::FaithPolicy::Devout
+                    && view.cooldown > 0,
+            )?;
+            return Ok(true);
+        }
         if scene == 11 && phase == 1 {
             let irrigate = buttons
                 .iter()

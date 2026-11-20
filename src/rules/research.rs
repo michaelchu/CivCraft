@@ -12,6 +12,7 @@
 use std::sync::OnceLock;
 
 const STABLE_TECH_COUNT: usize = 101;
+const TECH_STORAGE_COUNT: usize = 105;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub(crate) struct Tech(pub(crate) usize);
@@ -77,6 +78,10 @@ impl Civ3TechCatalog {
 
 #[allow(dead_code)] // Includes aliases and advances reserved for the Civ III ruleset.
 impl Tech {
+    pub(crate) const POLYTHEISM: Self = Self(61);
+    pub(crate) const MONOTHEISM: Self = Self(53);
+    pub(crate) const MEDITATION: Self = Self(103);
+    pub(crate) const DIVINE_RIGHT: Self = Self(104);
     pub(crate) const FREE_ARTISTRY: Self = Self(87);
     pub(crate) const GENETICS: Self = Self(88);
     pub(crate) const INTEGRATED_DEFENSE: Self = Self(89);
@@ -173,8 +178,14 @@ impl Tech {
     pub(crate) const FASCISM: Self = Self(99);
     pub(crate) const IRONCLADS: Self = Self(100);
 
+    pub(crate) const fn storage_len() -> usize {
+        TECH_STORAGE_COUNT
+    }
+
     pub(crate) fn all() -> impl Iterator<Item = Self> {
-        (0..STABLE_TECH_COUNT).map(Self)
+        (0..STABLE_TECH_COUNT)
+            .chain(103..TECH_STORAGE_COUNT)
+            .map(Self)
     }
 
     pub(crate) fn data(self) -> Option<&'static Advance> {
@@ -303,11 +314,11 @@ fn civ3_tech_catalog() -> &'static Civ3TechCatalog {
 fn build_civ3_tech_catalog() -> Civ3TechCatalog {
     let mut raw_advances = Vec::new();
     let native_catalog = crate::rules::native::technologies();
-    let mut seen_runtime_ids = [false; STABLE_TECH_COUNT];
+    let mut seen_runtime_ids = [false; TECH_STORAGE_COUNT];
     for (line_number, native) in native_catalog.technologies.iter().enumerate() {
         let tech = Tech(native.runtime_index);
         assert!(
-            tech.0 < STABLE_TECH_COUNT,
+            tech.0 < TECH_STORAGE_COUNT && tech != Tech::FUTURE && tech != Tech::UNSET,
             "Civ III technology {:?} has invalid stable runtime index {} on row {}",
             native.name,
             tech.0,
@@ -344,12 +355,12 @@ fn build_civ3_tech_catalog() -> Civ3TechCatalog {
     }
     assert_eq!(
         raw_advances.len(),
-        83,
+        85,
         "unexpected native campaign tech count"
     );
 
     let mut advances: Vec<Option<Advance>> = std::iter::repeat_with(|| None)
-        .take(STABLE_TECH_COUNT)
+        .take(TECH_STORAGE_COUNT)
         .collect();
     for raw in &raw_advances {
         let requirement_count = civ3_linear_requirement_count(raw.tech, &raw_advances);
@@ -391,7 +402,7 @@ fn parse_tech_era(value: i32) -> TechEra {
 }
 
 fn civ3_linear_requirement_count(tech: Tech, graph: &[RawCiv3Advance]) -> i32 {
-    let mut seen = vec![false; STABLE_TECH_COUNT];
+    let mut seen = vec![false; TECH_STORAGE_COUNT];
     let mut pending = vec![tech];
     while let Some(current) = pending.pop() {
         if seen[current.0] {
@@ -413,7 +424,7 @@ mod sentinel_tests {
 
     #[test]
     fn adding_unset_preserves_every_existing_persisted_advance_index() {
-        assert_eq!(Tech::all().count(), 101);
+        assert_eq!(Tech::all().count(), 103);
         assert_eq!(Tech::IRONCLADS.0, 100);
         assert_eq!(Tech::IRONCLADS.name(), "Ironclads");
         assert_eq!(Tech::FUTURE.0, 101);
@@ -452,7 +463,7 @@ mod sentinel_tests {
                 .iter()
                 .filter(|advance| advance.is_some())
                 .count(),
-            83
+            85
         );
         assert!(!Tech::RADIO.is_civ3_advance());
         assert!(Tech::IRONCLADS.is_civ3_advance());

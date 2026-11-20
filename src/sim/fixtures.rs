@@ -6,6 +6,7 @@ mod cities;
 mod diplomacy;
 mod economy;
 mod readiness;
+mod religion;
 mod research;
 mod units;
 mod world;

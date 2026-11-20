@@ -332,6 +332,13 @@ fn research_unlock_detail(tech: Tech) -> String {
     } else {
         format!("Unlocks: {}", unlocks.join(", "))
     };
+    let faiths = ClientSimulation::religion_research_unlocks(tech);
+    if !faiths.is_empty() {
+        if !detail.is_empty() {
+            detail.push_str(" · ");
+        }
+        detail.push_str(&format!("Founding: {}", faiths.join(", ")));
+    }
     if let Some(age) = art {
         if !detail.is_empty() {
             detail.push_str(" · ");

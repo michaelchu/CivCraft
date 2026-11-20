@@ -395,7 +395,8 @@ impl Simulation {
             .min_by_key(|&target| {
                 self.diplomacy[&Self::relation_key(owner, target)].trust
                     [usize::from(owner > target)]
-                    - self.relationship_war_adjustment(owner, target)
+                    - (self.relationship_war_adjustment(owner, target)
+                        - self.religion_attitude(owner, target) * 10)
             });
         let already_at_war = contacts.iter().any(|&target| self.at_war(owner, target));
         if !already_at_war
@@ -403,7 +404,9 @@ impl Simulation {
             && strategy.can_start_optional_war()
             && let Some(target) = target
             && self.diplomacy[&Self::relation_key(owner, target)].trust[usize::from(owner > target)]
-                < war_threshold + self.relationship_war_adjustment(owner, target)
+                < war_threshold
+                    + (self.relationship_war_adjustment(owner, target)
+                        - self.religion_attitude(owner, target) * 10)
         {
             let relation = &self.diplomacy[&Self::relation_key(owner, target)];
             let reason = if relation.cause_until[usize::from(owner > target)] > self.turn {

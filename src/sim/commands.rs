@@ -43,6 +43,8 @@ pub(crate) enum Command {
     SetRates([i32; 3]),
     Government(super::Government),
     Mobilize,
+    FoundReligion(u32, u32),
+    DeclareFaith(Option<u32>, super::FaithPolicy),
     Espionage(
         usize,
         super::EspionageMission,
@@ -253,6 +255,8 @@ impl Simulation {
             CancelSharedVision(other) => self.cancel_shared_vision(HUMAN, other),
             AcceptOffer(other, offer) => self.accept_offer(other, offer),
             DeclineOffer(other) => self.decline_offer(other),
+            FoundReligion(city, faith) => self.found_religion(HUMAN, city, faith),
+            DeclareFaith(faith, policy) => self.declare_faith(HUMAN, faith, policy),
             Government(target) => self.change_government(HUMAN, target),
             Mobilize => self.mobilize(HUMAN),
             Espionage(owner, mission, city, risk) => {

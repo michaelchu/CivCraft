@@ -8,6 +8,7 @@ Start here for the project’s current sources of truth:
 - [`HEADLESS_ANALYTICS.md`](HEADLESS_ANALYTICS.md) — headless scenarios, tracing, and analytics.
 - [`SIMULATION_STATE.md`](SIMULATION_STATE.md) — durable state, query cache ownership, and invalidation.
 - [`SCENARIOS.md`](SCENARIOS.md) — scenario ownership, lifecycle, fixtures, and test boundaries.
+- [`RELIGION_IMPLEMENTATION_PLAN.md`](RELIGION_IMPLEMENTATION_PLAN.md) — religion rules, integration steps, and validation criteria.
 - [`CIV3_ASSET_RETRIEVAL_RECONCILIATION.md`](CIV3_ASSET_RETRIEVAL_RECONCILIATION.md) — restored media resolver plan and implementation status.
 - [`UI_REVIEW.md`](UI_REVIEW.md) — current renderer contract and visual review.
 - [`CIV3_UNIT_ROSTER_RECONCILIATION.md`](CIV3_UNIT_ROSTER_RECONCILIATION.md) — active campaign unit catalog and source mappings.

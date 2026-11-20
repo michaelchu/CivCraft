@@ -319,6 +319,8 @@ impl Simulation {
             output[index] = (i64::from(output[index]) * i64::from(bonus) / 100)
                 .clamp(i64::from(i32::MIN), i64::from(i32::MAX)) as i32;
         }
+        output[0] += self.religion_output(city, "Science");
+        output[1] += self.religion_output(city, "Gold");
         output
     }
 
@@ -344,6 +346,8 @@ impl Simulation {
             *value = (i64::from(*value) * i64::from(cache.output_bonuses[index]) / 100)
                 .clamp(i64::from(i32::MIN), i64::from(i32::MAX)) as i32;
         }
+        output[0] += self.religion_output(city, "Science");
+        output[1] += self.religion_output(city, "Gold");
         output
     }
 

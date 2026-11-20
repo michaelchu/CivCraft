@@ -540,6 +540,7 @@ impl<'a, A, S> SavedCampaign<'a, A, S> {
             previous_naval_positions: core.previous_naval_positions.into_iter().collect(),
             diplomacy: core.diplomacy.into_owned(),
             vassalage: Default::default(),
+            religion: Default::default(),
             apollo_completed: core.apollo_completed,
             global_advances: core.global_advances.into_owned(),
             players: core.players.into_owned(),

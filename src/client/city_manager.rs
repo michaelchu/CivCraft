@@ -49,6 +49,14 @@ impl Game {
             rect.w - 196.0,
             Color::from_rgba(248, 222, 139, 255),
         );
+        text_in(
+            &self.sim.city_religion_summary(city_id),
+            rect.x + 22.0,
+            rect.y + rect.h - 12.0,
+            13.0,
+            rect.w - 44.0,
+            GOLD,
+        );
         let close_rect = Rect::new(rect.right() - 50.0, rect.y + 14.0, 28.0, 28.0);
         draw_ui_button(close_rect, "X", true, false);
         actions.push((close_rect, UiAction::CloseCity));

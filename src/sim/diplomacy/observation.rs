@@ -15,6 +15,7 @@ pub(crate) struct DiplomacySnapshot {
     pub independence_reason: Option<String>,
     pub until: i32,
     pub trust: [i32; 2],
+    pub religion_attitude: [i32; 2],
     pub relationship_memory: [super::relationships::RelationshipSnapshot; 2],
     pub shared_vision: [bool; 2],
     pub embassy: [bool; 2],
@@ -66,6 +67,7 @@ impl Simulation {
             .into_iter()
             .map(|(&(a, b), r)| DiplomacySnapshot {
                 players: [a, b],
+                religion_attitude: [self.religion_attitude(a, b), self.religion_attitude(b, a)],
                 names: [self.players[a].name.clone(), self.players[b].name.clone()],
                 alive: [self.player_alive(a), self.player_alive(b)],
                 first_contact: r.first_contact,
@@ -169,6 +171,7 @@ mod tests {
         ] {
             let pair = DiplomacySnapshot {
                 players: [0, 1],
+                religion_attitude: [0, 0],
                 names: ["Romans".into(), "Inca".into()],
                 alive,
                 first_contact: contact,

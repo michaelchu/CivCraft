@@ -133,6 +133,7 @@ impl Simulation {
         // srv_main.c::end_turn advances diplomacy and the calendar after
         // migrations, disasters, achievements, climate, and other world
         // changes. check_for_game_over() runs immediately after end_turn().
+        self.advance_religion();
         self.advance_turn_clock();
         // srv_main.c::check_for_game_over runs after end_turn() but before the
         // next begin_turn() refreshes score. Preserve its precedence: game

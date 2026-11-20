@@ -1,0 +1,84 @@
+# Custom religion extension; integers are influence points or percentages.
+founding_influence = 300
+maximum_influence = 1000
+unaligned_weight = 100
+presence_percent = 20
+conversion_percent = 50
+retention_percent = 40
+lead_percent = 10
+decay_divisor = 100
+holy_pressure = 4
+community_pressure = 2
+local_distance = 4
+local_pressure = 2
+trade_pressure = 3
+incoming_cap = 6
+cooldown_turns = 10
+tolerant_culture = 1
+devout_content = 1
+devout_pressure = 2
+missionary_pressure = 2
+shared_attitude = 4
+devout_difference = -4
+missionary_difference = -2
+ai_minimum_improvement = 2
+
+# Fixed identities. IDs are persistent; bonuses apply in dominant cities.
+[[faiths]]
+id = 1
+name = "Buddhism"
+tech = "TECH_Meditation"
+content = 1
+[[faiths]]
+id = 2
+name = "Hinduism"
+tech = "TECH_Polytheism"
+culture = 1
+[[faiths]]
+id = 3
+name = "Judaism"
+tech = "TECH_Monotheism"
+gold = 1
+[[faiths]]
+id = 4
+name = "Confucianism"
+tech = "TECH_Code_of_Laws"
+science = 1
+[[faiths]]
+id = 5
+name = "Taoism"
+tech = "TECH_Philosophy"
+local_pressure = 1
+[[faiths]]
+id = 6
+name = "Christianity"
+tech = "TECH_Theology"
+outgoing_pressure = 1
+[[faiths]]
+id = 7
+name = "Islam"
+tech = "TECH_Divine_Right"
+trade_pressure = 2
+
+[ai]
+culture_goal_points = 5000
+culture_goal_bonus = 100
+religious_culture_bonus = 25
+recovery_gold_bonus = 100
+content_growth_value = 25
+content_unrest_value = 150
+adoption_city_value = 8
+# Policy/declaration switching needs a meaningful gain as the evaluated empire grows.
+switching_city_cost = 2
+diplomacy_value = 15
+ally_weight = 3
+friend_weight = 2
+local_defense_percent = 25
+spread_percent = 50
+foreign_spread_value = 60
+research_cap_per_city = 40
+research_native_priority_per_city = 50
+research_max_steps = 4
+research_cost_scale = 40
+maximum_cities = 12
+maximum_spread_targets = 32

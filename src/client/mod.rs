@@ -172,6 +172,14 @@ pub(crate) enum UiAction {
     NuclearStrikeTo(i32, i32),
     UpgradeUnit(UnitKind, i32),
     ToggleGovernment,
+    ToggleReligion,
+    ReligionCity(usize),
+    ReligionFoundingChoice,
+    ReligionFaith,
+    ReligionPolicy(crate::sim::FaithPolicy),
+    FoundReligion,
+    ConfirmReligion,
+
     ToggleDiplomacy,
     ToggleEspionage,
     EspionageOpponent(usize),
@@ -231,6 +239,10 @@ pub(crate) enum UiAction {
 
 pub(crate) struct Game {
     pub(crate) sim: ClientSimulation,
+    religion_city: usize,
+    religion_choice: usize,
+    religion_draft: Option<(Option<u32>, crate::sim::FaithPolicy)>,
+    religion_feedback: String,
     notifications_open: bool,
     notification_page: usize,
     last_notification_id: u64,
@@ -328,6 +340,10 @@ impl Game {
             .unwrap_or(0);
         Self {
             sim,
+            religion_city: 0,
+            religion_choice: 0,
+            religion_draft: None,
+            religion_feedback: String::new(),
             notifications_open: false,
             notification_page: 0,
             last_notification_id,
@@ -629,6 +645,7 @@ impl Game {
             );
         }
         match self.overlay {
+            Overlay::Religion => return self.draw_religion(),
             Overlay::Government => return self.draw_government(),
             Overlay::Diplomacy => return self.draw_diplomacy(),
             Overlay::Espionage => return self.draw_espionage(),

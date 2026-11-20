@@ -269,7 +269,13 @@ impl Simulation {
         let percent = self.strategic_technology_percent(owner, tech, Some(priorities));
         // Existing negative advice stays negative. A small trait/need interest
         // lets a useful long-term goal enter the prerequisite propagation pass.
-        want * percent as f32 / 100.0
+        let religious_interest = if want >= 0.0 {
+            self.religion_research_interest(owner, tech, priorities)
+        } else {
+            0.0
+        };
+        religious_interest
+            + want * percent as f32 / 100.0
             + if want >= 0.0 {
                 cities as f32
                     * policy().research_interest_want as f32

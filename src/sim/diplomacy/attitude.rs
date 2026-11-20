@@ -154,12 +154,7 @@ impl Simulation {
                 }
             }
         }
-        let love = self
-            .diplomacy
-            .get(&Self::relation_key(owner, target))
-            .map_or(0, |relation| {
-                relation.trust[usize::from(owner > target)] / 10
-            });
+        let love = self.diplomatic_love(owner, target);
         want -= (want * love / 2000).max(0);
         let mut distances = 0;
         let mut own_cities = 0;

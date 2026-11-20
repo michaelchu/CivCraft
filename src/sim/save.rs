@@ -24,7 +24,8 @@ use schema::{
     SavedCampaignV30,
 };
 
-const HEADER: &[u8] = b"CIVCRAFT\0\x31";
+const HEADER: &[u8] = b"CIVCRAFT\0\x32";
+const V31_HEADER: &[u8] = b"CIVCRAFT\0\x31";
 const V2G_HEADER: &[u8] = b"CIVCRAFT\0\x30";
 const V2F_HEADER: &[u8] = b"CIVCRAFT\0\x2F";
 const V2E_HEADER: &[u8] = b"CIVCRAFT\0\x2E";
@@ -96,6 +97,7 @@ impl Simulation {
             .serialize(&(
                 SavedCampaignV2G::from_game(self, Cow::Borrowed(&self.observed_map.partial_sites)),
                 self.save_vassalage(),
+                &self.religion,
             ))
             .map_err(io::Error::other)
     }
@@ -105,10 +107,9 @@ impl Simulation {
         let mut header = [0; HEADER.len()];
         file.read_exact(&mut header)?;
         let max_payload = match header.as_slice() {
-            HEADER | V2G_HEADER | V2F_HEADER | V2E_HEADER | V2D_HEADER | V2C_HEADER
-            | V2B_HEADER | V2A_HEADER | V29_HEADER | V28_HEADER | PACKED_LEGACY_HEADER => {
-                MAX_PAYLOAD
-            }
+            HEADER | V31_HEADER | V2G_HEADER | V2F_HEADER | V2E_HEADER | V2D_HEADER
+            | V2C_HEADER | V2B_HEADER | V2A_HEADER | V29_HEADER | V28_HEADER
+            | PACKED_LEGACY_HEADER => MAX_PAYLOAD,
             LEGACY_HEADER => LEGACY_MAX_PAYLOAD,
             _ => return Err(invalid("Unsupported CivCraft save format")),
         };
@@ -255,6 +256,19 @@ impl Simulation {
                 (game, None, LegacyAiMap::default(), partial_sites)
             }
             HEADER => {
+                let (saved, vassalage, religion): (
+                    SavedCampaignV2G<'_, observed_map::PartialCitySites>,
+                    diplomacy::vassalage::SavedVassalage,
+                    religion::ReligionState,
+                ) = codec(max_payload)
+                    .deserialize(&payload)
+                    .map_err(|error| invalid(error.to_string()))?;
+                let (mut game, partial_sites) = saved.into_game().map_err(invalid)?;
+                game.restore_vassalage(vassalage).map_err(invalid)?;
+                game.religion = religion;
+                (game, None, LegacyAiMap::default(), partial_sites)
+            }
+            V31_HEADER => {
                 let (saved, vassalage): (
                     SavedCampaignV2G<'_, observed_map::PartialCitySites>,
                     diplomacy::vassalage::SavedVassalage,
@@ -277,6 +291,9 @@ impl Simulation {
         game.initialize_missing_culture_building_ages();
         game.upgrade_legacy_notifications();
         game.validate_campaign()?;
+        if !game.valid_religion() {
+            return Err(invalid("Invalid religion state"));
+        }
         if !game.valid_vassalage() {
             return Err(invalid("Invalid vassalage state"));
         }

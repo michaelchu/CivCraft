@@ -291,6 +291,7 @@ impl Simulation {
         let Some(index) = self.city_index_by_id(city_id) else {
             return;
         };
+        self.remove_city_religion(city_id);
         self.release_city_support(city_id);
         let removed = self.cities.remove(index);
         self.preserve_city_culture_on_destruction(&removed);

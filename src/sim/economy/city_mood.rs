@@ -106,13 +106,38 @@ impl Simulation {
         luxury: i32,
         martial_enabled: bool,
     ) -> CitizenFeelingStages {
+        self.city_feelings_with_content(city, luxury, martial_enabled, self.religion_content(city))
+    }
+
+    /// Read-only counterfactual through the complete native mood pipeline.
+    pub(in crate::sim) fn city_mood_with_religious_content(
+        &self,
+        city: &City,
+        luxury: i32,
+        content: i32,
+    ) -> (i32, bool) {
+        let feelings = self
+            .city_feelings_with_content(city, luxury, true, content)
+            .final_stage;
+        let unrest =
+            feelings.unhappy + 2 * feelings.angry + city.confused_citizens.clamp(0, city.size);
+        (unrest, feelings.happy < unrest)
+    }
+
+    fn city_feelings_with_content(
+        &self,
+        city: &City,
+        luxury: i32,
+        martial_enabled: bool,
+        religious_content: i32,
+    ) -> CitizenFeelingStages {
         let government = self.players[city.owner].government;
         let effect = |kind: EffectKind| {
             self.city_rule_effect(city, kind, None, None, None, false, government, None)
         };
         let profiler = self.trace.profiler();
         let _profile = profiler.scope("city_mood.effect_stage");
-        let effect_stage = self.city_feelings_effect_stage(city, luxury);
+        let effect_stage = self.city_feelings_effect_stage(city, luxury, religious_content);
         drop(_profile);
         let CitizenFeelingCounts {
             mut happy,
@@ -232,7 +257,12 @@ impl Simulation {
         }
     }
 
-    fn city_feelings_effect_stage(&self, city: &City, luxury: i32) -> CitizenFeelingCounts {
+    fn city_feelings_effect_stage(
+        &self,
+        city: &City,
+        luxury: i32,
+        religious_content: i32,
+    ) -> CitizenFeelingCounts {
         let government = self.players[city.owner].government;
         let effect = |kind: EffectKind| {
             self.city_rule_effect(city, kind, None, None, None, false, government, None)
@@ -270,7 +300,7 @@ impl Simulation {
 
         // Make_Content effects first calm angry citizens, then contentify
         // unhappy citizens, matching city.c:citizen_content_buildings.
-        let mut content_faces = effect(EffectKind::MakeContent).max(0);
+        let mut content_faces = (effect(EffectKind::MakeContent) + religious_content).max(0);
         while content_faces > 0 && angry > 0 {
             angry -= 1;
             unhappy += 1;

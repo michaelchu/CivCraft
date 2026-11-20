@@ -6,3 +6,5 @@ mod diplomacy;
 mod government;
 mod rates;
 mod treaty_offer;
+
+mod religion;

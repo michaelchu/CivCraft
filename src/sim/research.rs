@@ -227,10 +227,11 @@ impl Simulation {
         // Score vectors are indexed by serialized tech ID, including gaps in
         // the player-facing Civ III subset. Legacy advances have empty paths.
         let advances: Vec<_> = Tech::all().collect();
-        let paths: Vec<_> = advances
-            .iter()
-            .map(|&tech| self.shared_research_path(owner, tech))
-            .collect();
+        let slots = advances.iter().map(|t| t.0).max().unwrap_or(0) + 1;
+        let mut paths = vec![std::sync::Arc::<[Tech]>::from([]); slots];
+        for &tech in &advances {
+            paths[tech.0] = self.shared_research_path(owner, tech);
+        }
         if self.players[owner].researching == Tech::FUTURE
             && !advances
                 .iter()
@@ -244,18 +245,16 @@ impl Simulation {
         // without recomputing after cities or technologies have changed.
         let strategy = self.strategic_priorities(owner);
         let cities = self.cities_owned_by(owner).count().max(1);
-        let wants: Vec<_> = advances
-            .iter()
-            .map(|&tech| {
-                self.strategic_research_want(
-                    owner,
-                    tech,
-                    self.advisor_tech_want(owner, tech),
-                    &strategy,
-                    cities,
-                )
-            })
-            .collect();
+        let mut wants = vec![0.0; slots];
+        for &tech in &advances {
+            wants[tech.0] = self.strategic_research_want(
+                owner,
+                tech,
+                self.advisor_tech_want(owner, tech),
+                &strategy,
+                cities,
+            );
+        }
         let (mut values, goal_values) = Self::source_research_scores(&wants, &paths);
         let space_goal = strategy
             .space_research_goal
@@ -275,7 +274,8 @@ impl Simulation {
         }
         let mut goal = None;
         let mut choice = None;
-        for (index, &tech) in advances.iter().enumerate() {
+        for &tech in &advances {
+            let index = tech.0;
             let path = &paths[index];
             if !path.is_empty() {
                 let goal_value = goal_values[index];

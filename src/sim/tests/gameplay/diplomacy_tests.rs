@@ -59,7 +59,7 @@ impl Simulation {
         let until = self.turn + 13;
         let base_bulbs = 3 * self.target_cost(1, currency);
         let premium_want = 4 - base_bulbs.rem_euclid(4);
-        let mut retained = vec![0.0; Tech::all().count()];
+        let mut retained = vec![0.0; Tech::storage_len()];
         retained[currency.0] = (until.max(1) * premium_want) as f32 + 0.25;
         self.ai_tech_wants.insert(1, retained);
         // Keep affordability independent of the desktop opening campaign's

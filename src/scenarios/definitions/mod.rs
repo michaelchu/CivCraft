@@ -22,6 +22,11 @@ mod naval;
 mod peaceful_first_contact;
 mod proactive_trade;
 mod relationship_memory;
+mod religion;
+mod religion_campaigns;
+mod religion_diplomacy;
+mod religion_effectiveness;
+mod religion_strategy;
 mod research_history;
 mod settlement_ferry;
 mod shared_strategy;
@@ -61,6 +66,22 @@ impl Checks {
 }
 
 pub(super) const SCENARIOS: &[Scenario] = &[
+    religion_effectiveness::CULTURE,
+    religion_effectiveness::SATURATED,
+    religion_diplomacy::SHARED,
+    religion_diplomacy::DIFFERENT,
+    religion_diplomacy::TOLERANT,
+    religion_diplomacy::WAR,
+    religion_campaigns::RACE,
+    religion_campaigns::CLAIMED,
+    religion_campaigns::RECOVERY,
+    religion_campaigns::SPREAD,
+    religion_strategy::GOALS,
+    religion_strategy::COALITION,
+    religion::UNLOCKS,
+    religion::SPREAD,
+    religion::COMPETITION,
+    religion::AI,
     vassalage::CAPITULATION,
     vassalage::VOLUNTARY,
     vassalage_ai::CAPITULATION,

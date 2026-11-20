@@ -20,6 +20,7 @@ pub(crate) enum NotificationCategory {
     Military,
     Research,
     World,
+    Religion,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

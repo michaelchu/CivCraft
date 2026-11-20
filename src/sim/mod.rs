@@ -18,6 +18,8 @@
 //! fields are deliberately skipped during save serialization.
 
 mod action_rules;
+pub(crate) mod religion;
+pub(crate) use religion::FaithPolicy;
 mod advisors;
 mod caches;
 #[cfg(any(test, feature = "scenarios"))]
@@ -277,6 +279,7 @@ pub(crate) struct Simulation {
     events: Vec<String>,
     notifications: Vec<notifications::Notification>,
     next_notification_id: u64,
+    religion: religion::ReligionState,
     visual_events: presentation::VisualEvents,
     game_over: Option<String>,
     climate_pressure: [ClimatePressure; 2],
@@ -574,6 +577,7 @@ impl Simulation {
                 },
             ],
             next_notification_id: 4,
+            religion: Default::default(),
             game_over: None,
             climate_pressure: [ClimatePressure::new(map.map_wrap.tile_count()); 2],
             climate_current: [0; 2],

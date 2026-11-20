@@ -105,7 +105,9 @@ impl Simulation {
         let mut cities: Vec<_> = self.cities.iter().map(|city| city.id).collect();
         cities.sort_unstable();
         for (position, &from_city_id) in cities.iter().enumerate() {
-            for &to_city_id in cities.iter().skip(position + 1) {
+            let mut targets: Vec<_> = cities.iter().skip(position + 1).copied().collect();
+            self.order_religious_trade_ties(from_city_id, &mut targets, &continents, settings);
+            for to_city_id in targets {
                 if components.get(&from_city_id) != components.get(&to_city_id) {
                     continue;
                 }
@@ -136,6 +138,72 @@ impl Simulation {
                 }
                 self.create_trade_route(from_city_id, to_city_id, good, &continents, settings);
             }
+        }
+    }
+
+    /// Preserve the original economic-value sequence; religion only permutes
+    /// destinations with identical native route value.
+    fn order_religious_trade_ties(
+        &self,
+        from_id: u32,
+        targets: &mut [u32],
+        continents: &[usize],
+        settings: &TradeRouteRulesetSettings,
+    ) {
+        let interests: BTreeMap<_, _> = targets
+            .iter()
+            .map(|&to| {
+                (
+                    to,
+                    self.religious_trade_preference(from_id, to)
+                        + self.religious_trade_preference(to, from_id),
+                )
+            })
+            .collect();
+        if interests.values().all(|v| *v == 0) {
+            return;
+        }
+        let Some(from) = self.city_by_id(from_id) else {
+            return;
+        };
+        let Some(good) = settings
+            .goods
+            .iter()
+            .filter(|g| self.city_provides_good(from, g))
+            .max_by(|a, b| {
+                a.select_priority
+                    .cmp(&b.select_priority)
+                    .then_with(|| b.id.cmp(&a.id))
+            })
+        else {
+            return;
+        };
+        let mut values = Vec::new();
+        let mut groups: BTreeMap<i32, Vec<u32>> = BTreeMap::new();
+        for &id in targets.iter() {
+            let value = self
+                .city_by_id(id)
+                .and_then(|to| {
+                    let kind = self.trade_route_type(from, to, continents);
+                    settings.route_type(kind).map(|r| {
+                        self.trade_route_base_value(from, to, r, settings, None)
+                            * (good.from_percent + good.to_percent)
+                            / 100
+                    })
+                })
+                .unwrap_or(i32::MIN);
+            values.push(value);
+            groups.entry(value).or_default().push(id);
+        }
+        let mut ordered: BTreeMap<_, _> = groups
+            .into_iter()
+            .map(|(value, mut ids)| {
+                ids.sort_by_key(|id| (std::cmp::Reverse(interests[id]), *id));
+                (value, ids.into_iter())
+            })
+            .collect();
+        for (id, value) in targets.iter_mut().zip(values) {
+            *id = ordered.get_mut(&value).unwrap().next().unwrap();
         }
     }
 
@@ -412,6 +480,29 @@ impl Simulation {
 
     /// Remove routes that Freeciv's city activity phase would cancel. C2C3
     /// uses the `Cancel` policy for all ten route categories.
+    /// Established pairs currently active under the route cancellation policy.
+    /// Consumers must still apply their own diplomatic restrictions.
+    pub(super) fn active_trade_city_pairs(&self) -> BTreeSet<(u32, u32)> {
+        if self.trade_routes.is_empty() {
+            return BTreeSet::new();
+        }
+        let settings = campaign_settings();
+        let continents = self.continent_labels();
+        self.trade_routes
+            .iter()
+            .filter_map(|route| {
+                let from = self.city_by_id(route.from_city_id)?;
+                let to = self.city_by_id(route.to_city_id)?;
+                settings.good(&route.goods_rule_name)?;
+                let kind = self.trade_route_type(from, to, &continents);
+                let route_settings = settings.route_type(kind)?;
+                (self.cities_can_trade(from, to, route_settings, settings)
+                    || route_settings.cancellation == TradeRouteCancellation::Active)
+                    .then(|| route.unordered_city_pair())
+            })
+            .collect()
+    }
+
     pub(super) fn reconcile_trade_routes(&mut self) {
         if self.trade_routes.is_empty() {
             return;
@@ -963,5 +1054,65 @@ mod tests {
         assert_eq!(game.random_snapshot(), random);
         game.establish_connected_trade_routes();
         assert_eq!(game.trade_routes, first);
+    }
+}
+
+#[cfg(test)]
+mod religion_order_tests {
+    use super::*;
+    use crate::{
+        rules::Tech,
+        sim::{
+            FaithPolicy, HUMAN,
+            fixtures::{TileSurface, WorldBuilder},
+        },
+        world::Terrain,
+    };
+    #[test]
+    fn religious_trade_ties_preserve_economic_values_and_unknown_city_privacy() {
+        let mut g = Simulation::new(crate::test_support::seeded_map());
+        let mut w = WorldBuilder::new(&mut g);
+        w.clear_units_and_cities();
+        w.map_surface(TileSurface {
+            terrain: Some(Terrain::GrasslandShield),
+            road: Some(true),
+            ..Default::default()
+        });
+        let source = w.city(1, (10, 24), 3);
+        let unknown = w.city(HUMAN, (18, 24), 3);
+        let known = w.city(HUMAN, (2, 24), 3);
+        let richer = w.city(HUMAN, (26, 24), 8);
+        for (id, size) in [(source, 3), (unknown, 3), (known, 3), (richer, 8)] {
+            w.city_workers(id, size);
+        }
+        w.known_technologies(1, &[Tech::POLYTHEISM]);
+        w.unit(1, crate::sim::UnitKind::Warrior, (2, 24));
+        w.diplomacy(HUMAN, 1, Pact::Peace, 1, [1000; 2]);
+        w.finish();
+        assert!(g.found_religion(1, source, 2));
+        assert!(g.declare_faith(1, Some(2), FaithPolicy::Missionary));
+        g.observed_map.cities.remove(&(1, unknown));
+        g.observed_map.cities.remove(&(1, richer));
+        assert!(g.observed_map.cities.contains_key(&(1, known)));
+        let settings = campaign_settings();
+        let continents = g.continent_labels();
+        let first = g.city_by_id(source).unwrap();
+        let value = |id| {
+            let other = g.city_by_id(id).unwrap();
+            let kind = g.trade_route_type(first, other, &continents);
+            g.trade_route_base_value(
+                first,
+                other,
+                settings.route_type(kind).unwrap(),
+                settings,
+                None,
+            )
+        };
+        let mut ids = vec![unknown, richer, known];
+        let before: Vec<_> = ids.iter().map(|id| value(*id)).collect();
+        assert_eq!(value(unknown), value(known));
+        g.order_religious_trade_ties(source, &mut ids, &continents, settings);
+        assert_eq!(ids.iter().map(|id| value(*id)).collect::<Vec<_>>(), before);
+        assert!(ids.iter().position(|id| *id == known) < ids.iter().position(|id| *id == unknown));
     }
 }

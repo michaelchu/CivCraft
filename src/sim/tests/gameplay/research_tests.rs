@@ -22,7 +22,7 @@ impl Simulation {
         sim.players[1].known.clear();
         sim.players[1].research_goal = Tech::GUNPOWDER;
         sim.ai_tech_wants
-            .insert(1, vec![-1000.5; Tech::all().count()]);
+            .insert(1, vec![-1000.5; Tech::storage_len()]);
         sim.select_ai_research(1);
         let negative_clears = sim.players[1].research_goal == Tech::UNSET;
         let known = sim.players[1].known.clone();

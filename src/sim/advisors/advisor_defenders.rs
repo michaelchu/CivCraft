@@ -194,7 +194,7 @@ impl Simulation {
 
     pub(in crate::sim) fn production_defender_tech_wants(&self, city: &City) -> Vec<(Tech, f32)> {
         let defender_types: Vec<_> = Self::production_defender_types().collect();
-        let mut has_tech = vec![false; Tech::all().count()];
+        let mut has_tech = vec![false; Tech::storage_len()];
         for kind in &defender_types {
             if let Some(tech) = kind.required_tech() {
                 has_tech[tech.0] = true;
@@ -235,7 +235,7 @@ impl Simulation {
         }
         let total = danger as f32 + martial;
         let cities = self.player_cities_ordered(city.owner).count().max(1) as i32;
-        let mut tech_indices = vec![None; Tech::all().count()];
+        let mut tech_indices = vec![None; Tech::storage_len()];
         let mut wants: Vec<_> = techs
             .into_iter()
             .enumerate()

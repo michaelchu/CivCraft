@@ -1358,6 +1358,38 @@ const DEFINITIONS: &[Definition] = &[
         required_for_era: false,
         era_gate: None,
     },
+    Definition {
+        id: "TECH_Meditation",
+        runtime_index: 103,
+        name: "Meditation",
+        display_name: None,
+        civilopedia_entry: "TECH_Meditation",
+        cost: 6,
+        era: 0,
+        advance_icon: 50,
+        x: 475,
+        y: 735,
+        prerequisites: &["TECH_Mysticism"],
+        flags: &[],
+        required_for_era: false,
+        era_gate: None,
+    },
+    Definition {
+        id: "TECH_Divine_Right",
+        runtime_index: 104,
+        name: "Divine Right",
+        display_name: None,
+        civilopedia_entry: "TECH_Divine_Right",
+        cost: 48,
+        era: 1,
+        advance_icon: 79,
+        x: 430,
+        y: 90,
+        prerequisites: &["TECH_Theology", "TECH_Monarchy"],
+        flags: &[],
+        required_for_era: false,
+        era_gate: None,
+    },
 ];
 
 /// Resolve author-facing IDs without initializing the runtime research graph.
@@ -1381,7 +1413,7 @@ fn validate(definitions: &[Definition]) -> Result<(), String> {
         if !ids.insert(definition.id) || !indices.insert(definition.runtime_index) {
             return Err(format!("duplicate technology identity {}", definition.id));
         }
-        if definition.runtime_index >= 101
+        if (definition.runtime_index >= 105 || [101, 102].contains(&definition.runtime_index))
             || definition.cost < 0
             || !(0..=3).contains(&definition.era)
         {
@@ -1492,7 +1524,7 @@ mod tests {
             "../../tests/fixtures/technology_catalog_v1.json"
         ))
         .unwrap();
-        let actual: Vec<_> = catalog().technologies.iter().map(|t| serde_json::json!({
+        let actual: Vec<_> = catalog().technologies.iter().filter(|t|t.runtime_index<101).map(|t| serde_json::json!({
             "id": t.id, "runtime_index": t.runtime_index, "name": t.name,
             "cost": t.cost, "era": t.era, "prerequisites": t.prerequisites,
             "flags": t.flags, "required_for_era": t.required_for_era, "era_gate": t.era_gate,
@@ -1500,5 +1532,32 @@ mod tests {
             "x": t.x, "y": t.y, "civilopedia_entry": t.civilopedia_entry
         })).collect();
         assert_eq!(serde_json::json!(actual), expected);
+    }
+}
+
+#[cfg(test)]
+mod religion_tech_tests {
+    use super::*;
+    #[test]
+    fn religious_extensions_preserve_sentinels_and_are_optional_branches() {
+        use crate::rules::Tech;
+        assert_eq!(Tech::MEDITATION.prerequisites(), &[Tech::MYSTICISM]);
+        assert_eq!(
+            Tech::DIVINE_RIGHT.prerequisites(),
+            &[Tech::THEOLOGY, Tech::MONARCHY]
+        );
+        for t in [Tech::MEDITATION, Tech::DIVINE_RIGHT] {
+            assert!(t.is_civ3_advance());
+            assert!(t.optional_in_civ3());
+            assert!(![Tech::FUTURE.0, Tech::UNSET.0].contains(&t.0));
+            assert_eq!(
+                runtime_index(if t == Tech::MEDITATION {
+                    "TECH_Meditation"
+                } else {
+                    "TECH_Divine_Right"
+                }),
+                Some(t.0)
+            );
+        }
     }
 }

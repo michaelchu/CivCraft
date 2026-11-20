@@ -56,6 +56,7 @@ pub(super) enum Overlay {
     Research,
     Spaceship,
     Government,
+    Religion,
     Diplomacy,
     Espionage,
 }
@@ -80,7 +81,10 @@ impl Overlay {
 
     /// Overlays drawn as a dimmed panel above the world map.
     pub(super) fn is_council(self) -> bool {
-        matches!(self, Self::Government | Self::Diplomacy | Self::Espionage)
+        matches!(
+            self,
+            Self::Government | Self::Religion | Self::Diplomacy | Self::Espionage
+        )
     }
 }
 

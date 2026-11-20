@@ -1098,3 +1098,33 @@ subject, master, kind, start turn and original land total. Formation, eligibilit
 and dissolution use the existing `diplomacy.transition` event and appear in
 `recent_activity` with evidence references. An eligibility event is not proof
 of departure: inspect `vassalage_ended` and the next relationship snapshot.
+
+## Religion observations
+
+The `religion` snapshot provider is enabled by default and may also be selected
+explicitly. It records religion identities, each civilization's declared faith,
+policy/change turn, and each city's influence, dominant faith and unaligned
+weight. Shares use `influence / (unaligned_weight + sum(influence))`.
+`religion.change` events record actual founding, declaration, first-presence and
+conversion transitions with civilization/city entity references. Diplomatic
+snapshots include a directional `religion_attitude` pair independently of
+relationship memory. These diagnostic snapshots are omniscient; the interactive
+client applies its own visibility restrictions.
+
+Religion AI decisions use `religion.ai_decision`. Inspect `economy`, `science`,
+`culture`, `founding`, `declared`, `policy`, `previous_score`, `selected_score`,
+`research_candidate`, `research_interest`, `actual_research` and
+`research_blocked`. The candidate is an optional opportunity, not evidence that
+research switched: corroborate it with the normal research decision stream.
+
+Policy decisions also expose `previous_declared`, `previous_policy`,
+`previous_components`, `selected_components`, `best_declared`, `best_policy`,
+`best_components`, `required_improvement` and `missionary_opportunity`. Component
+scores separate domestic alignment, culture, actual contentment relief, local
+defense, marginal spread and public diplomacy. The best candidate can be rejected
+by the cooldown or the improvement threshold; only the selected state is an
+action. Missionary opportunity values additional incoming pressure after the
+cap, using all own sources and visibility-safe foreign connections. Devout mood
+counterfactuals use the complete native citizen pipeline; a potential released
+entertainer must remain out of disorder. Switching requires the base improvement
+plus `ai.switching_city_cost` per evaluated city.

@@ -50,7 +50,15 @@ impl Game {
                 panel.w - 36.0,
                 WHITE,
             );
-            draw_text(&status, panel.x + 18.0, y + 30.0, 14.0, LIGHTGRAY);
+            status.push_str(&format!(" · {}", self.sim.public_faith_summary(owner)));
+            text_in(
+                &status,
+                panel.x + 18.0,
+                y + 30.0,
+                14.0,
+                panel.w - 36.0,
+                LIGHTGRAY,
+            );
             let mut buttons = Vec::new();
             if let Some(bundle) = rival
                 .treaty_offer

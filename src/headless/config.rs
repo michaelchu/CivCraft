@@ -93,9 +93,9 @@ impl Config {
         let mut providers = BTreeSet::new();
         // Minimap images need the desktop graphics dependencies.
         let default_providers = if cfg!(feature = "desktop") {
-            "cities,civilizations,units,lifecycle,research,governments,diplomacy,minimap"
+            "cities,civilizations,units,lifecycle,research,governments,diplomacy,religion,minimap"
         } else {
-            "cities,civilizations,units,lifecycle,research,governments,diplomacy"
+            "cities,civilizations,units,lifecycle,research,governments,diplomacy,religion"
         };
         for name in list(value("--snapshot-providers", default_providers)) {
             if !crate::analytics::providers::IDS.contains(&name.as_str()) {
@@ -211,7 +211,7 @@ pub(crate) const HELP: &str = "Headless AI simulator\n\
 --trace-domains all|none|cities,production,settlement,lifecycle\n\
 --trace-entities all|city:1,unit:7,civilization:0\n\
 --trace-buffer-events 10000 --trace-max-events 50000 --trace-max-bytes 16777216\n\
---snapshot-providers cities,civilizations,territory,units,lifecycle,research,governments,diplomacy[,minimap: desktop builds only] (or none; analyzer requirements are added)\n\
+--snapshot-providers cities,civilizations,territory,units,lifecycle,research,governments,diplomacy,religion[,minimap: desktop builds only] (or none; analyzer requirements are added)\n\
 minimap is selected via snapshot providers and exports one final PNG only\n\
 --stop-on-finding none|any|invariant --checkpoint-every 10\n\
 --profile-turns true|false (records per-turn phase timings)\n\

@@ -11,6 +11,13 @@ mod tests;
 pub(crate) struct ReviewFixture<'a>(pub(in crate::sim) &'a mut Simulation);
 
 impl ReviewFixture<'_> {
+    pub(crate) fn religion(&mut self, city: u32) {
+        if !self.0.has_tech(HUMAN, Tech::MEDITATION) {
+            self.0.players[HUMAN].known.push(Tech::MEDITATION);
+        }
+        assert!(self.0.found_religion(HUMAN, city, 1));
+    }
+
     pub(crate) fn fixture(&mut self) -> (u32, u32) {
         ui_review_fixture(self.0)
     }

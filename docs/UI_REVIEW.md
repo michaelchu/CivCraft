@@ -306,3 +306,9 @@ they are render-only and do not enter simulation or saves. The `north-pole` /
 Gallery checks cover the extended camera anchors, actual boundary-row input,
 bounded panning and zoom-out coverage. See AGENTS.md for map-generation
 validation guidance and the current renderer contract at the top of this document.
+
+The `religion` gallery scene opens a prepared faith in the Religion management
+panel. Its staged interaction cycles declared faith, selects Devout, confirms
+through normal hit testing, and checks the resulting declaration and cooldown.
+As with other scenes, capture/comparison requires the complete Civ III assets
+and an explicit baseline; do not overwrite the baseline implicitly.

@@ -114,3 +114,22 @@ extension separately from the frozen core; legacy saves initialize it empty.
 Military access and compulsory one-way sight are derived from the agreements,
 with independent vision grants and remembered knowledge retaining their own
 lifetimes. See [vassal states](VASSAL_STATES.md).
+
+## Religion extension
+
+`Simulation::religion` owns stable religion definitions (founder, historical holy
+city, name and emblem), sparse city influence/dominance, first-presence message
+history, and national declarations/policies/change turns. This is distinct from
+city culture and government. City ownership changes retain beliefs; city removal
+clears only its local religion record. Holy-city history remains after razing.
+
+`sim/religion/spread.rs` snapshots existing influence, city positions and route
+adjacency, computes bounded pressure, and commits results once per completed
+turn before diplomacy advances. Its indexes and attribution are temporary and
+are not saved. AI choices live in `sim/religion/ai.rs`. Public UI queries expose
+own-city shares and contacted civilizations' declared faith; headless religion
+snapshots deliberately expose full simulation state for diagnostics.
+
+Save format 0x32 appends religion state to the published 0x31 culture-age,
+notification and vassalage payload. Previous supported versions initialize empty religion state;
+loading does not replay founding or presence events. Legacy readers are retained.

@@ -125,7 +125,7 @@ impl Simulation {
 
     #[cfg(test)]
     pub(super) fn counter_defender_tech_wants(&self, city: &City) -> Vec<f32> {
-        let mut wants = vec![0.0_f32; Tech::all().count()];
+        let mut wants = vec![0.0_f32; Tech::storage_len()];
         for (tech, delta) in self.counter_defender_tech_feedback(city) {
             wants[tech.0] += delta;
         }

@@ -60,6 +60,15 @@ impl SnapshotProvider for Diplomacy {
         snapshot.insert(self.id(), game.observe_diplomacy());
     }
 }
+struct Religion;
+impl SnapshotProvider for Religion {
+    fn id(&self) -> &'static str {
+        "religion"
+    }
+    fn capture(&self, game: &Simulation, snapshot: &mut Snapshot) {
+        snapshot.insert(self.id(), game.observe_religion());
+    }
+}
 struct Territory;
 #[cfg(feature = "desktop")]
 struct Minimap;
@@ -98,6 +107,7 @@ pub(crate) const IDS: &[&str] = &[
     "research",
     "governments",
     "diplomacy",
+    "religion",
     #[cfg(feature = "desktop")]
     "minimap",
 ];
@@ -112,6 +122,7 @@ pub(crate) fn build(ids: &BTreeSet<String>) -> Result<Vec<Box<dyn SnapshotProvid
                 "lifecycle" => Box::new(Lifecycle),
                 "research" => Box::new(Research),
                 "governments" => Box::new(Governments),
+                "religion" => Box::new(Religion),
                 "diplomacy" => Box::new(Diplomacy),
                 #[cfg(feature = "desktop")]
                 "minimap" => Box::new(Minimap),

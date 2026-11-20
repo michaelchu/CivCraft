@@ -3299,7 +3299,7 @@ mod tests {
         );
         assert_eq!(crate::rules::native::units().units.len(), 92);
         assert_eq!(crate::rules::native::buildings().rules.len(), 91);
-        assert_eq!(crate::rules::native::technologies().technologies.len(), 83);
+        assert_eq!(crate::rules::native::technologies().technologies.len(), 85);
         assert_eq!(
             crate::rules::native::civilizations().civilizations.len(),
             31

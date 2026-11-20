@@ -792,7 +792,7 @@ mod tests {
         assert_eq!(buildings().rules.len(), 91);
         assert_eq!(technologies().schema_version, 1);
         assert_eq!(technologies().source, "Civilization III: Conquests");
-        assert_eq!(technologies().technologies.len(), 83);
+        assert_eq!(technologies().technologies.len(), 85);
         assert_eq!(governments().schema_version, 1);
         assert_eq!(governments().governments.len(), 8);
         assert!(governments().governments.iter().all(|government| {

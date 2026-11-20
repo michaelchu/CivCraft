@@ -30,6 +30,7 @@ impl Simulation {
             .get(&Self::relation_key(owner, other))
             .map_or(0, |relation| {
                 relation.trust[usize::from(owner > other)] / 10
+                    + self.religion_attitude(owner, other)
             })
     }
 

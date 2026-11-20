@@ -849,3 +849,24 @@ fn corrupt_pending_vassal_participants_are_rejected() {
         fs::remove_file(path).unwrap();
     }
 }
+
+#[test]
+fn v31_campaign_migrates_to_empty_religion_without_losing_notifications() {
+    let game = Simulation::new(crate::test_support::seeded_map());
+    let saved = (
+        SavedCampaignV2G::from_game(&game, Cow::Borrowed(&game.observed_map.partial_sites)),
+        game.save_vassalage(),
+    );
+    let mut bytes = V31_HEADER.to_vec();
+    bytes.extend(codec(MAX_PAYLOAD).serialize(&saved).unwrap());
+    let path = temporary_save("v31-religion-upgrade");
+    fs::write(&path, bytes).unwrap();
+    let loaded = Simulation::load_campaign(&path).unwrap();
+    fs::remove_file(path).unwrap();
+    assert!(loaded.religion_catalog().is_empty());
+    assert_eq!(loaded.notifications, game.notifications);
+    assert_eq!(
+        loaded.encode_campaign().unwrap(),
+        game.encode_campaign().unwrap()
+    );
+}

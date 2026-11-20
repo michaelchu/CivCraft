@@ -161,7 +161,7 @@ impl Simulation {
             .ai_tech_wants
             .get(&owner)
             .cloned()
-            .unwrap_or_else(|| vec![0.0; Tech::all().count()]);
+            .unwrap_or_else(|| vec![0.0; Tech::storage_len()]);
         self.ai_tech_wants.insert(rebel, wants);
         self.spaceships.push(Spaceship::default());
         self.nation_scores.push(NationScore::default());

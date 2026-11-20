@@ -150,6 +150,49 @@ slots 1 and 2; preserve shared acceptance policy for submission and conqueror
 requests, and consider capitulation before routine ceasefires.
 Colonies and resource tribute are deferred.
 
+### Recorded exception: religion (Civ IV-inspired)
+
+The owner authorized the religion plan and implementation on 2026-11-20.
+See [`docs/RELIGION_IMPLEMENTATION_PLAN.md`](docs/RELIGION_IMPLEMENTATION_PLAN.md).
+Religion is a custom extension: automatic city influence and trade spread,
+founding, declared faith and Tolerant/Devout/Missionary policies, independent of
+government and future civics. Keep religious units out of this system.
+The owner subsequently chose the seven fixed Civ IV religion names, each
+claimed once globally and unlocked by its catalog technology. Meditation
+(Mysticism prerequisite, optional Ancient) and Divine Right (Theology plus
+Monarchy, optional Medieval) are authorized custom technologies. Preserve
+legacy technology IDs and the Future/Unset sentinels; new advances use 103/104.
+Parameters and faith bonuses live in `content/religion.toml`. Preserve deterministic snapshot
+resolution, visibility-safe notifications, shared human/AI command legality,
+and existing treaty/war obligations. Validate with the `religion-spread` (12
+turns), `religion-competition` (2 turns), and `religion-ai` (2 turns) release
+scenarios plus `religion-tech-unlocks` (2 turns) and source-adjacent tests.
+
+Religion AI also uses the shared economy/science/war/space priorities and its
+own culture progress, unrest and known peaceful connections. Founding and
+policy scores use actual bonuses; diplomacy considers both public directions
+and weights allies. Optional research interest is bounded by cost/path length
+and yields to recovery, war, preparation, a space program and strong existing
+advisor requests. Religion only breaks ties between equal native trade values;
+route legality and replacement remain native. No opponent's private religion
+or research queue enters the policy. Validate with `religion-ai-goals` and
+`religion-ai-coalition` (one turn each), `religion-ai` (two turns), and the
+`shared-strategy` regression, plus the source-adjacent policy/trade tests.
+For focused research and spreading regressions, run `religion-ai-research-race`,
+`religion-ai-rival-claim`, and `religion-ai-recovery` for one turn each, and
+`religion-ai-missionary` for five turns. These record actual selections/events;
+the last includes a parallel Tolerant control. Use seeds 42, 7 and 99.
+For diplomatic effects, run `religion-diplomacy-shared`,
+`religion-diplomacy-different`, `religion-diplomacy-tolerant`, and
+`religion-diplomacy-war` for one turn each at those seeds. Each has a parallel
+control and checks actual treaty acceptance or normal optional-war preparation;
+religious tension must not produce an immediate treaty-bypassing war.
+Policy effectiveness additionally uses `religion-ai-culture` (three turns) and
+`religion-ai-saturated-spread` (eight turns), with parallel controls and actual
+history/influence checks at seeds 42, 7 and 99. Value marginal capped pressure
+and native mood counterfactuals; do not reward Missionary for pressure that the
+incoming cap discards, or Devout for content already covered by other effects.
+
 ## Comparison source checkout
 
 The Freeciv source submodule at `reference/freeciv` tracks the public upstream

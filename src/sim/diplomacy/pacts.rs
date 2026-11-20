@@ -125,7 +125,7 @@ impl Simulation {
         {
             return Some("We have not made contact.");
         }
-        if proposed == Pact::Alliance && relation.trust[usize::from(receiver > proposer)] < 1000 {
+        if proposed == Pact::Alliance && self.diplomatic_love(receiver, proposer) < 100 {
             return Some("We simply do not trust you with an alliance yet.");
         }
         None
@@ -143,7 +143,7 @@ impl Simulation {
             .diplomacy
             .get(&Self::relation_key(owner, other))
             .unwrap_or(&empty);
-        let love = relation.trust[usize::from(owner > other)] / 10;
+        let love = self.diplomatic_love(owner, other);
         let missing = match proposed {
             Pact::Peace => love - 125,
             Pact::Alliance => love - 250,
@@ -479,5 +479,30 @@ impl Simulation {
         };
         let length = (i64::from(default_length).saturating_mul(percent) / 100).max(1);
         i32::try_from(length).unwrap_or(i32::MAX)
+    }
+}
+
+#[cfg(test)]
+mod religion_tests {
+    use super::*;
+    use crate::sim::{FaithPolicy, fixtures::WorldBuilder};
+    #[test]
+    fn religion_changes_treaty_valuation_without_changing_existing_pacts() {
+        let mut g = Simulation::new(crate::test_support::seeded_map());
+        let mut w = WorldBuilder::new(&mut g);
+        w.clear_units_and_cities();
+        let a = w.founding_city(HUMAN, (10, 24));
+        let b = w.founding_city(1, (20, 24));
+        w.finish();
+        g.players[HUMAN].known.push(Tech::MEDITATION);
+        assert!(g.found_religion(HUMAN, a, 1));
+        WorldBuilder::new(&mut g).city_religion(b, &[(1, 100)], Some(1));
+        g.sign_pact(HUMAN, 1, Pact::Peace);
+        let original_pact = g.pact(HUMAN, 1);
+        let baseline = g.pact_clause_value(HUMAN, 1, Pact::Peace);
+        assert!(g.declare_faith(HUMAN, Some(1), FaithPolicy::Tolerant));
+        assert!(g.declare_faith(1, Some(1), FaithPolicy::Tolerant));
+        assert!(g.pact_clause_value(HUMAN, 1, Pact::Peace) > baseline);
+        assert_eq!(g.pact(HUMAN, 1), original_pact);
     }
 }

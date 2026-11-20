@@ -24,6 +24,16 @@ pub(crate) struct ClientSimulation {
 }
 
 impl ClientSimulation {
+    pub(crate) fn religion_management_view(&self) -> super::religion::ReligionManagementView {
+        self.simulation.religion_management_view()
+    }
+    pub(crate) fn city_religion_summary(&self, city: u32) -> String {
+        self.simulation.city_religion_summary(city)
+    }
+    pub(crate) fn public_faith_summary(&self, owner: usize) -> String {
+        self.simulation.public_faith_summary(owner)
+    }
+
     pub(crate) fn new(mut simulation: Simulation) -> Self {
         simulation.enable_visual_events();
         Self { simulation }
@@ -35,6 +45,10 @@ impl ClientSimulation {
 
     pub(crate) fn save_campaign(&self, path: &Path) -> io::Result<()> {
         self.simulation.save_campaign(path)
+    }
+
+    pub(crate) fn religion_research_unlocks(tech: Tech) -> Vec<&'static str> {
+        Simulation::religion_research_unlocks(tech)
     }
 
     pub(crate) fn research_unit_unlocks(tech: Tech) -> Vec<&'static str> {
