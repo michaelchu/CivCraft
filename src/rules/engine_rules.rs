@@ -26,9 +26,6 @@ mod identifiers;
 mod loader;
 #[path = "engine_rules/settlement_ai.rs"]
 mod settlement_ai;
-#[path = "engine_rules/terrain.rs"]
-mod terrain;
-pub(crate) use terrain::{RoadYields, TerrainYields};
 #[path = "engine_rules/trade_routes.rs"]
 mod trade_routes;
 #[path = "engine_rules/veterancy.rs"]

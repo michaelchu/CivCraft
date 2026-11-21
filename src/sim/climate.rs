@@ -1,7 +1,6 @@
 //! Climate pressure and its effects on the game world.
 
 use super::*;
-use crate::rules::engine_rules::{ContentRecord, RulesetData};
 
 #[derive(Clone, Copy, serde::Serialize, serde::Deserialize)]
 pub(super) struct ClimatePressure {
@@ -76,33 +75,26 @@ impl Simulation {
                 adjacent.terrain.is_water() || adjacent.river
             });
         let terrain_name = tile.terrain.c2c3_rule_name()?;
-        let record = Self::climate_terrain_record(terrain_name);
-        let (wet_field, dry_field) = if warming {
-            ("warmer_wetter_result", "warmer_drier_result")
-        } else {
-            ("cooler_wetter_result", "cooler_drier_result")
-        };
-        let preferred_field = if wet { wet_field } else { dry_field };
-        let fallback_field = if wet { dry_field } else { wet_field };
-        let climate_result = |field| {
-            record
-                .string_field(field)
-                .expect("valid climate field")
-                .and_then(Self::c2c3_climate_terrain)
+        let spec = Self::climate_terrain_spec(terrain_name);
+        let (preferred_result, fallback_result) = match (warming, wet) {
+            (true, true) => (spec.warmer_wetter_result, spec.warmer_drier_result),
+            (true, false) => (spec.warmer_drier_result, spec.warmer_wetter_result),
+            (false, true) => (spec.cooler_wetter_result, spec.cooler_drier_result),
+            (false, false) => (spec.cooler_drier_result, spec.cooler_wetter_result),
         };
         // As in climate_change(), a missing preferred terrain result means
         // this terrain is not changed for its current moisture class; only a
         // present result rejected by local geometry permits trying fallback.
-        let preferred = climate_result(preferred_field)?;
+        let preferred = preferred_result.and_then(Self::c2c3_climate_terrain)?;
         if self.climate_change_allowed(x, y, preferred) {
             return Some(preferred);
         }
-        let fallback = climate_result(fallback_field)?;
+        let fallback = fallback_result.and_then(Self::c2c3_climate_terrain)?;
         self.climate_change_allowed(x, y, fallback)
             .then_some(fallback)
     }
 
-    /// Climate changes use Freeciv's terrain-control parameters, while worker
+    /// Climate changes use terrain-control parameters, while worker
     /// transforms keep the separate CivCraft legality helper in terrain_work.
     fn climate_change_allowed(&self, x: i32, y: i32, target: Terrain) -> bool {
         let Some(source_name) = self.tile(x, y).terrain.c2c3_rule_name() else {
@@ -111,22 +103,15 @@ impl Simulation {
         let Some(target_name) = target.c2c3_rule_name() else {
             return false;
         };
-        let source = Self::climate_terrain_record(source_name);
-        let target = Self::climate_terrain_record(target_name);
-        if self.city_at(x, y).is_some() && target.terrain_has_flag("NoCities") {
+        let source = Self::climate_terrain_spec(source_name);
+        let target = Self::climate_terrain_spec(target_name);
+        if self.city_at(x, y).is_some() && target.has_flag("NoCities") {
             return false;
         }
 
-        let is_oceanic = |record: &ContentRecord| {
-            record
-                .string_field("class")
-                .expect("valid terrain class")
-                .is_some_and(|class| class.eq_ignore_ascii_case("Oceanic"))
-        };
         let adjacent: Vec<_> = self.map_wrap.civ3_neighbors(x, y).collect();
-        // Freeciv C2C3 uses ISO|HEX, but CivCraft uses Civ III's eight
-        // directional slots. can_reclaim_ocean() counts absent/off-map slots
-        // as non-ocean, so the denominator includes bounded-Y slots too.
+        // CivCraft uses eight directional slots. can_reclaim_ocean() counts
+        // absent/off-map slots as non-ocean, so the denominator includes bounded-Y slots too.
         const DIRECTION_SLOTS: i32 = super::topology::CIV3_DIRS.len() as i32;
         let adjacent_ocean = adjacent
             .iter()
@@ -134,60 +119,53 @@ impl Simulation {
                 self.tile(nx, ny)
                     .terrain
                     .c2c3_rule_name()
-                    .is_some_and(|name| is_oceanic(Self::climate_terrain_record(name)))
+                    .is_some_and(|name| Self::climate_terrain_spec(name).oceanic)
             })
             .count() as i32;
 
-        if is_oceanic(source) && !is_oceanic(target) {
+        if source.oceanic && !target.oceanic {
             let required =
-                (Self::climate_parameter("ocean_reclaim_requirement") * DIRECTION_SLOTS + 99) / 100;
+                (crate::rules::terrain_catalog::OCEAN_RECLAIM_REQUIREMENT * DIRECTION_SLOTS + 99)
+                    / 100;
             if DIRECTION_SLOTS - adjacent_ocean < required {
                 return false;
             }
-        } else if !is_oceanic(source)
-            && is_oceanic(target)
-            && adjacent_ocean < Self::climate_parameter("land_channel_requirement")
+        } else if !source.oceanic
+            && target.oceanic
+            && adjacent_ocean < crate::rules::terrain_catalog::LAND_CHANNEL_REQUIREMENT
         {
-            // Freeciv compares this ruleset value as an absolute adjacent
-            // ocean-tile count. C2C3 sets it to 10, so Civ III's eight slots
-            // cannot channel land into ocean.
             return false;
         }
 
-        let source_frozen = source.terrain_has_flag("Frozen");
-        let target_frozen = target.terrain_has_flag("Frozen");
+        let source_frozen = source.has_flag("Frozen");
+        let target_frozen = target.has_flag("Frozen");
         let frozen_neighbors = adjacent
             .iter()
             .filter(|&&(nx, ny)| {
                 self.tile(nx, ny)
                     .terrain
                     .c2c3_rule_name()
-                    .is_some_and(|name| {
-                        Self::climate_terrain_record(name).terrain_has_flag("Frozen")
-                    })
+                    .is_some_and(|name| Self::climate_terrain_spec(name).has_flag("Frozen"))
             })
             .count() as i32;
         if source_frozen && !target_frozen {
-            if 100 - frozen_neighbors < Self::climate_parameter("thaw_requirement") {
+            if 100 - frozen_neighbors < crate::rules::terrain_catalog::THAW_REQUIREMENT {
                 return false;
             }
         } else if !source_frozen
             && target_frozen
-            && frozen_neighbors < Self::climate_parameter("freeze_requirement")
+            && frozen_neighbors < crate::rules::terrain_catalog::FREEZE_REQUIREMENT
         {
             return false;
         }
         true
     }
 
-    fn climate_terrain_record(rule_name: &str) -> &'static ContentRecord {
-        RulesetData::campaign_default().campaign_terrain(rule_name)
-    }
-
-    fn climate_parameter(key: &str) -> i32 {
-        RulesetData::campaign_default()
-            .terrain_parameter(key)
-            .expect("valid climate parameter")
+    fn climate_terrain_spec(
+        rule_name: &str,
+    ) -> &'static crate::rules::terrain_catalog::TerrainSpec {
+        crate::rules::terrain_catalog::terrain_spec(rule_name)
+            .unwrap_or_else(|| panic!("missing campaign terrain {rule_name:?}"))
     }
 
     fn c2c3_climate_terrain(name: &str) -> Option<Terrain> {

@@ -7,7 +7,7 @@
 use std::sync::OnceLock;
 
 use super::*;
-use crate::rules::engine_rules::{ContentKind, RoadYields, RulesetData, TerrainYields};
+use crate::rules::terrain_catalog::{self, RoadYields, TerrainYields};
 use crate::sim::action_rules::SimulationRequirementContext;
 use crate::world::Resource;
 
@@ -86,23 +86,13 @@ struct TileYieldRules {
 impl TileYieldRules {
     fn campaign() -> &'static Self {
         static RULES: OnceLock<TileYieldRules> = OnceLock::new();
-        RULES.get_or_init(|| {
-            let rules = RulesetData::campaign_default();
-            Self {
-                terrains: rules
-                    .content
-                    .iter()
-                    .filter(|record| record.kind == ContentKind::Terrain)
-                    .map(|record| {
-                        (
-                            record.rule_name.as_str(),
-                            record.terrain_yields().expect("valid terrain yields"),
-                        )
-                    })
-                    .collect(),
-                roads: ["Road", "Railroad", "River"]
-                    .map(|name| rules.road_yields(name).expect("valid road yields")),
-            }
+        RULES.get_or_init(|| Self {
+            terrains: terrain_catalog::TERRAIN_SPECS
+                .iter()
+                .map(|spec| (spec.rule_name, spec.yields))
+                .collect(),
+            roads: ["Road", "Railroad", "River"]
+                .map(|name| terrain_catalog::road_yields(name).expect("valid road yields")),
         })
     }
 }

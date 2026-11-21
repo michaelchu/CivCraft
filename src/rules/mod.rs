@@ -27,4 +27,5 @@ mod section_file;
 
 pub(crate) mod compatibility;
 pub(crate) mod technologies;
+pub(crate) mod terrain_catalog;
 pub(crate) mod unit_capabilities;

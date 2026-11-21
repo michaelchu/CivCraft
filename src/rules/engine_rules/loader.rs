@@ -919,7 +919,7 @@ fn requirement_value_is_valid(requirement: &Requirement, rules: &RulesetData) ->
             "flags",
             super::identifiers::TECH_FLAG_NAMES,
         ),
-        RequirementKind::Terrain => content_name_exists(rules, ContentKind::Terrain, &name),
+        RequirementKind::Terrain => crate::rules::terrain_catalog::terrain_spec(&name).is_some(),
         RequirementKind::TerrainAlter => super::identifiers::contains_case_insensitive(
             super::identifiers::TERRAIN_ALTER_NAMES,
             &name,
