@@ -263,7 +263,7 @@ pub(crate) struct Simulation {
     /// this monotonic campaign history.
     global_advances: Vec<Tech>,
     players: Vec<Player>,
-    government_adoptions: [i32; 11],
+    government_adoptions: [i32; Government::COUNT],
     turn: i32,
     year: i32,
     /// Freeciv's one-turn state after skipping year zero.
@@ -273,8 +273,6 @@ pub(crate) struct Simulation {
     rng: u64,
     native_random: Option<FreecivRng>,
     cargo_order: std::collections::BTreeMap<u32, Vec<u32>>,
-    /// Compatibility storage consumed while upgrading older save formats.
-    legacy_events: Vec<String>,
     /// Text-only mirror retained for source-adjacent legacy assertions.
     #[cfg(test)]
     events: Vec<String>,
@@ -529,7 +527,7 @@ impl Simulation {
             apollo_completed: false,
             global_advances,
             players,
-            government_adoptions: [0; 11],
+            government_adoptions: [0; Government::COUNT],
             turn: 1,
             year: start_year,
             year_0_hack: false,
@@ -539,7 +537,6 @@ impl Simulation {
             native_random: Some(game_random),
             cargo_order: Default::default(),
             visual_events: Default::default(),
-            legacy_events: Vec::new(),
             #[cfg(test)]
             events: Vec::new(),
             notifications: vec![

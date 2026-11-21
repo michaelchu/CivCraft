@@ -75,7 +75,6 @@ pub(crate) struct Tile {
     pub(crate) seen: bool,
     pub(crate) visible: bool,
     pub(crate) stealth_visible: bool,
-    #[serde(with = "crate::sim::save::known_by")]
     pub(crate) known_by: crate::sim::KnownBy,
 }
 

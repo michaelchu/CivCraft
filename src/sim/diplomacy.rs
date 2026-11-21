@@ -5,7 +5,6 @@ use super::*;
 mod attitude;
 mod contact;
 mod espionage;
-pub(in crate::sim) mod legacy;
 mod needs;
 pub(crate) mod observation;
 mod observer;
@@ -265,8 +264,6 @@ pub(super) enum WarReason {
 pub(super) struct WarPlan {
     pub(super) countdown: i32,
     pub(super) reason: WarReason,
-    // The versioned campaign envelope stores objectives separately.
-    #[serde(skip)]
     pub(super) objective: Option<WarObjective>,
 }
 

@@ -36,44 +36,6 @@ pub(crate) struct Notification {
 }
 
 impl Simulation {
-    pub(crate) fn upgrade_legacy_notifications(&mut self) {
-        self.next_notification_id = self.next_notification_id.max(1);
-        if !self.legacy_events.is_empty() {
-            let old_events = std::mem::take(&mut self.legacy_events);
-            let start_id = self.next_notification_id;
-            let migrated: Vec<_> = old_events
-                .into_iter()
-                .enumerate()
-                .map(|(index, text)| Notification {
-                    id: start_id.saturating_add(index as u64),
-                    turn: self.turn,
-                    category: NotificationCategory::General,
-                    priority: NotificationPriority::Routine,
-                    text,
-                    related_city: None,
-                    related_civilization: None,
-                    // Old feed entries were already visible in the HUD.
-                    read: true,
-                })
-                .collect();
-            self.next_notification_id = self
-                .next_notification_id
-                .saturating_add(migrated.len() as u64);
-            self.notifications.extend(migrated);
-        }
-        #[cfg(test)]
-        {
-            self.events = self
-                .notifications
-                .iter()
-                .map(|item| item.text.clone())
-                .collect();
-        }
-        if let Some(max_id) = self.notifications.iter().map(|item| item.id).max() {
-            self.next_notification_id = self.next_notification_id.max(max_id.saturating_add(1));
-        }
-    }
-
     pub(crate) fn add_event(&mut self, text: impl Into<String>) {
         self.add_notification(
             text,
@@ -144,7 +106,6 @@ impl Simulation {
 
     pub(crate) fn clear_notifications(&mut self) {
         self.notifications.clear();
-        self.legacy_events.clear();
         #[cfg(test)]
         self.events.clear();
         self.next_notification_id = 1;

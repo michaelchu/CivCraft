@@ -1,16 +1,11 @@
 //! Current campaign persistence, input validation, and runtime restoration.
 //!
-//! Saves encode the durable part of [`Simulation`] with the current versioned
-//! binary format. Formats 0x26 through 0x31 are read and upgraded on save.
-//!
-//! When adding persistent fields, decide whether they belong in the save,
-//! update the round-trip and corruption checks. Runtime caches should remain excluded when
-//! they can be derived from saved state.
+//! Saves encode the durable part of [`Simulation`] with the current binary
+//! format (`CIVCRAFT\0\x33`). Runtime caches are excluded and reconstructed on load.
 
 use super::*;
 use bincode::Options;
 use std::{
-    borrow::Cow,
     fs::{self, OpenOptions},
     io::{self, Read, Write},
     path::Path,
@@ -18,49 +13,13 @@ use std::{
 };
 
 mod schema;
-use schema::{
-    LegacyAiMap, LegacyCampaign, SavedCampaign, SavedCampaignV2A, SavedCampaignV2B,
-    SavedCampaignV2C, SavedCampaignV2D, SavedCampaignV2E, SavedCampaignV2F, SavedCampaignV2G,
-    SavedCampaignV30,
-};
+use schema::SavedCampaign;
 
-const HEADER: &[u8] = b"CIVCRAFT\0\x32";
-const V31_HEADER: &[u8] = b"CIVCRAFT\0\x31";
-const V2G_HEADER: &[u8] = b"CIVCRAFT\0\x30";
-const V2F_HEADER: &[u8] = b"CIVCRAFT\0\x2F";
-const V2E_HEADER: &[u8] = b"CIVCRAFT\0\x2E";
-const V2D_HEADER: &[u8] = b"CIVCRAFT\0\x2D";
-const V2C_HEADER: &[u8] = b"CIVCRAFT\0\x2C";
-const V2B_HEADER: &[u8] = b"CIVCRAFT\0\x2B";
-const V2A_HEADER: &[u8] = b"CIVCRAFT\0\x2A";
-const V29_HEADER: &[u8] = b"CIVCRAFT\0\x29";
-const V28_HEADER: &[u8] = b"CIVCRAFT\0\x28";
-const PACKED_LEGACY_HEADER: &[u8] = b"CIVCRAFT\0\x27";
-const LEGACY_HEADER: &[u8] = b"CIVCRAFT\0\x26";
-const LEGACY_MAX_PAYLOAD: u64 = 16 * 1024 * 1024;
-// Allow space for terrain and a remembered tile for each active civilization,
-// in addition to the campaign-wide state budget.
+const HEADER: &[u8] = b"CIVCRAFT\0\x33";
 const MAX_PAYLOAD: u64 =
-    LEGACY_MAX_PAYLOAD + MapWrap::MAX_TILES * (256 + MAX_CIVILIZATIONS as u64 * 128);
+    16 * 1024 * 1024 + MapWrap::MAX_TILES * (256 + MAX_CIVILIZATIONS as u64 * 128);
 
 static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
-type SavedWarObjectives = Vec<((usize, usize), diplomacy::WarObjective)>;
-
-fn restore_war_objectives(game: &mut Simulation, objectives: SavedWarObjectives) -> io::Result<()> {
-    for (pair, objective) in objectives {
-        let Some(plan) = game.ai_war_plans.get_mut(&pair) else {
-            return Err(invalid("War objective has no plan"));
-        };
-        if plan.objective.is_some()
-            || !(0..game.map_wrap.width()).contains(&objective.staging.0)
-            || !(0..game.map_wrap.height()).contains(&objective.staging.1)
-        {
-            return Err(invalid("Invalid war objective"));
-        }
-        plan.objective = Some(objective);
-    }
-    Ok(())
-}
 
 impl Simulation {
     pub(crate) fn save_campaign(&self, path: &Path) -> io::Result<()> {
@@ -99,11 +58,7 @@ impl Simulation {
 
     pub(crate) fn encode_campaign(&self) -> io::Result<Vec<u8>> {
         codec(MAX_PAYLOAD)
-            .serialize(&(
-                SavedCampaignV2G::from_game(self, Cow::Borrowed(&self.observed_map.partial_sites)),
-                self.save_vassalage(),
-                &self.religion,
-            ))
+            .serialize(&SavedCampaign::from_game(self))
             .map_err(io::Error::other)
     }
 
@@ -111,190 +66,19 @@ impl Simulation {
         let mut file = fs::File::open(path)?;
         let mut header = [0; HEADER.len()];
         file.read_exact(&mut header)?;
-        let max_payload = match header.as_slice() {
-            HEADER | V31_HEADER | V2G_HEADER | V2F_HEADER | V2E_HEADER | V2D_HEADER
-            | V2C_HEADER | V2B_HEADER | V2A_HEADER | V29_HEADER | V28_HEADER
-            | PACKED_LEGACY_HEADER => MAX_PAYLOAD,
-            LEGACY_HEADER => LEGACY_MAX_PAYLOAD,
-            _ => return Err(invalid("Unsupported CivCraft save format")),
-        };
+        if header.as_slice() != HEADER {
+            return Err(invalid("Unsupported CivCraft save format"));
+        }
         let mut payload = Vec::new();
-        file.take(max_payload + 1).read_to_end(&mut payload)?;
-        if payload.len() as u64 > max_payload {
+        file.take(MAX_PAYLOAD + 1).read_to_end(&mut payload)?;
+        if payload.len() as u64 > MAX_PAYLOAD {
             return Err(invalid("CivCraft save exceeds the size limit"));
         }
-        let (mut game, routes, legacy_ai_map, partial_sites) = match header.as_slice() {
-            LEGACY_HEADER => {
-                let (legacy, duplicate_wrap): (LegacyCampaign<'_>, MapWrap) = codec(max_payload)
-                    .deserialize(&payload)
-                    .map_err(|error| invalid(error.to_string()))?;
-                if legacy.topology() != duplicate_wrap {
-                    return Err(invalid("Conflicting legacy map dimensions"));
-                }
-                let (game, routes, legacy_ai_map) = legacy.into_game();
-                (game, Some(routes), legacy_ai_map, Default::default())
-            }
-            PACKED_LEGACY_HEADER => {
-                let legacy: LegacyCampaign<'_> = codec(max_payload)
-                    .deserialize(&payload)
-                    .map_err(|error| invalid(error.to_string()))?;
-                let (game, routes, legacy_ai_map) = legacy.into_game();
-                (game, Some(routes), legacy_ai_map, Default::default())
-            }
-            V28_HEADER => {
-                let saved: SavedCampaign<'_, LegacyAiMap, ()> = codec(max_payload)
-                    .deserialize(&payload)
-                    .map_err(|error| invalid(error.to_string()))?;
-                let (game, legacy_ai_map, ()) = saved.into_game();
-                (game, None, legacy_ai_map, Default::default())
-            }
-            V29_HEADER => {
-                let saved: SavedCampaign<'_, (), observed_map::PartialCitySites> =
-                    codec(max_payload)
-                        .deserialize(&payload)
-                        .map_err(|error| invalid(error.to_string()))?;
-                let (game, (), partial_sites) = saved.into_game();
-                (game, None, LegacyAiMap::default(), partial_sites)
-            }
-            V2A_HEADER => {
-                let saved: SavedCampaignV2A<'_, observed_map::PartialCitySites> =
-                    codec(max_payload)
-                        .deserialize(&payload)
-                        .map_err(|error| invalid(error.to_string()))?;
-                let (game, partial_sites) = saved.into_game();
-                (game, None, LegacyAiMap::default(), partial_sites)
-            }
-            V2B_HEADER => {
-                let saved: SavedCampaignV2B<'_, observed_map::PartialCitySites> =
-                    codec(max_payload)
-                        .deserialize(&payload)
-                        .map_err(|error| invalid(error.to_string()))?;
-                let (game, partial_sites) = saved.into_game().map_err(invalid)?;
-                (game, None, LegacyAiMap::default(), partial_sites)
-            }
-            V2C_HEADER => {
-                let saved: SavedCampaignV2C<'_, observed_map::PartialCitySites> =
-                    codec(max_payload)
-                        .deserialize(&payload)
-                        .map_err(|error| invalid(error.to_string()))?;
-                let (game, partial_sites) = saved.into_game().map_err(invalid)?;
-                (game, None, LegacyAiMap::default(), partial_sites)
-            }
-            V2E_HEADER => {
-                let legacy_result = codec(max_payload)
-                    .deserialize::<(
-                        SavedCampaignV2D<'_, observed_map::PartialCitySites>,
-                        SavedWarObjectives,
-                    )>(&payload)
-                    .map_err(|error| invalid(error.to_string()))
-                    .and_then(|(saved, objectives)| {
-                        let (mut game, partial_sites) = saved.into_game().map_err(invalid)?;
-                        restore_war_objectives(&mut game, objectives)?;
-                        Ok((game, partial_sites))
-                    });
-                let (game, partial_sites) = match legacy_result {
-                    Ok(result) => result,
-                    Err(objectives_error) => codec(max_payload)
-                        .deserialize::<SavedCampaignV2D<'_, observed_map::PartialCitySites>>(&payload)
-                        .map_err(|plain_error| invalid(format!(
-                            "Invalid 0x2E save (objectives format: {objectives_error}; plain format: {plain_error})"
-                        )))?
-                        .into_game()
-                        .map_err(invalid)?,
-                };
-                (game, None, LegacyAiMap::default(), partial_sites)
-            }
-            V2F_HEADER => {
-                let culture_result = codec(max_payload)
-                    .deserialize::<SavedCampaignV2F<'_, observed_map::PartialCitySites>>(&payload)
-                    .map_err(|error| invalid(error.to_string()))
-                    .and_then(|saved| saved.into_game().map_err(invalid));
-                let (game, partial_sites) = match culture_result {
-                    Ok(result) => result,
-                    Err(culture_error) => {
-                        let notifications_result = codec(max_payload)
-                            .deserialize::<SavedCampaignV2E<'_, observed_map::PartialCitySites>>(
-                                &payload,
-                            )
-                            .map_err(|error| invalid(error.to_string()))
-                            .and_then(|saved| saved.into_game().map_err(invalid));
-                        match notifications_result {
-                            Ok(result) => result,
-                            Err(notifications_error) => {
-                                let (saved, objectives, vassalage): (
-                                    SavedCampaignV2D<'_, observed_map::PartialCitySites>,
-                                    SavedWarObjectives,
-                                    diplomacy::vassalage::SavedVassalage,
-                                ) = codec(max_payload)
-                                    .deserialize(&payload)
-                                    .map_err(|vassalage_error| invalid(format!(
-                                        "Invalid 0x2F save (culture format: {culture_error}; notifications format: {notifications_error}; vassalage format: {vassalage_error})"
-                                    )))?;
-                                let (mut game, partial_sites) =
-                                    saved.into_game().map_err(invalid)?;
-                                restore_war_objectives(&mut game, objectives)?;
-                                game.restore_vassalage(vassalage).map_err(invalid)?;
-                                (game, partial_sites)
-                            }
-                        }
-                    }
-                };
-                (game, None, LegacyAiMap::default(), partial_sites)
-            }
-            V2G_HEADER => {
-                let culture_result = codec(max_payload)
-                    .deserialize::<SavedCampaignV2G<'_, observed_map::PartialCitySites>>(&payload)
-                    .map_err(|error| invalid(error.to_string()))
-                    .and_then(|saved| saved.into_game().map_err(invalid));
-                let (game, partial_sites) = match culture_result {
-                    Ok((game, partial_sites)) if valid_notification_state(&game) => {
-                        (game, partial_sites)
-                    }
-                    _ => {
-                        let saved: SavedCampaignV30<'_, observed_map::PartialCitySites> =
-                            codec(max_payload)
-                                .deserialize(&payload)
-                                .map_err(|error| invalid(error.to_string()))?;
-                        saved.into_game().map_err(invalid)?
-                    }
-                };
-                (game, None, LegacyAiMap::default(), partial_sites)
-            }
-            HEADER => {
-                let (saved, vassalage, religion): (
-                    SavedCampaignV2G<'_, observed_map::PartialCitySites>,
-                    diplomacy::vassalage::SavedVassalage,
-                    religion::ReligionState,
-                ) = codec(max_payload)
-                    .deserialize(&payload)
-                    .map_err(|error| invalid(error.to_string()))?;
-                let (mut game, partial_sites) = saved.into_game().map_err(invalid)?;
-                game.restore_vassalage(vassalage).map_err(invalid)?;
-                game.religion = religion;
-                (game, None, LegacyAiMap::default(), partial_sites)
-            }
-            V31_HEADER => {
-                let (saved, vassalage): (
-                    SavedCampaignV2G<'_, observed_map::PartialCitySites>,
-                    diplomacy::vassalage::SavedVassalage,
-                ) = codec(max_payload)
-                    .deserialize(&payload)
-                    .map_err(|error| invalid(error.to_string()))?;
-                let (mut game, partial_sites) = saved.into_game().map_err(invalid)?;
-                game.restore_vassalage(vassalage).map_err(invalid)?;
-                (game, None, LegacyAiMap::default(), partial_sites)
-            }
-            _ => {
-                let saved: SavedCampaignV2D<'_, observed_map::PartialCitySites> =
-                    codec(max_payload)
-                        .deserialize(&payload)
-                        .map_err(|error| invalid(error.to_string()))?;
-                let (game, partial_sites) = saved.into_game().map_err(invalid)?;
-                (game, None, LegacyAiMap::default(), partial_sites)
-            }
-        };
-        game.initialize_missing_culture_building_ages();
-        game.upgrade_legacy_notifications();
+        let saved: SavedCampaign<'_> = codec(MAX_PAYLOAD)
+            .deserialize(&payload)
+            .map_err(|error| invalid(error.to_string()))?;
+        let mut game = saved.into_game().map_err(invalid)?;
+
         game.validate_campaign()?;
         if !game.valid_religion() {
             return Err(invalid("Invalid religion state"));
@@ -315,23 +99,6 @@ impl Simulation {
             return Err(invalid("Invalid observed rendering map"));
         }
         game.rebuild_observed_city_index();
-        if partial_sites.iter().any(|(&(observer, index), &owner)| {
-            owner >= game.players.len() || !game.observed_map.tiles.contains_key(&(observer, index))
-        }) {
-            return Err(invalid("Invalid remembered city site"));
-        }
-        game.observed_map.partial_sites = partial_sites;
-        if let Some(routes) = routes {
-            if routes.len() != game.tiles.len()
-                || routes.iter().flatten().any(|tile| {
-                    tile.city_owner
-                        .is_some_and(|owner| owner >= game.players.len())
-                })
-            {
-                return Err(invalid("Invalid remembered map"));
-            }
-            game.import_legacy_routes(routes);
-        }
         if game
             .ai_purchase_reserve
             .iter()
@@ -344,30 +111,16 @@ impl Simulation {
         }) {
             return Err(invalid("Invalid city founder"));
         }
-        if legacy_ai_map.0.iter().any(|(&(owner, index), tile)| {
-            owner == HUMAN
-                || owner == BARBARIANS
-                || owner >= game.players.len()
-                || index >= game.tiles.len()
-                || tile.owner.is_some_and(|owner| owner >= game.players.len())
-                || tile
-                    .route
-                    .city_owner
-                    .is_some_and(|owner| owner >= game.players.len())
-        }) {
-            return Err(invalid("Invalid AI map observation"));
-        }
-        for ((observer, index), tile) in legacy_ai_map.0 {
-            if game.tiles[index].known_by[observer] {
-                game.import_partial_tile(observer, index, tile.route, tile.owner);
-            }
-        }
-        if game.ai_war_plans.keys().any(|&(owner, rival)| {
+        if game.ai_war_plans.iter().any(|(&(owner, rival), plan)| {
             owner >= game.players.len()
                 || rival >= game.players.len()
                 || owner == rival
                 || owner == BARBARIANS
                 || rival == BARBARIANS
+                || plan.objective.is_some_and(|objective| {
+                    !(0..game.map_wrap.width()).contains(&objective.staging.0)
+                        || !(0..game.map_wrap.height()).contains(&objective.staging.1)
+                })
         }) {
             return Err(invalid("Invalid AI war plan"));
         }
@@ -481,19 +234,11 @@ impl Simulation {
                 game.units.iter().any(|unit| unit.id == id)
             )));
         }
-        // savegame3.c clears goto_tile after loading units with no orders
-        // unless activity is ACTIVITY_GOTO. This engine has no queued native
-        // GOTO activity; task destinations are reconstructed by the advisors.
         game.unit_goto_tiles.clear();
-        // Borders follow culture and the map alone. A save written under an
-        // earlier border rule (such as size-based territory) would otherwise
-        // keep its stale claims, workers and discoveries until a turn ends.
         game.rebuild_armies();
         game.rebuild_city_ownership();
         game.rebuild_observed_city_index();
         game.refresh_diplomatic_intelligence();
-        // Restoration may query entities while validating and repairing state.
-        // Return with reconstructible memoizations cold; remembered knowledge stays intact.
         game.caches.clear();
         Ok(game)
     }
@@ -526,6 +271,7 @@ impl Simulation {
             || notification_ids.len() != self.notifications.len()
             || notification_ids.contains(&0)
             || self.next_notification_id <= max_notification_id
+            || self.notifications.len() > 500
             || (self.year_0_hack && self.year != 1)
             || self
                 .global_advances
@@ -552,10 +298,22 @@ impl Simulation {
                     || unit.id >= self.next_unit_id
             })
             || self.cities.iter().any(|city| {
+                let mut seen_culture = Vec::new();
+                let invalid_culture = city.culture_buildings.iter().any(|record| {
+                    record.builder >= players
+                        || record.active_since_year > self.year
+                        || !city.buildings.contains(&record.building)
+                        || seen_culture.contains(&record.building)
+                        || {
+                            seen_culture.push(record.building);
+                            false
+                        }
+                });
                 city.owner >= players
                     || !position(city.x, city.y)
                     || city.size <= 0
                     || city.history < 0
+                    || invalid_culture
                     || city.specialists.iter().any(|&count| count < 0)
                     || city.specialists.iter().sum::<i32>() > city.size
                     || city
@@ -612,16 +370,6 @@ impl Simulation {
     }
 }
 
-fn valid_notification_state(game: &Simulation) -> bool {
-    let ids: std::collections::BTreeSet<_> =
-        game.notifications.iter().map(|item| item.id).collect();
-    let max_id = ids.iter().next_back().copied().unwrap_or(0);
-    game.notifications.len() <= 500
-        && ids.len() == game.notifications.len()
-        && !ids.contains(&0)
-        && game.next_notification_id > max_id
-}
-
 fn codec(max_payload: u64) -> impl Options {
     bincode::DefaultOptions::new()
         .with_limit(max_payload)
@@ -630,87 +378,6 @@ fn codec(max_payload: u64) -> impl Options {
 
 fn invalid(message: impl Into<String>) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidData, message.into())
-}
-
-pub(super) mod known_by {
-    use super::PLAYER_SLOTS;
-    use crate::sim::KnownBy;
-    use serde::{Deserializer, Serializer, de};
-    use std::fmt;
-
-    const PACKED_BYTES: usize = PLAYER_SLOTS.div_ceil(8);
-
-    pub fn serialize<S: Serializer>(known: &KnownBy, serializer: S) -> Result<S::Ok, S::Error> {
-        serializer.serialize_bytes(&known.0)
-    }
-
-    pub fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<KnownBy, D::Error> {
-        struct Visibility;
-
-        impl de::Visitor<'_> for Visibility {
-            type Value = KnownBy;
-
-            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-                formatter.write_str("packed campaign visibility or the legacy boolean array")
-            }
-
-            fn visit_bytes<E: de::Error>(self, bytes: &[u8]) -> Result<Self::Value, E> {
-                match bytes.len() {
-                    PACKED_BYTES => Ok(KnownBy(
-                        bytes.try_into().expect("checked visibility length"),
-                    )),
-                    // Bincode encoded the old sequence with the same length
-                    // prefix and a single 0 or 1 for each player slot.
-                    PLAYER_SLOTS if bytes.iter().all(|&byte| byte <= 1) => {
-                        Ok(KnownBy::from(std::array::from_fn(|index| {
-                            bytes[index] == 1
-                        })))
-                    }
-                    PLAYER_SLOTS => Err(E::custom("invalid legacy visibility value")),
-                    length => Err(E::invalid_length(length, &self)),
-                }
-            }
-        }
-
-        deserializer.deserialize_bytes(Visibility)
-    }
-}
-
-#[cfg(test)]
-mod packed_visibility_tests {
-    use super::*;
-    use crate::sim::KnownBy;
-    #[derive(serde::Serialize, serde::Deserialize)]
-    struct Record {
-        #[serde(with = "super::known_by")]
-        known: KnownBy,
-    }
-    #[test]
-    fn visibility_encoding_preserves_packed_bytes_and_legacy_slots() {
-        let legacy: Vec<u8> = (0..PLAYER_SLOTS)
-            .map(|player| u8::from(player % 7 == 0 || player == PLAYER_SLOTS - 1))
-            .collect();
-        let loaded: Record = bincode::deserialize(&bincode::serialize(&legacy).unwrap()).unwrap();
-        for (player, &flag) in legacy.iter().enumerate() {
-            assert_eq!(loaded.known[player], flag == 1);
-        }
-        let mut packed = vec![0_u8; PLAYER_SLOTS.div_ceil(8)];
-        for (player, &flag) in legacy.iter().enumerate() {
-            packed[player / 8] |= flag << (player % 8);
-        }
-        assert_eq!(
-            bincode::serialize(&loaded).unwrap(),
-            bincode::serialize(&packed).unwrap()
-        );
-        let roundtrip: Record =
-            bincode::deserialize(&bincode::serialize(&loaded).unwrap()).unwrap();
-        assert_eq!(roundtrip.known, loaded.known);
-        for invalid in [vec![2_u8; PLAYER_SLOTS], vec![0; 63]] {
-            assert!(
-                bincode::deserialize::<Record>(&bincode::serialize(&invalid).unwrap()).is_err()
-            );
-        }
-    }
 }
 
 #[cfg(test)]

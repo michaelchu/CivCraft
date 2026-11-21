@@ -7,7 +7,6 @@ mod negotiation;
 mod persistence;
 mod policy;
 use super::transitions::PactChange;
-pub(in crate::sim) use persistence::SavedVassalage;
 use policy::policy;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]

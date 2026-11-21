@@ -152,8 +152,8 @@ impl super::Simulation {
     pub(super) fn calculate_government_scores(
         &mut self,
         owner: usize,
-        mut scores: [f64; 11],
-    ) -> [f64; 11] {
+        mut scores: [f64; Government::COUNT],
+    ) -> [f64; Government::COUNT] {
         let profiler = self.trace.profiler();
         let _profile = profiler.scope("government.score_evaluation");
         let original = self.players[owner].government;
@@ -226,7 +226,7 @@ impl super::Simulation {
         let old = self
             .ai_government_cache
             .get(&owner)
-            .map_or([0.0; 11], |cache| cache.scores);
+            .map_or([0.0; Government::COUNT], |cache| cache.scores);
         let scores = self.calculate_government_scores(owner, old);
         let cities = self
             .cities
@@ -246,7 +246,7 @@ impl super::Simulation {
     pub(super) fn government_goals(
         &self,
         owner: usize,
-        scores: &[f64; 11],
+        scores: &[f64; Government::COUNT],
     ) -> (Government, Government, f64) {
         let current = self.players[owner].government;
         let (mut goal, mut available) = (current, current);
@@ -440,7 +440,7 @@ mod ruleset_government_tests {
         game.create_city(1, 10, 20);
         game.players[1].known.clear();
         game.players[1].government = Government::Monarchy;
-        let mut scores = [0.0; 11];
+        let mut scores = [0.0; Government::COUNT];
         scores[Government::Despotism as usize] = 4999.0;
         scores[Government::Monarchy as usize] = 100.0;
 

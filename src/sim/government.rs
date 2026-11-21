@@ -18,19 +18,18 @@ pub(crate) enum Government {
     Feudalism,
     Republic,
     Democracy,
-    Tribal,
-    Fundamentalism,
-    Federation,
 }
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub(super) struct GovernmentAdvisorCache {
     pub(super) evaluated_turn: i32,
     pub(super) next_evaluation: i32,
-    pub(super) scores: [f64; 11],
+    pub(super) scores: [f64; Government::COUNT],
 }
 
 impl Government {
+    pub(crate) const COUNT: usize = 8;
+
     pub(crate) fn during_revolution() -> Self {
         Self::Anarchy
     }
@@ -38,8 +37,9 @@ impl Government {
     pub(crate) fn targets() -> &'static [Self] {
         static TARGETS: OnceLock<Vec<Government>> = OnceLock::new();
         TARGETS.get_or_init(|| {
-            crate::rules::native::governments()
-                .governments
+            let native = &crate::rules::native::governments().governments;
+            assert_eq!(native.len(), Self::COUNT);
+            native
                 .iter()
                 .filter(|government| !government.government.eq_ignore_ascii_case("anarchy"))
                 .map(|government| {
@@ -57,12 +57,9 @@ impl Government {
     fn from_rule_name(name: &str) -> Option<Self> {
         Some(match name.to_ascii_lowercase().as_str() {
             "anarchy" => Self::Anarchy,
-            "tribal" => Self::Tribal,
             "despotism" => Self::Despotism,
             "monarchy" => Self::Monarchy,
             "communism" => Self::Communism,
-            "fundamentalism" => Self::Fundamentalism,
-            "federation" => Self::Federation,
             "republic" => Self::Republic,
             "democracy" => Self::Democracy,
             "fascism" => Self::Fascism,
@@ -74,12 +71,9 @@ impl Government {
     pub(crate) fn rule_name(self) -> Option<&'static str> {
         Some(match self {
             Self::Anarchy => "Anarchy",
-            Self::Tribal => "Tribal",
             Self::Despotism => "Despotism",
             Self::Monarchy => "Monarchy",
             Self::Communism => "Communism",
-            Self::Fundamentalism => "Fundamentalism",
-            Self::Federation => "Federation",
             Self::Republic => "Republic",
             Self::Democracy => "Democracy",
             Self::Fascism => "Fascism",

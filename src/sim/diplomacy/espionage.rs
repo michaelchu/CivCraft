@@ -937,7 +937,6 @@ fn propaganda_government_modifier(attacker: Government, defender: Government) ->
         Democracy => [35, 30, 20, 10, 5, 0, 0, 0][government_index(defender)],
         Fascism => [0, 0, -5, -20, -10, -10, 0, 0][government_index(defender)],
         Feudalism => [0, 15, 0, -10, -10, -20, -25, 0][government_index(defender)],
-        _ => 0,
     }
 }
 
@@ -951,7 +950,6 @@ fn government_index(government: Government) -> usize {
         Government::Democracy => 5,
         Government::Fascism => 6,
         Government::Feudalism => 7,
-        _ => 0,
     }
 }
 

@@ -1,8 +1,39 @@
 //! Packed exploration flags. The save boundary retains its existing byte encoding.
 use crate::sim::PLAYER_SLOTS;
+use serde::{Deserializer, Serializer, de};
+use std::fmt;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct KnownBy(pub(crate) [u8; PLAYER_SLOTS.div_ceil(8)]);
+
+impl serde::Serialize for KnownBy {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_bytes(&self.0)
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for KnownBy {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        struct Visibility;
+
+        impl de::Visitor<'_> for Visibility {
+            type Value = KnownBy;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+                formatter.write_str("packed campaign visibility bytes")
+            }
+
+            fn visit_bytes<E: de::Error>(self, bytes: &[u8]) -> Result<Self::Value, E> {
+                bytes
+                    .try_into()
+                    .map(KnownBy)
+                    .map_err(|_| E::invalid_length(bytes.len(), &self))
+            }
+        }
+
+        deserializer.deserialize_bytes(Visibility)
+    }
+}
 
 impl KnownBy {
     pub(crate) fn set(&mut self, player: usize, known: bool) {

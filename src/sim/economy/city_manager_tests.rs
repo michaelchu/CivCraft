@@ -114,12 +114,11 @@ fn martial_law_caps_follow_the_selected_c2c3_ruleset() {
     let city = game.cities[0].clone();
     for government in [
         (Government::Anarchy, 3),
-        (Government::Tribal, 0),
         (Government::Despotism, 3),
         (Government::Monarchy, 3),
         (Government::Communism, 3),
-        (Government::Fundamentalism, 0),
-        (Government::Federation, 0),
+        (Government::Fascism, 3),
+        (Government::Feudalism, 3),
         (Government::Republic, 0),
         (Government::Democracy, 0),
     ] {

@@ -1,50 +1,19 @@
-//! Explicit positional schemas for the campaign save formats.
+//! Direct serde schema for the current CivCraft campaign save format.
+
 use super::super::*;
 use serde::{Deserialize, Serialize};
 use std::{borrow::Cow, collections::BTreeMap};
 
-mod records;
-
 type PairMemory<T> = BTreeMap<(usize, usize), T>;
-type SavedWarObjectives = Vec<((usize, usize), diplomacy::WarObjective)>;
 
-// Only the legacy readers consume the AI's former reduced tile memory.
-#[derive(Clone, Copy)]
-pub(super) struct MapObservation {
-    pub(super) route: movement::RouteTile,
-    pub(super) owner: Option<usize>,
-    pub(super) ocean: bool,
-}
-
-#[derive(Default, Deserialize)]
-#[cfg_attr(test, derive(Serialize))]
-#[serde(transparent)]
-pub(super) struct LegacyAiMap(
-    #[serde(with = "records::map")] pub(super) BTreeMap<(usize, usize), MapObservation>,
-);
-
-// Field order is part of the 0x26 through 0x2A wire formats. Make a
-// version-specific type if a future version changes any existing payload.
 #[derive(Serialize, Deserialize)]
 struct SavedCore<'a> {
     world_seed: u64,
     map_seed: u32,
     civilization_count: usize,
     map_wrap: MapWrap,
-    #[serde(
-        serialize_with = "records::sequence::serialize",
-        deserialize_with = "records::sequence::deserialize_cow"
-    )]
     tiles: Cow<'a, [Tile]>,
-    #[serde(
-        serialize_with = "records::sequence::serialize",
-        deserialize_with = "records::sequence::deserialize_cow"
-    )]
     units: Cow<'a, [Unit]>,
-    #[serde(
-        serialize_with = "records::sequence::serialize",
-        deserialize_with = "records::sequence::deserialize_cow"
-    )]
     cities: Cow<'a, [City]>,
     trade_routes: Cow<'a, [trade_routes::TradeRoute]>,
     completed_wonders: Cow<'a, [Building]>,
@@ -52,39 +21,36 @@ struct SavedCore<'a> {
     nation_scores: Cow<'a, [NationScore]>,
     hunter_targets: BTreeMap<u32, u32>,
     previous_naval_positions: BTreeMap<u32, (i32, i32)>,
-    #[serde(with = "diplomacy::legacy")]
     diplomacy: Cow<'a, BTreeMap<(usize, usize), diplomacy::Relation>>,
+    vassalage: Cow<'a, diplomacy::vassalage::VassalState>,
+    religion: Cow<'a, religion::ReligionState>,
     apollo_completed: bool,
     global_advances: Cow<'a, [Tech]>,
-    #[serde(
-        serialize_with = "records::sequence::serialize",
-        deserialize_with = "records::sequence::deserialize_cow"
-    )]
     players: Cow<'a, [Player]>,
-    government_adoptions: [i32; 11],
+    government_adoptions: [i32; Government::COUNT],
     turn: i32,
     year: i32,
     year_0_hack: bool,
     next_unit_id: u32,
     next_city_id: u32,
     rng: u64,
-    events: Cow<'a, [String]>,
+    notifications: Cow<'a, [notifications::Notification]>,
+    next_notification_id: u64,
     game_over: Cow<'a, Option<String>>,
     climate_pressure: Cow<'a, [ClimatePressure; 2]>,
 }
 
 #[derive(Serialize, Deserialize)]
-struct SavedAi<'a, A> {
+struct SavedAi<'a> {
     ai_purchase_reserve: Cow<'a, BTreeMap<usize, i32>>,
     city_founders: Cow<'a, BTreeMap<u32, usize>>,
-    // A unit value occupies zero bytes in the current bincode layout.
-    legacy_ai_map: A,
     ai_war_plans: Cow<'a, PairMemory<diplomacy::WarPlan>>,
     ai_space_warnings: Cow<'a, PairMemory<i32>>,
     ai_free_bulbs: Cow<'a, BTreeMap<usize, i32>>,
     ai_ground_targets: Cow<'a, BTreeMap<u32, u32>>,
     ai_settlement_targets: Cow<'a, BTreeMap<u32, settlement::SettlementReservation>>,
     ai_diplomatic_memory: Cow<'a, PairMemory<diplomacy::DiplomaticMemory>>,
+    ai_relationship_memory: Cow<'a, PairMemory<diplomacy::relationships::RelationshipMemory>>,
     ai_ferries: Cow<'a, ferries::FerryRegistry>,
     ai_government_cache: Cow<'a, BTreeMap<usize, government::GovernmentAdvisorCache>>,
     diplomatic_contact_until: Cow<'a, PairMemory<i32>>,
@@ -95,360 +61,24 @@ struct SavedWorld<'a> {
     climate_current: [i32; 2],
     ai_guard_targets: Cow<'a, BTreeMap<u32, guards::GuardTarget>>,
     ai_unit_guards: Cow<'a, BTreeMap<u32, guards::GuardState>>,
+    city_governors: Cow<'a, BTreeMap<u32, CityGovernor>>,
     city_rapture: Cow<'a, BTreeMap<u32, i32>>,
     unit_goto_tiles: Cow<'a, BTreeMap<u32, (i32, i32)>>,
     list_order: list_order::ListOrder,
     native_random: Option<FreecivRng>,
     cargo_order: BTreeMap<u32, Vec<u32>>,
-    #[serde(with = "records::observation")]
     observed_map: Cow<'a, observed_map::ObservedMap>,
 }
 
 #[derive(Serialize, Deserialize)]
-pub(super) struct SavedCampaign<'a, A, S> {
+pub(super) struct SavedCampaign<'a> {
     core: SavedCore<'a>,
-    ai: SavedAi<'a, A>,
-    world: SavedWorld<'a>,
-    partial_sites: S,
-}
-
-/// Format 0x2A: the 0x29 payload followed by the ids of units that have
-/// already created a Great Leader. Appending keeps every earlier layout valid.
-#[derive(Serialize, Deserialize)]
-pub(super) struct SavedCampaignV2A<'a, S> {
-    campaign: SavedCampaign<'a, (), S>,
-    created_leader: Vec<u32>,
-}
-
-impl<'a, S> SavedCampaignV2A<'a, S> {
-    pub(super) fn from_game(game: &'a Simulation, partial_sites: S) -> Self {
-        Self {
-            campaign: SavedCampaign::from_game(game, (), partial_sites),
-            created_leader: game
-                .units
-                .iter()
-                .filter(|unit| unit.created_leader)
-                .map(|unit| unit.id)
-                .collect(),
-        }
-    }
-
-    pub(super) fn into_game(self) -> (Simulation, S) {
-        let (mut game, (), partial_sites) = self.campaign.into_game();
-        for unit in &mut game.units {
-            unit.created_leader = self.created_leader.contains(&unit.id);
-        }
-        (game, partial_sites)
-    }
-}
-
-/// Format 0x2B retains the frozen 0x2A records and appends the extra Advance
-/// clauses of pending treaties. Earlier readers remain layout-independent.
-#[derive(Serialize, Deserialize)]
-pub(super) struct SavedCampaignV2B<'a, S> {
-    campaign: SavedCampaignV2A<'a, S>,
-    extra_treaty_technologies: BTreeMap<(usize, usize), [Vec<Tech>; 2]>,
-}
-
-impl<'a, S> SavedCampaignV2B<'a, S> {
-    pub(super) fn from_game(game: &'a Simulation, partial_sites: S) -> Self {
-        Self {
-            campaign: SavedCampaignV2A::from_game(game, partial_sites),
-            extra_treaty_technologies: game
-                .diplomacy
-                .iter()
-                .filter_map(|(&pair, relation)| {
-                    let offer = relation.offer.as_ref()?;
-                    offer
-                        .terms
-                        .iter()
-                        .any(|terms| !terms.additional_technologies.is_empty())
-                        .then(|| {
-                            (
-                                pair,
-                                offer
-                                    .terms
-                                    .each_ref()
-                                    .map(|terms| terms.additional_technologies.clone()),
-                            )
-                        })
-                })
-                .collect(),
-        }
-    }
-
-    pub(super) fn into_game(self) -> Result<(Simulation, S), &'static str> {
-        let (mut game, partial_sites) = self.campaign.into_game();
-        for (pair, technologies) in self.extra_treaty_technologies {
-            let offer = game
-                .diplomacy
-                .get_mut(&pair)
-                .and_then(|r| r.offer.as_mut())
-                .ok_or("Extra technologies without a pending treaty")?;
-            for (terms, extra) in offer.terms.iter_mut().zip(technologies) {
-                terms.additional_technologies = extra;
-            }
-        }
-        Ok((game, partial_sites))
-    }
-}
-
-/// Format 0x2C appends governor settings to the previous payload.
-#[derive(Serialize, Deserialize)]
-pub(super) struct SavedCampaignV2C<'a, S> {
-    campaign: SavedCampaignV2B<'a, S>,
-    governors: Cow<'a, BTreeMap<u32, CityGovernor>>,
-}
-
-impl<'a, S> SavedCampaignV2C<'a, S> {
-    pub(super) fn from_game(game: &'a Simulation, partial_sites: S) -> Self {
-        Self {
-            campaign: SavedCampaignV2B::from_game(game, partial_sites),
-            governors: Cow::Borrowed(&game.city_governors),
-        }
-    }
-
-    pub(super) fn into_game(self) -> Result<(Simulation, S), &'static str> {
-        let (mut game, partial_sites) = self.campaign.into_game()?;
-        game.city_governors = self.governors.into_owned();
-        Ok((game, partial_sites))
-    }
-}
-
-/// Format 0x2D appends bounded directional relationship history.
-#[derive(Serialize, Deserialize)]
-pub(super) struct SavedCampaignV2D<'a, S> {
-    campaign: SavedCampaignV2C<'a, S>,
-    relationships: Cow<'a, PairMemory<diplomacy::relationships::RelationshipMemory>>,
-}
-impl<'a, S> SavedCampaignV2D<'a, S> {
-    pub(super) fn from_game(game: &'a Simulation, partial_sites: S) -> Self {
-        Self {
-            campaign: SavedCampaignV2C::from_game(game, partial_sites),
-            relationships: Cow::Borrowed(&game.ai_relationship_memory),
-        }
-    }
-    pub(super) fn into_game(self) -> Result<(Simulation, S), &'static str> {
-        let (mut game, partial_sites) = self.campaign.into_game()?;
-        game.ai_relationship_memory = self.relationships.into_owned();
-        Ok((game, partial_sites))
-    }
-}
-
-/// Format 0x2F appends current war objectives and Civ III culture-building
-/// age/ownership records without changing any frozen positional entity layout.
-#[derive(Serialize, Deserialize)]
-pub(super) struct SavedCampaignV2F<'a, S> {
-    campaign: SavedCampaignV2D<'a, S>,
-    war_objectives: SavedWarObjectives,
-    culture_buildings: BTreeMap<u32, Vec<CultureBuildingAge>>,
-}
-
-impl<'a, S> SavedCampaignV2F<'a, S> {
-    pub(super) fn from_game(game: &'a Simulation, partial_sites: S) -> Self {
-        Self {
-            campaign: SavedCampaignV2D::from_game(game, partial_sites),
-            war_objectives: game
-                .ai_war_plans
-                .iter()
-                .filter_map(|(&pair, plan)| plan.objective.map(|objective| (pair, objective)))
-                .collect(),
-            culture_buildings: game
-                .cities
-                .iter()
-                .filter(|city| !city.culture_buildings.is_empty())
-                .map(|city| (city.id, city.culture_buildings.clone()))
-                .collect(),
-        }
-    }
-
-    pub(super) fn into_game(self) -> Result<(Simulation, S), &'static str> {
-        let (mut game, partial_sites) = self.campaign.into_game()?;
-        for (pair, objective) in self.war_objectives {
-            let Some(plan) = game.ai_war_plans.get_mut(&pair) else {
-                return Err("War objective has no plan");
-            };
-            if plan.objective.is_some()
-                || !(0..game.map_wrap.width()).contains(&objective.staging.0)
-                || !(0..game.map_wrap.height()).contains(&objective.staging.1)
-            {
-                return Err("Invalid war objective");
-            }
-            plan.objective = Some(objective);
-        }
-        apply_culture_building_history(&mut game, self.culture_buildings)?;
-        Ok((game, partial_sites))
-    }
-}
-
-/// Alternate 0x2F payload used by the notification-inbox change on `work`.
-#[derive(Serialize, Deserialize)]
-pub(super) struct SavedCampaignV2E<'a, S> {
-    campaign: SavedCampaignV2D<'a, S>,
-    objectives: SavedWarObjectives,
-    notifications: Cow<'a, [notifications::Notification]>,
-    next_notification_id: u64,
-}
-
-impl<'a, S> SavedCampaignV2E<'a, S> {
-    #[cfg(test)]
-    pub(super) fn from_game(game: &'a Simulation, partial_sites: S) -> Self {
-        let objectives = game
-            .ai_war_plans
-            .iter()
-            .filter_map(|(&pair, plan)| plan.objective.map(|objective| (pair, objective)))
-            .collect();
-        Self {
-            campaign: SavedCampaignV2D::from_game(game, partial_sites),
-            objectives,
-            notifications: Cow::Borrowed(&game.notifications),
-            next_notification_id: game.next_notification_id,
-        }
-    }
-
-    pub(super) fn into_game(self) -> Result<(Simulation, S), &'static str> {
-        let (mut game, partial_sites) = self.campaign.into_game()?;
-        for (pair, objective) in self.objectives {
-            let Some(plan) = game.ai_war_plans.get_mut(&pair) else {
-                return Err("War objective has no plan");
-            };
-            if plan.objective.is_some()
-                || !(0..game.map_wrap.width()).contains(&objective.staging.0)
-                || !(0..game.map_wrap.height()).contains(&objective.staging.1)
-            {
-                return Err("Invalid war objective");
-            }
-            plan.objective = Some(objective);
-        }
-        game.notifications = self.notifications.into_owned();
-        game.next_notification_id = self.next_notification_id;
-        Ok((game, partial_sites))
-    }
-}
-
-/// Format 0x30 combines durable culture age and notification records.
-#[derive(Serialize, Deserialize)]
-pub(super) struct SavedCampaignV2G<'a, S> {
-    culture: SavedCampaignV2F<'a, S>,
-    notifications: Cow<'a, [notifications::Notification]>,
-    next_notification_id: u64,
-}
-
-impl<'a, S> SavedCampaignV2G<'a, S> {
-    pub(super) fn from_game(game: &'a Simulation, partial_sites: S) -> Self {
-        Self {
-            culture: SavedCampaignV2F::from_game(game, partial_sites),
-            notifications: Cow::Borrowed(&game.notifications),
-            next_notification_id: game.next_notification_id,
-        }
-    }
-
-    pub(super) fn into_game(self) -> Result<(Simulation, S), &'static str> {
-        let (mut game, partial_sites) = self.culture.into_game()?;
-        game.notifications = self.notifications.into_owned();
-        game.next_notification_id = self.next_notification_id;
-        Ok((game, partial_sites))
-    }
-}
-
-/// Legacy 0x30 payload used before culture-building ages were merged into the
-/// current save schema. Kept for migration of campaigns written on main.
-#[derive(Serialize, Deserialize)]
-pub(super) struct SavedCampaignV30<'a, S> {
-    campaign: SavedCampaignV2D<'a, S>,
-    objectives: Vec<((usize, usize), diplomacy::WarObjective)>,
-    vassalage: diplomacy::vassalage::SavedVassalage,
-    notifications: Cow<'a, [notifications::Notification]>,
-    next_notification_id: u64,
-}
-
-impl<'a, S> SavedCampaignV30<'a, S> {
-    pub(super) fn into_game(self) -> Result<(Simulation, S), &'static str> {
-        let (mut game, partial_sites) = self.campaign.into_game()?;
-        game.restore_vassalage(self.vassalage)?;
-        for (pair, objective) in self.objectives {
-            let Some(plan) = game.ai_war_plans.get_mut(&pair) else {
-                return Err("War objective has no plan");
-            };
-            if plan.objective.is_some()
-                || !(0..game.map_wrap.width()).contains(&objective.staging.0)
-                || !(0..game.map_wrap.height()).contains(&objective.staging.1)
-            {
-                return Err("Invalid war objective");
-            }
-            plan.objective = Some(objective);
-        }
-        game.notifications = self.notifications.into_owned();
-        game.next_notification_id = self.next_notification_id;
-        Ok((game, partial_sites))
-    }
-}
-
-fn apply_culture_building_history(
-    game: &mut Simulation,
-    histories: BTreeMap<u32, Vec<CultureBuildingAge>>,
-) -> Result<(), &'static str> {
-    let player_count = game.players.len();
-    let current_year = game.year;
-    for (city_id, records) in histories {
-        let Some(city) = game.cities.iter_mut().find(|city| city.id == city_id) else {
-            return Err("Culture building history has no city");
-        };
-        if records
-            .iter()
-            .any(|record| record.builder >= player_count || record.active_since_year > current_year)
-        {
-            return Err("Invalid culture building history");
-        }
-        let mut seen = Vec::new();
-        for record in &records {
-            if seen.contains(&record.building) {
-                return Err("Duplicate culture building history");
-            }
-            seen.push(record.building);
-        }
-        city.culture_buildings = records
-            .into_iter()
-            .filter(|record| city.buildings.contains(&record.building))
-            .collect();
-    }
-    Ok(())
-}
-
-#[derive(Deserialize)]
-pub(super) struct LegacyCampaign<'a> {
-    core: SavedCore<'a>,
-    #[serde(deserialize_with = "records::sequence::deserialize")]
-    route_memory: Vec<Option<movement::RouteTile>>,
-    ai: SavedAi<'a, LegacyAiMap>,
+    ai: SavedAi<'a>,
     world: SavedWorld<'a>,
 }
 
-impl LegacyCampaign<'_> {
-    pub(super) fn topology(&self) -> MapWrap {
-        self.core.map_wrap
-    }
-
-    pub(super) fn into_game(self) -> (Simulation, Vec<Option<movement::RouteTile>>, LegacyAiMap) {
-        let Self {
-            core,
-            route_memory,
-            ai,
-            world,
-        } = self;
-        let (game, legacy_ai_map, ()) = SavedCampaign {
-            core,
-            ai,
-            world,
-            partial_sites: (),
-        }
-        .into_game();
-        (game, route_memory, legacy_ai_map)
-    }
-}
-
-impl<'a, A, S> SavedCampaign<'a, A, S> {
-    pub(super) fn from_game(game: &'a Simulation, legacy_ai_map: A, partial_sites: S) -> Self {
+impl<'a> SavedCampaign<'a> {
+    pub(super) fn from_game(game: &'a Simulation) -> Self {
         let mut list_order = game.list_order.clone();
         list_order.synchronize(&game.units, &game.cities);
         let cargo_order = game.cargo_order_snapshot();
@@ -476,6 +106,8 @@ impl<'a, A, S> SavedCampaign<'a, A, S> {
                     .map(|(&id, &value)| (id, value))
                     .collect(),
                 diplomacy: Cow::Borrowed(&game.diplomacy),
+                vassalage: Cow::Borrowed(&game.vassalage),
+                religion: Cow::Borrowed(&game.religion),
                 apollo_completed: game.apollo_completed,
                 global_advances: Cow::Borrowed(&game.global_advances),
                 players: Cow::Borrowed(&game.players),
@@ -486,20 +118,21 @@ impl<'a, A, S> SavedCampaign<'a, A, S> {
                 next_unit_id: game.next_unit_id,
                 next_city_id: game.next_city_id,
                 rng: game.rng,
-                events: Cow::Borrowed(&game.legacy_events),
+                notifications: Cow::Borrowed(&game.notifications),
+                next_notification_id: game.next_notification_id,
                 game_over: Cow::Borrowed(&game.game_over),
                 climate_pressure: Cow::Borrowed(&game.climate_pressure),
             },
             ai: SavedAi {
                 ai_purchase_reserve: Cow::Borrowed(&game.ai_purchase_reserve),
                 city_founders: Cow::Borrowed(&game.city_founders),
-                legacy_ai_map,
                 ai_war_plans: Cow::Borrowed(&game.ai_war_plans),
                 ai_space_warnings: Cow::Borrowed(&game.ai_space_warnings),
                 ai_free_bulbs: Cow::Borrowed(&game.ai_free_bulbs),
                 ai_ground_targets: Cow::Borrowed(&game.ai_ground_targets),
                 ai_settlement_targets: Cow::Borrowed(&game.ai_settlement_targets),
                 ai_diplomatic_memory: Cow::Borrowed(&game.ai_diplomatic_memory),
+                ai_relationship_memory: Cow::Borrowed(&game.ai_relationship_memory),
                 ai_ferries: Cow::Borrowed(&game.ai_ferries),
                 ai_government_cache: Cow::Borrowed(&game.ai_government_cache),
                 diplomatic_contact_until: Cow::Borrowed(&game.diplomatic_contact_until),
@@ -508,6 +141,7 @@ impl<'a, A, S> SavedCampaign<'a, A, S> {
                 climate_current: game.climate_current,
                 ai_guard_targets: Cow::Borrowed(&game.ai_guard_targets),
                 ai_unit_guards: Cow::Borrowed(&game.ai_unit_guards),
+                city_governors: Cow::Borrowed(&game.city_governors),
                 city_rapture: Cow::Borrowed(&game.city_rapture),
                 unit_goto_tiles: Cow::Borrowed(&game.unit_goto_tiles),
                 list_order,
@@ -515,17 +149,11 @@ impl<'a, A, S> SavedCampaign<'a, A, S> {
                 cargo_order,
                 observed_map: Cow::Borrowed(&game.observed_map),
             },
-            partial_sites,
         }
     }
 
-    pub(super) fn into_game(self) -> (Simulation, A, S) {
-        let Self {
-            core,
-            ai,
-            world,
-            partial_sites,
-        } = self;
+    pub(super) fn into_game(self) -> Result<Simulation, &'static str> {
+        let Self { core, ai, world } = self;
         let game = Simulation {
             world_seed: core.world_seed,
             map_seed: core.map_seed,
@@ -541,8 +169,8 @@ impl<'a, A, S> SavedCampaign<'a, A, S> {
             hunter_targets: core.hunter_targets.into_iter().collect(),
             previous_naval_positions: core.previous_naval_positions.into_iter().collect(),
             diplomacy: core.diplomacy.into_owned(),
-            vassalage: Default::default(),
-            religion: Default::default(),
+            vassalage: core.vassalage.into_owned(),
+            religion: core.religion.into_owned(),
             apollo_completed: core.apollo_completed,
             global_advances: core.global_advances.into_owned(),
             players: core.players.into_owned(),
@@ -553,9 +181,14 @@ impl<'a, A, S> SavedCampaign<'a, A, S> {
             next_unit_id: core.next_unit_id,
             next_city_id: core.next_city_id,
             rng: core.rng,
-            legacy_events: core.events.into_owned(),
             #[cfg(test)]
-            events: Vec::new(),
+            events: core
+                .notifications
+                .iter()
+                .map(|item| item.text.clone())
+                .collect(),
+            notifications: core.notifications.into_owned(),
+            next_notification_id: core.next_notification_id,
             game_over: core.game_over.into_owned(),
             climate_pressure: core.climate_pressure.into_owned(),
             ai_purchase_reserve: ai.ai_purchase_reserve.into_owned(),
@@ -566,13 +199,14 @@ impl<'a, A, S> SavedCampaign<'a, A, S> {
             ai_ground_targets: ai.ai_ground_targets.into_owned(),
             ai_settlement_targets: ai.ai_settlement_targets.into_owned(),
             ai_diplomatic_memory: ai.ai_diplomatic_memory.into_owned(),
+            ai_relationship_memory: ai.ai_relationship_memory.into_owned(),
             ai_ferries: ai.ai_ferries.into_owned(),
             ai_government_cache: ai.ai_government_cache.into_owned(),
             diplomatic_contact_until: ai.diplomatic_contact_until.into_owned(),
             climate_current: world.climate_current,
             ai_guard_targets: world.ai_guard_targets.into_owned(),
             ai_unit_guards: world.ai_unit_guards.into_owned(),
-            city_governors: Default::default(),
+            city_governors: world.city_governors.into_owned(),
             city_rapture: world.city_rapture.into_owned(),
             unit_goto_tiles: world.unit_goto_tiles.into_owned(),
             list_order: world.list_order,
@@ -581,108 +215,7 @@ impl<'a, A, S> SavedCampaign<'a, A, S> {
             observed_map: world.observed_map.into_owned(),
             ..Simulation::default()
         };
-        (game, ai.legacy_ai_map, partial_sites)
-    }
-}
-
-#[cfg(test)]
-mod treaty_schema_tests {
-    use super::*;
-    use bincode::Options;
-
-    #[test]
-    fn colliding_v2f_headers_load_both_culture_and_notification_payloads() {
-        let mut game = Simulation::new(crate::test_support::seeded_map());
-        game.create_city(HUMAN, 12, 24);
-        let city_id = game.cities[0].id;
-        game.cities[0].record_culture_building(Building::LIBRARY, HUMAN, game.year);
-        game.cities[0].buildings.push(Building::LIBRARY);
-
-        let path =
-            std::env::temp_dir().join(format!("civcraft-v2f-culture-{}.save", std::process::id()));
-        let mut bytes = super::super::V2F_HEADER.to_vec();
-        bytes.extend(
-            super::super::codec(super::super::MAX_PAYLOAD)
-                .serialize(&SavedCampaignV2F::from_game(
-                    &game,
-                    Cow::Borrowed(&game.observed_map.partial_sites),
-                ))
-                .unwrap(),
-        );
-        std::fs::write(&path, bytes).unwrap();
-        let culture_loaded = Simulation::load_campaign(&path).unwrap();
-        assert_eq!(
-            culture_loaded
-                .city_by_id(city_id)
-                .unwrap()
-                .culture_buildings,
-            game.city_by_id(city_id).unwrap().culture_buildings
-        );
-
-        game.add_contextual_notification(
-            "Inbox payload from 0x2F.",
-            notifications::NotificationCategory::City,
-            notifications::NotificationPriority::Important,
-            Some(city_id),
-            Some(1),
-        );
-        let mut bytes = super::super::V2F_HEADER.to_vec();
-        bytes.extend(
-            super::super::codec(super::super::MAX_PAYLOAD)
-                .serialize(&SavedCampaignV2E::from_game(
-                    &game,
-                    Cow::Borrowed(&game.observed_map.partial_sites),
-                ))
-                .unwrap(),
-        );
-        std::fs::write(&path, bytes).unwrap();
-        let notifications_loaded = Simulation::load_campaign(&path).unwrap();
-        std::fs::remove_file(path).unwrap();
-        assert_eq!(notifications_loaded.notifications, game.notifications);
-        assert_eq!(
-            notifications_loaded.next_notification_id,
-            game.next_notification_id
-        );
-    }
-
-    #[test]
-    fn previous_format_messages_migrate_as_read_notifications() {
-        let game = Simulation::new(crate::test_support::seeded_map());
-        let mut saved =
-            SavedCampaignV2D::from_game(&game, Cow::Borrowed(&game.observed_map.partial_sites));
-        saved.campaign.campaign.campaign.campaign.core.events = Cow::Owned(vec![
-            "Earlier campaign message.".to_owned(),
-            "Another earlier message.".to_owned(),
-        ]);
-        let payload = super::super::codec(super::super::MAX_PAYLOAD)
-            .serialize(&(saved, super::super::SavedWarObjectives::new()))
-            .unwrap();
-        let path = std::env::temp_dir().join(format!(
-            "civcraft-notification-migration-{}.save",
-            std::process::id()
-        ));
-        let mut bytes = super::super::V2E_HEADER.to_vec();
-        bytes.extend(payload);
-        std::fs::write(&path, bytes).unwrap();
-
-        let loaded = Simulation::load_campaign(&path).unwrap();
-        std::fs::remove_file(path).unwrap();
-
-        assert_eq!(loaded.notifications.len(), 2);
-        assert_eq!(loaded.notifications[0].text, "Earlier campaign message.");
-        assert_eq!(loaded.notifications[1].text, "Another earlier message.");
-        assert!(loaded.notifications.iter().all(|item| item.read));
-        assert_eq!(loaded.unread_notifications_view(), 0);
-        assert!(loaded.legacy_events.is_empty());
-    }
-
-    #[test]
-    fn extra_technology_clauses_require_an_existing_pending_offer() {
-        let game = Simulation::new(crate::test_support::seeded_map());
-        let mut saved = SavedCampaignV2B::from_game(&game, ());
-        saved
-            .extra_treaty_technologies
-            .insert((HUMAN, 1), [vec![Tech::POTTERY], Vec::new()]);
-        assert!(saved.into_game().is_err());
+        game.validate_vassal_offers()?;
+        Ok(game)
     }
 }

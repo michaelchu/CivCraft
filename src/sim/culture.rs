@@ -234,21 +234,6 @@ impl Simulation {
         self.players[city.owner].history = self.players[city.owner].history.saturating_add(history);
     }
 
-    pub(super) fn initialize_missing_culture_building_ages(&mut self) {
-        let year = self.year;
-        for city in &mut self.cities {
-            for &building in &city.buildings.clone() {
-                if !city
-                    .culture_buildings
-                    .iter()
-                    .any(|record| record.building == building)
-                {
-                    city.record_culture_building(building, city.owner, year);
-                }
-            }
-        }
-    }
-
     /// Civ III checks both a legendary city and a leading cultural empire.
     pub(super) fn check_cultural_victory(&mut self) {
         if self.game_over.is_some() {

@@ -459,66 +459,6 @@ impl Simulation {
             );
     }
 
-    pub(super) fn import_legacy_routes(&mut self, routes: Vec<Option<movement::RouteTile>>) {
-        for (index, route) in routes.into_iter().enumerate() {
-            if let Some(route) = route.filter(|_| self.tiles[index].seen) {
-                let owner = self.tiles[index].last_seen_owner;
-                self.import_partial_tile(HUMAN, index, route, owner);
-            }
-        }
-    }
-
-    /// Older formats could preserve routing information without a full tile.
-    /// Build a snapshot using the fields actually known to the observer.
-    pub(super) fn import_partial_tile(
-        &mut self,
-        observer: usize,
-        index: usize,
-        route: movement::RouteTile,
-        owner: Option<usize>,
-    ) {
-        if let Some(owner) = route.city_owner
-            && !self
-                .observed_map
-                .city_owners
-                .contains_key(&(observer, index))
-        {
-            self.observed_map
-                .partial_sites
-                .insert((observer, index), owner);
-        }
-        self.observed_map
-            .tiles
-            .entry((observer, index))
-            .or_insert_with(|| {
-                let base_terrain = match route.terrain {
-                    Terrain::Coast | Terrain::Lake => TerrainBase::Coast,
-                    Terrain::Sea => TerrainBase::Sea,
-                    Terrain::Ocean => TerrainBase::Ocean,
-                    Terrain::Plains => TerrainBase::Plains,
-                    Terrain::Desert | Terrain::FloodPlains => TerrainBase::Desert,
-                    Terrain::Tundra => TerrainBase::Tundra,
-                    Terrain::Glacier => TerrainBase::Ice,
-                    _ => TerrainBase::Grassland,
-                };
-                let mut snapshot = Tile::from(crate::world::GeneratedTile {
-                    terrain: route.terrain,
-                    base_terrain,
-                    altitude: 0,
-                    hut: false,
-                    river: route.river,
-                    river_edges: 0,
-                    resource: None,
-                });
-                snapshot.seen = true;
-                snapshot.known_by.set(observer, true);
-                snapshot.owner = owner;
-                snapshot.road = route.road;
-                snapshot.railroad = route.railroad;
-                (0, snapshot)
-            });
-    }
-
     #[cfg(test)]
     pub(super) fn remember_visible_human_tiles(&mut self) {
         let visible = self.tiles.iter().map(|tile| tile.visible).collect();

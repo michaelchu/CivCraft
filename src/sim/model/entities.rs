@@ -85,8 +85,7 @@ pub(crate) struct Unit {
     /// Selected Freeciv ruleset veterancy level used for campaign mechanics.
     pub(crate) c2c3_veteran: usize,
     /// Set once this unit has produced a Great Leader; each unit does so at
-    /// most once. Saved in a trailing section of the campaign (see `save`).
-    #[serde(skip)]
+    /// most once.
     pub(crate) created_leader: bool,
     pub(crate) fuel: u8,
     /// OpenCiv3 FLC direction row: SW, S, SE, E, NE, N, NW, W.

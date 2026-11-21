@@ -88,7 +88,7 @@ fn settlement_reads_last_assessment_until_government_advisor_refreshes() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     let owner = 1;
     game.turn = 12;
-    let mut scores = [0.0; 11];
+    let mut scores = [0.0; Government::COUNT];
     scores[Government::Democracy as usize] = 1.0;
     game.ai_government_cache.insert(
         owner,
@@ -148,20 +148,12 @@ fn government_player_bonus_uses_c2c3_fanatics_and_partisans_effects() {
     game.players[1].known.clear();
     assert_eq!(game.government_player_bonus(1, Government::Communism), 0);
     assert_eq!(game.government_player_bonus(1, Government::Democracy), 0);
-    assert_eq!(
-        game.government_player_bonus(1, Government::Fundamentalism),
-        3
-    );
     game.players[1]
         .known
         .extend([Tech::COMMUNISM, Tech::GUNPOWDER]);
     game.players[HUMAN].known.push(Tech::NATIONALISM);
     assert_eq!(game.government_player_bonus(1, Government::Communism), 3);
     assert_eq!(game.government_player_bonus(1, Government::Democracy), 3);
-    assert_eq!(
-        game.government_player_bonus(1, Government::Fundamentalism),
-        3
-    );
     assert_eq!(
         game.government_player_bonus(BARBARIANS, Government::Communism),
         0

@@ -83,13 +83,10 @@ impl Simulation {
         owner: usize,
         government: Government,
     ) -> UnitGoldUpkeep {
-        let Some(government) = government
+        let government = government
             .rule_name()
             .and_then(|name| crate::rules::native::governments().get(name))
-        else {
-            // Removed compatibility governments have no native campaign rule.
-            return UnitGoldUpkeep { paid: Vec::new() };
-        };
+            .expect("every campaign government has a native rule");
         let mut free = 0i64;
         for city in self.cities.iter().filter(|city| city.owner == owner) {
             let allowance = match city.size {
