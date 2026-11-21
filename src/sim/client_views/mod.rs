@@ -910,4 +910,77 @@ mod tests {
         sim.players[HUMAN].known.push(Tech::IRON_WORKING);
         assert_eq!(sim.render_tile_view(20, 20).resource, Some(Resource::Iron));
     }
+
+    /// Manual timing probe: `cargo test --release -- --ignored --nocapture projection_timing`.
+    #[test]
+    #[ignore]
+    fn projection_timing_probe() {
+        use std::time::Instant;
+        let mut sim = Simulation::new(crate::mapgen::generate(42));
+        let w = sim.map_wrap.width();
+        let h = sim.map_wrap.height();
+        let players = sim.players.len().max(1);
+        let mut n = 0;
+        for y in (2..h - 2).step_by(3) {
+            for x in (0..w).step_by(3) {
+                if sim.tile(x, y).terrain.is_water() {
+                    continue;
+                }
+                sim.create_city(n % players, x, y);
+                sim.spawn_unit(n % players, UnitKind::ALL_NATIVE[n % 20], x, y);
+                sim.spawn_unit(n % players, UnitKind::ALL_NATIVE[(n + 7) % 20], x + 1, y);
+                n += 1;
+            }
+        }
+        crate::sim::ui_review::ui_review_reveal_all_tiles(&mut sim);
+        println!(
+            "map {w}x{h}, cities {}, units {}",
+            sim.cities.len(),
+            sim.units.len()
+        );
+        let reps = 200u32;
+        let time = |name: &str, f: &dyn Fn()| {
+            let t = Instant::now();
+            for _ in 0..reps {
+                f();
+            }
+            println!(
+                "{name:32} {:>9.1} us/call",
+                t.elapsed().as_secs_f64() * 1e6 / reps as f64
+            );
+        };
+        let id = sim.cities[0].id;
+        time("city_manager_view", &|| {
+            std::hint::black_box(sim.city_manager_view(id));
+        });
+        time("minimap_city_views", &|| {
+            std::hint::black_box(sim.minimap_city_views());
+        });
+        time("render_cities", &|| {
+            std::hint::black_box(sim.render_cities());
+        });
+        let tiles: std::collections::HashSet<(i32, i32)> = (0..40)
+            .flat_map(|y| (0..60).map(move |x| (x % w, y % h)))
+            .collect();
+        let view: std::collections::HashSet<(i32, i32)> = (10..24)
+            .flat_map(|y| (4..24).map(move |x| (x, y)))
+            .collect();
+        time("render_city_markers (sources)", &|| {
+            std::hint::black_box(sim.render_city_markers());
+        });
+        time("rendered_city_views_in (20x14)", &|| {
+            std::hint::black_box(sim.rendered_city_views_in(&view));
+        });
+        time("rendered_unit_views_in (20x14)", &|| {
+            std::hint::black_box(sim.rendered_unit_views_in(&view));
+        });
+        time("rendered_unit_views_in (60x40)", &|| {
+            std::hint::black_box(sim.rendered_unit_views_in(&tiles));
+        });
+        time("render_tile_view x(60x40)", &|| {
+            for &(x, y) in &tiles {
+                std::hint::black_box(sim.render_tile_view(x, y));
+            }
+        });
+    }
 }

@@ -3,8 +3,48 @@ use super::*;
 pub(super) const UI_GAP: f32 = 8.0;
 pub(super) const UI_PAD: f32 = 18.0;
 
+/// Upper bound on cached strings; reaching it simply restarts the cache.
+const TEXT_CACHE_LIMIT: usize = 4096;
+
+#[derive(Default)]
+struct TextMetricsCache {
+    /// Screen size and DPI scale the metrics were measured at.
+    surface: (f32, f32, f32),
+    by_size: std::collections::HashMap<u16, std::collections::HashMap<String, TextDimensions>>,
+    entries: usize,
+}
+
+thread_local! {
+    static TEXT_METRICS: std::cell::RefCell<TextMetricsCache> = Default::default();
+}
+
+/// `measure_text` with the default font and unit scale, memoized by (text, size).
+/// The cache is cleared when the window size or DPI scale changes.
+pub(super) fn measure_cached(text: &str, size: u16) -> TextDimensions {
+    let surface = (screen_width(), screen_height(), screen_dpi_scale());
+    TEXT_METRICS.with(|cell| {
+        let mut cache = cell.borrow_mut();
+        if cache.surface != surface || cache.entries >= TEXT_CACHE_LIMIT {
+            cache.by_size.clear();
+            cache.entries = 0;
+            cache.surface = surface;
+        }
+        if let Some(found) = cache.by_size.get(&size).and_then(|m| m.get(text)) {
+            return *found;
+        }
+        let measured = measure_text(text, None, size, 1.0);
+        cache
+            .by_size
+            .entry(size)
+            .or_default()
+            .insert(text.to_owned(), measured);
+        cache.entries += 1;
+        measured
+    })
+}
+
 pub(super) fn fit_text(text: &str, size: f32, width: f32) -> String {
-    if measure_text(text, None, size as u16, 1.0).width <= width {
+    if measure_cached(text, size as u16).width <= width {
         return text.to_owned();
     }
     let chars: Vec<_> = text.chars().collect();
@@ -12,13 +52,13 @@ pub(super) fn fit_text(text: &str, size: f32, width: f32) -> String {
     while lo < hi {
         let mid = (lo + hi).div_ceil(2);
         let candidate = format!("{}...", chars[..mid].iter().collect::<String>());
-        if measure_text(&candidate, None, size as u16, 1.0).width <= width {
+        if measure_cached(&candidate, size as u16).width <= width {
             lo = mid;
         } else {
             hi = mid - 1;
         }
     }
-    if width < measure_text("...", None, size as u16, 1.0).width {
+    if width < measure_cached("...", size as u16).width {
         return String::new();
     }
     format!("{}...", chars[..lo].iter().collect::<String>())
@@ -99,7 +139,7 @@ pub(super) fn pager(
         }
     }
     let label = format!("{} / {}", page + 1, last + 1);
-    let text_w = measure_text(&label, None, 14, 1.0).width;
+    let text_w = measure_cached(&label, 14).width;
     text_in(
         &label,
         panel.x + (panel.w - text_w) * 0.5,

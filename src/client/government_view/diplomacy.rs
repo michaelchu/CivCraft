@@ -188,7 +188,7 @@ impl Game {
             let add_gold = Rect::new(rect.x, gold_y + 28.0, rect.w, 24.0);
             draw_ui_button(minus, "-25", can_negotiate && amount > 0, false);
             let amount_label = format!("{amount}g");
-            let amount_label_width = measure_text(&amount_label, None, 13, 1.0).width;
+            let amount_label_width = measure_cached(&amount_label, 13).width;
             draw_text(
                 &amount_label,
                 amount_rect.x + (amount_rect.w - amount_label_width) / 2.0,
@@ -379,7 +379,7 @@ impl Game {
                 draw_ui_button(previous, "Prev", page > 0, false);
                 draw_ui_button(next, "Next", page < last_page, false);
                 let page_label = format!("{} / {}", page + 1, last_page + 1);
-                let page_width = measure_text(&page_label, None, 12, 1.0).width;
+                let page_width = measure_cached(&page_label, 12).width;
                 draw_text(
                     &page_label,
                     rect.x + (rect.w - page_width) / 2.0,
@@ -399,7 +399,7 @@ impl Game {
         let center = Rect::new(center_x, content_y, center_width, side_height);
         let leader_y = center.y + 24.0;
         let leader_name = view.leader_line;
-        let leader_width = measure_text(&leader_name, None, 17, 1.0).width;
+        let leader_width = measure_cached(&leader_name, 17).width;
         draw_text(
             &leader_name,
             center.x + (center.w - leader_width) / 2.0,

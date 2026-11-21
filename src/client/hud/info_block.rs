@@ -61,14 +61,14 @@ impl Game {
             );
             // Value keeps priority; the label gives up room first.
             let value = fit_text(&value, 12.0, cell.w - 10.0);
-            let value_size = measure_text(&value, None, 12, 1.0);
+            let value_size = measure_cached(&value, 12);
             if label.is_empty() {
                 let baseline = cell.y + (cell.h - value_size.height) * 0.5 + value_size.offset_y;
                 draw_text(&value, cell.x + 5.0, baseline, 12.0, WHITE);
                 continue;
             }
             let label = fit_text(&label, 12.0, cell.w - value_size.width - 13.0);
-            let label_size = measure_text(&label, None, 12, 1.0);
+            let label_size = measure_cached(&label, 12);
             let baseline =
                 |size: TextDimensions| cell.y + (cell.h - size.height) * 0.5 + size.offset_y;
             draw_text(&label, cell.x + 5.0, baseline(label_size), 12.0, muted);

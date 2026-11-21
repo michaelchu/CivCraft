@@ -67,7 +67,7 @@ impl Game {
             );
         }
         let page_label = format!("{} / {}", page + 1, total_pages);
-        let label_width = measure_text(&page_label, None, 13, 1.0).width;
+        let label_width = measure_cached(&page_label, 13).width;
         draw_text(
             &page_label,
             panel.x + (panel.w - label_width) * 0.5,

@@ -136,7 +136,7 @@ impl Game {
                         badge.h,
                         Color::from_rgba(181, 54, 45, 255),
                     );
-                    let tw = measure_text(&label, None, 10, 1.0).width;
+                    let tw = measure_cached(&label, 10).width;
                     draw_text(
                         &label,
                         badge.x + (badge.w - tw) * 0.5,
@@ -197,7 +197,7 @@ impl Game {
                 actions.push((down, UiAction::AdjustMusicVolume(-1)));
             }
             let volume = format!("{}%", self.music_volume);
-            let volume_width = measure_text(&volume, None, 13, 1.0).width;
+            let volume_width = measure_cached(&volume, 13).width;
             draw_text(
                 &volume,
                 panel.x + 117.0 - volume_width * 0.5,
@@ -226,7 +226,7 @@ impl Game {
                 actions.push((sfx_down, UiAction::AdjustSfxVolume(-1)));
             }
             let sfx_volume = format!("{}%", self.sfx_volume);
-            let sfx_width = measure_text(&sfx_volume, None, 13, 1.0).width;
+            let sfx_width = measure_cached(&sfx_volume, 13).width;
             draw_text(
                 &sfx_volume,
                 panel.x + 117.0 - sfx_width * 0.5,
@@ -241,7 +241,7 @@ impl Game {
             }
         }
         if let Some((button, label)) = tooltip {
-            let width = measure_text(&label, None, 15, 1.0).width + 16.0;
+            let width = measure_cached(&label, 15).width + 16.0;
             let rect = Rect::new(
                 (button.right() - width).max(HUD_MARGIN),
                 button.bottom() + 3.0,

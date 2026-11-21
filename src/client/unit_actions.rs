@@ -260,7 +260,7 @@ impl Game {
                 15.0,
                 (screen_width() - 2.0 * HUD_MARGIN - 16.0).max(0.0),
             );
-            let width = measure_text(&label, None, 15, 1.0).width + 16.0;
+            let width = measure_cached(&label, 15).width + 16.0;
             let x = (button.center().x - width * 0.5)
                 .max(HUD_MARGIN)
                 .min(screen_width() - HUD_MARGIN - width);
