@@ -21,13 +21,11 @@ Current catalogs:
   and `selected_obsolescence` policy flags.
 - `content/technologies.toml`: 85 native technology identities, costs,
   prerequisites, eras, and research metadata.
-- `content/economy.toml`: city growth, output, upkeep, and founding parameters.
-- `content/settlements.toml`: settlement AI, citizen nationality/partisan rules, and
-  village outcome parameters.
-- `content/strategy.toml`, `content/vassalage.toml`, `content/religion.toml`:
-  AI strategy, vassalage, and religion rules. Diplomacy policy and the eight
-  campaign governments live directly in Rust (`src/rules/policies.rs` and
-  `src/rules/native.rs`).
+- `content/religion.toml`: custom religion founding, spread, faith bonuses, and policy rules.
+
+Economy/resource overrides, settlement/Great Leader/village tables, AI strategy,
+diplomacy/vassalage policies, and the eight campaign governments live directly in
+Rust (`src/rules/native.rs` and `src/rules/policies.rs`).
 
 The campaign embeds its engine ruleset and native catalogs when built. The
 effect graph, including government rate caps, empire size and civil-war chance, comes from
@@ -39,8 +37,8 @@ extras, resources, and movement parameters.
 Unit shield costs are authoritative in `content/units.toml` (`cost_shields`). Production,
 settlement AI valuation, and shield-recovery base values share that cost.
 The unit-economics crosswalk has been removed. Capabilities and AI roles use named fields rather than raw PRTO masks; experience and government support use their native catalogs.
-Barbarian and partisan choices are configured by native IDs in
-`content/settlements.toml`.
+Barbarian and partisan choices are configured in `src/rules/native.rs` alongside
+the settlement rules.
 The generic engine's remaining algorithm gaps are recorded in the Freeciv port
 plan; removal of inherited content does not claim full gameplay parity.
 

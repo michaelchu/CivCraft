@@ -10,29 +10,14 @@ use std::collections::{BTreeMap, BTreeSet};
 use super::Tech;
 use super::native::TechnologyCatalog;
 
-pub(crate) const TRAIT_NAMES: &[&str] = &[
-    "agricultural",
-    "commercial",
-    "expansionist",
-    "industrious",
-    "militaristic",
-    "religious",
-    "scientific",
-    "seafaring",
-];
-
-#[derive(Default, Deserialize)]
-#[serde(default, deny_unknown_fields)]
+#[derive(Default)]
 pub(crate) struct TraitWeights {
     pub(crate) economy: i32,
     pub(crate) science: i32,
     pub(crate) military: i32,
 }
 
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
 pub(crate) struct StrategyCatalog {
-    pub(crate) schema_version: u32,
     pub(crate) crisis_economy_bonus: i32,
     pub(crate) war_military_bonus: i32,
     pub(crate) preparation_military_bonus: i32,
@@ -98,8 +83,6 @@ pub(crate) struct DiplomacyCatalog {
     pub(crate) negotiations: NegotiationPolicy,
 }
 
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
 pub(crate) struct VassalageCatalog {
     pub(crate) required_technology: String,
     pub(crate) voluntary_minimum_turns: i32,
@@ -219,63 +202,35 @@ pub(crate) struct ReligionCatalog {
     pub(crate) ai_minimum_improvement: i32,
 }
 
-fn technology_name_exists(technologies: &TechnologyCatalog, name: &str) -> bool {
-    technologies
-        .technologies
-        .iter()
-        .any(|tech| tech.display_name.as_deref().unwrap_or(&tech.name) == name || tech.name == name)
-        || Tech::all().any(|tech| tech.name() == name)
-}
-
-pub(crate) fn parse_strategy(source: &str) -> Result<StrategyCatalog, String> {
-    let policy: StrategyCatalog = toml::from_str(source).map_err(|err| err.to_string())?;
-    if policy.schema_version != 1 {
-        return Err(format!(
-            "unsupported strategy schema_version {}",
-            policy.schema_version
-        ));
+pub(crate) fn default_strategy() -> StrategyCatalog {
+    let w = |economy, science, military| TraitWeights {
+        economy,
+        science,
+        military,
+    };
+    StrategyCatalog {
+        crisis_economy_bonus: 60,
+        war_military_bonus: 40,
+        preparation_military_bonus: 20,
+        space_science_bonus: 40,
+        space_max_missing_techs: 9,
+        space_min_city_shields: 8,
+        space_research_want: 200,
+        deficit_reserve_turns: 3,
+        upkeep_buffer_turns: 2,
+        reserve_refill_turns: 5,
+        research_interest_want: 4,
+        traits: BTreeMap::from([
+            ("agricultural".to_owned(), w(15, 0, 0)),
+            ("commercial".to_owned(), w(20, 0, 0)),
+            ("expansionist".to_owned(), w(10, 0, 5)),
+            ("industrious".to_owned(), w(20, 0, 0)),
+            ("militaristic".to_owned(), w(0, 0, 25)),
+            ("religious".to_owned(), w(10, 0, 0)),
+            ("scientific".to_owned(), w(0, 25, 0)),
+            ("seafaring".to_owned(), w(10, 5, 0)),
+        ]),
     }
-    for value in [
-        policy.crisis_economy_bonus,
-        policy.war_military_bonus,
-        policy.preparation_military_bonus,
-        policy.space_science_bonus,
-        policy.deficit_reserve_turns,
-        policy.upkeep_buffer_turns,
-        policy.reserve_refill_turns,
-        policy.research_interest_want,
-    ] {
-        if !(0..=100).contains(&value) {
-            return Err(format!("strategy value {value} out of range 0..=100"));
-        }
-    }
-    if policy.reserve_refill_turns <= 0
-        || policy.space_max_missing_techs == 0
-        || policy.space_min_city_shields <= 0
-        || policy.space_research_want <= 0
-    {
-        return Err("strategy space/reserve thresholds must be positive".into());
-    }
-    if policy.traits.len() != TRAIT_NAMES.len() {
-        return Err(format!(
-            "expected {} trait entries in strategy policy, found {}",
-            TRAIT_NAMES.len(),
-            policy.traits.len()
-        ));
-    }
-    for (name, weights) in &policy.traits {
-        if !TRAIT_NAMES.contains(&name.as_str()) {
-            return Err(format!("unknown strategy trait {name:?}"));
-        }
-        for weight in [weights.economy, weights.science, weights.military] {
-            if !(0..=100).contains(&weight) {
-                return Err(format!(
-                    "strategy weight {weight} for {name:?} out of 0..=100"
-                ));
-            }
-        }
-    }
-    Ok(policy)
 }
 
 pub(crate) fn default_diplomacy() -> DiplomacyCatalog {
@@ -390,34 +345,18 @@ pub(crate) fn default_diplomacy() -> DiplomacyCatalog {
     }
 }
 
-pub(crate) fn parse_vassalage(
-    source: &str,
-    technologies: &TechnologyCatalog,
-) -> Result<VassalageCatalog, String> {
-    let p: VassalageCatalog = toml::from_str(source).map_err(|err| err.to_string())?;
-    if !technology_name_exists(technologies, &p.required_technology) {
-        return Err(format!(
-            "unknown vassalage required_technology {:?}",
-            p.required_technology
-        ));
+pub(crate) fn default_vassalage() -> VassalageCatalog {
+    VassalageCatalog {
+        required_technology: "Feudalism".to_owned(),
+        voluntary_minimum_turns: 10,
+        independence_size_percent: 50,
+        retained_land_percent: 50,
+        negotiation_cooldown_turns: 10,
+        submission_force_ratio: 3,
+        voluntary_minimum_trust: 5000,
+        minimum_peace_value: 100,
+        maximum_protection_pressure_percent: 150,
     }
-    if p.voluntary_minimum_turns <= 0 || p.negotiation_cooldown_turns <= 0 {
-        return Err("vassalage turn timers must be positive".into());
-    }
-    if !(1..=100).contains(&p.independence_size_percent)
-        || !(1..=100).contains(&p.retained_land_percent)
-    {
-        return Err("vassalage percentage thresholds out of 1..=100".into());
-    }
-    if p.submission_force_ratio <= 1 || p.minimum_peace_value <= 0 {
-        return Err("vassalage submission_force_ratio or minimum_peace_value invalid".into());
-    }
-    if !(1..=1000).contains(&p.maximum_protection_pressure_percent)
-        || !(0..=10000).contains(&p.voluntary_minimum_trust)
-    {
-        return Err("vassalage pressure or trust threshold out of range".into());
-    }
-    Ok(p)
 }
 
 impl ReligionAiRules {

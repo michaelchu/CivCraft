@@ -11,7 +11,7 @@ are outside this migration.
 
 | Owner | Contents |
 | --- | --- |
-| `data/rulesets/civcraft/content/` | Gameplay values, unit/building/technology definitions, economy, AI strategy, vassalage/religion policies, and village reward weights |
+| `data/rulesets/civcraft/content/` | Player-tuneable unit, building, technology, civilization, experience, and religion catalogs |
 | `data/rulesets/civcraft/engine/` | Generic effects, action enablers, unit classes, extras/resources, and remaining engine settings, using the engine's existing ruleset format |
 | Rust simulation modules | Formulas, rule interpretation, state execution, validation, and turn processing |
 | `data/presentation/` | Animation pacing, independent of gameplay rules |
@@ -77,8 +77,8 @@ directly from `content/buildings.toml` via data-driven `Building` handles.
 Base terrain yields, road/railroad bonuses, and movement costs live in
 `src/rules/terrain_catalog.rs`, paired with `engine/terrain.ruleset` for Freeciv
 extras, resources, and worker activity parameters. Civ III terrain/resource
-identities and artwork mappings stay in their existing Rust adapters. `content/economy.toml`
-retains campaign resource yield overrides and city foodbox/economy rules.
+identities and artwork mappings stay in their existing Rust adapters, and city
+economy and resource yield overrides live directly in `src/rules/native.rs`.
 
 Government definitions, prerequisites, and unit-support rules live directly in Rust
 (`src/rules/native.rs` and `src/sim/government.rs`), while `engine/effects.ruleset`
@@ -98,23 +98,14 @@ This migration preserves these supported states. It does not add an arbitrary
 state-transition editor or new building disabled/damaged states. Individual
 entities' current states continue to live in campaign saves.
 
-## Villages
+## Policy and settlement rules
 
-`content/settlements.toml` exposes positive integer outcome weights, gold amounts,
-barbarian onset, map reveal radius, and existing AI priorities. For example:
-
-```toml
-[[villages.outcomes]]
-weight = 3
-reward = { kind = "Gold", amount = 50 }
-```
-
-Supported reward kinds are `Gold`, `Technology`, `Reinforcements`, `Barbarians`,
-`Settlement`, and `Map`. Rust executes rewards and their eligibility/fallback
-rules. Weights determine the roll total; no separate roll count is editable.
-The shipped order and weights preserve the original 14 rolls and random-number
-consumption. Empty tables, nonpositive weights, overflowing totals, and negative
-gold amounts or map radii fail validation.
+AI strategy, diplomacy, vassalage, settlement AI, Great Leader odds, village
+outcomes, and barbarian/partisan unit selections live directly in Rust
+(`src/rules/policies.rs` and `src/rules/native.rs`). Supported village reward
+kinds (`Gold`, `Technology`, `Reinforcements`, `Barbarians`, `Settlement`,
+`Map`) and their weights are validated alongside the unit catalog at
+initialization.
 
 ## Compatibility and evidence
 

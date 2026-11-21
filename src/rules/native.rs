@@ -155,16 +155,11 @@ pub(crate) struct NativeGovernment {
     pub(crate) cost_per_excess_unit_gold: i32,
 }
 
-#[derive(Debug, Deserialize)]
 pub(crate) struct EconomyCatalog {
-    pub(crate) schema_version: u32,
-    pub(crate) source: String,
     pub(crate) city: NativeCityEconomy,
-    #[serde(default)]
     pub(crate) resources: Vec<NativeResource>,
 }
 
-#[derive(Debug, Deserialize)]
 pub(crate) struct NativeResource {
     pub(crate) id: String,
     pub(crate) food: i32,
@@ -172,7 +167,6 @@ pub(crate) struct NativeResource {
     pub(crate) trade: i32,
 }
 
-#[derive(Debug, Deserialize)]
 pub(crate) struct NativeCityEconomy {
     pub(crate) city_min_distance: i32,
     pub(crate) food_cost: i32,
@@ -188,32 +182,26 @@ pub(crate) struct NativeCityEconomy {
     pub(crate) celebrate_size_limit: i32,
 }
 
-#[derive(Debug, Deserialize)]
 pub(crate) struct SettlementCatalog {
     pub(crate) barbarians: NativeBarbarianUnits,
-    pub(crate) schema_version: u32,
-    pub(crate) source: String,
     pub(crate) ai: NativeSettlementAi,
     pub(crate) great_leader: NativeGreatLeaderRules,
     pub(crate) villages: NativeVillageRules,
     pub(crate) citizens: NativeCitizenRules,
 }
 
-#[derive(Debug, Deserialize)]
 pub(crate) struct NativeBarbarianUnits {
     pub(crate) basic_unit: String,
     pub(crate) advanced_unit: String,
     pub(crate) sea_unit: String,
 }
 
-#[derive(Debug, Deserialize)]
 pub(crate) struct NativeCitizenRules {
     pub(crate) partisan_unit: String,
     pub(crate) nationality: bool,
     pub(crate) partisans_pct: i32,
 }
 
-#[derive(Debug, Deserialize)]
 pub(crate) struct NativeSettlementAi {
     pub(crate) food_priority: i32,
     pub(crate) shield_priority: i32,
@@ -239,7 +227,6 @@ pub(crate) struct NativeSettlementAi {
     pub(crate) ferry_tech_want: i32,
 }
 
-#[derive(Debug, Deserialize)]
 pub(crate) struct NativeGreatLeaderRules {
     pub(crate) cities_per_army: usize,
     pub(crate) attack_denominator: i32,
@@ -248,22 +235,17 @@ pub(crate) struct NativeGreatLeaderRules {
     pub(crate) defense_heroic_epic_denominator: i32,
 }
 
-#[derive(Debug, Deserialize)]
 pub(crate) struct NativeVillageRules {
     pub(crate) barbarian_onset_turn: i32,
     pub(crate) outcomes: Vec<NativeVillageOutcome>,
     pub(crate) map_reveal_radius_squared: i32,
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub(crate) struct NativeVillageOutcome {
     pub(crate) weight: i32,
     pub(crate) reward: NativeVillageReward,
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(tag = "kind", deny_unknown_fields)]
 pub(crate) enum NativeVillageReward {
     Gold { amount: i32 },
     Technology,
@@ -611,12 +593,7 @@ pub(crate) fn technologies() -> &'static TechnologyCatalog {
 
 pub(crate) fn strategy() -> &'static StrategyCatalog {
     static CATALOG: OnceLock<StrategyCatalog> = OnceLock::new();
-    CATALOG.get_or_init(|| {
-        super::policies::parse_strategy(include_str!(
-            "../../data/rulesets/civcraft/content/strategy.toml"
-        ))
-        .unwrap_or_else(|error| panic!("invalid native strategy policy: {error}"))
-    })
+    CATALOG.get_or_init(super::policies::default_strategy)
 }
 
 pub(crate) fn diplomacy() -> &'static DiplomacyCatalog {
@@ -626,13 +603,7 @@ pub(crate) fn diplomacy() -> &'static DiplomacyCatalog {
 
 pub(crate) fn vassalage() -> &'static VassalageCatalog {
     static CATALOG: OnceLock<VassalageCatalog> = OnceLock::new();
-    CATALOG.get_or_init(|| {
-        super::policies::parse_vassalage(
-            include_str!("../../data/rulesets/civcraft/content/vassalage.toml"),
-            technologies(),
-        )
-        .unwrap_or_else(|error| panic!("invalid native vassalage policy: {error}"))
-    })
+    CATALOG.get_or_init(super::policies::default_vassalage)
 }
 
 pub(crate) fn religion() -> &'static ReligionCatalog {
@@ -652,11 +623,7 @@ pub(crate) struct ContentRuleset {
     pub(crate) civilizations: CivilizationCatalog,
     pub(crate) buildings: BuildingCatalog,
     pub(crate) technologies: TechnologyCatalog,
-    pub(crate) economy: EconomyCatalog,
-    pub(crate) settlements: SettlementCatalog,
     pub(crate) experience: ExperienceCatalog,
-    pub(crate) strategy: StrategyCatalog,
-    pub(crate) vassalage: VassalageCatalog,
     pub(crate) religion: ReligionCatalog,
 }
 
@@ -670,24 +637,15 @@ impl ContentRuleset {
         let units = parse_units(&read("units.toml")?, &technologies)?;
         let civilizations = parse_civilizations(&read("civilizations.toml")?)?;
         let buildings = parse_buildings(&read("buildings.toml")?, &technologies)?;
-        let economy: EconomyCatalog =
-            toml::from_str(&read("economy.toml")?).map_err(|error| error.to_string())?;
-        let settlements = parse_settlements(&read("settlements.toml")?, &units)?;
         let experience: ExperienceCatalog =
             toml::from_str(&read("experience_levels.toml")?).map_err(|error| error.to_string())?;
-        let strategy = super::policies::parse_strategy(&read("strategy.toml")?)?;
-        let vassalage = super::policies::parse_vassalage(&read("vassalage.toml")?, &technologies)?;
         let religion = super::policies::parse_religion(&read("religion.toml")?, &technologies)?;
         Ok(Self {
             units,
             civilizations,
             buildings,
             technologies,
-            economy,
-            settlements,
             experience,
-            strategy,
-            vassalage,
             religion,
         })
     }
@@ -795,42 +753,153 @@ pub(crate) fn governments() -> &'static GovernmentCatalog {
 pub(crate) fn economy() -> &'static EconomyCatalog {
     static CATALOG: OnceLock<EconomyCatalog> = OnceLock::new();
     CATALOG.get_or_init(|| {
-        toml::from_str(include_str!(
-            "../../data/rulesets/civcraft/content/economy.toml"
-        ))
-        .expect("native economy TOML must be valid")
-    })
-}
-
-pub(crate) fn parse_settlements(
-    source: &str,
-    units: &UnitCatalog,
-) -> Result<SettlementCatalog, String> {
-    let catalog: SettlementCatalog = toml::from_str(source).map_err(|error| error.to_string())?;
-    catalog.villages.validate().map_err(str::to_owned)?;
-    for id in [
-        &catalog.barbarians.basic_unit,
-        &catalog.barbarians.advanced_unit,
-        &catalog.barbarians.sea_unit,
-        &catalog.citizens.partisan_unit,
-    ] {
-        if !units.units.iter().any(|unit| unit.id == *id) {
-            return Err(format!(
-                "native settlement policy references unknown unit {id:?}"
-            ));
+        let res = |id: &str, food, shield, trade| NativeResource {
+            id: id.to_owned(),
+            food,
+            shield,
+            trade,
+        };
+        EconomyCatalog {
+            city: NativeCityEconomy {
+                city_min_distance: 3,
+                food_cost: 2,
+                happy_cost: 2,
+                granary_food_initial: vec![20, 20, 20, 20, 20, 30, 30, 40],
+                granary_food_increment: 0,
+                foodbox_percent: 100,
+                output_granularity: 1,
+                city_center_minimum: [0, 0, 0],
+                no_trade_size: 0,
+                full_trade_size: 1,
+                gold_upkeep_style: "Mixed".to_owned(),
+                celebrate_size_limit: 3,
+            },
+            resources: vec![
+                res("Gold", 0, 0, 6),
+                res("Iron", 0, 3, 0),
+                res("Game", 2, 1, 0),
+                res("Furs", 1, 0, 3),
+                res("Coal", 0, 2, 0),
+                res("Fish", 2, 0, 0),
+                res("Fruit", 3, 0, 1),
+                res("Gems", 0, 0, 4),
+                res("Buffalo", 0, 2, 0),
+                res("Wheat", 2, 0, 0),
+                res("Oasis", 3, 0, 0),
+                res("Peat", 0, 4, 0),
+                res("Pheasant", 2, 0, 0),
+                res("Resources", 0, 1, 0),
+                res("icy_ivory", 1, 1, 4),
+                res("Silk", 0, 0, 3),
+                res("Spice", 1, 0, 4),
+                res("Whales", 1, 1, 0),
+                res("Wine", 0, 0, 4),
+                res("Oil", 0, 3, 0),
+            ],
         }
-    }
-    Ok(catalog)
+    })
 }
 
 pub(crate) fn settlements() -> &'static SettlementCatalog {
     static CATALOG: OnceLock<SettlementCatalog> = OnceLock::new();
     CATALOG.get_or_init(|| {
-        parse_settlements(
-            include_str!("../../data/rulesets/civcraft/content/settlements.toml"),
-            units(),
-        )
-        .unwrap_or_else(|error| panic!("invalid native settlement TOML: {error}"))
+        let catalog = SettlementCatalog {
+            barbarians: NativeBarbarianUnits {
+                basic_unit: "warrior".to_owned(),
+                advanced_unit: "horseman".to_owned(),
+                sea_unit: "galley".to_owned(),
+            },
+            ai: NativeSettlementAi {
+                food_priority: 30,
+                shield_priority: 17,
+                trade_priority: 18,
+                research_priority_percent: 120,
+                no_research_priority: 1,
+                growth_priority: 45,
+                growth_potential_deemphasis: 4,
+                preferred_land_tiles_per_city: 14,
+                expansion_cost_priority: 400,
+                free_expansion_cities: 3,
+                growth_food_threshold: 2,
+                perfection: 3,
+                good_enough: 250,
+                discount_period: 24,
+                defense_emphasis: 20,
+                naval_emphasis: 20,
+                wonder_city_min_cities: 3,
+                wonder_city_pop_founder_divisor: 5,
+                wonder_city_other_founder_divisor: 2,
+                expansionist_trait_baseline: 50,
+                ferry_cost_divisor: 3,
+                ferry_tech_want: 500,
+            },
+            great_leader: NativeGreatLeaderRules {
+                cities_per_army: 4,
+                attack_denominator: 16,
+                attack_heroic_epic_denominator: 12,
+                defense_denominator: 32,
+                defense_heroic_epic_denominator: 24,
+            },
+            villages: NativeVillageRules {
+                barbarian_onset_turn: 60,
+                map_reveal_radius_squared: 30,
+                outcomes: vec![
+                    NativeVillageOutcome {
+                        weight: 1,
+                        reward: NativeVillageReward::Gold { amount: 25 },
+                    },
+                    NativeVillageOutcome {
+                        weight: 3,
+                        reward: NativeVillageReward::Gold { amount: 50 },
+                    },
+                    NativeVillageOutcome {
+                        weight: 1,
+                        reward: NativeVillageReward::Gold { amount: 100 },
+                    },
+                    NativeVillageOutcome {
+                        weight: 3,
+                        reward: NativeVillageReward::Technology,
+                    },
+                    NativeVillageOutcome {
+                        weight: 2,
+                        reward: NativeVillageReward::Reinforcements,
+                    },
+                    NativeVillageOutcome {
+                        weight: 1,
+                        reward: NativeVillageReward::Barbarians,
+                    },
+                    NativeVillageOutcome {
+                        weight: 1,
+                        reward: NativeVillageReward::Settlement,
+                    },
+                    NativeVillageOutcome {
+                        weight: 2,
+                        reward: NativeVillageReward::Map,
+                    },
+                ],
+            },
+            citizens: NativeCitizenRules {
+                partisan_unit: "guerilla".to_owned(),
+                nationality: true,
+                partisans_pct: 75,
+            },
+        };
+        catalog
+            .villages
+            .validate()
+            .expect("native village outcomes must be valid");
+        for id in [
+            &catalog.barbarians.basic_unit,
+            &catalog.barbarians.advanced_unit,
+            &catalog.barbarians.sea_unit,
+            &catalog.citizens.partisan_unit,
+        ] {
+            assert!(
+                units().units.iter().any(|unit| unit.id == *id),
+                "native settlement policy references unknown unit {id:?}"
+            );
+        }
+        catalog
     })
 }
 
@@ -953,9 +1022,7 @@ mod tests {
             governments().get("republic").unwrap().required_technology,
             "TECH_The_Republic"
         );
-        assert_eq!(economy().schema_version, 1);
         assert_eq!(economy().resources.len(), 20);
-        assert_eq!(settlements().schema_version, 1);
         assert_eq!(experience().schema_version, 1);
         assert_eq!(experience().levels.len(), 4);
         assert_eq!(
@@ -1046,7 +1113,7 @@ mod tests {
         let dir =
             std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/rulesets/civcraft/content");
         let loaded = ContentRuleset::load_from_directory(&dir)
-            .expect("all 10 campaign content TOML files must load and validate");
+            .expect("all 6 campaign content TOML files must load and validate");
         assert_eq!(loaded.units.units.len(), units().units.len());
         assert_eq!(loaded.buildings.rules.len(), buildings().rules.len());
         assert_eq!(
@@ -1054,10 +1121,5 @@ mod tests {
             technologies().technologies.len()
         );
         assert_eq!(loaded.religion.faiths.len(), religion().faiths.len());
-        assert_eq!(loaded.strategy.traits.len(), strategy().traits.len());
-        assert_eq!(
-            loaded.vassalage.required_technology,
-            vassalage().required_technology
-        );
     }
 }
