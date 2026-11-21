@@ -157,20 +157,19 @@ impl Terrain {
             Self::Coast => (1, 0, 2),
             Self::Sea => (1, 0, 1),
             Self::Ocean => (1, 0, 0),
-            Self::Lake => (2, 0, 2),
-            Self::Glacier => (0, 0, 0),
             Self::FloodPlains => (3, 0, 0),
             Self::Volcano => (0, 3, 0),
             Self::GrasslandShield => (2, 1, 0),
-            Self::Jungle => (1, 1, 0),
-            Self::Desert => (0, 1, 0),
-            Self::Forest => (1, 2, 0),
-            Self::Grassland => (2, 0, 0),
-            Self::Hills => (1, 1, 0),
-            Self::Mountains => (0, 1, 0),
-            Self::Plains => (1, 1, 0),
-            Self::Marsh => (1, 0, 0),
-            Self::Tundra => (1, 0, 0),
+            _ => {
+                let rule_name = self
+                    .c2c3_rule_name()
+                    .expect("all non-override terrains map to terrain_catalog");
+                let [food, shield, trade] = crate::rules::terrain_catalog::terrain_spec(rule_name)
+                    .expect("terrain_catalog contains mapped terrain")
+                    .yields
+                    .base;
+                (food, shield, trade)
+            }
         }
     }
 

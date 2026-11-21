@@ -990,7 +990,7 @@ pub(super) enum MovementRulesError {
 /// movement-only rugged-terrain adaptations in cost and native-tile lookups.
 impl Terrain {
     /// See the crosswalk notes above; `None` only for Volcano.
-    pub(in crate::sim) fn c2c3_rule_name(self) -> Option<&'static str> {
+    pub(crate) fn c2c3_rule_name(self) -> Option<&'static str> {
         Some(match self {
             Terrain::Sea => "Ocean",
             Terrain::Ocean => "Deep Ocean",
@@ -1519,45 +1519,49 @@ mod tests {
                 continue;
             };
             assert_eq!(terrain.c2c3_rule_name(), Some(source_name));
-            let record = terrain_record(rules, source_name);
+            let spec = crate::rules::terrain_catalog::terrain_spec(source_name).unwrap();
             let adapted = adapter.terrain_data(terrain).unwrap();
-            assert_eq!(adapted.rule_name, record.rule_name, "{terrain:?}");
-            assert_eq!(
-                adapted.movement_cost,
-                raw_integer(record, "movement_cost"),
-                "{terrain:?}"
-            );
+            assert_eq!(adapted.rule_name, spec.rule_name, "{terrain:?}");
+            assert_eq!(adapted.movement_cost, spec.movement_cost, "{terrain:?}");
             assert_eq!(
                 adapter.terrain_defense_bonus(terrain).unwrap(),
-                raw_integer(record, "defense_bonus"),
+                spec.defense_bonus,
                 "{terrain:?}.defense_bonus"
             );
-            for (field, read) in ACTIVITY_TIME_FIELDS {
-                assert_eq!(
-                    read(adapted.activity_times),
-                    raw_integer(record, field),
-                    "{terrain:?}.{field}"
+            assert_eq!(adapted.activity_times.base, spec.base_time);
+            assert_eq!(adapted.activity_times.road, spec.road_time);
+            assert_eq!(adapted.activity_times.irrigation, spec.irrigation_time);
+            assert_eq!(adapted.activity_times.mining, spec.mining_time);
+            assert_eq!(adapted.activity_times.cultivate, spec.cultivate_time);
+            assert_eq!(adapted.activity_times.plant, spec.plant_time);
+            assert_eq!(adapted.activity_times.transform, spec.transform_time);
+            assert_eq!(
+                adapted.cultivate_result.as_deref(),
+                spec.cultivate_result,
+                "{terrain:?}.cultivate_result"
+            );
+            assert_eq!(
+                adapted.plant_result.as_deref(),
+                spec.plant_result,
+                "{terrain:?}.plant_result"
+            );
+            assert_eq!(
+                adapted.transform_result.as_deref(),
+                spec.transform_result,
+                "{terrain:?}.transform_result"
+            );
+            for result_name in [
+                &adapted.cultivate_result,
+                &adapted.plant_result,
+                &adapted.transform_result,
+            ]
+            .into_iter()
+            .flatten()
+            {
+                assert!(
+                    adapter.terrain_result(result_name).is_ok(),
+                    "{terrain:?}: {result_name}"
                 );
-            }
-            for (field, adapted_result) in [
-                ("cultivate_result", &adapted.cultivate_result),
-                ("plant_result", &adapted.plant_result),
-                ("transform_result", &adapted.transform_result),
-            ] {
-                let expected = record
-                    .string_field(field)
-                    .unwrap()
-                    .filter(|name| {
-                        !name.eq_ignore_ascii_case("no") && !name.eq_ignore_ascii_case("none")
-                    })
-                    .map(str::to_owned);
-                assert_eq!(adapted_result, &expected, "{terrain:?}.{field}");
-                if let Some(result_name) = adapted_result {
-                    assert!(
-                        adapter.terrain_result(result_name).is_ok(),
-                        "{field}: {result_name}"
-                    );
-                }
             }
         }
     }
@@ -1574,22 +1578,16 @@ mod tests {
                 ));
                 continue;
             };
-            let terrain_record = terrain_record(rules, source_name);
-            let rows = terrain_record
-                .string_integer_table_field("extra_settings", "extra", "removal_time")
-                .unwrap()
-                .unwrap_or_default();
-            let pillage_time = terrain_record
-                .integer_field("pillage_time")
-                .unwrap()
-                .unwrap_or(1) as i32;
-            for (extra_name, terrain_time) in rows {
+            let spec = crate::rules::terrain_catalog::terrain_spec(source_name).unwrap();
+            let pillage_time = spec.pillage_time();
+            for extra_name in ["Pollution", "Fallout"] {
+                let terrain_time = spec.extra_removal_time(extra_name);
                 let extra = rules
                     .rule_records
                     .iter()
                     .find(|record| {
                         record.namespace.eq_ignore_ascii_case("extra")
-                            && record.rule_name.eq_ignore_ascii_case(&extra_name)
+                            && record.rule_name.eq_ignore_ascii_case(extra_name)
                     })
                     .expect("C2C3 extra record");
                 let direct_time = extra.integer_field("removal_time").unwrap().unwrap_or(0) as i32;
@@ -1600,7 +1598,7 @@ mod tests {
                 let clean_expected = if direct_time != 0 {
                     direct_time
                 } else {
-                    terrain_time as i32 * factor
+                    terrain_time * factor
                 };
                 let pillage_expected = if direct_time != 0 {
                     direct_time
@@ -1608,12 +1606,12 @@ mod tests {
                     pillage_time * factor
                 };
                 assert_eq!(
-                    adapter.terrain_extra_removal_time(terrain, &extra_name),
+                    adapter.terrain_extra_removal_time(terrain, extra_name),
                     Ok(clean_expected),
                     "{source_name}/{extra_name}"
                 );
                 assert_eq!(
-                    adapter.terrain_pillage_time(terrain, &extra_name),
+                    adapter.terrain_pillage_time(terrain, extra_name),
                     Ok(pillage_expected),
                     "{source_name}/{extra_name}"
                 );
@@ -1815,8 +1813,8 @@ mod tests {
                 ));
                 continue;
             };
-            let record = terrain_record(rules, source_name);
-            let expected = raw_content_native_classes(record);
+            let spec = crate::rules::terrain_catalog::terrain_spec(source_name).unwrap();
+            let expected: Vec<String> = spec.native_to.iter().map(|s| (*s).to_owned()).collect();
             assert_eq!(adapter.terrain_native_classes(terrain).unwrap(), expected);
             for (class, class_name) in UNIT_CLASS_ADAPTER {
                 assert_eq!(
@@ -1827,13 +1825,10 @@ mod tests {
                     "{terrain:?} / {class:?}"
                 );
             }
-            let source_flags = required_content_string_values(record, "flags").unwrap();
             for flag in TerrainFlag::ALL {
                 assert_eq!(
                     adapter.terrain_has_flag(terrain, flag).unwrap(),
-                    source_flags
-                        .iter()
-                        .any(|candidate| candidate.eq_ignore_ascii_case(flag.rule_name())),
+                    spec.has_flag(flag.rule_name()),
                     "{terrain:?} / {flag:?}"
                 );
             }
