@@ -286,7 +286,8 @@ fn indexed_invasion_markers_keep_allied_cargo_and_exclude_the_live_attacker() {
     let excluding_boat = support(&game, boat);
     assert!(expected.1 > excluding_boat.1);
     game.sync_list_order();
-    game.list_order.begin_planning(&game.units, &game.cities);
+    game.list_order
+        .begin_planning(&game.units, &game.cities, game.map_wrap);
     assert_eq!(support(&game, 0), expected);
     assert_eq!(support(&game, boat), excluding_boat);
 

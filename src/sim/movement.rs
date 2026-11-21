@@ -499,7 +499,13 @@ impl Simulation {
         self.enemy_zoc_controls_tile(owner, x, y, observed)
     }
 
-    fn enemy_zoc_controls_tile(&self, owner: usize, x: i32, y: i32, observed: bool) -> bool {
+    pub(super) fn enemy_zoc_controls_tile(
+        &self,
+        owner: usize,
+        x: i32,
+        y: i32,
+        observed: bool,
+    ) -> bool {
         if self.advisor_cache.active() {
             let index = self.map_wrap.index(x, y);
             let visibility = usize::from(observed);
@@ -579,7 +585,7 @@ impl Simulation {
             })
     }
 
-    fn terrain_has_no_zoc(terrain: Terrain) -> bool {
+    pub(super) fn terrain_has_no_zoc(terrain: Terrain) -> bool {
         const TERRAIN_COUNT: usize = Terrain::GrasslandShield as usize + 1;
         static NO_ZOC: [OnceLock<bool>; TERRAIN_COUNT] = [const { OnceLock::new() }; TERRAIN_COUNT];
         *NO_ZOC[terrain as usize].get_or_init(|| {

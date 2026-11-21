@@ -295,7 +295,7 @@ impl Simulation {
                 && self.combat_target_reachable(unit.kind, target.kind, x, y)
         });
         let terrain_action = !city_action
-            && !self.units.iter().any(|other| (other.x, other.y) == (x, y))
+            && !self.any_unit_at(x, y, |_| true)
             && !bombardable_terrain_improvements(self, x, y).is_empty();
         city_action || unit_action || terrain_action
     }
@@ -459,29 +459,57 @@ impl Simulation {
         {
             return false;
         }
-        let range = Self::civ3_bombard_range(unit.kind);
-        let mut targets: Vec<_> = self
-            .map_wrap
-            .civ3_radius(unit.x, unit.y, range)
-            .into_iter()
-            .filter_map(|(x, y, _)| {
-                (self.can_bombard_tile(unit, x, y)
-                    && !self.ai_bombard_preempted_by_priority_action(unit, x, y))
-                .then_some((x, y))
-            })
-            .collect();
-        targets.sort_by(|&(ax, ay), &(bx, by)| {
-            self.ai_bombard_tile_value(unit, bx, by)
-                .total_cmp(&self.ai_bombard_tile_value(unit, ax, ay))
-                .then_with(|| ay.cmp(&by))
-                .then_with(|| ax.cmp(&bx))
-        });
-        let Some((x, y)) = targets.first().copied() else {
-            return false;
-        };
-        if self.ai_bombard_tile_value(unit, x, y) <= 0.0 {
+        let (_, war_mask, _) = self.pact_masks(unit.owner);
+        if war_mask == 0
+            && !(0..self.players.len())
+                .any(|other| other != unit.owner && self.at_war(unit.owner, other))
+        {
             return false;
         }
+        let range = Self::civ3_bombard_range(unit.kind);
+        let mut best: Option<(f64, i32, i32)> = None;
+        for (x, y, _) in self.map_wrap.civ3_radius(unit.x, unit.y, range) {
+            let tile_owner_war = self.tile(x, y).owner.is_some_and(|owner| {
+                owner != unit.owner
+                    && ((owner < 64 && ((war_mask >> owner) & 1) != 0)
+                        || (owner >= 64 && self.at_war(unit.owner, owner)))
+            });
+            let city_war = self.city_at_cached(x, y).is_some_and(|city| {
+                city.owner != unit.owner
+                    && ((city.owner < 64 && ((war_mask >> city.owner) & 1) != 0)
+                        || (city.owner >= 64 && self.at_war(unit.owner, city.owner)))
+            });
+            let unit_war = self.any_unit_at(x, y, |other| {
+                other.owner != unit.owner
+                    && ((other.owner < 64 && ((war_mask >> other.owner) & 1) != 0)
+                        || (other.owner >= 64 && self.at_war(unit.owner, other.owner)))
+            });
+            if !tile_owner_war && !city_war && !unit_war {
+                continue;
+            }
+            if !self.can_bombard_tile(unit, x, y)
+                || self.ai_bombard_preempted_by_priority_action(unit, x, y)
+            {
+                continue;
+            }
+            let value = self.ai_bombard_tile_value(unit, x, y);
+            if value <= 0.0 {
+                continue;
+            }
+            let better = best.is_none_or(|(best_val, best_x, best_y)| {
+                value
+                    .total_cmp(&best_val)
+                    .then_with(|| best_y.cmp(&y))
+                    .then_with(|| best_x.cmp(&x))
+                    .is_gt()
+            });
+            if better {
+                best = Some((value, x, y));
+            }
+        }
+        let Some((_, x, y)) = best else {
+            return false;
+        };
         if self.can_precision_bomb(unit)
             && self.city_at(x, y).is_some()
             && self.city_at(x, y).is_some_and(|city| {
@@ -797,18 +825,16 @@ impl Simulation {
     }
 
     pub(super) fn refuel_site(&self, owner: usize, x: i32, y: i32) -> bool {
-        self.cities
-            .iter()
-            .any(|city| (city.x, city.y) == (x, y) && self.allied(owner, city.owner))
+        self.city_at_cached(x, y)
+            .is_some_and(|city| self.allied(owner, city.owner))
             || (matches!(self.tile(x, y).base, Some(Base::Airstrip | Base::Airbase))
                 && self.tile(x, y).known_by[owner])
     }
 
     fn aboard_refueling_transport(&self, unit: &Unit) -> bool {
         unit.transport.is_some_and(|id| {
-            self.units.iter().any(|ship| {
-                ship.id == id
-                    && self.ruleset_transport_pair_allowed_fail_closed(ship.kind, unit.kind)
+            self.unit_by_id(id).is_some_and(|ship| {
+                self.ruleset_transport_pair_allowed_fail_closed(ship.kind, unit.kind)
                     && self.allied(unit.owner, ship.owner)
             })
         })

@@ -282,7 +282,8 @@ impl Simulation {
     // Keep list membership and derived spatial data on the same planning boundary.
     pub(super) fn begin_ai_planning(&mut self) {
         self.sync_list_order();
-        self.list_order.begin_planning(&self.units, &self.cities);
+        self.list_order
+            .begin_planning(&self.units, &self.cities, self.map_wrap);
         self.planning.begin();
     }
 

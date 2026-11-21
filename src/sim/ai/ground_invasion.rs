@@ -155,6 +155,7 @@ impl Simulation {
                 u.kind.stats().defense > 0 && !self.allied(owner, u.owner)
             }));
         }
+        let any_undefended = undefended.iter().any(|&u| u);
         let indexed = self.list_order.planning_active();
         let mut units_scanned = 0;
         let mut cargo_support = std::collections::BTreeMap::<u32, (i32, i32)>::new();
@@ -220,12 +221,14 @@ impl Simulation {
                 result[index].0 += attacks;
                 result[index].1 += occupiers;
             }
-            for (x, y, _) in self.map_wrap.civ3_radius(actor.x, actor.y, radius) {
-                if let Some(index) = city_at[self.map_wrap.index(x, y)]
-                    && undefended[index]
-                {
-                    result[index].0 += attacks;
-                    result[index].1 += occupiers;
+            if any_undefended {
+                for (x, y, _) in self.map_wrap.civ3_radius(actor.x, actor.y, radius) {
+                    if let Some(index) = city_at[self.map_wrap.index(x, y)]
+                        && undefended[index]
+                    {
+                        result[index].0 += attacks;
+                        result[index].1 += occupiers;
+                    }
                 }
             }
         }

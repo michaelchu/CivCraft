@@ -479,6 +479,9 @@ impl super::Simulation {
             }
             if bounded {
                 let _unit_profile = profiler.scope("offense.target_search.unit_scan");
+                let balanced_cost = Self::offensive_balanced_cost(seed.kind);
+                let seed_cost = seed.kind.stats().cost;
+                let rating_sq = rating * rating;
                 for owner in 0..self.players.len() {
                     if !hostile(owner) {
                         continue;
@@ -495,8 +498,30 @@ impl super::Simulation {
                                 (enemy.x, enemy.y),
                                 true,
                             )
-                            || self.best_defender_id(seed, enemy.x, enemy.y) != Some(enemy.id)
                         {
+                            continue;
+                        }
+                        let current_best_want = best.as_ref().map_or(0.0, |old| old.want);
+                        let vulnerability = self.offensive_defense_squared(
+                            enemy,
+                            seed.kind,
+                            enemy.x,
+                            enemy.y,
+                            virtual_unit,
+                        );
+                        let raw_desire = kill_desire(
+                            enemy.kind.stats().cost as f32,
+                            rating_sq,
+                            seed_cost,
+                            vulnerability,
+                            1,
+                        );
+                        if Self::amortize_attack(raw_desire, 1, balanced_cost, output)
+                            <= current_best_want
+                        {
+                            continue;
+                        }
+                        if self.best_defender_id(seed, enemy.x, enemy.y) != Some(enemy.id) {
                             continue;
                         }
                         let Some(turns) = map.position_turn_within(self, enemy.x, enemy.y, 10)
@@ -506,27 +531,13 @@ impl super::Simulation {
                         if turns > 10 {
                             continue;
                         }
-                        let vulnerability = self.offensive_defense_squared(
-                            enemy,
-                            seed.kind,
-                            enemy.x,
-                            enemy.y,
-                            virtual_unit,
-                        );
-                        let want = kill_desire(
-                            enemy.kind.stats().cost as f32,
-                            rating * rating,
-                            seed.kind.stats().cost,
-                            vulnerability,
-                            1,
-                        ) - (turns * 17) as f32;
                         let want = Self::amortize_attack(
-                            want,
+                            raw_desire - (turns * 17) as f32,
                             turns.max(1),
-                            Self::offensive_balanced_cost(seed.kind),
+                            balanced_cost,
                             output,
                         );
-                        if want > best.as_ref().map_or(0.0, |old| old.want) {
+                        if want > current_best_want {
                             best = Some(OffensiveTarget {
                                 path: Vec::new(),
                                 x: enemy.x,

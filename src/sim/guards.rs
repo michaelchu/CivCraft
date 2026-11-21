@@ -342,11 +342,20 @@ impl Simulation {
 
     fn guard_reachable_sites(&self, guard: &Unit, limit: i32) -> Vec<(i32, i32, i32)> {
         let allowance = self.unit_move_rate(guard).max(1);
-        let mut costs = vec![i32::MAX; self.tiles.len()];
+        let tile_count = self.tiles.len();
+        let mut costs = vec![i32::MAX; tile_count];
         let start = self.map_wrap.index(guard.x, guard.y);
         costs[start] = 0;
-        let mut queue = exploration::IndexedExplorerQueue::new(self.tiles.len());
+        let mut queue = exploration::IndexedExplorerQueue::new(tile_count);
         queue.put(0, start);
+        let profile = self.step_movement_profile(guard.kind);
+        let (allied_mask, _, _) = self.pact_masks(guard.owner);
+        let ignores_zoc = Self::unit_ignores_zoc(guard.kind);
+        let mut enemy_zoc = if ignores_zoc {
+            Vec::new()
+        } else {
+            vec![None; tile_count]
+        };
         let mut sites = Vec::new();
         let mut actor = guard.clone();
         while let Some((cost, index)) = queue.pop() {
@@ -364,40 +373,65 @@ impl Simulation {
             } else {
                 allowance - (spent - guard.moves_left.max(0)) % allowance
             };
+            let from_no_zoc = ignores_zoc
+                || self.city_at_cached(actor.x, actor.y).is_some()
+                || Self::terrain_has_no_zoc(self.tiles[index].terrain);
             for (x, y) in self.map_wrap.civ3_neighbors(actor.x, actor.y) {
-                if self.treaty_blocks_move(&actor, x, y)
-                    || self.zone_blocks_step(&actor, (actor.x, actor.y), (x, y))
-                    || self.any_unit_at(x, y, |u| !self.allied(guard.owner, u.owner))
-                    || self
-                        .city_at_cached(x, y)
-                        .is_some_and(|city| !self.allied(guard.owner, city.owner))
+                let next = self.map_wrap.index(x, y);
+                if costs[next] <= spent {
+                    continue;
+                }
+                let Some(step) = self.movement_cost_with_profile(&actor, x, y, &profile) else {
+                    continue;
+                };
+                let candidate = spent + step.min(remaining);
+                if candidate > limit || candidate >= costs[next] {
+                    continue;
+                }
+                let dest_city = self.city_at_cached(x, y);
+                if dest_city
+                    .is_some_and(|city| city.owner >= 64 || ((allied_mask >> city.owner) & 1) == 0)
+                    || self.any_unit_at(x, y, |u| {
+                        u.owner >= 64 || ((allied_mask >> u.owner) & 1) == 0
+                    })
+                    || self.treaty_blocks_move(&actor, x, y)
                 {
                     continue;
                 }
-                let Some(step) = self.movement_cost_for(&actor, x, y) else {
-                    continue;
-                };
-                let next = self.map_wrap.index(x, y);
-                let candidate = spent + step.min(remaining);
-                if candidate <= limit && candidate < costs[next] {
-                    let new_entry = costs[next] == i32::MAX;
-                    self.trace.count_operation(
-                        if new_entry {
-                            "guard_route.queue_inserts"
-                        } else {
-                            "guard_route.queue_decrease_keys"
-                        },
-                        1,
-                    );
-                    if !new_entry {
-                        self.trace.count_operation(
-                            "guard_route.queue_frontier_entries_at_decrease_key",
-                            queue.frontier_len() as u64,
-                        );
+                if !from_no_zoc
+                    && dest_city.is_none()
+                    && !Self::terrain_has_no_zoc(self.tiles[next].terrain)
+                    && !self.any_unit_at(x, y, |_| true)
+                {
+                    let from_controlled = *enemy_zoc[index].get_or_insert_with(|| {
+                        self.enemy_zoc_controls_tile(guard.owner, actor.x, actor.y, false)
+                    });
+                    if from_controlled {
+                        let to_controlled = *enemy_zoc[next].get_or_insert_with(|| {
+                            self.enemy_zoc_controls_tile(guard.owner, x, y, false)
+                        });
+                        if to_controlled {
+                            continue;
+                        }
                     }
-                    costs[next] = candidate;
-                    queue.put(i64::from(candidate), next);
                 }
+                let new_entry = costs[next] == i32::MAX;
+                self.trace.count_operation(
+                    if new_entry {
+                        "guard_route.queue_inserts"
+                    } else {
+                        "guard_route.queue_decrease_keys"
+                    },
+                    1,
+                );
+                if !new_entry {
+                    self.trace.count_operation(
+                        "guard_route.queue_frontier_entries_at_decrease_key",
+                        queue.frontier_len() as u64,
+                    );
+                }
+                costs[next] = candidate;
+                queue.put(i64::from(candidate), next);
             }
         }
         sites
@@ -415,28 +449,34 @@ impl Simulation {
         let mut best_def = -1;
         let mut best_city = None;
         for (cost, x, y) in reachable {
-            for buddy in self.tile_units_ordered(x, y) {
-                if buddy.owner != guard.owner
-                    || self.ai_guard_state(buddy.id) != GuardState::Wanted
-                    || !Self::guard_can_follow(guard.kind, buddy.kind)
-                    || self.unit_move_rate(buddy) > allowance
-                    || buddy.kind.stats().defense >= guard.kind.stats().defense
-                    || (buddy.kind.stats().attack > 0
-                        && buddy.kind.transport_capacity() == 0
-                        && buddy.kind.stats().attack <= guard.kind.stats().attack)
-                {
-                    continue;
-                }
-                let mut desire = toughness - Self::guard_basic_defense(buddy).pow(2);
-                if desire <= 0 {
-                    continue;
-                }
-                if buddy.kind.transport_capacity() == 0 {
-                    desire >>= cost / (2 * allowance);
-                }
-                if desire > best_def {
-                    best = Some(GuardTarget::Unit(buddy.id));
-                    best_def = desire;
+            if !self
+                .list_order
+                .unit_ids_at(x, y)
+                .is_some_and(|ids| ids.is_empty())
+            {
+                for buddy in self.tile_units_ordered(x, y) {
+                    if buddy.owner != guard.owner
+                        || self.ai_guard_state(buddy.id) != GuardState::Wanted
+                        || !Self::guard_can_follow(guard.kind, buddy.kind)
+                        || self.unit_move_rate(buddy) > allowance
+                        || buddy.kind.stats().defense >= guard.kind.stats().defense
+                        || (buddy.kind.stats().attack > 0
+                            && buddy.kind.transport_capacity() == 0
+                            && buddy.kind.stats().attack <= guard.kind.stats().attack)
+                    {
+                        continue;
+                    }
+                    let mut desire = toughness - Self::guard_basic_defense(buddy).pow(2);
+                    if desire <= 0 {
+                        continue;
+                    }
+                    if buddy.kind.transport_capacity() == 0 {
+                        desire >>= cost / (2 * allowance);
+                    }
+                    if desire > best_def {
+                        best = Some(GuardTarget::Unit(buddy.id));
+                        best_def = desire;
+                    }
                 }
             }
             if let Some(city) = self
@@ -485,13 +525,15 @@ impl Simulation {
             if actor.moves_left <= 0 || actor.kind.stats().attack <= 0 {
                 return true;
             }
+            let (_, war_mask, _) = self.pact_masks(actor.owner);
             let mut best = None;
             let mut best_want = 0;
             let enemies: Vec<_> = self
                 .units
                 .iter()
                 .filter(|enemy| {
-                    self.at_war(actor.owner, enemy.owner)
+                    ((enemy.owner < 64 && ((war_mask >> enemy.owner) & 1) != 0)
+                        || (enemy.owner >= 64 && self.at_war(actor.owner, enemy.owner)))
                         && (actor.x, actor.y) != (enemy.x, enemy.y)
                 })
                 .collect();
@@ -516,21 +558,20 @@ impl Simulation {
                 {
                     continue;
                 }
-                let vulnerable = !self.cities.iter().any(|c| (c.x, c.y) == target)
+                let vulnerable = self.city_at_cached(target.0, target.1).is_none()
                     && !matches!(
                         self.tile(target.0, target.1).base,
                         Some(Base::Fort | Base::Fortress)
                     );
                 let mut benefit = if vulnerable {
-                    self.units
-                        .iter()
-                        .filter(|u| (u.x, u.y) == target && self.at_war(actor.owner, u.owner))
+                    self.tile_units_ordered(target.0, target.1)
+                        .filter(|u| self.at_war(actor.owner, u.owner))
                         .map(|u| u.kind.stats().cost)
                         .sum()
                 } else {
                     enemy.kind.stats().cost
                 };
-                if !vulnerable && self.units.iter().filter(|u| (u.x, u.y) == target).count() > 1 {
+                if !vulnerable && self.tile_units_ordered(target.0, target.1).count() > 1 {
                     benefit = benefit * actor.hp / actor.max_hit_points();
                 }
                 let (attack_fp, defense_fp) = self.combat_firepower(&actor, enemy);
@@ -591,9 +632,8 @@ impl Simulation {
                         && Self::guard_basic_defense(&actor) > Self::guard_basic_defense(u)
                 }),
                 GuardTarget::City(city) => self
-                    .cities
-                    .iter()
-                    .find(|c| c.id == city && c.owner == actor.owner)
+                    .city_by_id(city)
+                    .filter(|c| c.owner == actor.owner)
                     .is_some_and(|c| {
                         let d = self.advisor_guard_city_assessment(c);
                         d.urgency > 0 && d.danger > d.defense
@@ -612,16 +652,8 @@ impl Simulation {
             self.assign_ai_guard(id, target);
             self.ai_ground_targets.remove(&id);
             let goal = match target {
-                GuardTarget::Unit(charge) => self
-                    .units
-                    .iter()
-                    .find(|u| u.id == charge)
-                    .map(|u| (u.x, u.y)),
-                GuardTarget::City(city) => self
-                    .cities
-                    .iter()
-                    .find(|c| c.id == city)
-                    .map(|c| (c.x, c.y)),
+                GuardTarget::Unit(charge) => self.unit_by_id(charge).map(|u| (u.x, u.y)),
+                GuardTarget::City(city) => self.city_by_id(city).map(|c| (c.x, c.y)),
             };
             if let Some(goal) = goal {
                 self.unit_goto_tiles.insert(id, goal);

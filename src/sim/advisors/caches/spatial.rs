@@ -9,6 +9,7 @@ pub(super) struct SpatialSnapshot {
     unit_head: Vec<Option<usize>>,
     unit_next: Vec<Option<usize>>,
     tile_units: Option<Vec<Vec<usize>>>,
+    owner_units: Option<Vec<Vec<usize>>>,
     tile_revision: u64,
     city_at: Vec<Option<usize>>,
     continents: Arc<[usize]>,
@@ -26,18 +27,34 @@ impl SpatialSnapshot {
     ) -> Self {
         let tile_count = topology.tile_count();
         let mut tile_units = vec![Vec::new(); tile_count];
+        let mut owner_units: Vec<Vec<usize>> = Vec::new();
         let mut unit_head = vec![None; tile_count];
         let mut unit_next = vec![None; units.len()];
         for (index, unit) in units.iter().enumerate() {
             let tile = topology.index(unit.x, unit.y);
             tile_units[tile].push(index);
+            if unit.owner >= owner_units.len() {
+                owner_units.resize_with(unit.owner + 1, Vec::new);
+            }
+            owner_units[unit.owner].push(index);
             unit_next[index] = unit_head[tile];
             unit_head[tile] = Some(index);
         }
         for (tile, indices) in tile_units.iter_mut().enumerate() {
+            if indices.len() <= 1 {
+                continue;
+            }
             let position = topology.position(tile);
             indices.sort_by_key(|&index| {
                 std::cmp::Reverse(order.tile_unit_order_key(&units[index], position))
+            });
+        }
+        for (owner, indices) in owner_units.iter_mut().enumerate() {
+            if indices.len() <= 1 {
+                continue;
+            }
+            indices.sort_by_key(|&index| {
+                std::cmp::Reverse(order.owner_unit_order_key(&units[index], owner))
             });
         }
         let mut city_at = vec![None; tile_count];
@@ -48,6 +65,7 @@ impl SpatialSnapshot {
             unit_head,
             unit_next,
             tile_units: Some(tile_units),
+            owner_units: Some(owner_units),
             tile_revision: order.tile_revision(),
             city_at,
             continents,
@@ -97,6 +115,24 @@ impl SpatialSnapshot {
                 .iter()
                 .map(|&index| &units[index])
                 .collect(),
+        )
+    }
+
+    pub(super) fn ordered_owner_units<'a>(
+        &self,
+        owner: usize,
+        revision: u64,
+        units: &'a [Unit],
+    ) -> Option<Vec<&'a Unit>> {
+        if revision != self.tile_revision {
+            return None;
+        }
+        let owners = self.owner_units.as_ref()?;
+        Some(
+            owners
+                .get(owner)
+                .map(|indices| indices.iter().map(|&index| &units[index]).collect())
+                .unwrap_or_default(),
         )
     }
 }

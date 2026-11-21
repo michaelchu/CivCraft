@@ -104,6 +104,17 @@ impl AdvisorCaches {
             .borrow()
             .ordered_tile_units(tile, revision, units)
     }
+
+    pub(in crate::sim) fn ordered_owner_units<'a>(
+        &self,
+        owner: usize,
+        revision: u64,
+        units: &'a [Unit],
+    ) -> Option<Vec<&'a Unit>> {
+        self.spatial
+            .borrow()
+            .ordered_owner_units(owner, revision, units)
+    }
 }
 
 impl Simulation {

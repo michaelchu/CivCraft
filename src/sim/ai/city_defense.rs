@@ -367,7 +367,18 @@ impl Simulation {
                 (city.x, city.y)
             })
             .collect();
-        let mut defender_route_costs = std::collections::HashMap::new();
+        type DefenderRouteKey = (i32, i32, usize, i32, i32);
+        let connectivity = self.movement_connectivity(owner);
+        let mut defender_route_costs: std::collections::HashMap<
+            DefenderRouteKey,
+            Vec<Option<i32>>,
+        > = std::collections::HashMap::new();
+        let mut city_assessments: std::collections::HashMap<u32, (usize, i32)> =
+            std::collections::HashMap::new();
+        let mut unit_move_rates: std::collections::HashMap<u32, i32> =
+            std::collections::HashMap::new();
+        let threatened_city_ids: std::collections::HashSet<u32> =
+            cities.iter().map(|&(id, _, _)| id).collect();
         for (city_index, &(city_id, _, ref threat_ids)) in cities.iter().enumerate() {
             let _profile = self
                 .trace
@@ -398,6 +409,15 @@ impl Simulation {
             if threatened.is_empty() {
                 continue;
             }
+            let (city_grave, city_urgency) =
+                *city_assessments.entry(city.id).or_insert_with(|| {
+                    (
+                        self.city_grave_danger(city),
+                        self.advisor_guard_city_assessment(city).urgency,
+                    )
+                });
+            let mut gain_numerators: std::collections::HashMap<(usize, i32, usize), f64> =
+                std::collections::HashMap::new();
             let mut best = None;
             for unit in self.units.iter().filter(|unit| {
                 is_defender(unit)
@@ -414,48 +434,114 @@ impl Simulation {
                         ))
                     && !self.ai_guard_targets.contains_key(&unit.id)
             }) {
-                if let Some(home) = self
-                    .cities
-                    .iter()
-                    .find(|home| home.owner == owner && (home.x, home.y) == (unit.x, unit.y))
-                    && ((self.city_grave_danger(home) > 0
-                        && self.advisor_guard_city_assessment(home).urgency
-                            >= self.advisor_guard_city_assessment(city).urgency)
-                        || (cities.iter().any(|&(id, _, _)| id == home.id)
-                            && self.city_grave_danger(city) == 0))
-                {
+                if !connectivity.can_directly_reach_tile(
+                    self,
+                    unit.kind,
+                    (unit.x, unit.y),
+                    target,
+                    false,
+                ) {
                     continue;
                 }
-                let budget = unit.moves_left + self.unit_move_rate(unit);
+                if let Some(home) = self
+                    .city_at(unit.x, unit.y)
+                    .filter(|home| home.owner == owner)
+                {
+                    let (home_grave, home_urgency) =
+                        *city_assessments.entry(home.id).or_insert_with(|| {
+                            (
+                                self.city_grave_danger(home),
+                                self.advisor_guard_city_assessment(home).urgency,
+                            )
+                        });
+                    if (home_grave > 0 && home_urgency >= city_urgency)
+                        || (threatened_city_ids.contains(&home.id) && city_grave == 0)
+                    {
+                        continue;
+                    }
+                }
+                let move_rate = *unit_move_rates
+                    .entry(unit.id)
+                    .or_insert_with(|| self.unit_move_rate(unit));
+                let budget = unit.moves_left + move_rate;
                 if self.map_distance(unit.x, unit.y, city.x, city.y) > budget {
                     continue;
                 }
-                let costs = defender_route_costs.entry(unit.id).or_insert_with(|| {
-                    self.route_costs_to_many_within(unit, &destinations, budget)
+                let route_key = (
+                    unit.x,
+                    unit.y,
+                    unit.kind as usize,
+                    unit.moves_left,
+                    move_rate,
+                );
+                let costs = defender_route_costs.entry(route_key).or_insert_with(|| {
+                    let mut reachable_indices = Vec::new();
+                    let mut reachable_dests = Vec::new();
+                    for (idx, &dest) in destinations.iter().enumerate() {
+                        if connectivity.can_directly_reach_tile(
+                            self,
+                            unit.kind,
+                            (unit.x, unit.y),
+                            dest,
+                            false,
+                        ) {
+                            reachable_indices.push(idx);
+                            reachable_dests.push(dest);
+                        }
+                    }
+                    let mut full = vec![None; destinations.len()];
+                    if !reachable_dests.is_empty() {
+                        let subset =
+                            self.route_costs_to_many_within(unit, &reachable_dests, budget);
+                        for (idx, cost) in reachable_indices.into_iter().zip(subset) {
+                            full[idx] = cost;
+                        }
+                    }
+                    full
                 });
                 let Some(Some(cost)) = costs.get(city_index).copied() else {
                     continue;
                 };
-                let mut stationed = unit.clone();
-                (stationed.x, stationed.y) = target;
-                stationed.state = UnitState::Idle;
-                let gain = threatened
-                    .iter()
-                    .map(|&(enemy, danger, odds)| {
-                        (odds - self.city_attacker_odds(city, enemy, &stationed, None)).max(0.0)
-                            * f64::from(danger)
-                    })
-                    .sum::<f64>()
-                    / f64::from(cost.max(1));
+                let numerator = *gain_numerators
+                    .entry((unit.kind as usize, unit.hp, unit.veteran))
+                    .or_insert_with(|| {
+                        let mut stationed = unit.clone();
+                        (stationed.x, stationed.y) = target;
+                        stationed.state = UnitState::Idle;
+                        threatened
+                            .iter()
+                            .map(|&(enemy, danger, odds)| {
+                                (odds - self.city_attacker_odds(city, enemy, &stationed, None))
+                                    .max(0.0)
+                                    * f64::from(danger)
+                            })
+                            .sum::<f64>()
+                    });
+                let gain = numerator / f64::from(cost.max(1));
                 if gain > 0.0 && best.as_ref().is_none_or(|&(_, previous)| gain > previous) {
                     best = Some((unit.id, gain));
                 }
             }
             if let Some((id, _)) = best {
+                let origin_city = self
+                    .unit_by_id(id)
+                    .and_then(|u| self.city_at(u.x, u.y))
+                    .map(|c| c.id);
                 self.unit_goto_tiles.insert(id, target);
                 self.ai_guard_for_destination(id, target.0, target.1);
                 if self.ai_goto_unit(id, target, GotoTask::Defend).moved {
                     dispatched.insert(id);
+                    city_assessments.remove(&city_id);
+                    if let Some(origin_id) = origin_city {
+                        city_assessments.remove(&origin_id);
+                    }
+                    if let Some(dest_id) = self
+                        .unit_by_id(id)
+                        .and_then(|u| self.city_at(u.x, u.y))
+                        .map(|c| c.id)
+                    {
+                        city_assessments.remove(&dest_id);
+                    }
                 }
             }
         }
