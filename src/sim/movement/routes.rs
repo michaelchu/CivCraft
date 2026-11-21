@@ -177,6 +177,7 @@ impl Simulation {
         let mut step_unit = unit.clone();
         let allowance = self.unit_move_rate(unit).max(1);
         let profile = self.step_movement_profile(unit.kind);
+        let (_, war_mask, _) = self.pact_masks(unit.owner);
         best[start] = (0, 0);
         let mut expanded = 0_u64;
         while let Some(Reverse((spent, steps, _, current))) = queue.pop() {
@@ -206,6 +207,9 @@ impl Simulation {
                     continue;
                 };
                 let ni = self.map_wrap.index(nx, ny);
+                if best[ni] <= (spent, steps + 1) {
+                    continue;
+                }
                 let dest = self.tile(nx, ny);
                 let source = self.tile(cx, cy);
                 let remembered = observed.then(|| self.observed_route_tile(nx, ny)).flatten();
@@ -259,8 +263,9 @@ impl Simulation {
                     if self.treaty_blocks_move(unit, nx, ny) {
                         continue;
                     }
-                    enemy_block =
-                        self.any_unit_at(nx, ny, |other| self.at_war(other.owner, unit.owner));
+                    enemy_block = self.any_unit_at(nx, ny, |other| {
+                        other.owner < 64 && ((war_mask >> other.owner) & 1) != 0
+                    });
                     if enemy_block && !goal_tiles[ni] {
                         continue;
                     }

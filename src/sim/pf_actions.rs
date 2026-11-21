@@ -60,9 +60,41 @@ impl Simulation {
             .into_iter()
             .flatten()
             .any(|owner| self.at_war(unit.owner, owner));
+        self.raw_move_cost_for_tiles((unit.x, unit.y), (x, y), restricted, class, ignores)
+    }
+
+    pub(super) fn raw_move_cost_for_class_with_war_mask(
+        &self,
+        from: (i32, i32),
+        to: (i32, i32),
+        war_mask: u64,
+        class: super::unit_catalog::UnitClass,
+        ignores: bool,
+    ) -> i32 {
+        let source = self.tile(from.0, from.1);
+        let dest = self.tile(to.0, to.1);
+        let restricted = source
+            .owner
+            .is_some_and(|owner| owner < 64 && ((war_mask >> owner) & 1) != 0)
+            || dest
+                .owner
+                .is_some_and(|owner| owner < 64 && ((war_mask >> owner) & 1) != 0);
+        self.raw_move_cost_for_tiles(from, to, restricted, class, ignores)
+    }
+
+    fn raw_move_cost_for_tiles(
+        &self,
+        from: (i32, i32),
+        to: (i32, i32),
+        restricted: bool,
+        class: super::unit_catalog::UnitClass,
+        ignores: bool,
+    ) -> i32 {
+        let source = self.tile(from.0, from.1);
+        let dest = self.tile(to.0, to.1);
         let source_movement = MovementTile::from(source);
         let destination_movement = MovementTile::from(dest);
-        let cardinal = self.pf_move_is_cardinal((unit.x, unit.y), (x, y));
+        let cardinal = self.pf_move_is_cardinal(from, to);
         self.caches.movement().step_cost(
             source_movement,
             destination_movement,

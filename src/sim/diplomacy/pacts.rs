@@ -20,6 +20,25 @@ impl Simulation {
         a == b || self.pact(a, b) == Pact::Alliance
     }
 
+    pub(in crate::sim) fn pact_masks(&self, owner: usize) -> (u64, u64, u64) {
+        let mut allied = 0_u64;
+        let mut war = 0_u64;
+        let mut peace = 0_u64;
+        for other in 0..self.players.len().min(64) {
+            if other == owner {
+                allied |= 1_u64 << other;
+            } else {
+                match self.pact(owner, other) {
+                    Pact::Alliance => allied |= 1_u64 << other,
+                    Pact::War => war |= 1_u64 << other,
+                    Pact::Peace => peace |= 1_u64 << other,
+                    Pact::Ceasefire | Pact::Armistice => {}
+                }
+            }
+        }
+        (allied, war, peace)
+    }
+
     pub(crate) fn pact_turns(&self, a: usize, b: usize) -> i32 {
         self.diplomacy
             .get(&Self::relation_key(a, b))

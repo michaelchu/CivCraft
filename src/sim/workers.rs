@@ -111,9 +111,10 @@ impl Simulation {
         // Freeciv's PF queries tile-local unit lists; calling any_unit_at here
         // instead scans every unit for every neighbor examined. Build the
         // equivalent hostile occupancy view once for this route search.
+        let (allied_mask, _, _) = self.pact_masks(unit.owner);
         let mut hostile_units = vec![false; self.tiles.len()];
         for other in &self.units {
-            if !self.allied(unit.owner, other.owner) {
+            if other.owner >= 64 || ((allied_mask >> other.owner) & 1) == 0 {
                 hostile_units[self.map_wrap.index(other.x, other.y)] = true;
             }
         }
@@ -156,10 +157,16 @@ impl Simulation {
                 let Some((x, y)) = self.map_wrap.civ3_neighbor(actor.x, actor.y, direction) else {
                     continue;
                 };
-                if self
-                    .tile(x, y)
-                    .owner
-                    .is_some_and(|other| !self.allied(unit.owner, other))
+                let next = self.map_wrap.index(x, y);
+                if result.costs[next] <= spent {
+                    continue;
+                }
+                if hostile_units[next]
+                    || self
+                        .tile(x, y)
+                        .owner
+                        .is_some_and(|other| other >= 64 || ((allied_mask >> other) & 1) == 0)
+                    || route_zone_cache.foreign_city_at(self, unit.owner, x, y)
                     || self.treaty_blocks_move(&actor, x, y)
                     || self.zone_blocks_worker_route_step_with_profile(
                         &actor,
@@ -168,8 +175,6 @@ impl Simulation {
                         &mut route_zone_cache,
                         &movement_profile,
                     )
-                    || hostile_units[self.map_wrap.index(x, y)]
-                    || route_zone_cache.foreign_city_at(self, unit.owner, x, y)
                 {
                     continue;
                 }
@@ -188,7 +193,6 @@ impl Simulation {
                 let Some(cost) = cost else {
                     continue;
                 };
-                let next = self.map_wrap.index(x, y);
                 let candidate = spent + cost.min(remaining);
                 if candidate < result.costs[next] {
                     result.costs[next] = candidate;

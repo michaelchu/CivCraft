@@ -126,7 +126,7 @@ enum Status {
     New,
     Processed,
 }
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 struct Node {
     cost: i32,
     extra: u32,
@@ -174,6 +174,9 @@ pub(in crate::sim) struct NormalPaths {
     class_can_occupy_city: bool,
     omniscient: bool,
     main_sight: Option<std::sync::Arc<[bool]>>,
+    allied_mask: u64,
+    war_mask: u64,
+    peace_mask: u64,
     risk: bool,
     nodes: Vec<Node>,
     queue: NormalPathQueue,
@@ -261,6 +264,7 @@ impl NormalPaths {
             .expect("campaign C2C3 unit-type IgTer binding");
         let coast_strict = super::action_rules::freeciv_unit_type_flag(unit.kind, "CoastStrict")
             .expect("campaign C2C3 CoastStrict unit flag");
+        let (allied_mask, war_mask, peace_mask) = sim.pact_masks(unit.owner);
         let mut map = Self {
             map_wrap: sim.map_wrap,
             actor: unit.clone(),
@@ -277,6 +281,9 @@ impl NormalPaths {
             class_can_occupy_city: class_rules.can_occupy_city,
             omniscient,
             main_sight: (!omniscient).then(|| sim.observer_sight_layers(unit.owner).0),
+            allied_mask,
+            war_mask,
+            peace_mask,
             risk,
             nodes: vec![Node::default(); sim.tiles.len()],
             queue: NormalPathQueue::new(sim.tiles.len()),
@@ -354,7 +361,8 @@ impl NormalPaths {
         };
         let city = sim.city_at_cached(x, y);
         if city.is_some_and(|city| {
-            self.class_can_occupy_city || sim.allied(self.actor.owner, city.owner)
+            self.class_can_occupy_city
+                || (city.owner < 64 && ((self.allied_mask >> city.owner) & 1) != 0)
         }) && (previous & CITY != 0
             || self.class_build_anywhere
             || self
@@ -367,7 +375,8 @@ impl NormalPaths {
         let mut can_disembark = false;
         if scope == 0 {
             for carrier in sim.tile_units_ordered(x, y) {
-                if !sim.allied(self.actor.owner, carrier.owner)
+                if carrier.owner >= 64
+                    || ((self.allied_mask >> carrier.owner) & 1) == 0
                     || carrier.kind == kind
                     || !sim.ruleset_transport_pair_allowed_fail_closed(carrier.kind, kind)
                     || sim.transport_would_create_cycle(self.actor.id, carrier.id)
@@ -380,8 +389,9 @@ impl NormalPaths {
                 // recursion is not representable with CivCraft's current unit
                 // nesting model. A stored GOTO target is the available proxy
                 // for Freeciv's persistent transport orders.
-                let at_base = city.is_some_and(|city| sim.allied(self.actor.owner, city.owner))
-                    || Self::native_base(sim, carrier.kind, x, y);
+                let at_base = city.is_some_and(|city| {
+                    city.owner < 64 && ((self.allied_mask >> city.owner) & 1) != 0
+                }) || Self::native_base(sim, carrier.kind, x, y);
                 if at_base {
                     scope |= TRANSPORT;
                     can_disembark = !sim.unit_goto_tiles.contains_key(&carrier.id);
@@ -401,10 +411,12 @@ impl NormalPaths {
     }
 
     fn foreign_at(&self, sim: &Simulation, x: i32, y: i32) -> bool {
-        sim.any_unit_at(x, y, |unit| !sim.allied(self.actor.owner, unit.owner))
-            || sim
-                .city_at_cached(x, y)
-                .is_some_and(|city| !sim.allied(self.actor.owner, city.owner))
+        let allied_mask = self.allied_mask;
+        sim.any_unit_at(x, y, |unit| {
+            unit.owner >= 64 || ((allied_mask >> unit.owner) & 1) == 0
+        }) || sim
+            .city_at_cached(x, y)
+            .is_some_and(|city| city.owner >= 64 || ((allied_mask >> city.owner) & 1) == 0)
     }
 
     fn initialize(&mut self, sim: &Simulation, index: usize, previous_scope: u8) -> bool {
@@ -446,7 +458,7 @@ impl NormalPaths {
                 && sim
                     .tile(x, y)
                     .owner
-                    .is_some_and(|owner| sim.pact(self.actor.owner, owner) == Pact::Peace)
+                    .is_some_and(|owner| owner < 64 && ((self.peace_mask >> owner) & 1) != 0)
             {
                 if index != self.start {
                     self.nodes[index].behavior = Behavior::Ignore;
@@ -576,14 +588,12 @@ impl NormalPaths {
         };
         sim.trace.count_operation(expansion_counter, 1);
         let current = self.current;
-        let node = self.nodes[current].clone();
+        let node = self.nodes[current];
         if node.behavior != Behavior::DontLeave
             && (node.scope != 0 || self.style == Style::FerrySearch)
             && (self.rate > 0 || node.cost < 0)
         {
             let (x, y) = self.map_wrap.position(current);
-            let mut actor = self.actor.clone();
-            (actor.x, actor.y) = (x, y);
             for (direction, (dx, dy)) in CIV3_DIRS.into_iter().enumerate() {
                 sim.trace.count_operation("normal_paths.neighbor_checks", 1);
                 sim.trace.count_operation(neighbor_counter, 1);
@@ -597,7 +607,7 @@ impl NormalPaths {
                 if !self.initialize(sim, next, node.scope) {
                     continue;
                 }
-                let dest = self.nodes[next].clone();
+                let dest = self.nodes[next];
                 // Freeciv PF_NORMAL classifies ZOC per node. Retain live
                 // occupancy and the attack exception for this stationary map.
                 if dest.action != PfAction::Attack && !self.ignores_zoc && {
@@ -614,36 +624,38 @@ impl NormalPaths {
                     } else if node.scope & (NATIVE | CITY) == 0 {
                         continue;
                     } else {
-                        sim.raw_move_cost_for_class(
-                            &actor,
-                            nx,
-                            ny,
+                        sim.raw_move_cost_for_class_with_war_mask(
+                            (x, y),
+                            (nx, ny),
+                            self.war_mask,
                             self.movement_class,
                             self.ignores_terrain,
                         )
                     }
                 } else if dest.action != PfAction::None {
                     if dest.action == PfAction::Attack {
-                        if node.scope & NATIVE == 0
-                            && !sim.pf_action_step_possible(&actor, dest.action)
-                        {
-                            continue;
+                        if node.scope & NATIVE == 0 {
+                            let mut actor = self.actor.clone();
+                            (actor.x, actor.y) = (x, y);
+                            if !sim.pf_action_step_possible(&actor, dest.action) {
+                                continue;
+                            }
                         }
                     } else if node.scope & (NATIVE | CITY | TRANSPORT) == 0 {
                         continue;
                     }
-                    Simulation::pf_action_move_cost(actor.kind, dest.action, self.rate)
+                    Simulation::pf_action_move_cost(self.actor.kind, dest.action, self.rate)
                 } else if !dest.known {
                     MovementRules::campaign()
-                        .unknown_tile_move_cost(actor.kind)
+                        .unknown_tile_move_cost(self.actor.kind)
                         .expect("selected C2C3 unknown-tile movement cost")
                 } else if dest.scope != 0 {
                     sim.trace
                         .count_operation("normal_paths.raw_move_cost_calls", 1);
-                    sim.raw_move_cost_for_class(
-                        &actor,
-                        nx,
-                        ny,
+                    sim.raw_move_cost_for_class_with_war_mask(
+                        (x, y),
+                        (nx, ny),
+                        self.war_mask,
                         self.movement_class,
                         self.ignores_terrain,
                     )

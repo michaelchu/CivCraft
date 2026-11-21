@@ -671,14 +671,10 @@ impl Simulation {
     pub(super) fn treaty_blocks_move(&self, unit: &Unit, x: i32, y: i32) -> bool {
         let blocked =
             |owner| !self.military_access(unit.owner, owner) && !self.at_war(unit.owner, owner);
-        let occupied = self
-            .units
-            .iter()
-            .any(|other| (other.x, other.y) == (x, y) && blocked(other.owner))
+        let occupied = self.any_unit_at(x, y, |other| blocked(other.owner))
             || self
-                .cities
-                .iter()
-                .any(|city| (city.x, city.y) == (x, y) && blocked(city.owner));
+                .city_at_cached(x, y)
+                .is_some_and(|city| blocked(city.owner));
         occupied
             || !unit.kind.is_civilian()
                 && self.tile(x, y).owner.is_some_and(|owner| {
