@@ -5,7 +5,7 @@
 //! input consumed by the runner.
 
 use crate::{
-    mapgen::{self, Civ3MapSize},
+    mapgen::{self, MapSize},
     sim::Simulation,
     world_setup::{Generator, WorldSetup},
 };
@@ -40,7 +40,7 @@ pub(crate) struct Observation {
 #[derive(Clone, Debug)]
 pub(crate) struct WorldProvenance {
     pub seed: u64,
-    pub size: Civ3MapSize,
+    pub size: MapSize,
     pub generator: Option<Generator>,
     pub settings: Option<serde_json::Value>,
 }
@@ -48,16 +48,17 @@ pub(crate) struct WorldProvenance {
 impl WorldProvenance {
     fn for_campaign(
         game: &Simulation,
-        size: Option<Civ3MapSize>,
+        size: Option<MapSize>,
         generator: Option<Generator>,
+        settings: Option<serde_json::Value>,
     ) -> Self {
         Self {
             seed: game.world_seed,
             size: size.unwrap_or_else(|| {
-                Civ3MapSize::Custom(game.map_wrap.width(), game.map_wrap.height())
+                MapSize::Custom(game.map_wrap.width(), game.map_wrap.height())
             }),
             generator,
-            settings: generator.map(Generator::settings_metadata),
+            settings,
         }
     }
 }
@@ -155,7 +156,7 @@ pub(crate) fn load(path: &Path) -> Result<Run, String> {
             version: 1,
             checks: vec![],
             observations: vec![],
-            world: WorldProvenance::for_campaign(&game, None, None),
+            world: WorldProvenance::for_campaign(&game, None, None, None),
         },
         game,
         runtime: None,
@@ -169,15 +170,25 @@ pub(crate) fn build(name: &str, seed: u64, setup: WorldSetup) -> Result<Run, Str
             names().collect::<Vec<_>>().join(",")
         )
     })?;
-    let (map, size, generator) = if scenario.accepts_world_options() {
-        (setup.generate(seed), Some(setup.size), setup.generator)
+    let (map, size, generator, settings) = if scenario.accepts_world_options() {
+        (
+            setup.generate(seed),
+            Some(setup.size),
+            setup.generator,
+            Some(setup.settings_metadata()),
+        )
     } else {
         if setup.specified {
             return Err(format!(
                 "scenario {name} uses a fixed map and takes no world setup options"
             ));
         }
-        (mapgen::generate(seed), None, Generator::Fractal)
+        (
+            mapgen::generate(seed),
+            None,
+            Generator::Fractal,
+            Some(setup.settings_metadata()),
+        )
     };
     let (game, runtime) = scenario.start(map);
     Ok(Run {
@@ -191,6 +202,9 @@ pub(crate) fn build(name: &str, seed: u64, setup: WorldSetup) -> Result<Run, Str
                 &game,
                 size,
                 (!scenario.uses_custom_world()).then_some(generator),
+                (!scenario.uses_custom_world())
+                    .then_some(settings)
+                    .flatten(),
             ),
         },
         game,
@@ -208,7 +222,12 @@ pub(crate) fn generated(seed: u64, setup: WorldSetup) -> Run {
             version: 1,
             checks: vec![],
             observations: vec![],
-            world: WorldProvenance::for_campaign(&game, Some(setup.size), Some(setup.generator)),
+            world: WorldProvenance::for_campaign(
+                &game,
+                Some(setup.size),
+                Some(setup.generator),
+                Some(setup.settings_metadata()),
+            ),
         },
         game,
         runtime: None,
@@ -253,7 +272,7 @@ mod tests {
     }
 
     fn world() -> WorldSetup {
-        WorldSetup::parse(Civ3MapSize::Tiny, |_| Ok(None)).unwrap()
+        WorldSetup::parse(MapSize::Tiny, |_| Ok(None)).unwrap()
     }
 
     #[test]

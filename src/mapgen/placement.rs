@@ -857,7 +857,7 @@ mod tests {
         (
             Generator {
                 wrap,
-                settings: Civ3WorldSettings::default(),
+                settings: WorldSettings::default(),
                 civilization_count: 4,
             },
             rules.map_generation_settings().unwrap(),

@@ -43,10 +43,10 @@ use super::*;
 #[test]
 fn civ3_map_roster_controls_active_players_and_score_standings() {
     for (size, expected) in [
-        (crate::mapgen::Civ3MapSize::Tiny, 4),
-        (crate::mapgen::Civ3MapSize::Huge, 16),
+        (crate::mapgen::MapSize::Tiny, 4),
+        (crate::mapgen::MapSize::Huge, 16),
     ] {
-        let map = crate::mapgen::generate_for_civ3_size(42, size);
+        let map = crate::mapgen::generate_for_map_size(42, size);
         let game = Simulation::new(map);
         assert_eq!(game.civilization_count, expected);
         assert_eq!(game.score_standings().len(), expected);

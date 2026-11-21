@@ -61,7 +61,7 @@ pub async fn run_desktop() {
         eprintln!("{error}");
         std::process::exit(2);
     });
-    let world = WorldSetup::parse(mapgen::Civ3MapSize::Small, |flag| {
+    let world = WorldSetup::parse(mapgen::MapSize::Small, |flag| {
         parsed_argument(&args, flag)
     })
     .unwrap_or_else(|error| {
@@ -590,7 +590,7 @@ mod argument_tests {
             ("huge", (160, 160)),
         ] {
             let wrap = name
-                .parse::<mapgen::Civ3MapSize>()
+                .parse::<mapgen::MapSize>()
                 .unwrap()
                 .topology()
                 .unwrap();
@@ -598,7 +598,7 @@ mod argument_tests {
         }
         assert_eq!(
             "80x60"
-                .parse::<mapgen::Civ3MapSize>()
+                .parse::<mapgen::MapSize>()
                 .unwrap()
                 .topology()
                 .unwrap()
@@ -607,7 +607,7 @@ mod argument_tests {
         );
         for invalid in ["80", "81x60", "8x60", "513x60", "80xno", "giant"] {
             assert!(
-                invalid.parse::<mapgen::Civ3MapSize>().is_err(),
+                invalid.parse::<mapgen::MapSize>().is_err(),
                 "accepted {invalid}"
             );
         }

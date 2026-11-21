@@ -5,7 +5,7 @@ use crate::world::Resource;
 
 const TILE_COUNT: usize = (MAP_W * MAP_H) as usize;
 
-fn generate_opensimplex(seed: u64, wrap: MapWrap, settings: Civ3WorldSettings) -> GeneratedMap {
+fn generate_opensimplex(seed: u64, wrap: MapWrap, settings: WorldSettings) -> GeneratedMap {
     let request = map_generation_request(
         seed,
         wrap,
@@ -18,23 +18,23 @@ fn generate_opensimplex(seed: u64, wrap: MapWrap, settings: Civ3WorldSettings) -
 #[test]
 fn civ3_map_sizes_select_their_rosters_and_generate_matching_starts() {
     for (size, expected) in [
-        (Civ3MapSize::Tiny, 4),
-        (Civ3MapSize::Small, 6),
-        (Civ3MapSize::Standard, 8),
-        (Civ3MapSize::Large, 12),
-        (Civ3MapSize::Huge, 16),
+        (MapSize::Tiny, 4),
+        (MapSize::Small, 6),
+        (MapSize::Standard, 8),
+        (MapSize::Large, 12),
+        (MapSize::Huge, 16),
     ] {
         assert_eq!(size.civilization_count(), expected);
     }
 
     for (size, expected) in [
-        (Civ3MapSize::Tiny, 4),
-        (Civ3MapSize::Small, 6),
-        (Civ3MapSize::Standard, 8),
-        (Civ3MapSize::Large, 12),
-        (Civ3MapSize::Huge, 16),
+        (MapSize::Tiny, 4),
+        (MapSize::Small, 6),
+        (MapSize::Standard, 8),
+        (MapSize::Large, 12),
+        (MapSize::Huge, 16),
     ] {
-        let map = generate_for_civ3_size(42, size);
+        let map = generate_for_map_size(42, size);
         assert_eq!(map.civilization_count, expected, "{size}");
         assert_eq!(map.starts.len(), expected, "{size}");
         assert_eq!(
@@ -116,13 +116,13 @@ fn c2c3_settings_change_freeciv_height_resolution_and_shore_mask() {
     let wrap = MapWrap::with_dimensions(36, 48).unwrap();
     let generator = Generator {
         wrap,
-        settings: Civ3WorldSettings::default(),
+        settings: WorldSettings::default(),
         civilization_count: 8,
     };
     let c2c3 = crate::rules::engine_rules::RulesetData::campaign_default()
         .map_generation_settings()
         .unwrap();
-    let request = map_generation_request(42, wrap, Civ3WorldSettings::default(), 8);
+    let request = map_generation_request(42, wrap, WorldSettings::default(), 8);
     assert_eq!(request.map_generation_settings, c2c3);
 
     let mut default_rng = MapRng::new(123);
@@ -177,7 +177,7 @@ fn freeciv_fractal_height_consumes_jitter_for_shared_and_bounded_midpoints() {
     let wrap = MapWrap::with_dimensions(36, 48).unwrap();
     let generator = Generator {
         wrap,
-        settings: Civ3WorldSettings::default(),
+        settings: WorldSettings::default(),
         civilization_count: 8,
     };
     let settings = crate::rules::engine_rules::RulesetData::campaign_default()
@@ -248,7 +248,7 @@ fn c2c3_ocean_depths_are_parsed_and_mapped_to_civ3_water_labels() {
     let wrap = MapWrap::with_dimensions(16, 16).unwrap();
     let generator = Generator {
         wrap,
-        settings: Civ3WorldSettings::default(),
+        settings: WorldSettings::default(),
         civilization_count: 4,
     };
     let mut terrain = vec![Terrain::Grassland; wrap.tile_count()];
@@ -262,7 +262,7 @@ fn freeciv_ocean_depth_stages_use_height_and_the_civ3_wrap_topology() {
     let wrap = MapWrap::with_dimensions(16, 16).unwrap();
     let generator = Generator {
         wrap,
-        settings: Civ3WorldSettings::default(),
+        settings: WorldSettings::default(),
         civilization_count: 4,
     };
     let depths = crate::rules::engine_rules::RulesetData::campaign_default()
@@ -305,7 +305,7 @@ fn freeciv_ocean_depth_stages_use_height_and_the_civ3_wrap_topology() {
 fn generated_rivers_reach_the_ocean_and_resources_are_spaced() {
     let generator = Generator {
         wrap: MapWrap::X,
-        settings: Civ3WorldSettings::default(),
+        settings: WorldSettings::default(),
         civilization_count: crate::world::DEFAULT_CIVILIZATION_COUNT,
     };
     let freeciv_settings = RulesetData::campaign_default()
@@ -340,7 +340,7 @@ fn generated_rivers_reach_the_ocean_and_resources_are_spaced() {
         assert!(map.starts.iter().all(|&(x, y)| {
             !tiles[(Generator {
                 wrap: MapWrap::X,
-                settings: Civ3WorldSettings::default(),
+                settings: WorldSettings::default(),
                 civilization_count: crate::world::DEFAULT_CIVILIZATION_COUNT,
             })
             .index(x, y)]
@@ -371,7 +371,7 @@ fn generated_rivers_reach_the_ocean_and_resources_are_spaced() {
                 assert!(
                     (Generator {
                         wrap: MapWrap::X,
-                        settings: Civ3WorldSettings::default(),
+                        settings: WorldSettings::default(),
                         civilization_count: crate::world::DEFAULT_CIVILIZATION_COUNT,
                     })
                     .within(index, 3)
@@ -382,7 +382,7 @@ fn generated_rivers_reach_the_ocean_and_resources_are_spaced() {
                 assert!(
                     (Generator {
                         wrap: MapWrap::X,
-                        settings: Civ3WorldSettings::default(),
+                        settings: WorldSettings::default(),
                         civilization_count: crate::world::DEFAULT_CIVILIZATION_COUNT,
                     })
                     .neighbors(index)
@@ -430,7 +430,7 @@ fn generated_rivers_reach_the_ocean_and_resources_are_spaced() {
                 assert!(!tiles[current].terrain.is_water());
                 for next in (Generator {
                     wrap: MapWrap::X,
-                    settings: Civ3WorldSettings::default(),
+                    settings: WorldSettings::default(),
                     civilization_count: crate::world::DEFAULT_CIVILIZATION_COUNT,
                 })
                 .civ3_neighbors(current)
@@ -454,7 +454,7 @@ fn river_course_can_turn_toward_a_nearby_outlet() {
     let wrap = map.map_wrap;
     let generator = Generator {
         wrap,
-        settings: Civ3WorldSettings::default(),
+        settings: WorldSettings::default(),
         civilization_count: crate::world::DEFAULT_CIVILIZATION_COUNT,
     };
     let mut tiles = map.tiles;
@@ -485,7 +485,7 @@ fn freeciv_river_test_map(
 ) -> (Generator, Vec<GeneratedTile>, Vec<TerrainMapgenProperties>) {
     let generator = Generator {
         wrap,
-        settings: Civ3WorldSettings::default(),
+        settings: WorldSettings::default(),
         civilization_count: crate::world::DEFAULT_CIVILIZATION_COUNT,
     };
     let tiles = vec![
@@ -761,7 +761,7 @@ fn freeciv_river_blocking_is_fatal_and_rivers_continue_through_frozen_terrain() 
 fn opensimplex_civ3_generation_does_not_emit_legacy_glacier_or_lake_terrains() {
     for wrap in [MapWrap::X] {
         for seed in [42, 12345] {
-            let map = generate_opensimplex(seed, wrap, Civ3WorldSettings::default());
+            let map = generate_opensimplex(seed, wrap, WorldSettings::default());
             assert_eq!(map.tiles.len(), wrap.tile_count(), "seed {seed}");
             assert!(
                 map.tiles
@@ -887,7 +887,7 @@ fn opensimplex_civ3_ocean_coverage_choices_change_water_fraction_deterministical
     let water_counts: Vec<_> = coverages
         .into_iter()
         .map(|ocean_coverage| {
-            let settings = Civ3WorldSettings {
+            let settings = WorldSettings {
                 ocean_coverage,
                 climate: Climate::default(),
                 age: WorldAge::default(),
@@ -923,7 +923,7 @@ fn polar_land_taper_is_smooth_seeded_and_dies_out_inland() {
     let wrap = MapWrap::X;
     let generator = Generator {
         wrap,
-        settings: Civ3WorldSettings::default(),
+        settings: WorldSettings::default(),
         civilization_count: crate::world::DEFAULT_CIVILIZATION_COUNT,
     };
     let mut first = vec![255; wrap.tile_count()];
@@ -1001,7 +1001,7 @@ fn civ3_climate_choices_shift_biomes_in_the_expected_direction() {
         generate_opensimplex(
             42,
             wrap,
-            Civ3WorldSettings {
+            WorldSettings {
                 ocean_coverage: OceanCoverage::default(),
                 climate,
                 age: WorldAge::default(),
@@ -1031,7 +1031,7 @@ fn civ3_world_age_controls_relief_and_volcano_frequency() {
         generate_opensimplex(
             42,
             MapWrap::X,
-            Civ3WorldSettings {
+            WorldSettings {
                 ocean_coverage: OceanCoverage::default(),
                 climate: Climate::default(),
                 age,
@@ -1075,9 +1075,9 @@ fn opensimplex_civ3_landform_choices_are_deterministic_and_change_landmass_scale
     let maps: Vec<_> = forms
         .into_iter()
         .map(|landform| {
-            let settings = Civ3WorldSettings {
+            let settings = WorldSettings {
                 landform,
-                ..Civ3WorldSettings::default()
+                ..WorldSettings::default()
             };
             let first = generate_opensimplex(42, MapWrap::X, settings);
             let second = generate_opensimplex(42, MapWrap::X, settings);
@@ -1091,7 +1091,7 @@ fn opensimplex_civ3_landform_choices_are_deterministic_and_change_landmass_scale
     let checksums: Vec<_> = maps.iter().map(|map| map_checksum(&map.tiles)).collect();
     let topology = Generator {
         wrap: MapWrap::X,
-        settings: Civ3WorldSettings::default(),
+        settings: WorldSettings::default(),
         civilization_count: crate::world::DEFAULT_CIVILIZATION_COUNT,
     };
     let land_components: Vec<_> = maps
@@ -1128,9 +1128,9 @@ fn civ3_temperature_choices_shift_cold_and_dry_terrain() {
         generate_opensimplex(
             42,
             MapWrap::X,
-            Civ3WorldSettings {
+            WorldSettings {
                 temperature,
-                ..Civ3WorldSettings::default()
+                ..WorldSettings::default()
             },
         )
     };
@@ -1192,7 +1192,7 @@ mod wrap_generation_tests {
         for wrap in [MapWrap::X] {
             let generator = Generator {
                 wrap,
-                settings: Civ3WorldSettings::default(),
+                settings: WorldSettings::default(),
                 civilization_count: crate::world::DEFAULT_CIVILIZATION_COUNT,
             };
             let y = wrap.height() / 2;
@@ -1247,7 +1247,7 @@ mod wrap_generation_tests {
                     assert!(edge.resource.is_none() && !edge.river && !edge.hut);
                 }
             }
-            let os = super::generate_opensimplex(seed, MapWrap::X, Civ3WorldSettings::default());
+            let os = super::generate_opensimplex(seed, MapWrap::X, WorldSettings::default());
             for y in [0, 1, os.map_wrap.height() - 2, os.map_wrap.height() - 1] {
                 for x in 0..os.map_wrap.width() {
                     let edge = &os.tiles[os.map_wrap.index(x, y)];
@@ -1263,7 +1263,7 @@ mod wrap_generation_tests {
             );
             let g = Generator {
                 wrap: MapWrap::X,
-                settings: Civ3WorldSettings::default(),
+                settings: WorldSettings::default(),
                 civilization_count: crate::world::DEFAULT_CIVILIZATION_COUNT,
             };
             assert_eq!(g.colatitude(0), 0);
@@ -1285,7 +1285,7 @@ mod wrap_generation_tests {
         for wrap in [MapWrap::X] {
             let generator = Generator {
                 wrap,
-                settings: Civ3WorldSettings::default(),
+                settings: WorldSettings::default(),
                 civilization_count: crate::world::DEFAULT_CIVILIZATION_COUNT,
             };
             let land = generator.index(wrap.width() / 2, wrap.height() / 2);
@@ -1352,4 +1352,45 @@ fn generated_worlds_match_civcraft_resource_goldens_for_each_wrap() {
             "starting locations for {wrap} seed {seed}"
         );
     }
+}
+
+#[test]
+fn fractal_generator_applies_world_settings_deterministically() {
+    let default_map =
+        generate_for_map_size_with(&FreecivFractalMapGenerator, 42, MapSize::Tiny, WorldSettings::default());
+    assert_eq!(
+        map_checksum(&default_map.tiles),
+        map_checksum(&generate_for_map_size(42, MapSize::Tiny).tiles)
+    );
+
+    let custom_a = generate_for_map_size_with(
+        &FreecivFractalMapGenerator,
+        42,
+        MapSize::Tiny,
+        WorldSettings {
+            ocean_coverage: OceanCoverage::Percent60,
+            climate: Climate::Arid,
+            age: WorldAge::Billion3,
+            landform: Landform::Pangaea,
+            temperature: Temperature::Warm,
+        },
+    );
+    let custom_b = generate_for_map_size_with(
+        &FreecivFractalMapGenerator,
+        42,
+        MapSize::Tiny,
+        WorldSettings {
+            ocean_coverage: OceanCoverage::Percent80,
+            climate: Climate::Wet,
+            age: WorldAge::Billion5,
+            landform: Landform::Archipelago,
+            temperature: Temperature::Cool,
+        },
+    );
+    let water_a = custom_a.tiles.iter().filter(|t| t.terrain.is_water()).count();
+    let water_b = custom_b.tiles.iter().filter(|t| t.terrain.is_water()).count();
+    assert!(
+        water_b > water_a,
+        "80% ocean coverage should produce more water than 60%: {water_b} vs {water_a}"
+    );
 }

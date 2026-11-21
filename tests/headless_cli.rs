@@ -346,22 +346,15 @@ fn minimap_exports_only_one_final_image_without_map_history() {
 
 #[test]
 fn world_options_validate_against_the_generator_and_report_the_effective_inputs() {
-    let message = headless()
-        .args(["--ocean-coverage", "60"])
-        .output()
-        .unwrap();
-    assert!(!message.status.success());
-    assert!(
-        String::from_utf8_lossy(&message.stderr).contains("requires --map-generator opensimplex")
-    );
-
     let directory = report_directory("world");
     let mut streams = Vec::new();
-    for (ocean, climate, age, landform, temperature) in [
-        ("60", "arid", "3", "archipelago", "cool"),
-        ("80", "wet", "5", "pangaea", "warm"),
+    for (generator, ocean, climate, age, landform, temperature) in [
+        ("fractal", "60", "arid", "3", "archipelago", "cool"),
+        ("fractal", "80", "wet", "5", "pangaea", "warm"),
+        ("opensimplex", "60", "arid", "3", "archipelago", "cool"),
+        ("opensimplex", "80", "wet", "5", "pangaea", "warm"),
     ] {
-        let report = directory.join(format!("{ocean}.json"));
+        let report = directory.join(format!("{generator}-{ocean}.json"));
         let run = headless()
             .args([
                 "--seed",
@@ -369,7 +362,7 @@ fn world_options_validate_against_the_generator_and_report_the_effective_inputs(
                 "--turns",
                 "1",
                 "--map-generator",
-                "opensimplex",
+                generator,
                 "--ocean-coverage",
                 ocean,
                 "--climate",
@@ -393,7 +386,7 @@ fn world_options_validate_against_the_generator_and_report_the_effective_inputs(
         let report = read_report(&report);
         assert_eq!(report["version"], 10);
         let config = &report["run"]["configuration"];
-        assert_eq!(config["map_generator"], "opensimplex");
+        assert_eq!(config["map_generator"], generator);
         assert_eq!(
             config["world_settings"]["ocean_coverage"],
             ocean.parse::<i32>().unwrap()
@@ -409,6 +402,7 @@ fn world_options_validate_against_the_generator_and_report_the_effective_inputs(
         streams.push(std::fs::read(directory.join(file)).unwrap());
     }
     assert_ne!(streams[0], streams[1]);
+    assert_ne!(streams[2], streams[3]);
     std::fs::remove_dir_all(directory).unwrap();
 }
 

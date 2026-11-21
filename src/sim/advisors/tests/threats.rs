@@ -234,7 +234,7 @@ fn naval_threat_map_can_attack_a_coastal_city_but_cannot_route_through_it() {
 
 #[test]
 fn danger_route_bound_keeps_rail_routes_at_the_horizon_across_wrap() {
-    let map = crate::mapgen::generate_for_civ3_size(42, crate::mapgen::Civ3MapSize::Tiny);
+    let map = crate::mapgen::generate_for_map_size(42, crate::mapgen::MapSize::Tiny);
     let mut game = Simulation::new(map);
     game.units.clear();
     game.cities.clear();

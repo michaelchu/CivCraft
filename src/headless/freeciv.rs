@@ -1,5 +1,5 @@
 use super::config::parse_options;
-use crate::mapgen::Civ3MapSize;
+use crate::mapgen::MapSize;
 use serde_json::json;
 use std::{
     env, fs,
@@ -30,7 +30,7 @@ pub(super) fn run(args: &[String]) -> Result<(), String> {
         .ok()
         .filter(|turns| (1..=32767).contains(turns))
         .ok_or("Freeciv --turns must be between 1 and 32767")?;
-    let size: Civ3MapSize = value("--map-size", "tiny").parse()?;
+    let size: MapSize = value("--map-size", "tiny").parse()?;
     let map = size.topology()?;
     let (width, height) = (map.width(), map.height());
     let civilizations = size.civilization_count();

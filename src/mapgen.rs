@@ -22,11 +22,9 @@ pub(crate) use crate::world::{GeneratedMap, GeneratedTile};
 use crate::world::{Terrain, TerrainBase, topology::*};
 use std::{collections::hash_map::RandomState, hash::BuildHasher};
 
-/// Named world sizes from OpenCiv3's Civ III ruleset data. Dimensions are
-/// imported game data; OpenCiv3's generation code is only an implementation
-/// reference for how those dimensions are consumed.
+/// Named world sizes and custom dimensions.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(crate) enum Civ3MapSize {
+pub(crate) enum MapSize {
     Tiny,
     Small,
     #[default]
@@ -36,7 +34,7 @@ pub(crate) enum Civ3MapSize {
     Custom(i32, i32),
 }
 
-impl Civ3MapSize {
+impl MapSize {
     pub(crate) fn topology(self) -> Result<MapWrap, String> {
         let (width, height) = match self {
             Self::Tiny => (60, 60),
@@ -64,7 +62,7 @@ impl Civ3MapSize {
     }
 }
 
-impl std::str::FromStr for Civ3MapSize {
+impl std::str::FromStr for MapSize {
     type Err = String;
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
@@ -91,7 +89,7 @@ impl std::str::FromStr for Civ3MapSize {
     }
 }
 
-impl std::fmt::Display for Civ3MapSize {
+impl std::fmt::Display for MapSize {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Tiny => f.write_str("tiny"),
@@ -287,10 +285,9 @@ impl std::str::FromStr for Temperature {
     }
 }
 
-/// Civ III world-generation choices. Additional world-setup controls will
-/// join this struct as their generation behavior is migrated.
+/// Generator-agnostic world-generation choices.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(crate) struct Civ3WorldSettings {
+pub(crate) struct WorldSettings {
     pub(crate) ocean_coverage: OceanCoverage,
     pub(crate) climate: Climate,
     pub(crate) age: WorldAge,
@@ -708,7 +705,7 @@ impl Generator {
                     self.height_field(map_seed_u64.wrapping_add(0xdad), 0.4),
                 )
             }
-            LandmassSource::FreecivFractal(_, _) => {
+            LandmassSource::FreecivFractal(_, _, _) => {
                 // The Freeciv terrain pass uses the actual height and
                 // temperature maps instead of CivCraft's separate relief and
                 // biome noise fields.
@@ -727,11 +724,11 @@ impl Generator {
         let mut current_map_seed = map_seed;
         let freeciv_map_settings = match landmass_source {
             LandmassSource::OpenSimplex => None,
-            LandmassSource::FreecivFractal(settings, _) => Some(settings),
+            LandmassSource::FreecivFractal(settings, _, _) => Some(settings),
         };
         let start_temperature = match landmass_source {
             LandmassSource::OpenSimplex => None,
-            LandmassSource::FreecivFractal(map_settings, _) => {
+            LandmassSource::FreecivFractal(map_settings, _, _) => {
                 Some(self.freeciv_temperature_map(false, None, None, map_settings))
             }
         };
@@ -763,12 +760,10 @@ impl Generator {
                     rank_field(&mut heights, 1000);
                     (field, heights, None, self.settings.ocean_coverage.percent())
                 }
-                LandmassSource::FreecivFractal(map_settings, _water_depths) => {
+                LandmassSource::FreecivFractal(map_settings, _water_depths, divisions) => {
                     let mut field = self.freeciv_fractal_height_field(
                         &mut rng,
-                        map_settings
-                            .startpos
-                            .fractal_divisions(self.civilization_count),
+                        divisions,
                         map_settings.landmass_percent,
                         true,
                     );
@@ -785,7 +780,7 @@ impl Generator {
             };
             let freeciv_temperature = match landmass_source {
                 LandmassSource::OpenSimplex => None,
-                LandmassSource::FreecivFractal(map_settings, _) => {
+                LandmassSource::FreecivFractal(map_settings, _, _) => {
                     Some(self.freeciv_temperature_map(
                         true,
                         Some(&heights),
@@ -805,7 +800,7 @@ impl Generator {
                 ocean_coverage,
                 &mut rng,
             );
-            if let LandmassSource::FreecivFractal(map_settings, water_depths) = landmass_source {
+            if let LandmassSource::FreecivFractal(map_settings, water_depths, _) = landmass_source {
                 self.assign_freeciv_water_depths(
                     &mut terrain,
                     &water_heights,
@@ -849,7 +844,7 @@ impl Generator {
                 LandmassSource::OpenSimplex => {
                     self.finish_water(&mut terrain, &mut rng);
                 }
-                LandmassSource::FreecivFractal(_, water_depths) => {
+                LandmassSource::FreecivFractal(_, water_depths, _) => {
                     self.finish_freeciv_water_depths(&mut terrain, water_depths, &mut rng);
                 }
             }
@@ -1071,7 +1066,7 @@ impl Generator {
 #[derive(Clone, Copy)]
 enum LandmassSource {
     OpenSimplex,
-    FreecivFractal(MapGenerationSettings, OceanDepthSettings),
+    FreecivFractal(MapGenerationSettings, OceanDepthSettings, i32),
 }
 
 fn freeciv_land_mask(heights: &[i32], settings: MapGenerationSettings) -> Vec<bool> {
@@ -1088,7 +1083,7 @@ mod civ3_base_terrain_tests {
         let request = map_generation_request(
             42,
             MapWrap::X,
-            Civ3WorldSettings::default(),
+            WorldSettings::default(),
             crate::world::DEFAULT_CIVILIZATION_COUNT,
         );
         let map = generate_with_map_generator(&OpenSimplexMapGenerator, request);
@@ -1145,7 +1140,7 @@ mod civ3_base_terrain_tests {
 
 struct Generator {
     wrap: MapWrap,
-    settings: Civ3WorldSettings,
+    settings: WorldSettings,
     civilization_count: usize,
 }
 
@@ -1157,7 +1152,7 @@ pub(crate) struct MapGenerationRequest {
     /// Gameplay RNG after Freeciv's unconditional map-seed draw.
     pub(crate) gameplay_rng: FreecivRng,
     pub(crate) wrap: MapWrap,
-    pub(crate) settings: Civ3WorldSettings,
+    pub(crate) settings: WorldSettings,
     pub(crate) map_generation_settings: MapGenerationSettings,
     pub(crate) terrain_properties: Vec<TerrainMapgenProperties>,
     pub(crate) start_scoring_settings: StartPositionScoringSettings,
@@ -1167,7 +1162,7 @@ pub(crate) struct MapGenerationRequest {
 fn map_generation_request(
     seed: u64,
     wrap: MapWrap,
-    settings: Civ3WorldSettings,
+    settings: WorldSettings,
     civilization_count: usize,
 ) -> MapGenerationRequest {
     map_generation_request_with_map_settings(
@@ -1188,7 +1183,7 @@ pub(crate) fn campaign_map_generation_settings() -> MapGenerationSettings {
 fn map_generation_request_with_map_settings(
     seed: u64,
     wrap: MapWrap,
-    settings: Civ3WorldSettings,
+    settings: WorldSettings,
     civilization_count: usize,
     map_generation_settings: MapGenerationSettings,
 ) -> MapGenerationRequest {
@@ -1242,34 +1237,27 @@ pub(crate) fn generate_with_wrap(seed: u64, wrap: MapWrap) -> GeneratedMap {
         map_generation_request(
             seed,
             wrap,
-            Civ3WorldSettings::default(),
+            WorldSettings::default(),
             crate::world::DEFAULT_CIVILIZATION_COUNT,
         ),
     )
 }
 
-pub(crate) fn generate_for_civ3_size(seed: u64, map_size: Civ3MapSize) -> GeneratedMap {
-    generate_for_civ3_size_with(default_map_generator(), seed, map_size, Default::default())
+#[cfg(test)]
+pub(crate) fn generate_for_map_size(seed: u64, map_size: MapSize) -> GeneratedMap {
+    generate_for_map_size_with(default_map_generator(), seed, map_size, Default::default())
 }
 
-pub(crate) fn generate_opensimplex_for_civ3_size(
-    seed: u64,
-    map_size: Civ3MapSize,
-    settings: Civ3WorldSettings,
-) -> GeneratedMap {
-    generate_for_civ3_size_with(&OpenSimplexMapGenerator, seed, map_size, settings)
-}
-
-/// Generates a map through the selected implementation for a named Civ III size.
-fn generate_for_civ3_size_with(
+/// Generates a map through the selected implementation for a named or custom map size.
+pub(crate) fn generate_for_map_size_with(
     map_generator: &dyn MapGenerator,
     seed: u64,
-    map_size: Civ3MapSize,
-    settings: Civ3WorldSettings,
+    map_size: MapSize,
+    settings: WorldSettings,
 ) -> GeneratedMap {
     let wrap = map_size
         .topology()
-        .expect("validated Civ III map size has valid dimensions");
+        .expect("validated map size has valid dimensions");
     generate_with_map_generator(
         map_generator,
         map_generation_request(seed, wrap, settings, map_size.civilization_count()),
@@ -1309,6 +1297,36 @@ impl MapGenerator for OpenSimplexMapGenerator {
     }
 }
 
+fn apply_world_settings_to_fractal(
+    mut base: MapGenerationSettings,
+    settings: WorldSettings,
+    civilization_count: usize,
+) -> (MapGenerationSettings, i32) {
+    base.landmass_percent = 100 - settings.ocean_coverage.percent();
+    base.wetness = match settings.climate {
+        Climate::Arid => 25,
+        Climate::Normal => base.wetness,
+        Climate::Wet => 75,
+    };
+    base.temperature = match settings.temperature {
+        Temperature::Cool => 40,
+        Temperature::Temperate => base.temperature,
+        Temperature::Warm => 80,
+    };
+    base.steepness = match settings.age {
+        WorldAge::Billion3 => 45,
+        WorldAge::Billion4 => base.steepness,
+        WorldAge::Billion5 => 15,
+    };
+    let default_divisions = base.startpos.fractal_divisions(civilization_count);
+    let divisions = match settings.landform {
+        Landform::Pangaea => 2,
+        Landform::Continents => default_divisions,
+        Landform::Archipelago => default_divisions + 2,
+    };
+    (base, divisions)
+}
+
 impl MapGenerator for FreecivFractalMapGenerator {
     fn generate(&self, request: MapGenerationRequest) -> GeneratedMap {
         let MapGenerationRequest {
@@ -1324,7 +1342,9 @@ impl MapGenerator for FreecivFractalMapGenerator {
         } = request;
         assert!((4..=16).contains(&civilization_count));
         terrain::validate_freeciv_terrain_mappings(&terrain_properties)
-            .expect("C2C3 mapgen terrains must map to Civ III terrain identities");
+            .expect("mapgen terrains must map to CivCraft terrain identities");
+        let (map_generation_settings, divisions) =
+            apply_world_settings_to_fractal(map_generation_settings, settings, civilization_count);
         let generator = Generator {
             wrap,
             settings,
@@ -1336,7 +1356,7 @@ impl MapGenerator for FreecivFractalMapGenerator {
             seed,
             map_seed,
             gameplay_rng,
-            LandmassSource::FreecivFractal(map_generation_settings, water_depths),
+            LandmassSource::FreecivFractal(map_generation_settings, water_depths, divisions),
             Some(&terrain_properties),
             Some(start_scoring_settings),
         );

@@ -95,12 +95,12 @@ CIVCRAFT_SOURCE_DIR="/path/to/civ3-install" cargo run --release --features deskt
 | --- | --- | --- |
 | `--seed` | `<integer>` | Replay the exact same world |
 | `--map-size` | `tiny`, `small` *(default, 80×80)*, `standard`, `large`, `huge`, or `WIDTHxHEIGHT` | Custom dimensions supported |
-| `--map-generator` | `fractal` *(default)*, `opensimplex` | `fractal` uses the campaign ruleset |
-| `--landform` | `archipelago`, `continents`, `pangaea` | Requires `--map-generator opensimplex` |
-| `--ocean-coverage` | `60`, `70`, `80` | Requires `--map-generator opensimplex` |
-| `--climate` | `arid`, `normal`, `wet` | Requires `--map-generator opensimplex` |
-| `--temperature` | `cool`, `temperate`, `warm` | Requires `--map-generator opensimplex` |
-| `--world-age` | `3`, `4`, `5` *(billion years)* | Requires `--map-generator opensimplex` |
+| `--map-generator` | `fractal` *(default)*, `opensimplex` | Terrain generator backend |
+| `--landform` | `archipelago`, `continents` *(default)*, `pangaea` | Landmass distribution |
+| `--ocean-coverage` | `60`, `70` *(default)*, `80` | Ocean percentage |
+| `--climate` | `arid`, `normal` *(default)*, `wet` | Moisture and vegetation |
+| `--temperature` | `cool`, `temperate` *(default)*, `warm` | Global temperature |
+| `--world-age` | `3`, `4` *(default)*, `5` *(billion years)* | Elevation and relief |
 | `--tileset` | `civ3`, `conquests`, `snoopy-standard`, `snoopy-greener`, `snoopy-extended` | Built-in terrain styles |
 | `--autosave` | `true`, `false` *(default)* | Save automatically after each turn |
 

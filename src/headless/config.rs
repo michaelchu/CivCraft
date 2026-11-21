@@ -1,6 +1,6 @@
 use super::scenario::WorldProvenance;
 use crate::{
-    mapgen::Civ3MapSize,
+    mapgen::MapSize,
     sim::trace::Entity,
     world_setup::{self, WorldSetup},
 };
@@ -151,7 +151,7 @@ impl Config {
         if scenario.is_some() && load_campaign.is_some() {
             return Err("--scenario and --load-campaign are mutually exclusive".into());
         }
-        let world = WorldSetup::parse(Civ3MapSize::Tiny, |flag| {
+        let world = WorldSetup::parse(MapSize::Tiny, |flag| {
             Ok(values.get(flag).map(|&value| value.to_owned()))
         })?;
         if load_campaign.is_some() && world.specified {
@@ -223,7 +223,7 @@ minimap is selected via snapshot providers and exports one final PNG only\n\
 --profile-turns true|false (records per-turn phase timings)\n\
 --scenario NAME | --load-campaign PATH; --save-campaign PATH; --list-scenarios\n\
 World setup: --map-generator fractal|opensimplex (default fractal)\n\
-OpenSimplex only: --ocean-coverage 60|70|80 --climate arid|normal|wet --world-age 3|4|5\n\
+--ocean-coverage 60|70|80 --climate arid|normal|wet --world-age 3|4|5\n\
 --landform archipelago|continents|pangaea --temperature cool|temperate|warm";
 
 #[cfg(test)]
