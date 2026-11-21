@@ -48,6 +48,17 @@ assert_cmd = "2.2"
 [patch.crates-io]
 miniquad = { path = "vendor/miniquad" }
 
+# Keep dev builds small: line tables still give file:line in backtraces/panics.
+# Switch to `debug = true` temporarily if you need full breakpoint debugging.
+[profile.dev]
+debug = "line-tables-only"
+
+# Dependencies rarely rebuild: optimize them (faster game in debug) and drop
+# their debug info (much smaller target/).
+[profile.dev.package."*"]
+opt-level = 2
+debug = false
+
 [profile.release]
 opt-level = 3
 lto = "thin"
