@@ -149,7 +149,7 @@ impl Simulation {
         let mut best_cost = 1;
         let limit = city.shields + 40;
         for kind in Self::production_defender_types() {
-            if !self.unit_buildable(city, kind) {
+            if kind.is_naval() || !self.unit_buildable(city, kind) {
                 continue;
             }
             let mut desire = Self::production_defender_desire(kind, danger);

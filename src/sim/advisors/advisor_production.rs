@@ -714,18 +714,22 @@ impl Simulation {
         &self,
         city: &City,
     ) -> (Option<AiBuildChoice>, Option<AiBuildChoice>) {
-        self.military_build_advice_with_wonder_city(city, self.ai_wonder_city(city.owner))
+        let (before, after, _) =
+            self.military_build_advice_with_wonder_city(city, self.ai_wonder_city(city.owner));
+        (before, after)
     }
 
     fn military_build_advice_with_wonder_city(
         &self,
         city: &City,
         wonder_city: Option<u32>,
-    ) -> (Option<AiBuildChoice>, Option<AiBuildChoice>) {
+    ) -> (Option<AiBuildChoice>, Option<AiBuildChoice>, bool) {
         let (mut military, early, severe) =
             self.pre_offensive_military_advice_with_wonder_city(city, wonder_city);
+        let pre_offensive_emergency =
+            military.is_some_and(|choice| choice.want >= MILITARY_EMERGENCY_WANT);
         if early {
-            return (military, military);
+            return (military, military, pre_offensive_emergency);
         }
         if !severe {
             // kill_something_with performs its comparison BEFORE a ferry
@@ -792,6 +796,7 @@ impl Simulation {
                             production: Production::Unit(kind),
                             want: DOMESTIC_WANT_MAX,
                         }),
+                        pre_offensive_emergency,
                     );
                 }
             }
@@ -800,7 +805,7 @@ impl Simulation {
         if !severe && let Some(choice) = military.as_mut() {
             self.adjust_military_training_choice(city, choice);
         }
-        (before, military)
+        (before, military, pre_offensive_emergency)
     }
 
     pub(super) fn ai_build_choice_in_place(
@@ -809,12 +814,48 @@ impl Simulation {
         wonder_city: Option<u32>,
     ) -> Option<AiBuildChoice> {
         let space_plan = self.space_production_plan(city.owner);
+        let upkeep_constrained = self.ai_unit_upkeep_constrained(city.owner);
         self.ai_build_choice_with_worker_cache(
             city,
             wonder_city,
             &mut Default::default(),
             space_plan.as_ref(),
+            upkeep_constrained,
         )
+    }
+
+    /// True when the civilization is already paying excess-unit gold upkeep and
+    /// either faces an economic crisis, sits near its upkeep cash floor, or
+    /// already fields a large military relative to its city count.
+    pub(in crate::sim) fn ai_unit_upkeep_constrained(&self, owner: usize) -> bool {
+        let player = &self.players[owner];
+        let unit_cost = player
+            .government
+            .rule_name()
+            .and_then(|name| crate::rules::native::governments().get(name))
+            .map_or(0, |rule| rule.cost_per_excess_unit_gold);
+        if unit_cost <= 0 {
+            return false;
+        }
+        let paid = self.national_unit_gold_upkeep(owner).paid;
+        if paid.is_empty() {
+            return false;
+        }
+        let strategy = self.strategic_priorities(owner);
+        if strategy.economic_crisis {
+            return true;
+        }
+        let buffer = self.strategic_upkeep_buffer(owner);
+        if player.gold < buffer && strategy.projected_income <= unit_cost * 2 {
+            return true;
+        }
+        let city_count = self.cities_owned_by(owner).count();
+        let military_count = self
+            .units
+            .iter()
+            .filter(|unit| unit.owner == owner && unit.kind.is_military())
+            .count();
+        city_count > 0 && military_count >= city_count.saturating_mul(4).saturating_add(4)
     }
 
     fn ai_build_choice_with_worker_cache(
@@ -823,15 +864,29 @@ impl Simulation {
         wonder_city: Option<u32>,
         worker_cache: &mut WorkMap,
         space_plan: Option<&std::collections::BTreeMap<u32, Building>>,
+        upkeep_constrained: bool,
     ) -> Option<AiBuildChoice> {
         let profiler = self.trace.profiler();
         let _profile = profiler.scope("advisor.build.military");
-        let (_, military) = self.military_build_advice_with_wonder_city(city, wonder_city);
+        let (_, mut military, pre_offensive_emergency) =
+            self.military_build_advice_with_wonder_city(city, wonder_city);
         drop(_profile);
-        if military.is_some_and(|choice| choice.want >= MILITARY_EMERGENCY_WANT)
-            && self.advisor_guard_city_assessment(city).urgency != 0
-        {
-            return military;
+        if pre_offensive_emergency {
+            let assessment = self.advisor_guard_city_assessment(city);
+            let defensive_emergency = assessment.urgency != 0
+                && (!upkeep_constrained
+                    || assessment.defense == 0
+                    || (assessment.grave > 0
+                        && self
+                            .tile_units_ordered(city.x, city.y)
+                            .filter(|u| {
+                                u.owner == city.owner && u.kind.is_military() && !u.kind.is_naval()
+                            })
+                            .count()
+                            < 2));
+            if defensive_emergency {
+                return military;
+            }
         }
         if let Some(&building) = space_plan.and_then(|plan| plan.get(&city.id)) {
             return Some(AiBuildChoice {
@@ -839,8 +894,20 @@ impl Simulation {
                 want: DOMESTIC_WANT_MAX,
             });
         }
-        let wartime_demand =
-            military.is_some_and(|choice| choice.want > 0.0) && self.ai_on_war_footing(city.owner);
+        if upkeep_constrained
+            && matches!(
+                military,
+                Some(AiBuildChoice {
+                    production: Production::Unit(kind),
+                    ..
+                }) if kind.conquests_rule().require_support != 0 && !Self::is_ai_ferry(kind)
+            )
+        {
+            military = None;
+        }
+        let wartime_demand = !upkeep_constrained
+            && military.is_some_and(|choice| choice.want > 0.0)
+            && self.ai_on_war_footing(city.owner);
         if wartime_demand && wonder_city != Some(city.id) {
             return military;
         }
@@ -854,7 +921,10 @@ impl Simulation {
         };
         if !wartime_demand {
             let _profile = profiler.scope("advisor.build.worker");
-            if let Some((kind, want)) = self.worker_production_choice_in_place(city, worker_cache) {
+            if !upkeep_constrained
+                && let Some((kind, want)) =
+                    self.worker_production_choice_in_place(city, worker_cache)
+            {
                 consider(Production::Unit(kind), want);
             }
             drop(_profile);
@@ -869,6 +939,16 @@ impl Simulation {
             consider(choice.production, choice.want);
         }
         drop(_profile);
+        if best.is_none()
+            && upkeep_constrained
+            && !self.city_forecast(city).disorder
+            && self.can_change_production(city, Production::Building(Building::COINAGE))
+        {
+            return Some(AiBuildChoice {
+                production: Production::Building(Building::COINAGE),
+                want: 1.0,
+            });
+        }
         best
     }
 
@@ -896,6 +976,7 @@ impl Simulation {
             .collect();
         let wonder_city = self.ai_wonder_city(owner);
         let space_plan = self.space_production_plan(owner);
+        let upkeep_constrained = self.ai_unit_upkeep_constrained(owner);
         // Freeciv daicity.c:dai_manage_cities initializes infracache once
         // before contemplate_terrain_improvements visits the owner's cities.
         // This pass changes production targets, not the tiles, assignments,
@@ -917,6 +998,7 @@ impl Simulation {
                 wonder_city,
                 &mut worker_cache,
                 space_plan.as_ref(),
+                upkeep_constrained,
             ) {
                 choices.insert(id, choice);
                 if city.production != choice.production {

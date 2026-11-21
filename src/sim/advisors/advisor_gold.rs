@@ -201,6 +201,9 @@ impl Simulation {
                 || assessment.grave > 0
                 || matches!(city.production, Production::Unit(kind)
                     if kind.is_military() && assessment.defense == 0)
+                || matches!(city.production, Production::Building(building)
+                    if building == Building::APOLLO_PROGRAM
+                        || crate::sim::buildings::spaceship_part(building).is_some())
             {
                 continue;
             }

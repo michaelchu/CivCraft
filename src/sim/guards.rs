@@ -479,9 +479,10 @@ impl Simulation {
                     }
                 }
             }
-            if let Some(city) = self
-                .city_at_cached(x, y)
-                .filter(|city| city.owner == guard.owner)
+            if !guard.kind.is_naval()
+                && let Some(city) = self
+                    .city_at_cached(x, y)
+                    .filter(|city| city.owner == guard.owner)
             {
                 let data = self.advisor_guard_city_assessment(city);
                 if data.urgency <= 0 {
