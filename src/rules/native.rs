@@ -136,9 +136,6 @@ pub(crate) struct GovernmentCatalog {
     pub(crate) schema_version: u32,
     pub(crate) source: String,
     pub(crate) governments: Vec<NativeGovernment>,
-    pub(crate) assimilation: Vec<NativeAssimilation>,
-    pub(crate) resistance: Vec<NativeResistance>,
-    pub(crate) military_law: Vec<NativeMilitaryLaw>,
 }
 
 impl GovernmentCatalog {
@@ -166,31 +163,6 @@ pub(crate) struct NativeGovernment {
     pub(crate) city_free_units: i32,
     pub(crate) metropolis_free_units: i32,
     pub(crate) cost_per_excess_unit_gold: i32,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub(crate) struct NativeAssimilation {
-    pub(crate) id: String,
-    pub(crate) government: String,
-    pub(crate) assimilation_chance_percent: i32,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub(crate) struct NativeResistance {
-    pub(crate) id: String,
-    pub(crate) captor_name: String,
-    pub(crate) defender_name: String,
-    pub(crate) modifier: i32,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub(crate) struct NativeMilitaryLaw {
-    pub(crate) id: String,
-    pub(crate) difficulty: String,
-    pub(crate) military_law: i32,
 }
 
 #[derive(Debug, Deserialize)]
@@ -753,18 +725,6 @@ fn parse_governments(
         catalog.governments.iter().map(|g| g.government.as_str()),
         "government",
     )?;
-    validate_ids(
-        catalog.assimilation.iter().map(|r| r.id.as_str()),
-        "assimilation",
-    )?;
-    validate_ids(
-        catalog.resistance.iter().map(|r| r.id.as_str()),
-        "resistance",
-    )?;
-    validate_ids(
-        catalog.military_law.iter().map(|r| r.id.as_str()),
-        "military law",
-    )?;
     for government in &mut catalog.governments {
         if !government.required_technology.is_empty() {
             let index = super::technologies::runtime_index_in(
@@ -964,9 +924,6 @@ mod tests {
             governments().get("republic").unwrap().required_technology,
             "TECH_The_Republic"
         );
-        assert_eq!(governments().assimilation.len(), 8);
-        assert_eq!(governments().resistance.len(), 64);
-        assert_eq!(governments().military_law.len(), 8);
         assert_eq!(economy().schema_version, 1);
         assert_eq!(economy().resources.len(), 20);
         assert_eq!(settlements().schema_version, 1);

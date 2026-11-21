@@ -43,13 +43,15 @@ the test fixtures.
 
 `enslave_result` retains a native unit ID for the unfinished enslave mechanic;
 its presence does not promise execution support. Unused import bytes and indices
-have been removed. The current fixed `UnitKind` roster still requires Rust changes to introduce a new unit identity.
+have been removed. `UnitKind` is a data-driven index handle backed by
+`content/units.toml`.
 
 ## Buildings
 
-`content/buildings.toml` contains the 91 active runtime definitions. Each has a
-stable `id`, display name, genus, cost, upkeep, requirements, obsolescence, and
-flags. The original source records and import mappings have been removed.
+`content/buildings.toml` defines the active runtime improvements and wonders.
+Each has a stable `id`, display name, genus, cost, upkeep, requirements,
+obsolescence, and flags. The original source records and import mappings have been
+removed.
 
 Named requirement targets replace numeric references:
 
@@ -62,26 +64,27 @@ obsolete = [{ kind = "Tech", present = true, target = "TECH_Motorized_Transporta
 targets use strategic resource names. `OwnerBuildingCount` uses `count` for its
 threshold; scalar requirements such as `MinSize` retain `value`.
 
-Some inherited requirements refer to nonresearchable compatibility identities.
-Their `TECH_COMPAT_<index>` IDs preserve historical engine semantics. They do not
-add technologies to the campaign tree and should not be used to invent new ones.
+Some inherited requirements refer to nonresearchable compatibility identities
+using readable `TECH_COMPAT_<Name>` IDs (for example `TECH_COMPAT_Steam_Engine`
+or `TECH_COMPAT_Railroad`). They preserve historical engine gates without adding
+technologies to the research tree.
 
-Building IDs and obsolescence policy (`selected_obsolescence`) resolve directly
-from `content/buildings.toml`. Renumbering or extending the fixed runtime
-catalog still needs a Rust/save compatibility update until runtime IDs are
-decoupled from fixed enum/index constants; changing normal rule values does not.
+Building IDs, counts, and obsolescence policy (`selected_obsolescence`) resolve
+directly from `content/buildings.toml` via data-driven `Building` handles.
 
 ## Terrain and governments
 
-`engine/terrain.ruleset` owns terrain and road yields, movement, worker
-activity times, and climate transitions. Civ III terrain and resource identities
-and artwork mappings stay in their existing Rust adapters. The native economy
-catalog retains campaign resource yield overrides.
+Base terrain yields, road/railroad bonuses, and movement costs live in
+`src/rules/terrain_catalog.rs`, paired with `engine/terrain.ruleset` for Freeciv
+extras, resources, and worker activity parameters. Civ III terrain/resource
+identities and artwork mappings stay in their existing Rust adapters. `content/economy.toml`
+retains campaign resource yield overrides and city foodbox/economy rules.
 
-Government prerequisites in `content/governments.toml` use stable technology IDs.
-An empty prerequisite allows availability without research. An unknown ID
-fails catalog loading. `engine/effects.ruleset` supplies the rate cap, empire
-size and civil-war chance for every campaign government.
+Government definitions and unit-support rules live in `content/governments.toml`,
+backed by data-driven `Government` handles and validated against technology IDs.
+An empty prerequisite allows availability without research; an unknown ID fails
+catalog loading. `engine/effects.ruleset` supplies the rate cap, empire size,
+and civil-war chance for every campaign government.
 
 ## Supported states
 

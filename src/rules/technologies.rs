@@ -13,14 +13,37 @@ pub(crate) fn runtime_index_in(catalog: &TechnologyCatalog, id: &str) -> Option<
     catalog
         .technologies
         .iter()
-        .find(|d| d.id == id)
+        .find(|d| d.id == id || d.name.eq_ignore_ascii_case(id))
         .map(|d| d.runtime_index)
         .or_else(|| {
-            id.strip_prefix("TECH_COMPAT_")?
-                .parse::<usize>()
-                .ok()
-                .filter(|i| *i < 101)
+            let suffix = id.strip_prefix("TECH_COMPAT_")?;
+            compat_runtime_index(suffix)
+                .or_else(|| suffix.parse::<usize>().ok().filter(|i| *i < 101))
         })
+}
+
+fn compat_runtime_index(suffix: &str) -> Option<usize> {
+    match suffix.to_ascii_lowercase().replace('_', " ").as_str() {
+        "automobile" => Some(5),
+        "bridge building" => Some(7),
+        "combined arms" => Some(13),
+        "explosives" => Some(27),
+        "fusion power" => Some(30),
+        "genetic engineering" => Some(31),
+        "guerilla warfare" => Some(32),
+        "labor union" => Some(38),
+        "leadership" => Some(40),
+        "literacy" => Some(41),
+        "machine tools" => Some(42),
+        "radio" => Some(63),
+        "railroad" => Some(64),
+        "refrigeration" => Some(67),
+        "seafaring" => Some(71),
+        "steam engine" => Some(74),
+        "tactics" => Some(77),
+        "trade" => Some(83),
+        _ => None,
+    }
 }
 
 pub(crate) fn validate(technologies: &[NativeTechnology]) -> Result<(), String> {
@@ -134,6 +157,16 @@ mod tests {
             bad.prerequisites = Vec::new();
             assert!(validate(&[bad]).is_err());
         }
+    }
+
+    #[test]
+    fn resolves_ids_names_and_readable_compat_aliases() {
+        assert_eq!(runtime_index("TECH_Bronze_Working"), Some(8));
+        assert_eq!(runtime_index("Bronze Working"), Some(8));
+        assert_eq!(runtime_index("TECH_COMPAT_Steam_Engine"), Some(74));
+        assert_eq!(runtime_index("TECH_COMPAT_74"), Some(74));
+        assert_eq!(runtime_index("TECH_COMPAT_Railroad"), Some(64));
+        assert_eq!(runtime_index("TECH_COMPAT_Unknown"), None);
     }
 
     #[test]
