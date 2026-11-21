@@ -60,13 +60,11 @@ impl AssetRoots {
         } else {
             Self::default()
         };
-        if let Some(path) =
-            std::env::var_os("CIVCRAFT_SOURCE_DIR").or_else(|| std::env::var_os("CIV3_HOME"))
-        {
+        if let Some(path) = std::env::var_os("CIVCRAFT_SOURCE_DIR") {
             config.install = Some(path.into());
         }
         if !config.standalone && config.install.is_none() {
-            return Err("Set CIVCRAFT_SOURCE_DIR (or CIV3_HOME), or configure standalone packaged media with CIVCRAFT_MEDIA_CONFIG".into());
+            return Err("Set CIVCRAFT_SOURCE_DIR, or configure standalone packaged media with CIVCRAFT_MEDIA_CONFIG".into());
         }
         if config.standalone && config.packaged.is_empty() {
             return Err("Standalone media requires at least one packaged root".into());

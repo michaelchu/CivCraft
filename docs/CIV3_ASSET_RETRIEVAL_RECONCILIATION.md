@@ -47,8 +47,7 @@ The usual setup remains:
 CIVCRAFT_SOURCE_DIR=/path/to/CivilizationIII cargo run --release --features desktop-audio
 ```
 
-Any installation directory name works. `CIV3_HOME` is accepted when
-`CIVCRAFT_SOURCE_DIR` is absent. Steam/registry discovery is not required;
+Any installation directory name works. Steam/registry discovery is not required;
 without an explicit installation or standalone package configuration, startup
 reports how to configure one.
 
@@ -63,7 +62,7 @@ standalone = false
 ```
 
 Paths in the file are relative to that file's directory unless absolute.
-`CIVCRAFT_SOURCE_DIR`, then `CIV3_HOME`, override `install`. Unknown configuration
+`CIVCRAFT_SOURCE_DIR` overrides `install`. Unknown configuration
 fields are rejected. Scenario/package roots contain logical paths such as
 `Art/Terrain/xtgc.pcx` and `Sounds/build/ancient/AncGRfull.mp3`; callers supply
 ordered roots explicitly rather than guessing scenario locations.
