@@ -11,10 +11,8 @@ are outside this migration.
 
 | Owner | Contents |
 | --- | --- |
-| `data/rulesets/civcraft/content/` | Gameplay values, unit/building definitions, economy, governments, AI priorities, and village reward weights |
-| `src/rules/technologies.rs` | Technology identities, research costs, prerequisites, eras, capabilities, display metadata, and stable serialized indices |
-| `data/rulesets/civcraft/engine/` | Generic effects, action enablers, terrain and road rules, and remaining engine settings, using the engine's existing ruleset format |
-| `src/rules/compatibility.rs` | Stable building save identities and the existing obsolescence selection policy |
+| `data/rulesets/civcraft/content/` | Gameplay values, unit/building/technology definitions, economy, governments, AI priorities, diplomacy/strategy/vassalage/religion policies, and village reward weights |
+| `data/rulesets/civcraft/engine/` | Generic effects, action enablers, unit classes, extras/resources, and remaining engine settings, using the engine's existing ruleset format |
 | Rust simulation modules | Formulas, rule interpretation, state execution, validation, and turn processing |
 | `data/presentation/` | Animation pacing, independent of gameplay rules |
 | Campaign saves | Current health, activities, discovered technologies, research progress, owned buildings, and other mutable state |
@@ -68,10 +66,10 @@ Some inherited requirements refer to nonresearchable compatibility identities.
 Their `TECH_COMPAT_<index>` IDs preserve historical engine semantics. They do not
 add technologies to the campaign tree and should not be used to invent new ones.
 
-Building IDs resolve through internal serialized indices; author record order
-does not change save identities. Renumbering or extending the fixed runtime
-catalog needs an explicit Rust/save
-compatibility change; changing normal rule values does not.
+Building IDs and obsolescence policy (`selected_obsolescence`) resolve directly
+from `content/buildings.toml`. Renumbering or extending the fixed runtime
+catalog still needs a Rust/save compatibility update until runtime IDs are
+decoupled from fixed enum/index constants; changing normal rule values does not.
 
 ## Terrain and governments
 
@@ -118,15 +116,11 @@ gold amounts or map radii fail validation.
 
 ## Compatibility and evidence
 
-Native catalogs load directly from their TOML definitions. The technology tree
-constructs directly from Rust definitions. Neither path joins source records or
-requires BIQ files, hashes, source indices, or raw flag encodings.
-
-Building IDs resolve through `src/rules/compatibility.rs`, whose array positions
-are existing serialized identities. The table also retains the prior choice
-between selected-rule and legacy obsolescence behavior; removing source records
-must not change that gameplay policy. This table is a native compatibility
-contract, not a BIQ catalog. Existing unit and technology save identities remain
+Native catalogs load directly from `data/rulesets/civcraft/content/*.toml`
+via `src/rules/native.rs` and `src/rules/policies.rs`. Neither path joins
+source records or requires BIQ files, hashes, source indices, or raw flag
+encodings. Building obsolescence policy (`selected_obsolescence`) lives directly
+in `content/buildings.toml`. Existing unit and technology save identities remain
 unchanged.
 
 Civilizations use stable IDs for saved identity, starting profiles and unit
