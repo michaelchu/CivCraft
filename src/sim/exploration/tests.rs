@@ -63,7 +63,11 @@ fn group_goto_ends_automation_only_for_units_given_the_order() {
     let other = game.spawn_unit(HUMAN, UnitKind::Warrior, 10, 20);
     game.refresh_visibility();
     for id in [first, second, other] {
-        assert!(game.apply(Command::Automate(id)));
+        game.units
+            .iter_mut()
+            .find(|unit| unit.id == id)
+            .unwrap()
+            .automated = true;
     }
     let (x, y) = game.map_wrap.civ3_neighbor(10, 20, 2).unwrap();
     assert!(game.apply(Command::GoToGroup(vec![first, second], x, y)));
@@ -74,6 +78,30 @@ fn group_goto_ends_automation_only_for_units_given_the_order() {
         assert!(!unit.automated);
     }
     assert!(game.unit_by_id(other).unwrap().automated);
+}
+
+#[test]
+fn automate_command_acts_immediately_when_unit_has_moves_left() {
+    let mut game = world();
+    let home = (10, 20);
+    game.create_city(HUMAN, home.0, home.1);
+    let explorer = game.spawn_unit(HUMAN, UnitKind::Warrior, home.0, home.1);
+    let worker = game.spawn_unit(HUMAN, UnitKind::Worker, home.0, home.1);
+    game.refresh_visibility();
+
+    assert!(game.apply(Command::Automate(explorer)));
+    let explorer_unit = game.unit_by_id(explorer).unwrap();
+    assert!(explorer_unit.automated);
+    assert_ne!((explorer_unit.x, explorer_unit.y), home);
+    assert_eq!(explorer_unit.moves_left, 0);
+
+    assert!(game.apply(Command::Automate(worker)));
+    let worker_unit = game.unit_by_id(worker).unwrap();
+    assert!(worker_unit.automated);
+    assert!(
+        (worker_unit.x, worker_unit.y) != home || worker_unit.work_left > 0,
+        "automated worker should move or begin work immediately"
+    );
 }
 
 #[test]

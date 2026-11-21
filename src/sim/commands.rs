@@ -212,7 +212,7 @@ impl Simulation {
             Fortify(id) => self.fortify_unit(id),
             FormArmy(id) => self.form_army(id),
             Sentry(id) => self.set_unit_sentry(id),
-            Automate(_) => {
+            Automate(id) => {
                 let unit = &mut self.units[unit_index.unwrap()];
                 // common/unit.c: ACTIVITY_EXPLORE excludes fuelled types and
                 // helicopter-class units that lose HP away from a base.
@@ -222,9 +222,14 @@ impl Simulation {
                     return false;
                 }
                 unit.automated = !unit.automated;
-                if unit.automated && !unit.kind.stats().can_work {
+                let now_automated = unit.automated;
+                let has_moves = unit.moves_left > 0;
+                if now_automated && !unit.kind.stats().can_work {
                     unit.clear_work();
                     unit.state = UnitState::Idle;
+                }
+                if now_automated && has_moves {
+                    self.run_automated_unit(id);
                 }
                 true
             }
