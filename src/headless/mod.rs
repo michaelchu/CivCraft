@@ -188,6 +188,12 @@ pub(crate) fn run(config: Config) -> Result<(), String> {
         scenario.game.game_over(),
         scenario.game.trace.dropped(),
     )?;
+    if let Some(path) = &config.save_campaign {
+        scenario
+            .game
+            .save_campaign(path)
+            .map_err(|e| format!("failed to save campaign {}: {e}", path.display()))?;
+    }
     println!(
         "Completed {turns} turns; stop reason: {reason}. Report: {}",
         config.report

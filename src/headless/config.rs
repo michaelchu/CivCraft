@@ -27,6 +27,7 @@ pub(crate) struct Config {
     pub stop_on_finding: String,
     pub scenario: Option<String>,
     pub load_campaign: Option<PathBuf>,
+    pub save_campaign: Option<PathBuf>,
     pub profile_turns: bool,
 }
 fn list(text: &str) -> Vec<String> {
@@ -77,6 +78,7 @@ impl Config {
             "--stop-on-finding",
             "--scenario",
             "--load-campaign",
+            "--save-campaign",
             "--profile-turns",
         ];
         let values = parse_options(args, |flag| {
@@ -143,6 +145,9 @@ impl Config {
         let load_campaign = values
             .get("--load-campaign")
             .map(|value| PathBuf::from(*value));
+        let save_campaign = values
+            .get("--save-campaign")
+            .map(|value| PathBuf::from(*value));
         if scenario.is_some() && load_campaign.is_some() {
             return Err("--scenario and --load-campaign are mutually exclusive".into());
         }
@@ -180,6 +185,7 @@ impl Config {
             stop_on_finding: stop.into(),
             scenario,
             load_campaign,
+            save_campaign,
             profile_turns,
         })
     }
@@ -193,7 +199,7 @@ impl Config {
     }
     pub fn metadata(&self, world: &WorldProvenance) -> serde_json::Value {
         json!({"seed":world.seed,"map_size":world.size.to_string(),"requested_turns":self.turns,
-            "scenario":self.scenario,"load_campaign":self.load_campaign,
+            "scenario":self.scenario,"load_campaign":self.load_campaign,"save_campaign":self.save_campaign,
             "map_generator":world.generator.map(|generator| generator.name()),
             "world_settings":world.settings,
             "checkpoint_every":self.checkpoint_every,"trace_domains":self.trace_domains,"trace_entities":self.trace_entities,
@@ -215,7 +221,7 @@ pub(crate) const HELP: &str = "Headless AI simulator\n\
 minimap is selected via snapshot providers and exports one final PNG only\n\
 --stop-on-finding none|any|invariant --checkpoint-every 10\n\
 --profile-turns true|false (records per-turn phase timings)\n\
---scenario NAME | --load-campaign PATH; --list-scenarios\n\
+--scenario NAME | --load-campaign PATH; --save-campaign PATH; --list-scenarios\n\
 World setup: --map-generator fractal|opensimplex (default fractal)\n\
 OpenSimplex only: --ocean-coverage 60|70|80 --climate arid|normal|wet --world-age 3|4|5\n\
 --landform archipelago|continents|pangaea --temperature cool|temperate|warm";

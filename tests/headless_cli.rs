@@ -683,3 +683,55 @@ fn report_reader_handles_legacy_raw_streams_and_ignores_unpublished_tail() {
         .failure();
     std::fs::remove_dir_all(directory).unwrap();
 }
+
+#[test]
+fn saves_and_reloads_campaign_checkpoint() {
+    let directory = report_directory("save-campaign");
+    let save_path = directory.join("checkpoint.save");
+    let first_report = directory.join("part1.json");
+    let second_report = directory.join("part2.json");
+    headless()
+        .args([
+            "--seed",
+            "42",
+            "--turns",
+            "2",
+            "--analytics",
+            "none",
+            "--snapshot-providers",
+            "none",
+            "--trace-domains",
+            "none",
+            "--save-campaign",
+        ])
+        .arg(&save_path)
+        .arg("--report")
+        .arg(&first_report)
+        .assert()
+        .success();
+    assert!(save_path.exists());
+    headless()
+        .args(["--load-campaign"])
+        .arg(&save_path)
+        .args([
+            "--turns",
+            "2",
+            "--analytics",
+            "none",
+            "--snapshot-providers",
+            "none",
+            "--trace-domains",
+            "none",
+            "--report",
+        ])
+        .arg(&second_report)
+        .assert()
+        .success();
+    let part2 = read_report(&second_report);
+    assert_eq!(part2["run"]["turns_simulated"], 2);
+    assert_eq!(
+        part2["timeline"].as_array().unwrap().last().unwrap()["turn"],
+        5
+    );
+    std::fs::remove_dir_all(directory).unwrap();
+}

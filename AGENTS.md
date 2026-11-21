@@ -336,9 +336,21 @@ cargo run --offline --release --bin headless_sim -- \
   --scenario campaign-readiness-presets --seed 42 --turns 1 \
   --report /tmp/civcraft-readiness.json
 cargo run --offline --release --bin headless_sim -- \
-  --load-campaign /path/to/campaign.save --turns 10 \
-  --report /tmp/civcraft-campaign.json
+  --seed 42 --turns 200 --save-campaign /tmp/civcraft-seed42-t200.save \
+  --report /tmp/civcraft-seed42-t200.json
+cargo run --offline --release --bin headless_sim -- \
+  --load-campaign /tmp/civcraft-seed42-t200.save --turns 50 \
+  --profile-turns true --report /tmp/civcraft-late-check.json
 ```
+
+For late-game performance profiling or AI unit/economy iteration, create a
+campaign checkpoint once (unprofiled `--release`, up to the era of interest)
+with `--save-campaign` and replay focused 20–50 turn windows with
+`--load-campaign` instead of re-running from turn 1. Use an earlier checkpoint
+(e.g. turn 200) when testing AI planning changes whose effects accumulate before
+the endgame, or a later checkpoint (e.g. turn 350+) for pure endgame profiling.
+Regenerate the checkpoint if the save schema changes, and run a full campaign
+pass only for final verification.
 
 Require a zero exit status and inspect `summary.scenario_checks_passed`,
 `summary.scenario_checks_total`, and every entry under `run.scenario.checks`.
