@@ -313,7 +313,8 @@ fn zero_range_bombarder_fires_one_defensive_shot_on_tile_attack() {
     }
     game.sign_pact(HUMAN, 1, Pact::War);
     let attacker = game.spawn_unit(1, UnitKind::Warrior, sx, sy);
-    game.spawn_unit(HUMAN, UnitKind::Spearman, tx, ty);
+    let spearman = game.spawn_unit(HUMAN, UnitKind::Spearman, tx, ty);
+    game.units.iter_mut().find(|u| u.id == spearman).unwrap().hp = 10;
     let archer = game.spawn_unit(HUMAN, UnitKind::Archer, tx, ty);
     assert_eq!(UnitKind::Archer.bombard_range(), 0);
     assert!(UnitKind::Archer.bombard_strength() > 0);
@@ -1837,10 +1838,19 @@ mod transport_tests {
     fn combustion_transport_carries_its_imported_capacity_of_heavy_units() {
         let mut game = Simulation::new(crate::test_support::seeded_map());
         game.units.clear();
+        game.cities.clear();
         let (x, y) = (10, 20);
         let (sx, sy) = offset_native_by_map(x, y, 1, 0);
-        game.tile_mut(x, y).terrain = Terrain::Grassland;
-        game.tile_mut(sx, sy).terrain = Terrain::Sea;
+        for (tx, ty, terrain) in [(x, y, Terrain::Grassland), (sx, sy, Terrain::Sea)] {
+            let tile = game.tile_mut(tx, ty);
+            tile.terrain = terrain;
+            tile.hut = false;
+            tile.base = None;
+            tile.river = false;
+            tile.road = false;
+            tile.railroad = false;
+            tile.owner = None;
+        }
         game.create_city(HUMAN, x, y);
         let oil = offset_native_by_map(x, y, -1, 0);
         let oil_tile = game.tile_mut(oil.0, oil.1);
@@ -1910,10 +1920,19 @@ mod transport_tests {
     fn adjacent_embark_respects_cargo_class_and_capacity() {
         let mut game = Simulation::new(crate::test_support::seeded_map());
         game.units.clear();
+        game.cities.clear();
         let (x, y) = (10, 20);
         let (sx, sy) = offset_native_by_map(x, y, 1, 0);
-        game.tile_mut(x, y).terrain = Terrain::Grassland;
-        game.tile_mut(sx, sy).terrain = Terrain::Sea;
+        for (tx, ty, terrain) in [(x, y, Terrain::Grassland), (sx, sy, Terrain::Sea)] {
+            let tile = game.tile_mut(tx, ty);
+            tile.terrain = terrain;
+            tile.hut = false;
+            tile.base = None;
+            tile.river = false;
+            tile.road = false;
+            tile.railroad = false;
+            tile.owner = None;
+        }
         let ship = game.spawn_unit(HUMAN, UnitKind::Caravel, sx, sy);
         let warrior = game.spawn_unit(HUMAN, UnitKind::Warrior, x, y);
         assert!(game.apply(Command::move_civ3_by_offset(&game, warrior, 1, 0)));

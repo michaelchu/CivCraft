@@ -99,6 +99,9 @@ mod tests {
     #[test]
     fn worklist_skips_unavailable_items_and_preserves_order_and_shields() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
+        for (_, _, x, y) in Simulation::city_radius_at(10, 20) {
+            game.tile_mut(x, y).terrain = Terrain::Grassland;
+        }
         game.create_city(HUMAN, 10, 20);
         let id = game.cities[0].id;
         let granary = Production::Building(Building::GRANARY);

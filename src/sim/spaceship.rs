@@ -356,6 +356,9 @@ mod tests {
     use super::*;
 
     fn launch_ready_human_ship(game: &mut Simulation) {
+        for (_, _, x, y) in Simulation::city_radius_at(10, 20) {
+            game.tile_mut(x, y).terrain = Terrain::Grassland;
+        }
         game.create_city(HUMAN, 10, 20);
         game.apollo_completed = true;
         for (kind, count) in [(2, 12), (1, 16), (0, 32)] {

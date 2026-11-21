@@ -454,6 +454,9 @@ mod tests {
     #[test]
     fn multicultural_achievement_counts_nationalities_across_owned_cities() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
+        for (_, _, x, y) in Simulation::city_radius_at(10, 20) {
+            game.tile_mut(x, y).terrain = Terrain::Grassland;
+        }
         game.sign_pact(HUMAN, 1, Pact::War);
         game.create_city(HUMAN, 10, 20);
         let (attacker, target) = game.multicultural_fixture();

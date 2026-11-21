@@ -295,6 +295,9 @@ fn bombard_does_not_damage_a_hidden_or_unreachable_unit_in_a_visible_stack() {
 #[test]
 fn airlift_uses_airport_capacity_and_resets_next_turn() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
+    for (_, _, x, y) in Simulation::city_radius_at(10, 20) {
+        game.tile_mut(x, y).terrain = Terrain::Grassland;
+    }
     game.create_city(HUMAN, 10, 20);
     let (first, second, destination) = game.airlift_fixture();
     assert!(game.apply(Command::Airlift(first, destination)));
@@ -1386,6 +1389,12 @@ fn bombard_rate_scales_with_health_and_matches_per_target_rng_draws() {
         tile.terrain = Terrain::Grassland;
         tile.base = None;
         tile.hut = false;
+        tile.river = false;
+        tile.river_edges = 0;
+        tile.road = false;
+        tile.railroad = false;
+        tile.mine = false;
+        tile.irrigation = false;
     }
     game.tile_mut(tx, ty).owner = Some(1);
     game.sign_pact(HUMAN, 1, Pact::War);
@@ -1404,12 +1413,17 @@ fn bombard_rate_scales_with_health_and_matches_per_target_rng_draws() {
     assert_eq!(rate, 1, "C2C3 reduces rate of fire with current HP");
     assert!(!game.combat_target_reachable(UnitKind::Bomber, UnitKind::Fighter, tx, ty));
 
-    let targets = [first, second];
-    let attack = game.attack_power_against_with_base(
+    let targets: Vec<_> = game
+        .tile_units_ordered(tx, ty)
+        .filter(|u| u.id == first || u.id == second)
+        .map(|u| u.id)
+        .collect();
+    let attack = game.attack_power_against_with_base_for_action(
         &bomb_unit,
         tx,
         ty,
         UnitKind::Bomber.bombard_strength(),
+        "Bombard",
     );
     let mut expected = game.clone();
     let mut expected_hp = Vec::new();

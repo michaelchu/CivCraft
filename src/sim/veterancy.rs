@@ -236,6 +236,9 @@ mod tests {
     #[test]
     fn barracks_production_completes_as_veteran_after_a_turn() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
+        for (_, _, x, y) in Simulation::city_radius_at(10, 20) {
+            game.tile_mut(x, y).terrain = Terrain::Grassland;
+        }
         game.create_city(HUMAN, 10, 20);
         let (city, expected_rank) = game.veteran_fixture();
         let city_state = game.city_by_id(city).unwrap();

@@ -4,6 +4,8 @@ use super::*;
 
 impl Simulation {
     pub(crate) fn ferry_research_test(&mut self) -> (bool, bool, bool) {
+        self.units.clear();
+        self.cities.clear();
         let (x, y) = (10, 24);
         for (nx, ny) in self.map_wrap.civ3_neighbors(x, y).chain([(x, y)]) {
             self.tile_mut(nx, ny).terrain = Terrain::Grassland;
@@ -13,16 +15,15 @@ impl Simulation {
         self.players[1].research_goal = Tech::BRONZE_WORKING;
         let inland = self.ferry_tech_want(1, Tech::MAP_MAKING) == 0
             && self.research_target(1) == Tech::BRONZE_WORKING;
-        let (sx, sy) = offset_native_by_map(x, y, 1, 0);
         // The inland case has several good local sites. Once it is turned
         // into a coastal port, remove those sites so the C2C3 settler advisor
         // has a real ferry need (daisettler.c stops at RESULT_IS_ENOUGH).
-        for (nx, ny) in self.map_wrap.civ3_neighbors(x, y) {
-            if (nx, ny) != (sx, sy) {
-                self.tile_mut(nx, ny).terrain = Terrain::Sea;
+        let center_idx = self.map_wrap.index(x, y);
+        for (idx, tile) in self.tiles.iter_mut().enumerate() {
+            if idx != center_idx {
+                tile.terrain = Terrain::Sea;
             }
         }
-        self.tile_mut(sx, sy).terrain = Terrain::Sea;
         let path = self.research_path(1, Tech::MAP_MAKING);
         let coastal = self.ferry_tech_want(1, Tech::MAP_MAKING) == 500
             && path.first().copied() == Some(self.research_target(1));

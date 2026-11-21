@@ -751,6 +751,9 @@ mod transaction_tests {
     #[test]
     fn only_regular_buildings_can_be_sold_and_only_one_per_turn() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
+        for (_, _, x, y) in Simulation::city_radius_at(10, 20) {
+            game.tile_mut(x, y).terrain = Terrain::Grassland;
+        }
         game.create_city(HUMAN, 10, 20);
         let id = game.cities[0].id;
         game.cities[0]
