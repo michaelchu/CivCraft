@@ -31,12 +31,13 @@ impl AdvisorCaches {
         topology: MapWrap,
         order: &ListOrder,
         continents: Arc<[usize]>,
+        sea_regions: Arc<[usize]>,
     ) {
         self.threats.begin();
         // Founder-phase memoizations keep their existing selective lifetime.
         self.memos.clear_invasion_support();
         *self.spatial.borrow_mut() =
-            spatial::SpatialSnapshot::new(units, cities, topology, order, continents);
+            spatial::SpatialSnapshot::new(units, cities, topology, order, continents, sea_regions);
         self.active.set(true);
     }
 
@@ -89,6 +90,10 @@ impl AdvisorCaches {
         self.spatial.borrow().continent_labels()
     }
 
+    pub(in crate::sim) fn sea_region_labels(&self, city_count: usize) -> Option<Arc<[usize]>> {
+        self.spatial.borrow().sea_region_labels(city_count)
+    }
+
     pub(in crate::sim) fn ordered_tile_units<'a>(
         &self,
         tile: usize,
@@ -109,6 +114,7 @@ impl Simulation {
             self.map_wrap,
             &self.list_order,
             self.continent_labels(),
+            self.sea_region_labels(),
         );
     }
 

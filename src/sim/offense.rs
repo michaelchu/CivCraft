@@ -354,6 +354,7 @@ impl Simulation {
         if assessment.danger != 0 && assessment.defense == 0 {
             return (choice, research, replaced);
         }
+        let connectivity = self.movement_connectivity(city.owner);
         for sea in [true, false] {
             let Some(seed_kind) = self.offensive_seed(city, sea) else {
                 continue;
@@ -514,8 +515,12 @@ impl Simulation {
                 {
                     cached_turns
                 } else {
-                    let computed =
-                        self.offensive_candidate_turns(&candidate, &target, ferry_path.as_mut());
+                    let computed = self.offensive_candidate_turns_with_connectivity(
+                        &candidate,
+                        &target,
+                        ferry_path.as_mut(),
+                        &connectivity,
+                    );
                     route_memo.push((route_key, computed));
                     computed
                 };

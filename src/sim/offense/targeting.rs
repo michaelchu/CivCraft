@@ -187,6 +187,7 @@ impl super::Simulation {
             return None;
         }
         let mut map = NormalPaths::attack_map(self, seed);
+        let connectivity = self.movement_connectivity(seed.owner);
         let cached;
         let live;
         let invasion_support = if virtual_unit {
@@ -229,7 +230,16 @@ impl super::Simulation {
             };
             for enemy in pass_cities {
                 let mut by_boat = false;
-                let mut direct = if bounded {
+                let direct_possible = connectivity.can_directly_reach_tile(
+                    self,
+                    seed.kind,
+                    (seed.x, seed.y),
+                    (enemy.x, enemy.y),
+                    false,
+                );
+                let mut direct = if !direct_possible {
+                    None
+                } else if bounded {
                     map.position_turn_within(self, enemy.x, enemy.y, 10)
                 } else {
                     map.position_turn(self, enemy.x, enemy.y)
@@ -245,7 +255,7 @@ impl super::Simulation {
                         .map(|boat| NormalPaths::overlap_map(self, boat));
                     ferry_initialized = true;
                 }
-                if direct.is_none() && bounded && ferry_map.is_some() {
+                if direct.is_none() && direct_possible && bounded && ferry_map.is_some() {
                     // Only use a ferry when the enemy city is truly unreachable
                     // by land, not merely farther than 10 turns on the same landmass.
                     direct = map.position_turn(self, enemy.x, enemy.y);
@@ -393,6 +403,13 @@ impl super::Simulation {
                             || self.any_city_at_cached(enemy.x, enemy.y)
                             || virtual_unit && !enemy.kind.has_hostile_action()
                             || !self.offensive_can_attack(seed.kind, enemy.x, enemy.y)
+                            || !connectivity.can_directly_reach_tile(
+                                self,
+                                seed.kind,
+                                (seed.x, seed.y),
+                                (enemy.x, enemy.y),
+                                true,
+                            )
                             || self.best_defender_id(seed, enemy.x, enemy.y) != Some(enemy.id)
                         {
                             continue;
@@ -532,14 +549,41 @@ impl super::Simulation {
         }
     }
 
+    #[cfg(test)]
     pub(super) fn offensive_candidate_turns(
         &self,
         candidate: &Unit,
         target: &OffensiveTarget,
         ferry_map: Option<&mut NormalPaths>,
     ) -> Option<i32> {
+        let connectivity = self.movement_connectivity(candidate.owner);
+        self.offensive_candidate_turns_with_connectivity(
+            candidate,
+            target,
+            ferry_map,
+            &connectivity,
+        )
+    }
+
+    pub(super) fn offensive_candidate_turns_with_connectivity(
+        &self,
+        candidate: &Unit,
+        target: &OffensiveTarget,
+        ferry_map: Option<&mut NormalPaths>,
+        connectivity: &crate::sim::ai::MovementConnectivity,
+    ) -> Option<i32> {
         let _profile = self.trace.profiler().scope("offense.candidate_route");
         self.trace.count_operation("offensive.candidate_routes", 1);
+        let direct_possible = connectivity.can_directly_reach_tile(
+            self,
+            candidate.kind,
+            (candidate.x, candidate.y),
+            (target.x, target.y),
+            target.city.is_none(),
+        );
+        if (target.ferry.is_none() || ferry_map.is_none()) && !direct_possible {
+            return None;
+        }
         let _map_profile = self
             .trace
             .profiler()
@@ -590,6 +634,8 @@ impl super::Simulation {
         }
         if let Some(turns) = turns {
             Some(turns)
+        } else if !direct_possible {
+            None
         } else {
             let _profile = self
                 .trace

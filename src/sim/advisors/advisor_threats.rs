@@ -132,6 +132,15 @@ impl Simulation {
         }
     }
 
+    pub(in crate::sim) fn advisor_sea_regions(&self) -> std::sync::Arc<[usize]> {
+        if self.advisor_cache.active()
+            && let Some(labels) = self.advisor_cache.sea_region_labels(self.cities.len())
+        {
+            return labels;
+        }
+        self.sea_region_labels()
+    }
+
     pub(in crate::sim) fn city_threats<'a>(
         &'a self,
         city: &'a City,

@@ -20,7 +20,7 @@ mod ground_invasion;
 pub(super) use ground_invasion::SharedInvasionSupport;
 mod hunter;
 mod planning;
-pub(super) use planning::PlanningCaches;
+pub(super) use planning::{MovementConnectivity, PlanningCaches};
 mod space_race;
 mod unit_automation;
 

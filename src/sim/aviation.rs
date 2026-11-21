@@ -551,8 +551,28 @@ impl Simulation {
         // Pre-filter and score each target tile once: both target availability
         // and tile value are independent of the firing position (px, py).
         // Sorting by value descending enables exact branch-and-bound pruning.
+        let connectivity = self.movement_connectivity(unit.owner);
         let mut scored_targets = Vec::with_capacity(target_tiles.len());
         for (tx, ty) in target_tiles {
+            let has_reachable_firing_component = self
+                .map_wrap
+                .civ3_radius(tx, ty, range)
+                .into_iter()
+                .any(|(px, py, distance)| {
+                    distance > 0
+                        && (px, py) != (unit.x, unit.y)
+                        && self.tile(px, py).known_by[unit.owner]
+                        && connectivity.can_directly_reach_tile(
+                            self,
+                            unit.kind,
+                            (unit.x, unit.y),
+                            (px, py),
+                            false,
+                        )
+                });
+            if !has_reachable_firing_component {
+                continue;
+            }
             if !self.bombard_action_available_at_tile(unit, tx, ty) {
                 continue;
             }
@@ -600,6 +620,13 @@ impl Simulation {
                 if distance == 0
                     || (px, py) == (unit.x, unit.y)
                     || !self.tile(px, py).known_by[unit.owner]
+                    || !connectivity.can_directly_reach_tile(
+                        self,
+                        unit.kind,
+                        (unit.x, unit.y),
+                        (px, py),
+                        false,
+                    )
                     || self
                         .city_at(px, py)
                         .is_some_and(|city| city.owner != unit.owner)

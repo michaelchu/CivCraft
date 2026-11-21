@@ -12,6 +12,7 @@ pub(super) struct SpatialSnapshot {
     tile_revision: u64,
     city_at: Vec<Option<usize>>,
     continents: Arc<[usize]>,
+    sea_regions: (usize, Arc<[usize]>),
 }
 
 impl SpatialSnapshot {
@@ -21,6 +22,7 @@ impl SpatialSnapshot {
         topology: MapWrap,
         order: &ListOrder,
         continents: Arc<[usize]>,
+        sea_regions: Arc<[usize]>,
     ) -> Self {
         let tile_count = topology.tile_count();
         let mut tile_units = vec![Vec::new(); tile_count];
@@ -49,6 +51,7 @@ impl SpatialSnapshot {
             tile_revision: order.tile_revision(),
             city_at,
             continents,
+            sea_regions: (cities.len(), sea_regions),
         }
     }
 
@@ -74,6 +77,10 @@ impl SpatialSnapshot {
 
     pub(super) fn continent_labels(&self) -> Arc<[usize]> {
         self.continents.clone()
+    }
+
+    pub(super) fn sea_region_labels(&self, city_count: usize) -> Option<Arc<[usize]>> {
+        (self.sea_regions.0 == city_count).then(|| self.sea_regions.1.clone())
     }
 
     pub(super) fn ordered_tile_units<'a>(
