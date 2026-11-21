@@ -72,7 +72,7 @@ impl Simulation {
                 .map(|&government| Candidate {
                     government,
                     available: self.government_available(owner, government),
-                    score: cache.map(|c| c.scores[government as usize]),
+                    score: cache.and_then(|c| c.scores.get(government.index()).copied()),
                 })
                 .collect(),
         }
@@ -156,9 +156,9 @@ mod tests {
             serde_json::from_value(decision.payload.clone()).unwrap();
         assert_eq!(Some(decision.selected), decision.advice.best_available);
         assert!(decision.advice.candidates.iter().all(|c| c.score.is_some()));
-        game.players[1].government = Government::Despotism;
+        game.players[1].government = Government::DESPOTISM;
         game.players[1].known.push(Tech::MONARCHY);
-        assert!(game.change_government(1, Government::Monarchy));
+        assert!(game.change_government(1, Government::MONARCHY));
         game.finish_revolutions();
         let events = game.trace.drain();
         assert!(

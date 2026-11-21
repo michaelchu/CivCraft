@@ -241,7 +241,7 @@ mod tests {
     #[test]
     fn c2c3_partisan_callback_spawns_only_when_selected_effects_match() {
         let (mut game, city) = captured_city_fixture();
-        game.players[1].government = Government::Communism;
+        game.players[1].government = Government::COMMUNISM;
         game.players[1]
             .known
             .extend([Tech::COMMUNISM, Tech::GUNPOWDER]);
@@ -268,7 +268,7 @@ mod tests {
             &city_record,
         );
         assert_eq!(context.effect(EffectKind::InspirePartisans), 0);
-        game.players[1].government = Government::Democracy;
+        game.players[1].government = Government::DEMOCRACY;
         game.players[1]
             .known
             .extend([Tech::COMMUNISM, Tech::GUNPOWDER]);

@@ -57,13 +57,13 @@ mod ai_integration_tests {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         game.government_ui_fixture();
 
-        assert_eq!(game.players[HUMAN].government, Government::Republic);
-        assert!(!game.apply(Command::Government(Government::Monarchy)));
-        assert!(game.apply(Command::Government(Government::Despotism)));
-        assert_eq!(game.players[HUMAN].government, Government::Anarchy);
+        assert_eq!(game.players[HUMAN].government, Government::REPUBLIC);
+        assert!(!game.apply(Command::Government(Government::MONARCHY)));
+        assert!(game.apply(Command::Government(Government::DESPOTISM)));
+        assert_eq!(game.players[HUMAN].government, Government::ANARCHY);
         assert_eq!(
             game.players[HUMAN].revolution_target,
-            Some(Government::Despotism)
+            Some(Government::DESPOTISM)
         );
     }
 

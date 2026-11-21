@@ -659,7 +659,7 @@ mod upkeep_tests {
     #[test]
     fn native_unit_support_does_not_consume_shields_or_disband_units() {
         let mut game = flat_game();
-        game.players[HUMAN].government = Government::Republic;
+        game.players[HUMAN].government = Government::REPUBLIC;
         let city_id = game.cities[0].id;
         let older = add_supported_unit(&mut game, city_id, UnitKind::Warrior);
         let newer = add_supported_unit(&mut game, city_id, UnitKind::Warrior);
@@ -674,7 +674,7 @@ mod upkeep_tests {
     #[test]
     fn newly_built_units_share_the_national_support_allowance() {
         let mut game = flat_game();
-        game.players[HUMAN].government = Government::Despotism;
+        game.players[HUMAN].government = Government::DESPOTISM;
         let city_id = game.cities[0].id;
         for _ in 0..4 {
             add_supported_unit(&mut game, city_id, UnitKind::Warrior);

@@ -136,9 +136,9 @@ impl Simulation {
                 self.cities.last_mut()?.size = 8;
             }
         }
-        self.players[rival].government = Government::Despotism;
+        self.players[rival].government = Government::DESPOTISM;
         self.players[rival].rates = [60, 40, 0];
-        self.players[HUMAN].government = Government::Democracy;
+        self.players[HUMAN].government = Government::DEMOCRACY;
         self.refresh_visibility();
         Some((self.spawn_unit(HUMAN, UnitKind::Warrior, x, y), direction))
     }

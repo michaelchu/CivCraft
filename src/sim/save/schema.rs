@@ -27,7 +27,7 @@ struct SavedCore<'a> {
     apollo_completed: bool,
     global_advances: Cow<'a, [Tech]>,
     players: Cow<'a, [Player]>,
-    government_adoptions: [i32; Government::COUNT],
+    government_adoptions: Cow<'a, [i32]>,
     turn: i32,
     year: i32,
     year_0_hack: bool,
@@ -111,7 +111,7 @@ impl<'a> SavedCampaign<'a> {
                 apollo_completed: game.apollo_completed,
                 global_advances: Cow::Borrowed(&game.global_advances),
                 players: Cow::Borrowed(&game.players),
-                government_adoptions: game.government_adoptions,
+                government_adoptions: Cow::Borrowed(&game.government_adoptions),
                 turn: game.turn,
                 year: game.year,
                 year_0_hack: game.year_0_hack,
@@ -174,7 +174,11 @@ impl<'a> SavedCampaign<'a> {
             apollo_completed: core.apollo_completed,
             global_advances: core.global_advances.into_owned(),
             players: core.players.into_owned(),
-            government_adoptions: core.government_adoptions,
+            government_adoptions: {
+                let mut adoptions = core.government_adoptions.into_owned();
+                adoptions.resize(Government::count(), 0);
+                adoptions
+            },
             turn: core.turn,
             year: core.year,
             year_0_hack: core.year_0_hack,

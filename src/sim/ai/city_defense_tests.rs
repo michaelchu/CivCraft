@@ -19,7 +19,7 @@ fn city_fixture(size: i32) -> (Simulation, u32) {
         tile.river = false;
         tile.known_by.set(1, true);
     }
-    game.players[1].government = Government::Despotism;
+    game.players[1].government = Government::DESPOTISM;
     game.create_city(1, 10, 24);
     game.cities[0].size = size;
     let city_id = game.cities[0].id;

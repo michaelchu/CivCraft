@@ -114,13 +114,13 @@ impl Simulation {
         self.create_city(1, 5, 8);
         self.cities[0].size = 4;
         self.reconcile_city_workers();
-        self.players[1].government = Government::Anarchy;
+        self.players[1].government = Government::ANARCHY;
         self.players[1].known = self.research_path(1, Tech::MONARCHY);
         self.players[1].known.retain(|&tech| tech != Tech::MONARCHY);
         self.players[1].rates = [60, 40, 0];
         let goal = self.ai_goal_government(1);
         let map = self.settlement_citymap(1, None);
-        let current = self.city_site_result(1, 15, 40, Government::Anarchy, &map);
+        let current = self.city_site_result(1, 15, 40, Government::ANARCHY, &map);
         let projected = self.city_site_result(1, 15, 40, goal, &map);
         goal.requirement()
             .is_some_and(|tech| !self.has_tech(1, tech))
@@ -128,7 +128,7 @@ impl Simulation {
                 current.value != projected.value
                     && self.city_site_value(1, 15, 40) == Some(projected.value)
             })
-            && self.players[1].government == Government::Anarchy
+            && self.players[1].government == Government::ANARCHY
             && self.players[1].rates == [60, 40, 0]
     }
 
@@ -149,7 +149,7 @@ impl Simulation {
             tile.pollution = false;
             tile.fallout = false;
         }
-        self.players[1].government = Government::Communism;
+        self.players[1].government = Government::COMMUNISM;
         self.players[1].researching = Tech::BRONZE_WORKING;
         let home = (10, 24);
         let baseline = self.city_site_value(1, home.0, home.1);
@@ -170,7 +170,7 @@ impl Simulation {
             .unwrap();
         reservations[self.map_wrap.index(reserved_tile.0, reserved_tile.1)] = 1;
         let crowded = self
-            .city_site_result(1, home.0, home.1, Government::Communism, &reservations)
+            .city_site_result(1, home.0, home.1, Government::COMMUNISM, &reservations)
             .is_some_and(|site| site.value < baseline.unwrap());
         self.tile_mut(home.0, home.1).pollution = true;
         rounded && crowded && self.city_site_value(1, home.0, home.1).is_none()
@@ -186,7 +186,7 @@ impl Simulation {
         self.ai_settlement_targets.clear();
         self.ai_government_cache.clear();
         self.city_rapture.clear();
-        self.players[1].government = Government::Communism;
+        self.players[1].government = Government::COMMUNISM;
         for tile in &mut self.tiles {
             tile.terrain = Terrain::Plains;
             tile.resource = None;
@@ -221,19 +221,19 @@ impl Simulation {
         let first = workers.next().unwrap();
         let second = workers.next().unwrap();
         let mut map = vec![0; self.tiles.len()];
-        let initial = self.city_site_result(1, home.0, home.1, Government::Communism, &map);
+        let initial = self.city_site_result(1, home.0, home.1, Government::COMMUNISM, &map);
         let source_first = initial
             .as_ref()
             .is_some_and(|site| site.worker == Some(first));
         map[self.map_wrap.index(first.0, first.1)] = 1;
-        let next = self.city_site_result(1, home.0, home.1, Government::Communism, &map);
+        let next = self.city_site_result(1, home.0, home.1, Government::COMMUNISM, &map);
         let source_next = next
             .as_ref()
             .is_some_and(|site| site.worker == Some(second))
             && initial.zip(next).is_some_and(|(a, b)| a.value > b.value);
         map[self.map_wrap.index(first.0, first.1)] = -1;
         let overlap_rejected = self
-            .city_site_result(1, home.0, home.1, Government::Communism, &map)
+            .city_site_result(1, home.0, home.1, Government::COMMUNISM, &map)
             .is_none();
         self.reserve_settlement_site(&founder, home);
         let stored = self

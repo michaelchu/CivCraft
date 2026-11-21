@@ -298,7 +298,7 @@ fn protected_city_garrisons_are_visible_and_accessible() {
 fn senate_veto_is_checked_for_the_initiator_and_not_each_subject() {
     let mut game = fixture();
     bind(&mut game, 0, 1, VassalKind::Voluntary);
-    game.players[1].government = Government::Democracy;
+    game.players[1].government = Government::DEMOCRACY;
     assert!(game.senate_blocks_cancellation(1, 2));
     assert!(game.cancel_pact(0, 2));
     assert!(game.at_war(0, 2) && game.at_war(1, 2));

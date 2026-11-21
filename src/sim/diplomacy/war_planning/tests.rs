@@ -262,19 +262,19 @@ fn spaceship_warnings_repeat_only_after_the_reference_cooldown() {
 #[test]
 fn senate_in_anarchy_aborts_revolution_and_war_tantrum_uses_native_love() {
     let mut game = war_planning_game();
-    game.players[1].government = Government::Democracy;
+    game.players[1].government = Government::DEMOCRACY;
     game.players[1].known.push(Tech::NUCLEAR_FISSION);
     game.cities[0].buildings.push(Building::UNITED_NATIONS);
     game.completed_wonders.push(Building::UNITED_NATIONS);
     game.completed_wonders.push(Building::MANHATTAN_PROJECT);
     game.apollo_completed = false;
     game.declare_prepared_ai_war(1, HUMAN, WarReason::Hatred);
-    assert_eq!(game.players[1].government, Government::Democracy);
+    assert_eq!(game.players[1].government, Government::DEMOCRACY);
     assert_eq!(game.ai_war_countdown(1, HUMAN), -1);
     assert!(!game.ai_pending_war_targets.contains_key(&1));
     assert_eq!(game.pact(1, HUMAN), Pact::Peace);
     game.cities[0].buildings.clear();
-    game.players[1].government = Government::Despotism;
+    game.players[1].government = Government::DESPOTISM;
     game.diplomacy.get_mut(&(HUMAN, 1)).unwrap().trust[1] = 1234;
     game.declare_prepared_ai_war(1, HUMAN, WarReason::Hatred);
     assert!(game.at_war(1, HUMAN));
@@ -284,7 +284,7 @@ fn senate_in_anarchy_aborts_revolution_and_war_tantrum_uses_native_love() {
 #[test]
 fn senate_requires_a_revolution_before_the_planned_declaration() {
     let mut game = war_planning_game();
-    game.players[1].government = Government::Democracy;
+    game.players[1].government = Government::DEMOCRACY;
     game.ai_war_plans.insert(
         (1, HUMAN),
         WarPlan {
@@ -294,15 +294,15 @@ fn senate_requires_a_revolution_before_the_planned_declaration() {
         },
     );
     game.advance_ai_war_plans();
-    assert_eq!(game.players[1].government, Government::Anarchy);
+    assert_eq!(game.players[1].government, Government::ANARCHY);
     assert_eq!(game.pact(HUMAN, 1), Pact::Peace);
     assert!(!game.ai_on_war_footing(1));
     assert_eq!(game.ai_war_countdown(1, HUMAN), -20);
     assert_eq!(game.ai_pending_war_targets.get(&1), Some(&HUMAN));
-    assert_eq!(game.players[1].revolution_target, Some(Government::Anarchy));
+    assert_eq!(game.players[1].revolution_target, Some(Government::ANARCHY));
     game.advance_ai_war_plans();
     assert_eq!(game.pact(HUMAN, 1), Pact::Peace);
-    assert!(game.change_government(1, Government::Despotism));
+    assert!(game.change_government(1, Government::DESPOTISM));
     assert!(game.at_war(HUMAN, 1));
     assert_eq!(game.ai_war_countdown(1, HUMAN), -19);
     assert!(!game.ai_pending_war_targets.contains_key(&1));

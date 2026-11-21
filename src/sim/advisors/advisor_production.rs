@@ -346,8 +346,8 @@ impl Simulation {
 
     pub(super) fn city_martial_law_want(&self, city: &City) -> f64 {
         let amount = match self.players[city.owner].government {
-            Government::Anarchy | Government::Despotism | Government::Monarchy => 1,
-            Government::Communism => 2,
+            Government::ANARCHY | Government::DESPOTISM | Government::MONARCHY => 1,
+            Government::COMMUNISM => 2,
             _ => 0,
         };
         if amount == 0

@@ -11,7 +11,7 @@ impl super::Simulation {
         self.ai_government_cache.clear();
         self.city_rapture.clear();
         self.players[1].known.clear();
-        self.players[1].government = Government::Despotism;
+        self.players[1].government = Government::DESPOTISM;
         self.players[1].researching = Tech::BRONZE_WORKING;
         self.players[1].last_science = 0;
         self.players[1].research = 0;
@@ -74,7 +74,7 @@ impl super::Simulation {
         self.choose_ai_rates(1);
         let future = self.players[1].rates == [0, 60, 40];
         let saved = self.players[1].rates;
-        self.players[1].government = Government::Anarchy;
+        self.players[1].government = Government::ANARCHY;
         self.choose_ai_rates(1);
         let anarchy = self.players[1].rates == saved;
         ordinary && refill && rich && war && future && anarchy
@@ -111,7 +111,7 @@ impl super::Simulation {
                 choice.production == Production::Building(Building::MARKETPLACE)
                     && choice.want > old_choice.unwrap().want
             })
-            && self.players[1].government == Government::Despotism
+            && self.players[1].government == Government::DESPOTISM
             && self.players[1].rates == [40, 60, 0]
             && self.cities[0].production == Production::Building(Building::MARKETPLACE);
 
@@ -134,7 +134,7 @@ impl super::Simulation {
         self.run_ai_last_activities(1);
         let cm_before_advice = no_cm_disorder
             && no_cm_advice
-            && self.players[1].government == Government::Despotism
+            && self.players[1].government == Government::DESPOTISM
             && self.players[1].rates == [60, 40, 0]
             && !self.city_forecast(&self.cities[0]).disorder
             && self.cities[0].specialists.iter().sum::<i32>() > 0

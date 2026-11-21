@@ -220,7 +220,7 @@ impl Simulation {
         self.ai_unit_guards.clear();
         self.unit_goto_tiles.clear();
         self.city_rapture.clear();
-        self.players[1].government = Government::Despotism;
+        self.players[1].government = Government::DESPOTISM;
         self.players[1].known = vec![Tech::BRONZE_WORKING];
         self.players[1].researching = Tech::WARRIOR_CODE;
         self.players[1].rates = rates;

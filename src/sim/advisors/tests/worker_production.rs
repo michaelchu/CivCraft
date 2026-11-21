@@ -118,7 +118,7 @@ fn city_production_shares_worker_values_with_exact_uncached_results() {
         for game in [&mut shared, &mut isolated] {
             if pass == 1 {
                 game.players[1].known.push(Tech::STEAM_POWER);
-                game.players[1].government = Government::Republic;
+                game.players[1].government = Government::REPUBLIC;
                 game.tile_mut(11, 24).road = true;
                 let worker = game.make_unit(900, 1, UnitKind::Worker, 19, 24);
                 game.units.push(worker);

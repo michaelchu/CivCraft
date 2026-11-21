@@ -81,7 +81,7 @@ fn city_defense_fixture_uses_selected_c2c3_treasury_support_allowance() {
         tile.hut = false;
     }
     game.players[1].known = vec![Tech::BRONZE_WORKING];
-    game.players[1].government = Government::Despotism;
+    game.players[1].government = Government::DESPOTISM;
     game.players[1].rates = [40, 60, 0];
     game.create_city(1, 10, 24);
     game.cities[0].buildings.push(Building::BARRACKS);
@@ -179,7 +179,7 @@ fn quiet_empty_city_has_no_defense_bid_but_entertainer_can_request_police() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
-    game.players[1].government = Government::Despotism;
+    game.players[1].government = Government::DESPOTISM;
     game.players[1].known = vec![Tech::BRONZE_WORKING];
     for tile in &mut game.tiles {
         tile.terrain = Terrain::Grassland;
@@ -195,7 +195,7 @@ fn quiet_empty_city_has_no_defense_bid_but_entertainer_can_request_police() {
     let (choice, martial) = game.native_city_defense_choice(&game.cities[0]);
     assert_eq!(martial, 35.0);
     assert_eq!(choice.unwrap().want, 35.0);
-    game.players[1].government = Government::Communism;
+    game.players[1].government = Government::COMMUNISM;
     assert_eq!(game.city_martial_law_want(&game.cities[0]), 35.0);
     // Native unit_list_size counts civilians too for the maximum check.
     for _ in 0..3 {

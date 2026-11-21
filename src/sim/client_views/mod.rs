@@ -745,7 +745,7 @@ mod tests {
     fn city_map_labels_use_the_worked_tile_rules() {
         let mut sim = Simulation::new(crate::mapgen::generate(42));
         sim.create_city(HUMAN, 20, 24);
-        sim.players[HUMAN].government = Government::Despotism;
+        sim.players[HUMAN].government = Government::DESPOTISM;
         let city_id = sim.cities.last().unwrap().id;
         let positions: Vec<_> = sim
             .map_city_radius(sim.city_by_id(city_id).unwrap())

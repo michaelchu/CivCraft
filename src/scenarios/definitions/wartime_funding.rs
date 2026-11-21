@@ -41,7 +41,7 @@ pub(crate) fn setup(game: &mut Simulation) {
     world.start_turn(turn + 1);
     world.ai_control(1, true);
     world.civilization_identity(1, "korea");
-    world.government_state(1, Government::Monarchy);
+    world.government_state(1, Government::MONARCHY);
     world.known_technologies(1, &[Tech::ALPHABET, Tech::BRONZE_WORKING, Tech::MONARCHY]);
     world.research_project(1, Tech::POTTERY, 0);
     world.last_science(1, 0);
@@ -112,7 +112,7 @@ fn execute(game: &mut Simulation, checks: &mut Checks) {
     let urgent = emergency.ai_military_funding_need(1, false);
     let urgent_detected = urgent.urgent_purchase > 0;
     let mut transition = original.clone();
-    WorldBuilder::new(&mut transition).government_state(1, Government::Feudalism);
+    WorldBuilder::new(&mut transition).government_state(1, Government::FEUDALISM);
     WorldBuilder::new(&mut transition).known_technologies(
         1,
         &[
@@ -156,7 +156,7 @@ fn execute(game: &mut Simulation, checks: &mut Checks) {
     let upgrade_held =
         upgrade_available && transition.unit_by_id(catapult).unwrap().kind == UnitKind::Catapult;
     let unit_count = transition.units().len();
-    for government in [Government::Anarchy, Government::Democracy] {
+    for government in [Government::ANARCHY, Government::DEMOCRACY] {
         WorldBuilder::new(&mut transition).government_state(1, government);
         let paid = transition.national_unit_gold_upkeep(1).paid;
         let gold = transition.players()[1].gold - paid.iter().map(|(_, cost)| cost).sum::<i32>();

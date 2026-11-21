@@ -70,7 +70,7 @@ fn research(map: GeneratedMap, case: ResearchCase) -> (Simulation, Box<dyn Scena
     w.ai_control(3, false);
     w.known_technologies(1, &known);
     // Isolate the research race from an unrelated opening revolution/unrest.
-    w.government(1, Government::Democracy);
+    w.government(1, Government::DEMOCRACY);
     w.city_buildings(ids[1], &[Building::PALACE, Building::TEMPLE]);
     w.research_wants(1, &[]);
     w.research_goal(1, Tech::UNSET);

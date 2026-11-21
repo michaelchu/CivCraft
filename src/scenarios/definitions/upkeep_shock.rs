@@ -75,7 +75,7 @@ fn setup(map: GeneratedMap) -> (Simulation, Box<dyn ScenarioRun>) {
     for _ in 0..4 {
         world.unit(OWNER, UnitKind::Pikeman, (8, 34));
     }
-    world.government_state(OWNER, Government::Republic);
+    world.government_state(OWNER, Government::REPUBLIC);
     world.economy(OWNER, 50, [50, 50, 0]);
     world.diplomacy(OWNER, HUMAN, Pact::War, 1, [-10_000; 2]);
     world.mark_known(OWNER, enemy);

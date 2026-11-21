@@ -333,7 +333,7 @@ fn a_capital_attack_does_not_guarantee_free_peace_after_twelve_turns() {
     game.create_city(HUMAN, 8, 24);
     let (id, direction) = game.civil_war_test().unwrap();
     assert!(game.negotiate(1, Pact::Ceasefire));
-    game.players[HUMAN].government = Government::Despotism;
+    game.players[HUMAN].government = Government::DESPOTISM;
     assert!(game.cancel_pact(HUMAN, 1));
     assert!(game.apply(Command::MoveCiv3(id, direction)));
     game.end_turn();

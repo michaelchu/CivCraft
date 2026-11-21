@@ -10,7 +10,7 @@ fn default_government_uses_selected_ruleset_unit_upkeep() {
     assert!(
         game.players
             .iter()
-            .all(|player| player.government == Government::Despotism)
+            .all(|player| player.government == Government::DESPOTISM)
     );
     game.units.clear();
     game.cities.clear();
@@ -38,19 +38,19 @@ fn barbarians_keep_the_current_government_output_waste_rules() {
     assert!(game.barbarian_output_waste_test());
     let mut city = game.cities[0].clone();
     assert_eq!(
-        game.government_output_waste_under(&city, 100, 100, None, Government::Despotism),
+        game.government_output_waste_under(&city, 100, 100, None, Government::DESPOTISM),
         (90, 80)
     );
     game.players[BARBARIANS]
         .known
         .extend([Tech::ECONOMICS, Tech::THE_CORPORATION]);
     assert_eq!(
-        game.government_output_waste_under(&city, 100, 100, None, Government::Despotism),
+        game.government_output_waste_under(&city, 100, 100, None, Government::DESPOTISM),
         (90, 80)
     );
     city.buildings.push(Building::PALACE);
     assert_eq!(
-        game.government_output_waste_under(&city, 100, 100, None, Government::Despotism),
+        game.government_output_waste_under(&city, 100, 100, None, Government::DESPOTISM),
         (95, 90)
     );
 }
@@ -60,7 +60,7 @@ fn selected_ruleset_governments_have_no_fundamentalism_tithe_effect() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
-    game.players[1].government = Government::Democracy;
+    game.players[1].government = Government::DEMOCRACY;
     game.players[1].known = vec![Tech::MYSTICISM];
     game.players[1].rates = [0, 100, 0];
     for tile in &mut game.tiles {
@@ -88,8 +88,8 @@ fn settlement_reads_last_assessment_until_government_advisor_refreshes() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     let owner = 1;
     game.turn = 12;
-    let mut scores = [0.0; Government::COUNT];
-    scores[Government::Democracy as usize] = 1.0;
+    let mut scores = vec![0.0; Government::count()];
+    scores[Government::DEMOCRACY.index()] = 1.0;
     game.ai_government_cache.insert(
         owner,
         GovernmentAdvisorCache {
@@ -102,7 +102,7 @@ fn settlement_reads_last_assessment_until_government_advisor_refreshes() {
     game.trace.enable_profiling();
     game.trace
         .begin_turn_profile(game.turn, game.cities.len(), game.units.len());
-    assert_eq!(game.ai_goal_government(owner), Government::Democracy);
+    assert_eq!(game.ai_goal_government(owner), Government::DEMOCRACY);
     game.trace.finish_turn_profile();
     let profiles = game.trace.drain_profiles();
     assert!(
@@ -146,16 +146,16 @@ fn government_cache_interval_uses_city_count_with_five_and_twenty_turn_bounds() 
 fn government_player_bonus_uses_c2c3_fanatics_and_partisans_effects() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     game.players[1].known.clear();
-    assert_eq!(game.government_player_bonus(1, Government::Communism), 0);
-    assert_eq!(game.government_player_bonus(1, Government::Democracy), 0);
+    assert_eq!(game.government_player_bonus(1, Government::COMMUNISM), 0);
+    assert_eq!(game.government_player_bonus(1, Government::DEMOCRACY), 0);
     game.players[1]
         .known
         .extend([Tech::COMMUNISM, Tech::GUNPOWDER]);
     game.players[HUMAN].known.push(Tech::NATIONALISM);
-    assert_eq!(game.government_player_bonus(1, Government::Communism), 3);
-    assert_eq!(game.government_player_bonus(1, Government::Democracy), 3);
+    assert_eq!(game.government_player_bonus(1, Government::COMMUNISM), 3);
+    assert_eq!(game.government_player_bonus(1, Government::DEMOCRACY), 3);
     assert_eq!(
-        game.government_player_bonus(BARBARIANS, Government::Communism),
+        game.government_player_bonus(BARBARIANS, Government::COMMUNISM),
         0
     );
 }
@@ -166,7 +166,7 @@ fn government_source_effects_include_negative_requirements_and_veteran_class_cou
     game.units.clear();
     game.cities.clear();
     game.create_city(1, 10, 24);
-    game.players[1].government = Government::Communism;
+    game.players[1].government = Government::COMMUNISM;
     let city = game.cities[0].clone();
     let base = game.advisor_city_output_exact(&city, None);
     // Source: Veteran_Build(3) minus excluded free-military effects(3+4).
@@ -190,17 +190,17 @@ fn anarchy_waives_normal_technology_upkeep() {
     game.apply_research_upkeep(HUMAN, 0);
     assert_eq!(game.players[HUMAN].future_techs, futures - 1);
     game.players[HUMAN].future_techs = 0;
-    game.players[HUMAN].government = Government::Anarchy;
+    game.players[HUMAN].government = Government::ANARCHY;
     assert_eq!(game.technology_upkeep(HUMAN), 0);
 }
 
 #[test]
 fn revolution_respects_unlocks_anarchy_and_rate_caps() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
-    game.players[HUMAN].government = Government::Despotism;
-    assert!(!game.apply(Command::Government(Government::Monarchy)));
+    game.players[HUMAN].government = Government::DESPOTISM;
+    assert!(!game.apply(Command::Government(Government::MONARCHY)));
     game.players[HUMAN].known.push(Tech::MONARCHY);
-    assert!(game.apply(Command::Government(Government::Monarchy)));
+    assert!(game.apply(Command::Government(Government::MONARCHY)));
     let finish = game.players[HUMAN].revolution_turn.unwrap();
     assert!((1..=5).contains(&(finish - game.turn)));
     assert_eq!(
@@ -210,8 +210,8 @@ fn revolution_respects_unlocks_anarchy_and_rate_caps() {
     assert!(!game.apply(Command::SetRates([30, 70, 0])));
     game.turn = finish;
     game.finish_revolutions();
-    assert_eq!(game.players[HUMAN].government, Government::Monarchy);
-    assert!(!game.apply(Command::Government(Government::Monarchy)));
+    assert_eq!(game.players[HUMAN].government, Government::MONARCHY);
+    assert!(!game.apply(Command::Government(Government::MONARCHY)));
 }
 
 #[test]
@@ -221,16 +221,16 @@ fn zero_turn_ai_government_change_is_committed_at_the_phase_boundary() {
     game.players[1].known.push(Tech::MONARCHY);
     game.players[1].rates = [20, 80, 0];
 
-    assert!(game.change_government(1, Government::Monarchy));
+    assert!(game.change_government(1, Government::MONARCHY));
     assert_eq!(game.players[1].government, Government::during_revolution());
     assert_eq!(
         game.players[1].revolution_target,
-        Some(Government::Monarchy)
+        Some(Government::MONARCHY)
     );
     assert_eq!(game.players[1].revolution_turn, Some(game.turn));
 
     game.finish_revolutions();
-    assert_eq!(game.players[1].government, Government::Monarchy);
+    assert_eq!(game.players[1].government, Government::MONARCHY);
     // Default Freeciv AI has no H_RATES handicap and keeps its rates above
     // the government maximum.
     assert_eq!(game.players[1].rates, [20, 80, 0]);
@@ -242,32 +242,32 @@ fn ruleset_no_anarchy_effect_allows_and_defers_a_human_government_change() {
     game.create_city(HUMAN, 10, 20);
     game.cities[0].buildings.push(Building::STATUE_OF_LIBERTY);
 
-    assert!(game.change_government(HUMAN, Government::Fascism));
+    assert!(game.change_government(HUMAN, Government::FASCISM));
     assert_eq!(
         game.players[HUMAN].government,
         Government::during_revolution()
     );
     assert_eq!(
         game.players[HUMAN].revolution_target,
-        Some(Government::Fascism)
+        Some(Government::FASCISM)
     );
     assert_eq!(game.players[HUMAN].revolution_turn, Some(game.turn));
 
     game.finish_revolutions();
-    assert_eq!(game.players[HUMAN].government, Government::Fascism);
+    assert_eq!(game.players[HUMAN].government, Government::FASCISM);
 }
 
 #[test]
 fn human_rate_reallocation_preserves_luxury_then_maximizes_science() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     game.players[HUMAN].government = Government::during_revolution();
-    game.players[HUMAN].revolution_target = Some(Government::Despotism);
+    game.players[HUMAN].revolution_target = Some(Government::DESPOTISM);
     game.players[HUMAN].revolution_turn = Some(game.turn);
     game.players[HUMAN].rates = [20, 80, 0];
 
     game.finish_revolutions();
 
-    assert_eq!(game.players[HUMAN].government, Government::Despotism);
+    assert_eq!(game.players[HUMAN].government, Government::DESPOTISM);
     assert_eq!(game.players[HUMAN].rates, [60, 40, 0]);
 }
 
@@ -277,19 +277,19 @@ fn eliminated_players_do_not_finish_or_count_government_revolutions() {
     game.cities.retain(|city| city.owner != 1);
     game.units.retain(|unit| unit.owner != 1);
     game.players[1].government = Government::during_revolution();
-    game.players[1].revolution_target = Some(Government::Monarchy);
+    game.players[1].revolution_target = Some(Government::MONARCHY);
     game.players[1].revolution_turn = Some(game.turn);
-    let adoptions = game.government_adoptions[Government::Monarchy as usize];
+    let adoptions = game.government_adoptions[Government::MONARCHY.index()];
 
     game.finish_revolutions();
 
     assert_eq!(game.players[1].government, Government::during_revolution());
     assert_eq!(
         game.players[1].revolution_target,
-        Some(Government::Monarchy)
+        Some(Government::MONARCHY)
     );
     assert_eq!(
-        game.government_adoptions[Government::Monarchy as usize],
+        game.government_adoptions[Government::MONARCHY.index()],
         adoptions
     );
 }
@@ -298,7 +298,7 @@ fn eliminated_players_do_not_finish_or_count_government_revolutions() {
 fn random_quick_revolution_length_handles_the_engine_minimum_setting() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     assert_eq!(
-        game.random_quick_revolution_length(Government::Monarchy, 1),
+        game.random_quick_revolution_length(Government::MONARCHY, 1),
         1
     );
 }
@@ -306,9 +306,9 @@ fn random_quick_revolution_length_handles_the_engine_minimum_setting() {
 #[test]
 fn random_quick_adoption_acceleration_counts_used_civilization_and_barbarian_slots() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
-    let target = Government::Monarchy;
+    let target = Government::MONARCHY;
     let length = 5;
-    game.government_adoptions[target as usize] = 2;
+    game.government_adoptions[target.index()] = 2;
     let players = game.civilization_count as i32 + 1;
     let change_speed = ((players / 2) / (length - 1)).max(1);
     let max_turns = (length - 2 / change_speed).max(1);
@@ -334,7 +334,7 @@ fn revolution_recomputes_trade_output_without_changing_saved_rates() {
     game.create_city(HUMAN, 10, 24);
     game.players[HUMAN].rates = [60, 40, 0];
     game.players[HUMAN].known.push(Tech::MONARCHY);
-    assert!(game.change_government(HUMAN, Government::Monarchy));
+    assert!(game.change_government(HUMAN, Government::MONARCHY));
     assert_eq!(
         game.players[HUMAN].government,
         Government::during_revolution()
@@ -360,7 +360,7 @@ fn republic_revolution_threshold_triggers_on_the_third_disorder_turn() {
     for consecutive_turn in 1..=2 {
         game.update_city_disorder_revolution(city_id);
         assert_eq!(game.cities[0].anarchy, consecutive_turn);
-        assert_eq!(game.players[HUMAN].government, Government::Republic);
+        assert_eq!(game.players[HUMAN].government, Government::REPUBLIC);
         assert_eq!(game.players[HUMAN].revolution_turn, None);
     }
 
@@ -373,7 +373,7 @@ fn republic_revolution_threshold_triggers_on_the_third_disorder_turn() {
     );
     assert_eq!(
         game.players[HUMAN].revolution_target,
-        Some(Government::Republic)
+        Some(Government::REPUBLIC)
     );
     assert!(game.players[HUMAN].revolution_turn.unwrap() > game.turn);
 }
@@ -393,7 +393,7 @@ fn republic_content_turn_resets_disorder_revolution_counter() {
     game.update_city_disorder_revolution(city_id);
 
     assert_eq!(game.cities[0].anarchy, 0);
-    assert_eq!(game.players[HUMAN].government, Government::Republic);
+    assert_eq!(game.players[HUMAN].government, Government::REPUBLIC);
     assert_eq!(game.players[HUMAN].revolution_turn, None);
 }
 
@@ -412,13 +412,13 @@ fn statue_of_liberty_makes_republic_disorder_revolution_immediate() {
     );
     assert_eq!(
         game.players[HUMAN].revolution_target,
-        Some(Government::Republic)
+        Some(Government::REPUBLIC)
     );
     assert_eq!(game.players[HUMAN].revolution_turn, Some(game.turn));
 
     game.finish_revolutions();
 
-    assert_eq!(game.players[HUMAN].government, Government::Republic);
+    assert_eq!(game.players[HUMAN].government, Government::REPUBLIC);
 }
 
 fn republic_disorder_scenario() -> (Simulation, u32) {
@@ -432,7 +432,7 @@ fn republic_disorder_scenario() -> (Simulation, u32) {
     game.create_city(HUMAN, 12, 24);
     game.cities[0].size = 5;
     game.cities[0].specialists = [0; 3];
-    game.players[HUMAN].government = Government::Republic;
+    game.players[HUMAN].government = Government::REPUBLIC;
     game.players[HUMAN].known.push(Tech::THE_REPUBLIC);
     game.players[HUMAN].rates = [0, 100, 0];
     assert!(game.city_forecast(&game.cities[0]).disorder);
@@ -470,7 +470,7 @@ fn retained_government_base_values_match_the_effects_used_by_gameplay() {
     for government in Government::targets()
         .iter()
         .copied()
-        .chain([Government::Anarchy])
+        .chain([Government::ANARCHY])
     {
         game.players[HUMAN].government = government;
         let context = SimulationRequirementContext::for_player_at(&game, HUMAN, None);
@@ -485,19 +485,19 @@ fn retained_government_base_values_match_the_effects_used_by_gameplay() {
             "{government:?}"
         );
     }
-    assert_eq!(Government::Fascism.max_rate(), 70);
-    assert_eq!(Government::Fascism.empire_size(), 20);
-    assert_eq!(Government::Fascism.civil_war_chance(), 60);
-    assert_eq!(Government::Feudalism.max_rate(), 60);
-    assert_eq!(Government::Feudalism.empire_size(), 14);
-    assert_eq!(Government::Feudalism.civil_war_chance(), 20);
+    assert_eq!(Government::FASCISM.max_rate(), 70);
+    assert_eq!(Government::FASCISM.empire_size(), 20);
+    assert_eq!(Government::FASCISM.civil_war_chance(), 60);
+    assert_eq!(Government::FEUDALISM.max_rate(), 60);
+    assert_eq!(Government::FEUDALISM.empire_size(), 14);
+    assert_eq!(Government::FEUDALISM.civil_war_chance(), 20);
 }
 
 #[test]
 fn set_rates_accepts_only_valid_splits_within_the_government_cap() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
-    game.players[HUMAN].government = Government::Despotism;
-    let max = Government::Despotism.max_rate();
+    game.players[HUMAN].government = Government::DESPOTISM;
+    let max = Government::DESPOTISM.max_rate();
     assert_eq!(max, 60);
     assert!(game.apply(Command::SetRates([30, 60, 10])));
     assert_eq!(game.players[HUMAN].rates, [30, 60, 10]);
@@ -506,4 +506,18 @@ fn set_rates_accepts_only_valid_splits_within_the_government_cap() {
         assert!(!game.apply(Command::SetRates(bad)), "{bad:?}");
         assert_eq!(game.players[HUMAN].rates, [30, 60, 10]);
     }
+}
+
+#[test]
+fn government_handles_roundtrip_with_native_catalog() {
+    assert_eq!(Government::all().count(), Government::count());
+    for government in Government::all() {
+        let rule_name = government.rule_name().unwrap();
+        assert_eq!(Government::from_rule_name(rule_name), Some(government));
+        assert_eq!(
+            Government::from_rule_name(government.name()),
+            Some(government)
+        );
+    }
+    assert_eq!(Government::from_rule_name("unknown_gov"), None);
 }

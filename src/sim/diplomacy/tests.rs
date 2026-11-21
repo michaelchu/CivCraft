@@ -991,7 +991,7 @@ fn ceasefire_expiry_breaks_mutual_alliances_despite_the_senate() {
     game.create_city(HUMAN, 10, 10);
     game.create_city(1, 20, 20);
     game.create_city(2, 30, 30);
-    game.players[2].government = Government::Democracy;
+    game.players[2].government = Government::DEMOCRACY;
     game.sign_pact(HUMAN, 1, Pact::Ceasefire);
     game.sign_pact(2, HUMAN, Pact::Alliance);
     game.sign_pact(2, 1, Pact::Alliance);
@@ -1064,7 +1064,7 @@ fn senate_enforces_treaties_unless_provoked_or_waived() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     game.create_city(HUMAN, 10, 10);
     game.sign_pact(HUMAN, 1, Pact::Ceasefire);
-    game.players[HUMAN].government = Government::Democracy;
+    game.players[HUMAN].government = Government::DEMOCRACY;
     assert!(!game.apply(Command::CancelPact(1)));
     game.record_provocation(HUMAN, 1);
     assert!(game.apply(Command::CancelPact(1)));
@@ -1082,7 +1082,7 @@ fn senate_enforces_treaties_unless_provoked_or_waived() {
     game.cities[0]
         .buildings
         .retain(|building| building.data().name != "Statue of Liberty");
-    game.players[HUMAN].government = Government::Despotism;
+    game.players[HUMAN].government = Government::DESPOTISM;
     game.cities[0].buildings.push(find("United Nations"));
     game.completed_wonders.push(find("United Nations"));
     game.completed_wonders.push(find("Manhattan Project"));

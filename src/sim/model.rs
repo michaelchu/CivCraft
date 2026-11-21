@@ -126,7 +126,7 @@ mod native_type_order_tests {
         game.cities.clear();
         game.prune_unit_ai_state();
         game.players[1].known = vec![Tech::WARRIOR_CODE, Tech::IRON_WORKING];
-        game.players[1].government = Government::Democracy;
+        game.players[1].government = Government::DEMOCRACY;
         game.players[1].rates = [0, 0, 100];
         game.sign_pact(1, HUMAN, crate::sim::Pact::War);
         for tile in &mut game.tiles {

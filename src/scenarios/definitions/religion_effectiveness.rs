@@ -37,7 +37,7 @@ fn setup(map: GeneratedMap, saturated: bool) -> (Simulation, Box<dyn ScenarioRun
             .filter(|t| t.is_civ3_advance())
             .collect::<Vec<_>>(),
     );
-    w.government(1, Government::Democracy);
+    w.government(1, Government::DEMOCRACY);
     w.city_buildings(ids[1], &[Building::PALACE, Building::TEMPLE]);
     let sources = [
         ids[1],

@@ -142,7 +142,7 @@ impl Simulation {
             alliance.terms[0].gold = 2312;
             self.execute_offer(HUMAN, 1, &alliance)
         };
-        self.players[1].government = Government::Democracy;
+        self.players[1].government = Government::DEMOCRACY;
         self.declare_prepared_ai_war(1, HUMAN, WarReason::Hatred);
         let pending = !self.at_war(1, HUMAN)
             && !self.ai_on_war_footing(1)
@@ -151,7 +151,7 @@ impl Simulation {
             && self.players[1]
                 .revolution_turn
                 .is_some_and(|finish| finish >= self.turn);
-        let resumed = self.change_government(1, Government::Despotism)
+        let resumed = self.change_government(1, Government::DESPOTISM)
             && self.at_war(1, HUMAN)
             && !self.ai_pending_war_targets.contains_key(&1);
         received && shared && preserved && compensated && pending && resumed

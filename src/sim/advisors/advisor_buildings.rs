@@ -33,7 +33,7 @@ impl Simulation {
         match building {
             Building::TEMPLE => {
                 content(1, 1);
-                if government != Government::Communism && self.has_tech(city.owner, Tech::MYSTICISM)
+                if government != Government::COMMUNISM && self.has_tech(city.owner, Tech::MYSTICISM)
                 {
                     content(1, 1);
                 }
@@ -43,7 +43,7 @@ impl Simulation {
             }
             Building::CATHEDRAL => {
                 content(3, 1);
-                if government != Government::Communism && self.has_tech(city.owner, Tech::THEOLOGY)
+                if government != Government::COMMUNISM && self.has_tech(city.owner, Tech::THEOLOGY)
                 {
                     content(1, 1);
                 }
@@ -80,7 +80,7 @@ impl Simulation {
         }
         if building == Building::POLICE_STATION {
             effects.push((1, 1, true, 1));
-            if government == Government::Democracy && !owns(Building::WOMENS_SUFFRAGE) {
+            if government == Government::DEMOCRACY && !owns(Building::WOMENS_SUFFRAGE) {
                 effects.push((1, 1, true, 1));
             }
         }
@@ -90,7 +90,7 @@ impl Simulation {
         ) {
             effects.push((1, count, true, 1));
             if building == Building::WOMENS_SUFFRAGE
-                && government == Government::Democracy
+                && government == Government::DEMOCRACY
                 && has(Building::POLICE_STATION)
             {
                 effects.push((1, count, true, -1));

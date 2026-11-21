@@ -100,41 +100,41 @@ impl super::Simulation {
         // adv_want is float. Each source += rounds separately, including
         // the city output and each effect in effects.ruleset iteration order.
         *total += self.advisor_city_output_from_forecast(city, &forecast) as f32;
-        if government != Government::Republic {
+        if government != Government::REPUBLIC {
             *total -= military_content(1) as f32;
         }
         if matches!(
             government,
-            Government::Communism | Government::Monarchy | Government::Republic
+            Government::COMMUNISM | Government::MONARCHY | Government::REPUBLIC
         ) {
             *total -= military_content(2) as f32;
         }
-        if !matches!(government, Government::Communism | Government::Monarchy) {
+        if !matches!(government, Government::COMMUNISM | Government::MONARCHY) {
             *total -= military_content(3) as f32;
         }
-        if government == Government::Democracy && facts.womens_suffrage {
+        if government == Government::DEMOCRACY && facts.womens_suffrage {
             *total += military_content(-1) as f32;
         }
-        if government == Government::Despotism {
+        if government == Government::DESPOTISM {
             *total += content(1) as f32;
             *total += (2 + facts.land_units) as f32;
         }
-        if matches!(government, Government::Communism | Government::Feudalism) {
+        if matches!(government, Government::COMMUNISM | Government::FEUDALISM) {
             *total += (3 + facts.total_units) as f32;
         }
-        if government == Government::Communism
+        if government == Government::COMMUNISM
             && city.has_building(Building::CATHEDRAL)
             && facts.theology
         {
             *total -= content(1) as f32;
         }
-        if government == Government::Democracy
+        if government == Government::DEMOCRACY
             && city.has_building(Building::POLICE_STATION)
             && !facts.womens_suffrage
         {
             *total += military_content(1) as f32;
         }
-        if government == Government::Communism
+        if government == Government::COMMUNISM
             && city.has_building(Building::TEMPLE)
             && facts.mysticism
         {
@@ -152,8 +152,9 @@ impl super::Simulation {
     pub(super) fn calculate_government_scores(
         &mut self,
         owner: usize,
-        mut scores: [f64; Government::COUNT],
-    ) -> [f64; Government::COUNT] {
+        mut scores: Vec<f64>,
+    ) -> Vec<f64> {
+        scores.resize(Government::count(), 0.0);
         let profiler = self.trace.profiler();
         let _profile = profiler.scope("government.score_evaluation");
         let original = self.players[owner].government;
@@ -171,7 +172,7 @@ impl super::Simulation {
             if has_available_preferred_government(self, owner, government) {
                 // Skipped governments must not retain a want from before their
                 // preferred replacement became available (advdata.c's ai.better).
-                scores[government as usize] = 0.0;
+                scores[government.index()] = 0.0;
                 continue;
             }
             self.players[owner].government = government;
@@ -207,7 +208,7 @@ impl super::Simulation {
             let distance = government.requirement().map_or(0, |tech| {
                 self.shared_research_path(owner, tech).len().max(1) as i32
             });
-            scores[government as usize] =
+            scores[government.index()] =
                 f64::from((f64::from(value) * (23.0_f64 / 24.0).powi(distance)) as f32);
             drop(_profile);
         }
@@ -223,10 +224,10 @@ impl super::Simulation {
         }) {
             return;
         }
-        let old = self
-            .ai_government_cache
-            .get(&owner)
-            .map_or([0.0; Government::COUNT], |cache| cache.scores);
+        let old = self.ai_government_cache.get(&owner).map_or_else(
+            || vec![0.0; Government::count()],
+            |cache| cache.scores.clone(),
+        );
         let scores = self.calculate_government_scores(owner, old);
         let cities = self
             .cities
@@ -246,7 +247,7 @@ impl super::Simulation {
     pub(super) fn government_goals(
         &self,
         owner: usize,
-        scores: &[f64; Government::COUNT],
+        scores: &[f64],
     ) -> (Government, Government, f64) {
         let current = self.players[owner].government;
         let (mut goal, mut available) = (current, current);
@@ -257,7 +258,7 @@ impl super::Simulation {
             if has_available_preferred_government(self, owner, government) {
                 continue;
             }
-            let value = scores[government as usize];
+            let value = scores.get(government.index()).copied().unwrap_or(0.0);
             if value > goal_value {
                 goal = government;
                 goal_value = value;
@@ -334,7 +335,7 @@ impl super::Simulation {
         Some((
             required,
             (value as i32).max(100)
-                + if self.players[owner].government == Government::Despotism {
+                + if self.players[owner].government == Government::DESPOTISM {
                     25 * self.turn
                 } else {
                     0
@@ -376,7 +377,7 @@ impl super::Simulation {
         self.create_city(1, 5, 8);
         self.cities[0].size = 4;
         self.reconcile_city_workers();
-        self.players[1].government = Government::Despotism;
+        self.players[1].government = Government::DESPOTISM;
         self.players[1].known = self.research_path(1, Tech::MONARCHY);
         self.players[1].known.retain(|&tech| tech != Tech::MONARCHY);
         self.players[1].rates = [60, 40, 0];
@@ -390,7 +391,7 @@ impl super::Simulation {
         let available = self
             .government_goals(1, &self.ai_government_cache[&1].scores)
             .1
-            == Government::Monarchy
+            == Government::MONARCHY
             && self.government_research_want(1).is_none()
             && self.ai_government_cache[&1].evaluated_turn == 0;
         self.cities[0].size = 8;
@@ -407,7 +408,7 @@ impl super::Simulation {
             && held
             && recomputed
             && before.next_evaluation == 5
-            && self.players[1].government == Government::Despotism
+            && self.players[1].government == Government::DESPOTISM
             && self.players[1].rates == [60, 40, 0]
     }
 }
@@ -439,33 +440,33 @@ mod ruleset_government_tests {
         game.units.clear();
         game.create_city(1, 10, 20);
         game.players[1].known.clear();
-        game.players[1].government = Government::Monarchy;
-        let mut scores = [0.0; Government::COUNT];
-        scores[Government::Despotism as usize] = 4999.0;
-        scores[Government::Monarchy as usize] = 100.0;
+        game.players[1].government = Government::MONARCHY;
+        let mut scores = vec![0.0; Government::count()];
+        scores[Government::DESPOTISM.index()] = 4999.0;
+        scores[Government::MONARCHY.index()] = 100.0;
 
         // Without Monarchy's technology, the preference does not exclude it.
-        assert_eq!(game.government_goals(1, &scores).1, Government::Despotism);
+        assert_eq!(game.government_goals(1, &scores).1, Government::DESPOTISM);
         game.players[1].known.push(Tech::MONARCHY);
         game.ai_government_cache.insert(
             1,
             GovernmentAdvisorCache {
                 evaluated_turn: game.turn,
                 next_evaluation: game.turn + 20,
-                scores,
+                scores: scores.clone(),
             },
         );
-        assert_eq!(game.government_goals(1, &scores).0, Government::Monarchy);
-        assert_eq!(game.government_goals(1, &scores).1, Government::Monarchy);
+        assert_eq!(game.government_goals(1, &scores).0, Government::MONARCHY);
+        assert_eq!(game.government_goals(1, &scores).1, Government::MONARCHY);
         game.choose_ai_government(1);
-        assert_eq!(game.players[1].government, Government::Monarchy);
+        assert_eq!(game.players[1].government, Government::MONARCHY);
         assert!(game.players[1].revolution_target.is_none());
 
         let refreshed = game.calculate_government_scores(1, scores);
-        assert_eq!(refreshed[Government::Despotism as usize], 0.0);
+        assert_eq!(refreshed[Government::DESPOTISM.index()], 0.0);
         assert_ne!(
             game.government_goals(1, &refreshed).1,
-            Government::Despotism
+            Government::DESPOTISM
         );
     }
 
@@ -473,10 +474,10 @@ mod ruleset_government_tests {
     fn government_availability_uses_the_selected_ruleset_requirements() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         game.players[1].known.clear();
-        assert!(!game.government_available(1, Government::Monarchy));
+        assert!(!game.government_available(1, Government::MONARCHY));
 
         game.players[1].known.push(Tech::MONARCHY);
-        assert!(game.government_available(1, Government::Monarchy));
+        assert!(game.government_available(1, Government::MONARCHY));
     }
 
     #[test]
@@ -489,14 +490,14 @@ mod ruleset_government_tests {
         assert!(has_available_preferred_government(
             &game,
             1,
-            Government::Despotism
+            Government::DESPOTISM
         ));
 
         game.players[1].known.clear();
         assert!(!has_available_preferred_government(
             &game,
             1,
-            Government::Despotism
+            Government::DESPOTISM
         ));
     }
 
@@ -504,26 +505,26 @@ mod ruleset_government_tests {
     fn government_revolution_unhappiness_uses_selected_ruleset_effects() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         assert_eq!(
-            game.government_revolution_unhappiness(1, Government::Republic),
+            game.government_revolution_unhappiness(1, Government::REPUBLIC),
             2
         );
         assert_eq!(
-            game.government_revolution_unhappiness(1, Government::Democracy),
+            game.government_revolution_unhappiness(1, Government::DEMOCRACY),
             2
         );
         assert_eq!(
-            game.government_revolution_unhappiness(1, Government::Despotism),
+            game.government_revolution_unhappiness(1, Government::DESPOTISM),
             0
         );
 
         game.create_city(1, 10, 20);
         game.cities[0].buildings.push(Building::UNITED_NATIONS);
         assert_eq!(
-            game.government_revolution_unhappiness(1, Government::Despotism),
+            game.government_revolution_unhappiness(1, Government::DESPOTISM),
             2
         );
         assert_eq!(
-            game.government_revolution_unhappiness(1, Government::Republic),
+            game.government_revolution_unhappiness(1, Government::REPUBLIC),
             2
         );
     }

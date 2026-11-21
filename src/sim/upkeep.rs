@@ -394,7 +394,7 @@ mod tests {
         game.units.clear();
         game.cities.clear();
         game.create_city(HUMAN, 10, 10);
-        game.players[HUMAN].government = Government::Despotism;
+        game.players[HUMAN].government = Government::DESPOTISM;
         let city_id = game.cities[0].id;
         let ids: Vec<_> = (0..6)
             .map(|_| game.spawn_unit(HUMAN, UnitKind::Worker, 10, 10))
@@ -424,9 +424,9 @@ mod tests {
             vec![(ids[4], 1), (ids[5], 1)]
         );
         game.cities[0].size = 13;
-        game.players[HUMAN].government = Government::Monarchy;
+        game.players[HUMAN].government = Government::MONARCHY;
         assert!(game.national_unit_gold_upkeep(HUMAN).paid.is_empty());
-        game.players[HUMAN].government = Government::Democracy;
+        game.players[HUMAN].government = Government::DEMOCRACY;
         assert_eq!(game.national_unit_gold_upkeep(HUMAN).paid.len(), 6);
     }
 
@@ -435,7 +435,7 @@ mod tests {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         game.units.clear();
         game.cities.clear();
-        game.players[HUMAN].government = Government::Democracy;
+        game.players[HUMAN].government = Government::DEMOCRACY;
         for kind in UnitKind::ALL_NATIVE {
             game.spawn_unit(HUMAN, kind, 10, 10);
         }

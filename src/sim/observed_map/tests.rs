@@ -125,10 +125,10 @@ fn city_appearance_disorder_matches_full_forecast_after_policy_changes() {
         .unwrap()
         .home_city = Some(city_id);
     for government in [
-        Government::Anarchy,
-        Government::Monarchy,
-        Government::Republic,
-        Government::Democracy,
+        Government::ANARCHY,
+        Government::MONARCHY,
+        Government::REPUBLIC,
+        Government::DEMOCRACY,
     ] {
         for player in &mut game.players {
             player.government = government;

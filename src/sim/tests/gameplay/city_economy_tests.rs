@@ -17,7 +17,7 @@ impl Simulation {
         self.create_city(1, 10, 24);
         self.cities[0].size = 4;
         self.reconcile_city_workers();
-        self.players[1].government = Government::Despotism;
+        self.players[1].government = Government::DESPOTISM;
         self.players[1].known = self.research_path(1, Tech::MONARCHY);
         self.players[1].known.retain(|&tech| tech != Tech::MONARCHY);
         self.players[1].rates = [60, 40, 0];
@@ -39,7 +39,7 @@ impl Simulation {
                     && self.players[1].researching == goal
             });
         self.choose_ai_government(1);
-        let locked = self.players[1].revolution_target != Some(Government::Monarchy);
+        let locked = self.players[1].revolution_target != Some(Government::MONARCHY);
         // Finish any available-government transition before unlocking the goal.
         // Keep the real advisor cache; technology changes availability at once.
         if let Some(finish) = self.players[1].revolution_turn {
@@ -51,12 +51,12 @@ impl Simulation {
         }
         self.players[1].known.push(Tech::MONARCHY);
         self.choose_ai_government(1);
-        let chose = self.players[1].revolution_target == Some(Government::Monarchy)
-            && self.players[1].government == Government::Anarchy;
+        let chose = self.players[1].revolution_target == Some(Government::MONARCHY)
+            && self.players[1].government == Government::ANARCHY;
         let finish = self.players[1].revolution_turn;
         self.players[1].known.push(Tech::DEMOCRACY);
         self.choose_ai_government(1);
-        let kept = self.players[1].revolution_target == Some(Government::Monarchy)
+        let kept = self.players[1].revolution_target == Some(Government::MONARCHY)
             && self.players[1].revolution_turn == finish;
         if let Some(turn) = finish {
             self.turn = turn;
@@ -66,7 +66,7 @@ impl Simulation {
             research,
             locked,
             chose,
-            kept && self.players[1].government == Government::Monarchy,
+            kept && self.players[1].government == Government::MONARCHY,
         )
     }
 
@@ -77,7 +77,7 @@ impl Simulation {
             tile.terrain = Terrain::Grassland;
             tile.resource = None;
         }
-        self.players[BARBARIANS].government = Government::Despotism;
+        self.players[BARBARIANS].government = Government::DESPOTISM;
         self.players[BARBARIANS].known.clear();
         self.create_city(BARBARIANS, 12, 24);
         let mut city = self.cities[0].clone();
@@ -88,7 +88,7 @@ impl Simulation {
         city.buildings.clear();
         city.owner = 1;
         let ordinary =
-            self.government_output_waste_under(&city, 100, 100, None, Government::Despotism)
+            self.government_output_waste_under(&city, 100, 100, None, Government::DESPOTISM)
                 == (0, 0);
         no_center && base && courthouse && ordinary
     }
@@ -98,7 +98,7 @@ impl Simulation {
         self.cities.clear();
         self.city_rapture.clear();
         self.ai_government_cache.clear();
-        self.players[1].government = Government::Communism;
+        self.players[1].government = Government::COMMUNISM;
         self.players[1].known.clear();
         self.players[1].gold = 100_000;
         for tile in &mut self.tiles {
@@ -140,7 +140,7 @@ impl Simulation {
         // Keep this fixture on the three city commerce bonuses. The separate
         // output-effects regression covers Super Highways' additional bonus.
         let commerce = self.split_city_trade(&city, 4, [0, 50, 50]) == [0, 5, 5];
-        self.players[1].government = Government::Feudalism;
+        self.players[1].government = Government::FEUDALISM;
         // Feudalism is a Conquests government; it adds no trade by itself.
         let feudalism_has_no_extra_trade =
             self.split_city_trade(&city, 0, [100, 0, 0]) == [0, 0, 0];
@@ -151,8 +151,8 @@ impl Simulation {
         (remote.x, remote.y) = offset_native_by_map(12, 24, 18, 0);
         // C2C3 applies 50% food-waste relief; Communism does not cancel the
         // distance component. At distance 18, 9% of gross food is wasted.
-        let waste = self.government_food_output(&remote, 100, Government::Communism) == 91;
-        self.players[1].government = Government::Republic;
+        let waste = self.government_food_output(&remote, 100, Government::COMMUNISM) == 91;
+        self.players[1].government = Government::REPUBLIC;
         city.size = 3;
         city.was_happy = false;
         let ordinary_trade = self.city_tile_yields(&city, city.x, city.y, true, None).2;
@@ -173,7 +173,7 @@ impl Simulation {
         self.units.clear();
         self.cities.clear();
         let home = (10, 24);
-        self.players[HUMAN].government = Government::Communism;
+        self.players[HUMAN].government = Government::COMMUNISM;
         for tile in &mut self.tiles {
             tile.terrain = Terrain::Hills;
             tile.resource = None;
@@ -225,7 +225,7 @@ impl Simulation {
             tile.mine = false;
             tile.owner = None;
         }
-        game.players[HUMAN].government = Government::Communism;
+        game.players[HUMAN].government = Government::COMMUNISM;
         game.players[HUMAN].known = vec![Tech::COMMUNISM];
         let center = (12, 24);
         let grass = offset_native_by_map(center.0, center.1, -1, 0);

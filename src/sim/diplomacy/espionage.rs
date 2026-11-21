@@ -313,7 +313,7 @@ impl Simulation {
                 if city.shields > 0 {
                     missions.push((EspionageMission::SabotageProduction, Some(city.id)));
                 }
-                if self.players[opponent].government != Government::Democracy {
+                if self.players[opponent].government != Government::DEMOCRACY {
                     missions.push((EspionageMission::InitiatePropaganda, Some(city.id)));
                 }
             }
@@ -465,7 +465,7 @@ impl Simulation {
             }
             let veteran = matches!(
                 self.players[actor].government,
-                Government::Communism | Government::Fascism
+                Government::COMMUNISM | Government::FASCISM
             );
             let success = self.rand_below(100) < if veteran { 60 } else { 50 };
             let relation = self.diplomacy.entry(relation_key).or_default();
@@ -708,7 +708,7 @@ impl Simulation {
             return false;
         };
         let city = self.cities[index].clone();
-        if self.players[opponent].government == Government::Democracy {
+        if self.players[opponent].government == Government::DEMOCRACY {
             self.add_espionage_event(
                 actor,
                 opponent,
@@ -927,30 +927,17 @@ impl Simulation {
 }
 
 fn propaganda_government_modifier(attacker: Government, defender: Government) -> i32 {
-    use Government::*;
-    match attacker {
-        Anarchy => 0,
-        Despotism => [15, 0, -10, -15, -20, -30, 0, 0][government_index(defender)],
-        Monarchy => [20, 15, 0, -5, -10, -25, 0, 0][government_index(defender)],
-        Communism => [25, 20, 5, 0, -10, -20, 0, 0][government_index(defender)],
-        Republic => [30, 25, 10, 8, 0, -5, 0, 0][government_index(defender)],
-        Democracy => [35, 30, 20, 10, 5, 0, 0, 0][government_index(defender)],
-        Fascism => [0, 0, -5, -20, -10, -10, 0, 0][government_index(defender)],
-        Feudalism => [0, 15, 0, -10, -10, -20, -25, 0][government_index(defender)],
-    }
-}
-
-fn government_index(government: Government) -> usize {
-    match government {
-        Government::Anarchy => 0,
-        Government::Despotism => 1,
-        Government::Monarchy => 2,
-        Government::Communism => 3,
-        Government::Republic => 4,
-        Government::Democracy => 5,
-        Government::Fascism => 6,
-        Government::Feudalism => 7,
-    }
+    let row = match attacker {
+        Government::DESPOTISM => [15, 0, -10, -15, -20, -30, 0, 0],
+        Government::MONARCHY => [20, 15, 0, -5, -10, -25, 0, 0],
+        Government::COMMUNISM => [25, 20, 5, 0, -10, -20, 0, 0],
+        Government::REPUBLIC => [30, 25, 10, 8, 0, -5, 0, 0],
+        Government::DEMOCRACY => [35, 30, 20, 10, 5, 0, 0, 0],
+        Government::FASCISM => [0, 0, -5, -20, -10, -10, 0, 0],
+        Government::FEUDALISM => [0, 15, 0, -10, -10, -20, -25, 0],
+        _ => return 0,
+    };
+    row.get(defender.index()).copied().unwrap_or(0)
 }
 
 fn propaganda_culture_modifier(attacker_culture: i64, defender_culture: i64) -> i32 {

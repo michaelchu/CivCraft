@@ -14,7 +14,7 @@ fn small_wonder_projects_government_center_effects_across_empire() {
     game.create_city(1, 20, 40);
     game.create_city(1, 25, 40);
     game.players[1].known = vec![Tech::THEOLOGY];
-    game.players[1].government = Government::Despotism;
+    game.players[1].government = Government::DESPOTISM;
     game.players[1].rates = [80, 20, 0];
     for city in &mut game.cities {
         city.size = 4;

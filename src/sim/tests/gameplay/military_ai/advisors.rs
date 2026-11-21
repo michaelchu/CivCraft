@@ -14,7 +14,7 @@ impl Simulation {
         game.unit_goto_tiles.clear();
         game.ai_ferries = Default::default();
         game.players[1].known = vec![Tech::BRONZE_WORKING, Tech::THE_WHEEL];
-        game.players[1].government = Government::Despotism;
+        game.players[1].government = Government::DESPOTISM;
         game.players[1].rates = [40, 60, 0];
         for tile in &mut game.tiles {
             tile.terrain = Terrain::Grassland;
@@ -137,7 +137,7 @@ impl Simulation {
         self.units.clear();
         self.tile_mut(coast.0, coast.1).terrain = Terrain::Grassland;
         self.players[1].known.clear();
-        self.players[1].government = Government::Despotism;
+        self.players[1].government = Government::DESPOTISM;
         self.spawn_unit(HUMAN, UnitKind::Warrior, coast.0, coast.1);
         // Native static defender side effect: current Warrior rating.16,
         // future Spearman484/225, wallvalue90, danger211, Bronze30/4=7.
@@ -161,7 +161,7 @@ impl Simulation {
             tile.railroad = false;
         }
         self.players[1].known = vec![Tech::BRONZE_WORKING];
-        self.players[1].government = Government::Despotism;
+        self.players[1].government = Government::DESPOTISM;
         self.create_city(1, 10, 24);
         let quiet = self.native_city_defense_choice(&self.cities[0]).0.is_none();
         let near = offset_native_by_map(10, 24, 1, 0);

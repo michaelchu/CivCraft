@@ -62,11 +62,11 @@ mod tests {
             city.size = workers as i32;
             city.specialists = [0; 3];
             city.worked_tiles = tiles[..workers].to_vec();
-            game.players[HUMAN].government = Government::Communism;
+            game.players[HUMAN].government = Government::COMMUNISM;
             city.buildings.clear();
             let raw = game.city_yields(&city).1;
             city.buildings.push(Building::FACTORY);
-            game.players[HUMAN].government = Government::Democracy;
+            game.players[HUMAN].government = Government::DEMOCRACY;
             // Democracy's base shield waste is 25%; this city is on its
             // capital tile, without a courthouse/palace relief in the query.
             let boosted = raw * 125 / 100;
@@ -87,7 +87,7 @@ mod city_output_tests {
         game.units.clear();
         game.cities.clear();
         game.city_rapture.clear();
-        game.players[1].government = Government::Communism;
+        game.players[1].government = Government::COMMUNISM;
         game.players[1].known.clear();
         game.players[1].gold = 100_000;
         for tile in &mut game.tiles {
@@ -246,7 +246,7 @@ mod city_output_tests {
     fn supermarket_penalty_and_contamination_follow_native_integer_order() {
         let mut game = fixture();
         let mut city = game.cities[0].clone();
-        game.players[1].government = Government::Despotism;
+        game.players[1].government = Government::DESPOTISM;
         city.buildings.push(Building::SUPERMARKET);
         let point = offset_native_by_map(city.x, city.y, 1, 0);
         let tile = game.tile_mut(point.0, point.1);
@@ -290,7 +290,7 @@ mod city_output_tests {
         assert_eq!(game.split_city_trade(&city, 4, [0, 50, 50]), [0, 5, 5]);
         city.buildings.push(Building::SUPER_HIGHWAYS);
         assert_eq!(game.split_city_trade(&city, 4, [0, 50, 50]), [0, 6, 6]);
-        game.players[1].government = Government::Feudalism;
+        game.players[1].government = Government::FEUDALISM;
         assert_eq!(game.split_city_trade(&city, 0, [100, 0, 0]), [0, 0, 0]);
     }
 
@@ -301,22 +301,22 @@ mod city_output_tests {
         city.buildings.clear();
         (city.x, city.y) = offset_native_by_map(city.x, city.y, 18, 0);
         assert_eq!(
-            game.government_food_output(&city, 100, Government::Despotism),
+            game.government_food_output(&city, 100, Government::DESPOTISM),
             91
         );
         assert_eq!(
-            game.government_output_waste_under(&city, 100, 100, None, Government::Despotism),
+            game.government_output_waste_under(&city, 100, 100, None, Government::DESPOTISM),
             (54, 44)
         );
         city.buildings.push(Building::ECCLESIASTICAL_PALACE);
         // city.c:nearest_gov_center's first branch uses evaluated city,
         // before the real city's building list has been changed in the map.
         assert_eq!(
-            game.government_food_output(&city, 100, Government::Despotism),
+            game.government_food_output(&city, 100, Government::DESPOTISM),
             100
         );
         assert_eq!(
-            game.government_output_waste_under(&city, 100, 100, None, Government::Despotism),
+            game.government_output_waste_under(&city, 100, 100, None, Government::DESPOTISM),
             (95, 90)
         );
     }
@@ -329,31 +329,31 @@ mod city_output_tests {
             .retain(|&building| building != Building::PALACE);
         (city.x, city.y) = offset_native_by_map(city.x, city.y, 18, 0);
         assert_eq!(
-            game.government_food_output(&city, 100, Government::Communism),
+            game.government_food_output(&city, 100, Government::COMMUNISM),
             91
         );
         city.buildings.push(Building::GRANARY);
         assert_eq!(
-            game.government_food_output(&city, 100, Government::Communism),
+            game.government_food_output(&city, 100, Government::COMMUNISM),
             95
         );
         city.buildings.push(Building::COURTHOUSE);
         assert_eq!(
-            game.government_food_output(&city, 100, Government::Communism),
+            game.government_food_output(&city, 100, Government::COMMUNISM),
             100
         );
         game.cities[0].buildings.clear();
         assert_eq!(
-            game.government_food_output(&city, 100, Government::Communism),
+            game.government_food_output(&city, 100, Government::COMMUNISM),
             0
         );
         assert_eq!(
-            game.government_food_output(&city, 100, Government::Anarchy),
+            game.government_food_output(&city, 100, Government::ANARCHY),
             100
         );
         city.owner = BARBARIANS;
         assert_eq!(
-            game.government_food_output(&city, 100, Government::Despotism),
+            game.government_food_output(&city, 100, Government::DESPOTISM),
             100
         );
     }
@@ -365,7 +365,7 @@ mod city_output_tests {
         // C2C3 Grassland has no base trade. Road trade makes the center's
         // positive output eligible for its celebration increment.
         game.tile_mut(city.x, city.y).road = true;
-        game.players[1].government = Government::Monarchy;
+        game.players[1].government = Government::MONARCHY;
         assert_eq!(
             game.city_tile_yields(&city, city.x, city.y, true, None).2,
             1
@@ -376,7 +376,7 @@ mod city_output_tests {
             game.city_tile_yields(&city, city.x, city.y, true, None).2,
             2
         );
-        game.players[1].government = Government::Republic;
+        game.players[1].government = Government::REPUBLIC;
         assert_eq!(
             game.city_tile_yields(&city, city.x, city.y, true, None).2,
             3

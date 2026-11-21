@@ -7,7 +7,7 @@ impl Simulation {
         // Start from an unlocked government so the UI scenario can exercise
         // a real change to Despotism while Monarchy remains tech-locked.
         let player = &mut self.players[HUMAN];
-        player.government = Government::Republic;
+        player.government = Government::REPUBLIC;
         if !player.known.contains(&Tech::THE_REPUBLIC) {
             player.known.push(Tech::THE_REPUBLIC);
         }
@@ -20,7 +20,7 @@ impl Simulation {
         // Conquests charges excess unit support in gold. Run this in an
         // isolated unit tests copy so fixture units and turn advancement do not
         // alter the UI review campaign.
-        self.players[HUMAN].government = Government::Despotism;
+        self.players[HUMAN].government = Government::DESPOTISM;
         self.players[HUMAN].revolution_target = None;
         self.players[HUMAN].revolution_turn = None;
         let Some(city) = self.cities.iter().find(|city| city.owner == HUMAN) else {

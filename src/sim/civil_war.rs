@@ -103,10 +103,10 @@ impl Simulation {
         let gold = original.gold / 2;
         original.gold -= gold;
         original.research = 0;
-        if original.government != Government::Anarchy {
+        if original.government != Government::ANARCHY {
             original.revolution_target = Some(original.government);
             original.revolution_turn = Some(self.turn + 1);
-            original.government = Government::Anarchy;
+            original.government = Government::ANARCHY;
         }
         const REBEL_NAMES: [&str; 5] = [
             "Free Cities",
@@ -120,7 +120,7 @@ impl Simulation {
             civilization_id: None,
             gold,
             rates: [60, 40, 0],
-            government: Government::Despotism,
+            government: Government::DESPOTISM,
             history: 0,
             revolution_target: None,
             revolution_turn: None,

@@ -17,7 +17,7 @@ fn execute(game: &mut Simulation, checks: &mut Checks) {
     let mut world = WorldBuilder::new(game);
     world.clear_units_and_cities();
     world.fertile_tiles(Some(1), Some(1));
-    world.government_state(1, Government::Despotism);
+    world.government_state(1, Government::DESPOTISM);
     let city_id = world.founding_city(1, (10, 24));
     world.city_population(city_id, 4, Some([0; 3]));
     game.reconcile_city_workers();

@@ -578,7 +578,7 @@ mod tests {
         let mut game = nuclear_game();
         let (x, y) = (10, 20);
         game.sign_pact(HUMAN, 1, Pact::Peace);
-        game.players[1].government = Government::Democracy;
+        game.players[1].government = Government::DEMOCRACY;
         let nuke = make_nuke(&mut game, x, y);
         let unit = game.unit_by_id(nuke).unwrap().clone();
         assert!(game.senate_blocks_cancellation(1, HUMAN));

@@ -211,7 +211,7 @@ mod tests {
             .buildings
             .extend([Building::BARRACKS, Building::SUN_TZUS_WAR_ACADEMY]);
         assert_eq!(game.trained_rank(&game.cities[0], UnitKind::Warrior), 2);
-        game.players[HUMAN].government = Government::Communism;
+        game.players[HUMAN].government = Government::COMMUNISM;
         let id = game.spawn_unit(HUMAN, UnitKind::Warrior, 10, 20);
         let regular = game.unit_by_id(id).unwrap().clone();
         let unit = game.units.iter_mut().find(|unit| unit.id == id).unwrap();
@@ -310,8 +310,8 @@ mod tests {
             tile.base = None;
             tile.hut = false;
         }
-        game.players[HUMAN].government = super::super::Government::Despotism;
-        game.players[1].government = super::super::Government::Despotism;
+        game.players[HUMAN].government = super::super::Government::DESPOTISM;
+        game.players[1].government = super::super::Government::DESPOTISM;
         game.sign_pact(HUMAN, 1, super::super::Pact::War);
         let attacker_id = game.spawn_unit(HUMAN, UnitKind::Warrior, x, y);
         let defender_id = game.spawn_unit(1, UnitKind::Warrior, tx, ty);

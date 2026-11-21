@@ -113,14 +113,14 @@ fn martial_law_caps_follow_the_selected_c2c3_ruleset() {
     game.create_city(HUMAN, 10, 24);
     let city = game.cities[0].clone();
     for government in [
-        (Government::Anarchy, 3),
-        (Government::Despotism, 3),
-        (Government::Monarchy, 3),
-        (Government::Communism, 3),
-        (Government::Fascism, 3),
-        (Government::Feudalism, 3),
-        (Government::Republic, 0),
-        (Government::Democracy, 0),
+        (Government::ANARCHY, 3),
+        (Government::DESPOTISM, 3),
+        (Government::MONARCHY, 3),
+        (Government::COMMUNISM, 3),
+        (Government::FASCISM, 3),
+        (Government::FEUDALISM, 3),
+        (Government::REPUBLIC, 0),
+        (Government::DEMOCRACY, 0),
     ] {
         game.players[HUMAN].government = government.0;
         assert_eq!(
@@ -147,7 +147,7 @@ fn field_units_do_not_create_freeciv_unhappiness_or_military_police_from_airbase
     game.units.clear();
     game.cities.clear();
     game.players[HUMAN].known.clear();
-    game.players[HUMAN].government = Government::Republic;
+    game.players[HUMAN].government = Government::REPUBLIC;
     game.create_city(HUMAN, 10, 24);
     let baseline = game.city_feelings(&game.cities[0], 0);
     let site = offset_native_by_map(10, 24, 1, 0);
@@ -174,7 +174,7 @@ fn military_police_require_an_attacking_unit_and_only_work_in_its_city() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
-    game.players[1].government = Government::Despotism;
+    game.players[1].government = Government::DESPOTISM;
     for tile in &mut game.tiles {
         tile.terrain = Terrain::Grassland;
         tile.resource = None;
@@ -199,7 +199,7 @@ fn military_police_require_an_attacking_unit_and_only_work_in_its_city() {
         (unit.x, unit.y) = sea;
     }
     assert_eq!(game.city_feelings(&city, 0).1, 2);
-    game.players[1].government = Government::Democracy;
+    game.players[1].government = Government::DEMOCRACY;
     assert_eq!(
         game.city_feelings(&city, 0).1,
         2,
@@ -219,7 +219,7 @@ fn unit_unrest_still_changes_city_feelings_without_martial_law() {
     let city = game.cities[0].clone();
     let city_id = city.id;
 
-    for government in [Government::Republic, Government::Democracy] {
+    for government in [Government::REPUBLIC, Government::DEMOCRACY] {
         game.players[HUMAN].government = government;
         game.units.clear();
         let martial_law = game.city_rule_effect(
@@ -256,7 +256,7 @@ fn disorder_keeps_civ3_gold_support_out_of_food_and_shield_outputs() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
-    game.players[1].government = Government::Despotism;
+    game.players[1].government = Government::DESPOTISM;
     for tile in &mut game.tiles {
         tile.terrain = Terrain::Forest;
         tile.resource = None;
@@ -292,7 +292,7 @@ fn conquests_governments_do_not_apply_fundamentalism_tithes() {
     game.units.clear();
     game.cities.clear();
     game.players[1].known = vec![Tech::MYSTICISM];
-    game.players[1].government = Government::Fascism;
+    game.players[1].government = Government::FASCISM;
     for tile in &mut game.tiles {
         tile.terrain = Terrain::Grassland;
         tile.resource = None;
@@ -306,7 +306,7 @@ fn conquests_governments_do_not_apply_fundamentalism_tithes() {
     assert_eq!(game.city_trade(&city, 0)[1], 0);
     city.buildings.push(Building::MARKETPLACE);
     assert_eq!(game.city_trade(&city, 0)[1], 0);
-    game.players[1].government = Government::Democracy;
+    game.players[1].government = Government::DEMOCRACY;
     assert_eq!(game.city_trade(&city, 0)[1], 0);
 }
 
@@ -347,9 +347,9 @@ fn city_manager_matches_small_city_lattice_oracle_across_rates_and_governments()
     }
     let occupied: HashSet<_> = all[6..].iter().copied().collect();
     for government in [
-        Government::Despotism,
-        Government::Republic,
-        Government::Communism,
+        Government::DESPOTISM,
+        Government::REPUBLIC,
+        Government::COMMUNISM,
     ] {
         game.players[1].government = government;
         for rates in [[60, 30, 10], [30, 60, 10], [20, 20, 60]] {
@@ -472,7 +472,7 @@ fn city_manager_equal_specialist_fitness_uses_native_output_lexicographic_order(
         tile.resource = None;
     }
     game.create_city(1, 12, 24);
-    game.players[1].government = Government::Communism;
+    game.players[1].government = Government::COMMUNISM;
     let mut city = game.cities[0].clone();
     city.size = 3;
     city.specialists = [3, 0, 0];
@@ -543,7 +543,7 @@ fn native_cm_budget_counts_nonterminal_stack_steps_and_returns_incumbent() {
     game.units.clear();
     game.cities.clear();
     game.create_city(1, 12, 24);
-    game.players[1].government = Government::Communism;
+    game.players[1].government = Government::COMMUNISM;
     let mut city = game.cities[0].clone();
     city.size = 3;
     city.worked_tiles.clear();
@@ -579,7 +579,7 @@ fn native_cm_learns_minimum_luxury_from_disorder_and_prunes_later_choices() {
         tile.river = false;
     }
     game.create_city(1, 12, 24);
-    game.players[1].government = Government::Communism;
+    game.players[1].government = Government::COMMUNISM;
     game.players[1].rates = [100, 0, 0];
     let mut city = game.cities[0].clone();
     city.size = 8;
@@ -637,7 +637,7 @@ fn native_cm_emergency_sentinel_preserves_local_c_int_production_arithmetic() {
         tile.resource = None;
     }
     game.create_city(1, 12, 24);
-    game.players[1].government = Government::Communism;
+    game.players[1].government = Government::COMMUNISM;
     let mut city = game.cities[0].clone();
     city.buildings.extend([
         Building::FACTORY,

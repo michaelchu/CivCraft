@@ -7,7 +7,7 @@ fn plans_and_senate_refusals_do_not_earn_ally_support() {
     game.set_scenario_diplomacy(HUMAN, 2, Pact::War, 1, [0; 2]);
     game.begin_ai_war_plan(1, HUMAN, 3, WarReason::Alliance);
     assert!(game.ai_relationship_memory.is_empty());
-    game.players[1].government = Government::Democracy;
+    game.players[1].government = Government::DEMOCRACY;
     assert!(!game.cancel_pact(1, HUMAN));
     assert!(game.ai_relationship_memory.is_empty());
 }

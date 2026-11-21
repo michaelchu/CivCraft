@@ -558,7 +558,7 @@ mod tests {
                 .filter(|t| t.is_civ3_advance())
                 .collect::<Vec<_>>(),
         );
-        w.government(1, Government::Democracy);
+        w.government(1, Government::DEMOCRACY);
         w.map_surface(crate::sim::fixtures::TileSurface {
             terrain: Some(crate::world::Terrain::GrasslandShield),
             road: Some(true),

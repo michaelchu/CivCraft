@@ -301,7 +301,7 @@ fn conquest_invokes_partisans_after_transfer_and_population_loss() {
         player.known.clear();
         player.future_techs = 0;
     }
-    game.players[1].government = Government::Communism;
+    game.players[1].government = Government::COMMUNISM;
     game.players[1]
         .known
         .extend([Tech::COMMUNISM, Tech::GUNPOWDER]);

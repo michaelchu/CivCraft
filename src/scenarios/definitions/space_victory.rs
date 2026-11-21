@@ -79,7 +79,7 @@ fn campaign(map: GeneratedMap) -> (Simulation, SpaceVictory) {
         ..Default::default()
     });
     for owner in [HUMAN, CONTENDER] {
-        world.government_state(owner, Government::Democracy);
+        world.government_state(owner, Government::DEMOCRACY);
         world.economy(owner, 2000, [50, 30, 20]);
     }
     world.completed_great_wonders();

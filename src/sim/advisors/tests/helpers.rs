@@ -14,11 +14,11 @@ impl super::Simulation {
         }
         self.create_city(1, 10, 24);
         self.cities[0].size = 5;
-        self.players[1].government = Government::Monarchy;
+        self.players[1].government = Government::MONARCHY;
         self.players[1].known.push(Tech::MYSTICISM);
         let independent = self.building_happiness_want(&self.cities[0], Building::TEMPLE) > 0.0;
         self.cities[0].size = 4;
-        self.players[1].government = Government::Republic;
+        self.players[1].government = Government::REPUBLIC;
         let id = self.cities[0].id;
         let field = offset_native_by_map(10, 24, 8, 0);
         // Keep these units inside national borders so this scenario measures
@@ -32,14 +32,14 @@ impl super::Simulation {
         let wartime = self.building_happiness_want(&self.cities[0], Building::TEMPLE) == 0.0
             && self.building_happiness_want(&self.cities[0], Building::STATUE_OF_ZEUS) > 0.0
             && self.building_happiness_want(&self.cities[0], Building::POLICE_STATION) > 0.0;
-        self.players[1].government = Government::Democracy;
+        self.players[1].government = Government::DEMOCRACY;
         self.cities[0].buildings.push(Building::POLICE_STATION);
         let removal =
             self.building_happiness_want(&self.cities[0], Building::WOMENS_SUFFRAGE) == 0.0;
         self.units.clear();
         self.cities[0].buildings.clear();
         self.cities[0].size = 1;
-        self.players[1].government = Government::Monarchy;
+        self.players[1].government = Government::MONARCHY;
         for step in [4, 8] {
             let (x, y) = offset_native_by_map(10, 24, step, 0);
             self.create_city(1, x, y);
@@ -68,7 +68,7 @@ impl super::Simulation {
         self.players[1]
             .known
             .extend([Tech::ECONOMICS, Tech::POTTERY]);
-        self.players[1].government = Government::Monarchy;
+        self.players[1].government = Government::MONARCHY;
         self.players[1].rates = [80, 20, 0];
         for (dx, dy) in [(0, 0), (3, 0), (6, 0), (0, 3), (3, 3), (6, 3)] {
             let (x, y) = offset_native_by_map(10, 24, dx, dy);

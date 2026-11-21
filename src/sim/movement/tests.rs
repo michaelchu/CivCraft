@@ -484,7 +484,7 @@ fn worker_strength_keeps_actual_and_projected_foreign_worker_rates_aligned() {
     game.enable_visual_events();
     game.units.clear();
     game.cities.clear();
-    game.players[HUMAN].government = Government::Monarchy;
+    game.players[HUMAN].government = Government::MONARCHY;
     game.players[HUMAN].known.clear();
     let native = game.spawn_unit(HUMAN, UnitKind::Worker, 10, 24);
     let foreign = game.spawn_unit(HUMAN, UnitKind::Worker, 12, 24);
@@ -519,7 +519,7 @@ fn worker_strength_keeps_actual_and_projected_foreign_worker_rates_aligned() {
     // Freeciv activity rate is independent of Civ III government and
     // Replaceable Parts modifiers; the retained source WorkerStrength ratio
     // still applies to captive Workers.
-    game.players[HUMAN].government = Government::Democracy;
+    game.players[HUMAN].government = Government::DEMOCRACY;
     game.players[HUMAN].known.push(Tech::REPLACEABLE_PARTS);
     assert_eq!(game.activity_rate(&native_unit), 10);
     assert_eq!(game.activity_rate(&foreign_unit), 5);

@@ -47,7 +47,7 @@ fn science_priority_truncates_to_twenty_one_before_source_float_accumulation() {
     tile.river = true;
     tile.pollution = false;
     tile.fallout = false;
-    game.players[1].government = Government::Communism;
+    game.players[1].government = Government::COMMUNISM;
     game.players[1].rates = [100, 0, 0];
     game.players[1].researching = Tech::BRONZE_WORKING;
     game.create_city(1, 10, 24);

@@ -10,7 +10,7 @@ impl Simulation {
         self.ai_war_plans.clear();
         self.ai_purchase_reserve.clear();
         self.ai_government_cache.clear();
-        self.players[1].government = Government::Despotism;
+        self.players[1].government = Government::DESPOTISM;
         self.players[1].known = vec![Tech::EXPLOSIVES, Tech::ENGINEERING];
         self.players[1].researching = Tech::BRONZE_WORKING;
         self.players[1].research = 0;

@@ -72,7 +72,7 @@ impl Simulation {
         let (rx, ry) = ((x - 8).rem_euclid(width), y);
         self.create_city(HUMAN, tx, ty);
         self.create_city(1, rx, ry);
-        self.players[HUMAN].government = Government::Democracy;
+        self.players[HUMAN].government = Government::DEMOCRACY;
         self.cities[1]
             .buildings
             .push(Building::SHAKESPEARES_THEATER);

@@ -120,14 +120,14 @@ fn current_campaign_round_trip_preserves_gameplay_and_topology_state() {
     game.nation_scores[HUMAN].score_literacy = 67;
     game.cities[0].foreign_citizens = vec![(2, 1)];
     game.players[HUMAN].mobilized = true;
-    game.players[HUMAN].government = Government::Democracy;
-    game.players[HUMAN].revolution_target = Some(Government::Republic);
+    game.players[HUMAN].government = Government::DEMOCRACY;
+    game.players[HUMAN].revolution_target = Some(Government::REPUBLIC);
     game.players[HUMAN].revolution_turn = Some(game.turn + 2);
     game.players[HUMAN].researching_saved = Some(Tech::MONARCHY);
     game.players[HUMAN].research_saved = 53;
-    game.government_adoptions[Government::Republic as usize] = 3;
-    let mut government_scores = [0.0; Government::COUNT];
-    government_scores[Government::Republic as usize] = 17.5;
+    game.government_adoptions[Government::REPUBLIC.index()] = 3;
+    let mut government_scores = vec![0.0; Government::count()];
+    government_scores[Government::REPUBLIC.index()] = 17.5;
     game.ai_government_cache.insert(
         1,
         government::GovernmentAdvisorCache {
@@ -188,10 +188,10 @@ fn current_campaign_round_trip_preserves_gameplay_and_topology_state() {
         game.unread_notifications_view()
     );
     assert!(loaded.players[HUMAN].mobilized);
-    assert_eq!(loaded.players[HUMAN].government, Government::Democracy);
+    assert_eq!(loaded.players[HUMAN].government, Government::DEMOCRACY);
     assert_eq!(
         loaded.players[HUMAN].revolution_target,
-        Some(Government::Republic)
+        Some(Government::REPUBLIC)
     );
     assert_eq!(loaded.players[HUMAN].revolution_turn, Some(game.turn + 2));
     assert_eq!(
@@ -199,12 +199,9 @@ fn current_campaign_round_trip_preserves_gameplay_and_topology_state() {
         Some(Tech::MONARCHY)
     );
     assert_eq!(loaded.players[HUMAN].research_saved, 53);
+    assert_eq!(loaded.government_adoptions[Government::REPUBLIC.index()], 3);
     assert_eq!(
-        loaded.government_adoptions[Government::Republic as usize],
-        3
-    );
-    assert_eq!(
-        loaded.ai_government_cache[&1].scores[Government::Republic as usize],
+        loaded.ai_government_cache[&1].scores[Government::REPUBLIC.index()],
         17.5
     );
     assert_eq!(loaded.cities[0].history, 375);

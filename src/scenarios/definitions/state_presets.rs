@@ -48,8 +48,8 @@ fn setup(map: GeneratedMap) -> (Simulation, Box<dyn ScenarioRun>) {
     );
     let mut world = WorldBuilder::new(&mut game);
     world.start_at(20, 1700);
-    world.government(REPUBLIC, Government::Republic);
-    world.government(MONARCHY, Government::Monarchy);
+    world.government(REPUBLIC, Government::REPUBLIC);
+    world.government(MONARCHY, Government::MONARCHY);
 
     let capital = (7, 6);
     let remote = (19, 29);
@@ -154,7 +154,7 @@ impl ScenarioRun for Presets {
         vec![
             Check {
                 name: "presets_governments",
-                passed: setup.governments == [Government::Republic, Government::Monarchy]
+                passed: setup.governments == [Government::REPUBLIC, Government::MONARCHY]
                     && !setup.revolutions_pending,
                 detail: format!(
                     "Expected Republic and Monarchy at setup with no pending revolution. Found {:?}, pending revolution={}",

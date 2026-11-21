@@ -36,7 +36,7 @@ fn settlement_island() -> Simulation {
         tile.mine = false;
         tile.base = None;
     }
-    game.players[1].government = Government::Communism;
+    game.players[1].government = Government::COMMUNISM;
     game
 }
 
@@ -261,12 +261,12 @@ fn settlement_uses_goal_government_without_changing_live_government() {
     game.create_city(1, 5, 8);
     game.cities[0].size = 4;
     game.reconcile_city_workers();
-    game.players[1].government = Government::Anarchy;
+    game.players[1].government = Government::ANARCHY;
     game.players[1].known = game.research_path(1, Tech::MONARCHY);
     game.players[1].known.retain(|&tech| tech != Tech::MONARCHY);
     game.players[1].rates = [60, 40, 0];
     let goal = game.ai_goal_government(1);
-    assert_ne!(goal, Government::Anarchy);
+    assert_ne!(goal, Government::ANARCHY);
     assert!(
         goal.requirement()
             .is_some_and(|tech| !game.has_tech(1, tech)),
@@ -275,7 +275,7 @@ fn settlement_uses_goal_government_without_changing_live_government() {
     let point = (15, 40);
     let reservations = game.settlement_citymap(1, None);
     let current = game
-        .city_site_result(1, point.0, point.1, Government::Anarchy, &reservations)
+        .city_site_result(1, point.0, point.1, Government::ANARCHY, &reservations)
         .unwrap()
         .value;
     let projected = game
@@ -284,7 +284,7 @@ fn settlement_uses_goal_government_without_changing_live_government() {
         .value;
     assert_ne!(current, projected);
     assert_eq!(game.city_site_value(1, point.0, point.1), Some(projected));
-    assert_eq!(game.players[1].government, Government::Anarchy);
+    assert_eq!(game.players[1].government, Government::ANARCHY);
     assert_eq!(game.players[1].rates, [60, 40, 0]);
 }
 
@@ -303,7 +303,7 @@ fn rough_edges_use_remaining_movement_when_amortizing_a_city_site() {
         tile.hut = false;
         tile.river = false;
     }
-    game.players[1].government = Government::Communism;
+    game.players[1].government = Government::COMMUNISM;
     let home = (10, 24);
     let target = offset_native_by_map(home.0, home.1, 2, 0);
     game.tile_mut(target.0, target.1).terrain = Terrain::Grassland;
@@ -324,7 +324,7 @@ fn a_virtual_city_does_not_invent_road_trade_on_a_bare_river() {
     city.x = 10;
     city.y = 24;
     city.buildings.clear();
-    game.players[1].government = Government::Republic;
+    game.players[1].government = Government::REPUBLIC;
     let tile = game.tile_mut(city.x, city.y);
     tile.terrain = Terrain::Plains;
     tile.resource = None;

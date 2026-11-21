@@ -8,84 +8,97 @@ use std::sync::OnceLock;
 
 mod advisor;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub(crate) enum Government {
-    Anarchy,
-    Despotism,
-    Monarchy,
-    Communism,
-    Fascism,
-    Feudalism,
-    Republic,
-    Democracy,
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(crate) struct Government(pub(crate) usize);
+
+impl serde::Serialize for Government {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        if serializer.is_human_readable() {
+            serializer.serialize_str(self.name())
+        } else {
+            serializer.serialize_u64(self.0 as u64)
+        }
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for Government {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        if deserializer.is_human_readable() {
+            let name = String::deserialize(deserializer)?;
+            Self::from_rule_name(&name)
+                .ok_or_else(|| serde::de::Error::custom(format!("unknown government {name:?}")))
+        } else {
+            usize::try_from(u64::deserialize(deserializer)?)
+                .map(Self)
+                .map_err(|_| serde::de::Error::custom("government index overflows usize"))
+        }
+    }
 }
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub(super) struct GovernmentAdvisorCache {
     pub(super) evaluated_turn: i32,
     pub(super) next_evaluation: i32,
-    pub(super) scores: [f64; Government::COUNT],
+    pub(super) scores: Vec<f64>,
 }
 
+#[allow(dead_code)]
 impl Government {
-    pub(crate) const COUNT: usize = 8;
+    pub(crate) const ANARCHY: Self = Self(0);
+    pub(crate) const DESPOTISM: Self = Self(1);
+    pub(crate) const MONARCHY: Self = Self(2);
+    pub(crate) const COMMUNISM: Self = Self(3);
+    pub(crate) const REPUBLIC: Self = Self(4);
+    pub(crate) const DEMOCRACY: Self = Self(5);
+    pub(crate) const FASCISM: Self = Self(6);
+    pub(crate) const FEUDALISM: Self = Self(7);
+
+    pub(crate) fn count() -> usize {
+        crate::rules::native::governments().governments.len()
+    }
+
+    pub(crate) const fn index(self) -> usize {
+        self.0
+    }
+
+    pub(crate) fn all() -> impl Iterator<Item = Self> {
+        (0..Self::count()).map(Self)
+    }
 
     pub(crate) fn during_revolution() -> Self {
-        Self::Anarchy
+        Self::from_rule_name("anarchy").unwrap_or(Self::ANARCHY)
     }
 
     pub(crate) fn targets() -> &'static [Self] {
         static TARGETS: OnceLock<Vec<Government>> = OnceLock::new();
         TARGETS.get_or_init(|| {
-            let native = &crate::rules::native::governments().governments;
-            assert_eq!(native.len(), Self::COUNT);
-            native
-                .iter()
-                .filter(|government| !government.government.eq_ignore_ascii_case("anarchy"))
-                .map(|government| {
-                    Self::from_rule_name(&government.government).unwrap_or_else(|| {
-                        panic!(
-                            "selected government {:?} has no stable runtime identity",
-                            government.government
-                        )
-                    })
-                })
+            let anarchy = Self::during_revolution();
+            Self::all()
+                .filter(|government| *government != anarchy)
                 .collect()
         })
     }
 
-    fn from_rule_name(name: &str) -> Option<Self> {
-        Some(match name.to_ascii_lowercase().as_str() {
-            "anarchy" => Self::Anarchy,
-            "despotism" => Self::Despotism,
-            "monarchy" => Self::Monarchy,
-            "communism" => Self::Communism,
-            "republic" => Self::Republic,
-            "democracy" => Self::Democracy,
-            "fascism" => Self::Fascism,
-            "feudalism" => Self::Feudalism,
-            _ => return None,
-        })
+    pub(crate) fn from_rule_name(name: &str) -> Option<Self> {
+        crate::rules::native::governments()
+            .governments
+            .iter()
+            .position(|government| {
+                government.government.eq_ignore_ascii_case(name)
+                    || government.name.eq_ignore_ascii_case(name)
+            })
+            .map(Self)
     }
 
     pub(crate) fn rule_name(self) -> Option<&'static str> {
-        Some(match self {
-            Self::Anarchy => "Anarchy",
-            Self::Despotism => "Despotism",
-            Self::Monarchy => "Monarchy",
-            Self::Communism => "Communism",
-            Self::Republic => "Republic",
-            Self::Democracy => "Democracy",
-            Self::Fascism => "Fascism",
-            Self::Feudalism => "Feudalism",
-        })
+        self.native_record()
+            .map(|government| government.government.as_str())
     }
 
     pub(crate) fn name(self) -> &'static str {
-        self.rule_name()
-            .and_then(|name| crate::rules::native::governments().get(name))
+        self.native_record()
             .map(|government| government.name.as_str())
-            .unwrap_or_else(|| self.rule_name().unwrap_or("Unknown Government"))
+            .unwrap_or("Unknown Government")
     }
 
     pub(crate) fn requirement(self) -> Option<Tech> {
@@ -93,8 +106,7 @@ impl Government {
     }
 
     fn native_record(self) -> Option<&'static crate::rules::native::NativeGovernment> {
-        self.rule_name()
-            .and_then(|name| crate::rules::native::governments().get(name))
+        crate::rules::native::governments().governments.get(self.0)
     }
 
     pub(crate) fn max_rate(self) -> i32 {
@@ -388,7 +400,7 @@ impl Simulation {
         // campaign's allocated barbarian player slot.
         let player_count = self.civilization_count as i32 + 1;
         let change_speed = ((player_count / 2) / (length - 1)).max(1);
-        let max_turns = (length - self.government_adoptions[target as usize] / change_speed).max(1);
+        let max_turns = (length - self.government_adoptions[target.index()] / change_speed).max(1);
         self.rand_below(max_turns) + 1
     }
 
@@ -411,7 +423,7 @@ impl Simulation {
                     && let Some(target) = player.revolution_target.take()
                 {
                     player.government = target;
-                    self.government_adoptions[target as usize] += 1;
+                    self.government_adoptions[target.index()] += 1;
                     if owner == HUMAN {
                         player.rates =
                             rates_after_government_change(player.rates, target.max_rate());
