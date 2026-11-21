@@ -230,6 +230,18 @@ pub struct Conf {
     /// If `true`, the user can resize the window.
     pub window_resizable: bool,
 
+    /// Smallest client size, in `(width, height)`, the user can resize a
+    /// resizable window to. Applied on Windows and macOS only; other
+    /// platforms ignore it. `None` leaves the minimum unbounded.
+    /// Defaults to `None`.
+    pub window_min_size: Option<(i32, i32)>,
+
+    /// Width-to-height ratio, as `(width, height)`, that a resizable window
+    /// keeps while the user drags its edges. Applied on Windows and macOS
+    /// only; other platforms ignore it. `None` leaves the ratio free.
+    /// Defaults to `None`.
+    pub window_aspect_ratio: Option<(i32, i32)>,
+
     /// Optional icon data used by the OS where applicable:
     /// - On Windows, taskbar/title bar icon
     /// - On macOS, Dock/title bar icon
@@ -283,6 +295,8 @@ impl Default for Conf {
             fullscreen: false,
             sample_count: 1,
             window_resizable: true,
+            window_min_size: None,
+            window_aspect_ratio: None,
             icon: Some(Icon::miniquad_logo()),
             platform: Default::default(),
         }
@@ -300,6 +314,8 @@ impl Default for Conf {
             fullscreen: true, //
             sample_count: 1,
             window_resizable: false, //
+            window_min_size: None,
+            window_aspect_ratio: None,
             icon: Some(Icon::miniquad_logo()),
             platform: Default::default(),
         }

@@ -100,6 +100,8 @@ pub(crate) struct WindowsDisplay {
     fullscreen: bool,
     dpi_aware: bool,
     window_resizable: bool,
+    window_min_size: Option<(i32, i32)>,
+    window_aspect_ratio: Option<(i32, i32)>,
     cursor_grabbed: bool,
     iconified: bool,
     content_scale: f32,
@@ -371,6 +373,21 @@ unsafe fn key_mods() -> KeyMods {
     mods
 }
 
+/// Size of the non-client frame (title bar, borders) for `hwnd`, so that
+/// window-outer sizes can be derived from client sizes.
+unsafe fn window_chrome(hwnd: HWND) -> (i32, i32) {
+    let style = GetWindowLongPtrA(hwnd, GWL_STYLE) as DWORD;
+    let ex_style = GetWindowLongPtrA(hwnd, GWL_EXSTYLE) as DWORD;
+    let mut rect = RECT {
+        left: 0,
+        top: 0,
+        right: 0,
+        bottom: 0,
+    };
+    AdjustWindowRectEx(&mut rect as *mut _ as _, style, false as _, ex_style);
+    (rect.right - rect.left, rect.bottom - rect.top)
+}
+
 unsafe extern "system" fn win32_wndproc(
     hwnd: HWND,
     umsg: UINT,
@@ -435,6 +452,60 @@ unsafe extern "system" fn win32_wndproc(
         }
         WM_ERASEBKGND => {
             return 1;
+        }
+        WM_GETMINMAXINFO => {
+            if let Some((min_width, min_height)) = payload.window_min_size {
+                let (chrome_w, chrome_h) = window_chrome(hwnd);
+                let info = &mut *(lparam as *mut MINMAXINFO);
+                info.ptMinTrackSize = POINT {
+                    x: min_width + chrome_w,
+                    y: min_height + chrome_h,
+                };
+                return 0;
+            }
+        }
+        WM_SIZING => {
+            if let Some((aspect_w, aspect_h)) = payload.window_aspect_ratio {
+                let rect = &mut *(lparam as *mut RECT);
+                let (chrome_w, chrome_h) = window_chrome(hwnd);
+                let (min_w, min_h) = payload.window_min_size.unwrap_or((1, 1));
+                // Keep the minimum reachable at the locked ratio.
+                let min_w = min_w.max(min_h * aspect_w / aspect_h).max(1);
+                let min_h = min_h.max(min_w * aspect_h / aspect_w).max(1);
+
+                let client_w = (rect.right - rect.left - chrome_w).max(0);
+                let client_h = (rect.bottom - rect.top - chrome_h).max(0);
+                // Top and bottom edges drive the height; left, right and
+                // corner drags drive the width.
+                let top_or_bottom = wparam == WMSZ_TOP as WPARAM || wparam == WMSZ_BOTTOM as WPARAM;
+                let (w, h) = if top_or_bottom {
+                    let h = client_h.max(min_h);
+                    (h * aspect_w / aspect_h, h)
+                } else {
+                    let w = client_w.max(min_w);
+                    (w, w * aspect_h / aspect_w)
+                };
+                let outer_w = w + chrome_w;
+                let outer_h = h + chrome_h;
+
+                let left_edge = wparam == WMSZ_LEFT as WPARAM
+                    || wparam == WMSZ_TOPLEFT as WPARAM
+                    || wparam == WMSZ_BOTTOMLEFT as WPARAM;
+                let top_edge = wparam == WMSZ_TOP as WPARAM
+                    || wparam == WMSZ_TOPLEFT as WPARAM
+                    || wparam == WMSZ_TOPRIGHT as WPARAM;
+                if left_edge {
+                    rect.left = rect.right - outer_w;
+                } else {
+                    rect.right = rect.left + outer_w;
+                }
+                if top_edge {
+                    rect.top = rect.bottom - outer_h;
+                } else {
+                    rect.bottom = rect.top + outer_h;
+                }
+                return TRUE as LRESULT;
+            }
         }
         WM_SIZE => {
             if payload.cursor_grabbed {
@@ -1176,6 +1247,8 @@ where
             fullscreen: false,
             dpi_aware: false,
             window_resizable: conf.window_resizable,
+            window_min_size: if conf.window_resizable { conf.window_min_size } else { None },
+            window_aspect_ratio: if conf.window_resizable { conf.window_aspect_ratio } else { None },
             cursor_grabbed: false,
             iconified: false,
             content_scale: 1.,

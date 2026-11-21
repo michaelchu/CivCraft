@@ -1383,6 +1383,23 @@ where
     ];
     assert!(!window.is_null());
 
+    if conf.window_resizable {
+        if let Some((min_width, min_height)) = conf.window_min_size {
+            let min_size = NSSize {
+                width: min_width as f64,
+                height: min_height as f64,
+            };
+            let () = msg_send![window, setContentMinSize: min_size];
+        }
+        if let Some((aspect_w, aspect_h)) = conf.window_aspect_ratio {
+            let ratio = NSSize {
+                width: aspect_w as f64,
+                height: aspect_h as f64,
+            };
+            let () = msg_send![window, setContentAspectRatio: ratio];
+        }
+    }
+
     let window_delegate_class = define_cocoa_window_delegate();
     let window_delegate: ObjcId = msg_send![window_delegate_class, new];
     let () = msg_send![window, setDelegate: window_delegate];
