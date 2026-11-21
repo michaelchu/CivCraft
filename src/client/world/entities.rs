@@ -93,11 +93,11 @@ impl Game {
             |growth| format!("{} : {growth}", city.name),
         );
         let center_font = (11.0 * zoom).max(9.0);
-        let top_metrics = measure_text(&top_text, None, center_font as u16, 1.0);
+        let top_metrics = measure_cached(&top_text, center_font as u16);
         let bottom_metrics = city
             .production_label
             .as_ref()
-            .map(|production| measure_text(production, None, center_font as u16, 1.0));
+            .map(|production| measure_cached(production, center_font as u16));
         // The reference selection ring is tile-sized; its bottom must clear
         // the label too, regardless of which unit is currently focused.
         let top = super::city_bar::label_top(center.y, zoom);
@@ -119,7 +119,7 @@ impl Game {
         let height = row_height * row_count + vertical_padding;
         let size_text = city.size.to_string();
         let size_font = (19.0 * zoom).max(14.0);
-        let size_metrics = measure_text(&size_text, None, size_font as u16, 1.0);
+        let size_metrics = measure_cached(&size_text, size_font as u16);
         let star_radius = (7.0 * zoom).max(5.5);
         let side_padding = (4.0 * zoom).max(2.5);
         let side_width = size_metrics.width.max(star_radius * 2.0) + side_padding * 2.0;

@@ -44,7 +44,7 @@ impl Game {
         self.draw_context_panel(assets, context, end.y);
         draw_ui_button(end, "", !self.turn_busy(), true);
         let shortcut = "Shift+Enter";
-        let shortcut_width = measure_text(shortcut, None, 11, 1.0).width;
+        let shortcut_width = measure_cached(shortcut, 11).width;
         draw_text(
             if self.turn_busy() {
                 "Processing turn..."
@@ -156,7 +156,7 @@ impl Game {
             let rect = Rect::new(
                 HUD_MARGIN,
                 HUD_MARGIN,
-                measure_text(&clipped, None, 15, 1.0).width + 16.0,
+                measure_cached(&clipped, 15).width + 16.0,
                 23.0,
             );
             draw_rectangle(
@@ -176,7 +176,7 @@ impl Game {
             let rect = Rect::new(
                 HUD_MARGIN,
                 y,
-                measure_text(&clipped, None, 15, 1.0).width + 16.0,
+                measure_cached(&clipped, 15).width + 16.0,
                 21.0,
             );
             draw_rectangle(

@@ -235,7 +235,7 @@ impl Game {
             );
         }
         if let Some((button, label)) = tooltip {
-            let width = measure_text(&label, None, 15, 1.0).width + 16.0;
+            let width = measure_cached(&label, 15).width + 16.0;
             let rect = Rect::new(
                 (button.right() - width).max(HUD_MARGIN),
                 button.bottom() + 3.0,

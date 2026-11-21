@@ -146,7 +146,7 @@ impl Game {
             let (food, shields, trade) = tile.yields;
             let label = format!("{food}/{shields}/{trade}");
             let size = if layout.tile_w < 95.0 { 12.0 } else { 14.0 };
-            let measured = measure_text(&label, None, size as u16, 1.0);
+            let measured = measure_cached(&label, size as u16);
             let label_y = center.y + layout.tile_h * 0.22;
             let pill = Rect::new(
                 center.x - measured.width * 0.5 - 5.0,

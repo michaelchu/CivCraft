@@ -29,8 +29,8 @@ pub(in crate::client) fn unit_status_inline(
     view: &crate::sim::UnitContextView,
     card_width: f32,
 ) -> bool {
-    let name_width = measure_text(view.kind.name(), None, 14, 1.0).width;
-    let state_width = measure_text(&view.status, None, 12, 1.0).width;
+    let name_width = measure_cached(view.kind.name(), 14).width;
+    let state_width = measure_cached(&view.status, 12).width;
     41.0 + name_width + state_width + 8.0 <= card_width - 20.0
 }
 
@@ -86,7 +86,7 @@ impl Game {
             } else {
                 view.status.clone()
             };
-            let state_width = measure_text(&state, None, 12, 1.0).width;
+            let state_width = measure_cached(&state, 12).width;
             let inline_status = if is_unit_stack { true } else { inline_status };
             let title_y = card.y + 20.0;
             let title_width = if is_unit_stack {

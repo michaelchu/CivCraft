@@ -4,14 +4,18 @@
 
 The supported map path is the Civ III renderer with horizontal wrap and bounded
 north/south edges. Use `--ui-review` to capture the north-pole, south-pole,
-terrain, river, and wrap-seam scenes at desktop and compact sizes. Inspect the
+terrain, river, and wrap-seam scenes at 1280×720, with 1600×900 for wide
+layouts. The game window cannot be smaller than 1280×720 or leave 16:9, so
+there is no compact size to review. Inspect the
 actual PNGs for continuous ocean backing at both poles, connected terrain and
 river art, and clean horizontal viewport seams. WrapXY scenes and prior
 Amplio2-atlas checks are retired.
 
 The detailed notes below record historical implementation and review work.
 Their Amplio2 atlas claims, old save compatibility checks, and former WrapXY
-comparisons are not current behavior or validation requirements.
+comparisons are not current behavior or validation requirements. Entries that
+mention compact or 800×600 captures predate the 1280×720 window minimum and are
+kept as records only.
 
 The client uses Macroquad's immediate-mode renderer. View files own their screen-specific content; `src/client/ui.rs` owns shared pixel-measured text fitting, panel framing, dialog text bounds, gutters, grid sizing and pagination. Buttons and meters remain shared primitives in `src/client/mod.rs`.
 
@@ -162,7 +166,9 @@ status. `--ui-review` runs separately from `--screenshot` to keep their state
 mutations independent. Missing automation-flag arguments fail
 rather than starting interactive play.
 
-Repeat at 800x600 and 1600x900 to inspect compact and wide layouts. Run the Rust test suite separately:
+Repeat at 1600x900 to inspect the wide layout. `--window-size` accepts only
+16:9 sizes of at least 1280x720; any other value silently falls back to
+1280x720, so check the PNG dimensions when a run must use a specific size. Run the Rust test suite separately:
 
 ```sh
 cargo test --offline
@@ -186,7 +192,7 @@ For the original 15 scenarios at 1280x720, two local profiling runs reduced setu
 - The campaign turn flow also passed with seed 1337 using single-scene capture.
 - Formatting and whitespace checks passed.
 
-Screenshots still need visual inspection: bounds and pixel fingerprints alone cannot prove every UI behavior. Windows smaller than 800x600 are outside the tested range. Parity implementation remains paused during this UI work.
+Screenshots still need visual inspection: bounds and pixel fingerprints alone cannot prove every UI behavior. The window cannot be dragged below 1280x720 or off 16:9; maximized or snapped windows can have other sizes and are outside the tested range. Parity implementation remains paused during this UI work.
 
 ### Isometric worked-tile view
 
@@ -332,7 +338,7 @@ show all terrain types in adjacent patches at 0.625×, 0.82×, and 1.35× zoom.
 Each captures a fractional camera position and a second position after panning.
 Inspect uniform water interiors, coastlines, lake/ice corners, and connected
 forest/jungle and hill/mountain edges for straight grid lines or gaps. Run at
-both desktop and compact sizes when changing terrain sampling. The gallery
+1280×720 and 1600×900 when changing terrain sampling. The gallery
 assertions check execution and bounds; screenshots still require visual
 inspection.
 
@@ -344,7 +350,7 @@ This replaces the flat water backing, which could show dark lake diagonals.
 
 The older terrain seam capture counts describe a superseded renderer and should
 not be used as current validation evidence. Capture the current Civ III scenes
-at both desktop and compact sizes.
+at 1280×720 and 1600×900.
 
 ### Ice transitions
 

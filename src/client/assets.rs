@@ -48,6 +48,11 @@ impl AssetContext {
     }
 }
 
+/// Smallest window size, and the width-to-height ratio that every window size
+/// keeps, in both the launch size and the user's resizes.
+const WINDOW_MIN_SIZE: (i32, i32) = (1280, 720);
+const WINDOW_ASPECT_RATIO: (i32, i32) = (16, 9);
+
 pub(crate) fn window_conf() -> Conf {
     let args: Vec<_> = std::env::args().collect();
     let size = args
@@ -55,13 +60,19 @@ pub(crate) fn window_conf() -> Conf {
         .find(|a| a[0] == "--window-size")
         .and_then(|a| a[1].split_once('x'))
         .and_then(|(w, h)| Some((w.parse::<i32>().ok()?, h.parse::<i32>().ok()?)))
-        .filter(|&(w, h)| w >= 800 && h >= 600)
-        .unwrap_or((1280, 720));
+        .filter(|&(w, h)| {
+            w >= WINDOW_MIN_SIZE.0
+                && h >= WINDOW_MIN_SIZE.1
+                && w * WINDOW_ASPECT_RATIO.1 == h * WINDOW_ASPECT_RATIO.0
+        })
+        .unwrap_or(WINDOW_MIN_SIZE);
     let conf = Conf {
         window_title: "CivCraft".to_owned(),
         window_width: size.0,
         window_height: size.1,
         window_resizable: true,
+        window_min_size: Some(WINDOW_MIN_SIZE),
+        window_aspect_ratio: Some(WINDOW_ASPECT_RATIO),
         high_dpi: true,
         sample_count: 4,
         ..Default::default()

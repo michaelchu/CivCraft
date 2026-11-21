@@ -7,6 +7,7 @@ use super::*;
 pub(in crate::client) struct MinimapCache {
     revision: Option<u64>,
     texture: Option<Texture2D>,
+    cities: Vec<crate::sim::MinimapCityView>,
 }
 
 fn minimap_image(sim: &ClientSimulation) -> Image {
@@ -46,6 +47,7 @@ impl Game {
                     texture.set_filter(FilterMode::Nearest);
                     cache.texture = Some(texture);
                 }
+                cache.cities = self.sim.minimap_city_views();
                 cache.revision = Some(self.sim.view_revision());
             }
             draw_texture_ex(
@@ -60,13 +62,16 @@ impl Game {
             );
         }
         let city_overrides = self.playback.city_overrides();
-        let mut cities = self.sim.minimap_city_views();
-        cities.retain(|city| !city_overrides.contains_key(&city.id));
-        cities.extend(
-            city_overrides
-                .values()
-                .map(|city| self.sim.minimap_city_override_view(city)),
-        );
+        let override_views: Vec<_> = city_overrides
+            .values()
+            .map(|city| self.sim.minimap_city_override_view(city))
+            .collect();
+        let cache = self.minimap_cache.borrow();
+        let cities = cache
+            .cities
+            .iter()
+            .filter(|city| !city_overrides.contains_key(&city.id))
+            .chain(override_views.iter());
         for city in cities {
             let origin = self.minimap_tile_origin(rect, city.x, city.y);
             let marker = Rect::new(origin.x, origin.y, 2.0 * scale, scale);
