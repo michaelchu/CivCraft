@@ -39,6 +39,7 @@ pub(crate) enum Requirement {
 
 #[derive(Clone)]
 pub(crate) struct BuildingData {
+    pub(crate) id: &'static str,
     pub(crate) name: &'static str,
     pub(crate) genus: Genus,
     pub(crate) cost: i32,
@@ -47,8 +48,6 @@ pub(crate) struct BuildingData {
     pub(crate) requirements: &'static [(Requirement, bool)],
     pub(crate) obsolete: &'static [(Requirement, bool)],
 }
-
-const BUILDING_COUNT: usize = 91;
 
 #[allow(dead_code)] // The catalog includes entries reserved for the Civ III ruleset.
 impl Building {
@@ -146,16 +145,30 @@ impl Building {
     // Conquests BLDG[82], included because its headquarters counts as a culture-flip capital.
     pub(crate) const SECRET_POLICE_HQ: Self = Self(90);
 
+    pub(crate) fn count() -> usize {
+        crate::rules::native::buildings().rules.len()
+    }
+
     pub(crate) fn all() -> impl Iterator<Item = Self> {
-        (0..BUILDING_COUNT).map(Self)
+        (0..Self::count()).map(Self)
+    }
+
+    pub(crate) fn id(self) -> &'static str {
+        self.data().id
+    }
+
+    pub(crate) fn from_id(id: &str) -> Option<Self> {
+        Self::all().find(|building| building.data().id == id)
     }
 
     pub(crate) fn data(self) -> &'static BuildingData {
         static DATA: OnceLock<Vec<BuildingData>> = OnceLock::new();
         DATA.get_or_init(|| {
-            let rules = crate::rules::native::buildings().rules.as_slice();
-            assert_eq!(rules.len(), BUILDING_COUNT);
-            rules.iter().map(native_building_data).collect()
+            crate::rules::native::buildings()
+                .rules
+                .iter()
+                .map(native_building_data)
+                .collect()
         })
         .get(self.0)
         .expect("building runtime ID is present in native TOML")
@@ -164,6 +177,7 @@ impl Building {
 
 fn native_building_data(rule: &crate::rules::native::NativeBuildingRule) -> BuildingData {
     BuildingData {
+        id: Box::leak(rule.id.clone().into_boxed_str()),
         name: Box::leak(rule.name.clone().into_boxed_str()),
         genus: match rule.genus.as_str() {
             "Improvement" => Genus::Improvement,
@@ -251,5 +265,23 @@ mod migration_tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn building_ids_and_well_known_handles_roundtrip_with_catalog() {
+        assert_eq!(Building::all().count(), Building::count());
+        for building in Building::all() {
+            assert_eq!(Building::from_id(building.id()), Some(building));
+        }
+        assert_eq!(Building::from_id("building_palace"), Some(Building::PALACE));
+        assert_eq!(
+            Building::from_id("building_pentagon"),
+            Some(Building::PENTAGON)
+        );
+        assert_eq!(
+            Building::from_id("building_secret_police_hq"),
+            Some(Building::SECRET_POLICE_HQ)
+        );
+        assert_eq!(Building::from_id("building_nonexistent"), None);
     }
 }

@@ -6,7 +6,11 @@ use super::native::{NativeTechnology, TechnologyCatalog};
 
 /// Resolve author-facing IDs without initializing the runtime research graph.
 pub(crate) fn runtime_index(id: &str) -> Option<usize> {
-    catalog()
+    runtime_index_in(catalog(), id)
+}
+
+pub(crate) fn runtime_index_in(catalog: &TechnologyCatalog, id: &str) -> Option<usize> {
+    catalog
         .technologies
         .iter()
         .find(|d| d.id == id)
@@ -32,7 +36,7 @@ pub(crate) fn validate(technologies: &[NativeTechnology]) -> Result<(), String> 
                 definition.id
             ));
         }
-        if (definition.runtime_index >= 105 || [101, 102].contains(&definition.runtime_index))
+        if [101, 102].contains(&definition.runtime_index)
             || definition.cost < 0
             || !(0..=3).contains(&definition.era)
             || definition
@@ -110,6 +114,26 @@ mod tests {
         definitions[1].prerequisites = Vec::new();
         definitions[1].runtime_index = 0;
         assert!(validate(&definitions).unwrap_err().contains("duplicate"));
+    }
+
+    #[test]
+    fn allows_extended_runtime_indices_above_bundled_count() {
+        let base = &catalog().technologies[0];
+        let mut custom = base.clone();
+        custom.id = "TECH_Custom_Orbital".into();
+        custom.name = "Orbital Elevators".into();
+        custom.runtime_index = 105;
+        custom.prerequisites = vec![base.id.clone()];
+        let extended = vec![base.clone(), custom];
+        assert!(validate(&extended).is_ok());
+
+        for sentinel in [101, 102] {
+            let mut bad = base.clone();
+            bad.id = format!("TECH_Sentinel_{sentinel}");
+            bad.runtime_index = sentinel;
+            bad.prerequisites = Vec::new();
+            assert!(validate(&[bad]).is_err());
+        }
     }
 
     #[test]

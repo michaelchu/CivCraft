@@ -12,7 +12,16 @@
 use std::sync::OnceLock;
 
 const STABLE_TECH_COUNT: usize = 101;
-const TECH_STORAGE_COUNT: usize = 105;
+
+fn tech_storage_len_for(catalog: &crate::rules::native::TechnologyCatalog) -> usize {
+    catalog
+        .technologies
+        .iter()
+        .map(|tech| tech.runtime_index + 1)
+        .max()
+        .unwrap_or(0)
+        .max(STABLE_TECH_COUNT + 2)
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub(crate) struct Tech(pub(crate) usize);
@@ -178,13 +187,13 @@ impl Tech {
     pub(crate) const FASCISM: Self = Self(99);
     pub(crate) const IRONCLADS: Self = Self(100);
 
-    pub(crate) const fn storage_len() -> usize {
-        TECH_STORAGE_COUNT
+    pub(crate) fn storage_len() -> usize {
+        civ3_tech_catalog().advances.len()
     }
 
     pub(crate) fn all() -> impl Iterator<Item = Self> {
         (0..STABLE_TECH_COUNT)
-            .chain(103..TECH_STORAGE_COUNT)
+            .chain((STABLE_TECH_COUNT + 2)..Self::storage_len())
             .map(Self)
     }
 
@@ -317,11 +326,12 @@ fn civ3_tech_catalog() -> &'static Civ3TechCatalog {
 fn build_civ3_tech_catalog() -> Civ3TechCatalog {
     let mut raw_advances = Vec::new();
     let native_catalog = crate::rules::native::technologies();
-    let mut seen_runtime_ids = [false; TECH_STORAGE_COUNT];
+    let storage_len = tech_storage_len_for(native_catalog);
+    let mut seen_runtime_ids = vec![false; storage_len];
     for (line_number, native) in native_catalog.technologies.iter().enumerate() {
         let tech = Tech(native.runtime_index);
         assert!(
-            tech.0 < TECH_STORAGE_COUNT && tech != Tech::FUTURE && tech != Tech::UNSET,
+            tech.0 < storage_len && tech != Tech::FUTURE && tech != Tech::UNSET,
             "Civ III technology {:?} has invalid stable runtime index {} on row {}",
             native.name,
             tech.0,
@@ -361,15 +371,9 @@ fn build_civ3_tech_catalog() -> Civ3TechCatalog {
             era_gate: native.era_gate.map(parse_tech_era),
         });
     }
-    assert_eq!(
-        raw_advances.len(),
-        85,
-        "unexpected native campaign tech count"
-    );
 
-    let mut advances: Vec<Option<Advance>> = std::iter::repeat_with(|| None)
-        .take(TECH_STORAGE_COUNT)
-        .collect();
+    let mut advances: Vec<Option<Advance>> =
+        std::iter::repeat_with(|| None).take(storage_len).collect();
     for raw in &raw_advances {
         let requirement_count = civ3_linear_requirement_count(raw.tech, &raw_advances);
         let prerequisites = Box::leak(raw.prerequisites.clone().into_boxed_slice());
@@ -410,7 +414,12 @@ fn parse_tech_era(value: i32) -> TechEra {
 }
 
 fn civ3_linear_requirement_count(tech: Tech, graph: &[RawCiv3Advance]) -> i32 {
-    let mut seen = vec![false; TECH_STORAGE_COUNT];
+    let storage_len = graph
+        .iter()
+        .map(|advance| advance.tech.0 + 1)
+        .max()
+        .unwrap_or(0);
+    let mut seen = vec![false; storage_len];
     let mut pending = vec![tech];
     while let Some(current) = pending.pop() {
         if seen[current.0] {

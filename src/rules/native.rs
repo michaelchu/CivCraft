@@ -363,7 +363,7 @@ pub(crate) struct NativeExperienceLevel {
     pub(crate) default_rank: bool,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct NativeTechnology {
     pub(crate) id: String,
@@ -425,164 +425,126 @@ pub(crate) struct NativeUnitStack {
     pub(crate) count: i32,
 }
 
-fn validate_ids<'a>(ids: impl Iterator<Item = &'a str>, kind: &str) {
+fn validate_ids<'a>(ids: impl Iterator<Item = &'a str>, kind: &str) -> Result<(), String> {
     let mut seen = std::collections::HashSet::new();
     for id in ids {
-        assert!(
-            !id.is_empty() && seen.insert(id),
-            "empty or duplicate native {kind} ID {id:?}"
-        );
+        if id.is_empty() || !seen.insert(id) {
+            return Err(format!("empty or duplicate native {kind} ID {id:?}"));
+        }
     }
+    Ok(())
+}
+
+pub(crate) fn parse_units(
+    source: &str,
+    technologies: &TechnologyCatalog,
+) -> Result<UnitCatalog, String> {
+    let catalog: UnitCatalog = toml::from_str(source).map_err(|error| error.to_string())?;
+    validate_ids(catalog.units.iter().map(|unit| unit.id.as_str()), "unit")?;
+    for unit in &catalog.units {
+        if !unit.required_technology.is_empty()
+            && super::technologies::runtime_index_in(technologies, &unit.required_technology)
+                .is_none()
+        {
+            return Err(format!("unknown technology ID for {}", unit.id));
+        }
+        for target in [&unit.upgrade_to, &unit.replaces, &unit.enslave_result] {
+            if !target.is_empty()
+                && !catalog
+                    .units
+                    .iter()
+                    .any(|candidate| &candidate.id == target)
+            {
+                return Err(format!("unknown unit ID {target}"));
+            }
+        }
+        if unit.required_resources.len() > 3 {
+            return Err("unit supports at most three resource requirements".into());
+        }
+        if unit.cost_shields < 0 || unit.attack < 0 || unit.defense < 0 || unit.moves < 0 {
+            return Err(format!("negative unit stats for {}", unit.id));
+        }
+        for capability in &unit.capabilities {
+            if !super::unit_capabilities::CAPABILITIES.contains(&capability.as_str()) {
+                return Err(format!("unknown unit capability {capability}"));
+            }
+        }
+        for role in &unit.ai_roles {
+            if !super::unit_capabilities::AI_ROLES.contains(&role.as_str()) {
+                return Err(format!("unknown unit AI role {role}"));
+            }
+        }
+    }
+    Ok(catalog)
 }
 
 pub(crate) fn units() -> &'static UnitCatalog {
     static CATALOG: OnceLock<UnitCatalog> = OnceLock::new();
     CATALOG.get_or_init(|| {
-        let catalog: UnitCatalog = toml::from_str(include_str!(
-            "../../data/rulesets/civcraft/content/units.toml"
-        ))
-        .expect("native units TOML must be valid");
-        validate_ids(catalog.units.iter().map(|unit| unit.id.as_str()), "unit");
-        for unit in &catalog.units {
-            assert!(
-                unit.required_technology.is_empty()
-                    || super::technologies::runtime_index(&unit.required_technology).is_some(),
-                "unknown technology ID for {}",
-                unit.id
-            );
-            for target in [&unit.upgrade_to, &unit.replaces, &unit.enslave_result] {
-                assert!(
-                    target.is_empty()
-                        || catalog
-                            .units
-                            .iter()
-                            .any(|candidate| &candidate.id == target),
-                    "unknown unit ID {target}"
-                );
-            }
-            assert!(
-                unit.required_resources.len() <= 3,
-                "unit supports at most three resource requirements"
-            );
-            assert!(
-                unit.cost_shields >= 0 && unit.attack >= 0 && unit.defense >= 0 && unit.moves >= 0,
-                "negative unit stats for {}",
-                unit.id
-            );
-            for capability in &unit.capabilities {
-                assert!(
-                    super::unit_capabilities::CAPABILITIES.contains(&capability.as_str()),
-                    "unknown unit capability {capability}"
-                );
-            }
-            for role in &unit.ai_roles {
-                assert!(
-                    super::unit_capabilities::AI_ROLES.contains(&role.as_str()),
-                    "unknown unit AI role {role}"
-                );
-            }
-        }
-        catalog
+        parse_units(
+            include_str!("../../data/rulesets/civcraft/content/units.toml"),
+            technologies(),
+        )
+        .unwrap_or_else(|error| panic!("invalid native units TOML: {error}"))
     })
+}
+
+pub(crate) fn parse_civilizations(source: &str) -> Result<CivilizationCatalog, String> {
+    let catalog: CivilizationCatalog = toml::from_str(source).map_err(|error| error.to_string())?;
+    validate_ids(
+        catalog.civilizations.iter().map(|c| c.id.as_str()),
+        "civilization",
+    )?;
+    Ok(catalog)
 }
 
 pub(crate) fn civilizations() -> &'static CivilizationCatalog {
     static CATALOG: OnceLock<CivilizationCatalog> = OnceLock::new();
     CATALOG.get_or_init(|| {
-        let catalog = toml::from_str::<CivilizationCatalog>(include_str!(
+        parse_civilizations(include_str!(
             "../../data/rulesets/civcraft/content/civilizations.toml"
         ))
-        .expect("native civilizations TOML must be valid");
-        validate_ids(
-            catalog.civilizations.iter().map(|c| c.id.as_str()),
-            "civilization",
-        );
-        catalog
+        .unwrap_or_else(|error| panic!("invalid native civilizations TOML: {error}"))
     })
 }
 
-pub(crate) fn buildings() -> &'static BuildingCatalog {
-    static CATALOG: OnceLock<BuildingCatalog> = OnceLock::new();
-    CATALOG.get_or_init(|| {
-        let mut catalog: BuildingCatalog = toml::from_str(include_str!(
-            "../../data/rulesets/civcraft/content/buildings.toml"
-        ))
-        .expect("native buildings TOML must be valid");
-        let mut seen = std::collections::HashSet::new();
-        for (index, rule) in catalog.rules.iter_mut().enumerate() {
-            assert!(
-                seen.insert(rule.id.clone()),
-                "duplicate building ID {}",
-                rule.id
-            );
-            rule.legacy_runtime_index = index;
-        }
-        for rule in &catalog.rules {
-            for requirement in rule.requirements.iter().chain(&rule.obsolete) {
-                match requirement.kind.as_str() {
-                    "Tech" => assert!(
-                        requirement
-                            .target
-                            .as_deref()
-                            .and_then(super::technologies::runtime_index)
-                            .is_some(),
-                        "unknown technology target in {}",
-                        rule.id
-                    ),
-                    "Improvement" | "OwnerBuildingCount" => assert!(
-                        requirement.target.as_deref().is_some_and(|id| catalog
-                            .rules
-                            .iter()
-                            .any(|candidate| candidate.id == id)),
-                        "unknown building target in {}",
-                        rule.id
-                    ),
-                    "Resource" => assert!(
-                        requirement.target.as_deref().is_some_and(|id| [
-                            "Aluminum",
-                            "Coal",
-                            "Horses",
-                            "Iron",
-                            "Oil",
-                            "Rubber",
-                            "Saltpeter",
-                            "Uranium"
-                        ]
-                        .contains(&id)),
-                        "unknown resource target in {}",
-                        rule.id
-                    ),
-                    "River" | "Lake" | "Sea" | "Water" | "MinSize" | "OwnerCityCount"
-                    | "OwnerEliteUnit" | "OwnerArmyCount" => {
-                        assert!(
-                            requirement.target.is_none(),
-                            "unexpected named target in {}",
-                            rule.id
-                        );
+pub(crate) fn parse_buildings(
+    source: &str,
+    technologies: &TechnologyCatalog,
+) -> Result<BuildingCatalog, String> {
+    let mut catalog: BuildingCatalog = toml::from_str(source).map_err(|error| error.to_string())?;
+    validate_ids(
+        catalog.rules.iter().map(|rule| rule.id.as_str()),
+        "building",
+    )?;
+    for (index, rule) in catalog.rules.iter_mut().enumerate() {
+        rule.legacy_runtime_index = index;
+    }
+    for rule in &catalog.rules {
+        for requirement in rule.requirements.iter().chain(&rule.obsolete) {
+            match requirement.kind.as_str() {
+                "Tech" => {
+                    if requirement
+                        .target
+                        .as_deref()
+                        .and_then(|id| super::technologies::runtime_index_in(technologies, id))
+                        .is_none()
+                    {
+                        return Err(format!("unknown technology target in {}", rule.id));
                     }
-                    other => panic!("unsupported building requirement {other}"),
                 }
-                assert!(
-                    requirement.value >= 0 && requirement.second_value >= 0,
-                    "negative building requirement in {}",
-                    rule.id
-                );
-            }
-        }
-        // Resolve once for every consumer, including advisors that inspect the
-        // native requirement records directly rather than BuildingData.
-        let building_ids: std::collections::HashMap<_, _> = catalog
-            .rules
-            .iter()
-            .map(|rule| (rule.id.clone(), rule.legacy_runtime_index))
-            .collect();
-        for rule in &mut catalog.rules {
-            for requirement in rule.requirements.iter_mut().chain(&mut rule.obsolete) {
-                if let Some(id) = requirement.target.as_deref() {
-                    let index = match requirement.kind.as_str() {
-                        "Tech" => super::technologies::runtime_index(id).unwrap(),
-                        "Improvement" | "OwnerBuildingCount" => building_ids[id],
-                        "Resource" => [
+                "Improvement" | "OwnerBuildingCount" => {
+                    if !requirement
+                        .target
+                        .as_deref()
+                        .is_some_and(|id| catalog.rules.iter().any(|candidate| candidate.id == id))
+                    {
+                        return Err(format!("unknown building target in {}", rule.id));
+                    }
+                }
+                "Resource" => {
+                    if !requirement.target.as_deref().is_some_and(|id| {
+                        [
                             "Aluminum",
                             "Coal",
                             "Horses",
@@ -592,17 +554,68 @@ pub(crate) fn buildings() -> &'static BuildingCatalog {
                             "Saltpeter",
                             "Uranium",
                         ]
-                        .iter()
-                        .position(|name| *name == id)
-                        .unwrap(),
-                        _ => unreachable!("named reference was validated above"),
-                    };
-                    requirement.value =
-                        i32::try_from(index).expect("resolved rule index fits in i32");
+                        .contains(&id)
+                    }) {
+                        return Err(format!("unknown resource target in {}", rule.id));
+                    }
                 }
+                "River" | "Lake" | "Sea" | "Water" | "MinSize" | "OwnerCityCount"
+                | "OwnerEliteUnit" | "OwnerArmyCount" => {
+                    if requirement.target.is_some() {
+                        return Err(format!("unexpected named target in {}", rule.id));
+                    }
+                }
+                other => return Err(format!("unsupported building requirement {other}")),
+            }
+            if requirement.value < 0 || requirement.second_value < 0 {
+                return Err(format!("negative building requirement in {}", rule.id));
             }
         }
-        catalog
+    }
+    // Resolve once for every consumer, including advisors that inspect the
+    // native requirement records directly rather than BuildingData.
+    let building_ids: std::collections::HashMap<_, _> = catalog
+        .rules
+        .iter()
+        .map(|rule| (rule.id.clone(), rule.legacy_runtime_index))
+        .collect();
+    for rule in &mut catalog.rules {
+        for requirement in rule.requirements.iter_mut().chain(&mut rule.obsolete) {
+            if let Some(id) = requirement.target.as_deref() {
+                let index = match requirement.kind.as_str() {
+                    "Tech" => super::technologies::runtime_index_in(technologies, id).unwrap(),
+                    "Improvement" | "OwnerBuildingCount" => building_ids[id],
+                    "Resource" => [
+                        "Aluminum",
+                        "Coal",
+                        "Horses",
+                        "Iron",
+                        "Oil",
+                        "Rubber",
+                        "Saltpeter",
+                        "Uranium",
+                    ]
+                    .iter()
+                    .position(|name| *name == id)
+                    .unwrap(),
+                    _ => unreachable!("named reference was validated above"),
+                };
+                requirement.value =
+                    i32::try_from(index).map_err(|_| "resolved rule index overflows i32")?;
+            }
+        }
+    }
+    Ok(catalog)
+}
+
+pub(crate) fn buildings() -> &'static BuildingCatalog {
+    static CATALOG: OnceLock<BuildingCatalog> = OnceLock::new();
+    CATALOG.get_or_init(|| {
+        parse_buildings(
+            include_str!("../../data/rulesets/civcraft/content/buildings.toml"),
+            technologies(),
+        )
+        .unwrap_or_else(|error| panic!("invalid native buildings TOML: {error}"))
     })
 }
 
@@ -700,23 +713,13 @@ impl ContentRuleset {
                 .map_err(|error| format!("failed to read {name}: {error}"))
         };
         let technologies = parse_technologies(&read("technologies.toml")?)?;
-        let units: UnitCatalog =
-            toml::from_str(&read("units.toml")?).map_err(|error| error.to_string())?;
-        validate_ids(units.units.iter().map(|u| u.id.as_str()), "unit");
-        let civilizations: CivilizationCatalog =
-            toml::from_str(&read("civilizations.toml")?).map_err(|error| error.to_string())?;
-        validate_ids(
-            civilizations.civilizations.iter().map(|c| c.id.as_str()),
-            "civilization",
-        );
-        let buildings: BuildingCatalog =
-            toml::from_str(&read("buildings.toml")?).map_err(|error| error.to_string())?;
-        let governments = parse_governments(&read("governments.toml")?)?;
+        let units = parse_units(&read("units.toml")?, &technologies)?;
+        let civilizations = parse_civilizations(&read("civilizations.toml")?)?;
+        let buildings = parse_buildings(&read("buildings.toml")?, &technologies)?;
+        let governments = parse_governments(&read("governments.toml")?, &technologies)?;
         let economy: EconomyCatalog =
             toml::from_str(&read("economy.toml")?).map_err(|error| error.to_string())?;
-        let settlements: SettlementCatalog =
-            toml::from_str(&read("settlements.toml")?).map_err(|error| error.to_string())?;
-        settlements.villages.validate().map_err(str::to_owned)?;
+        let settlements = parse_settlements(&read("settlements.toml")?, &units)?;
         let experience: ExperienceCatalog =
             toml::from_str(&read("experience_levels.toml")?).map_err(|error| error.to_string())?;
         let strategy = super::policies::parse_strategy(&read("strategy.toml")?)?;
@@ -740,18 +743,40 @@ impl ContentRuleset {
     }
 }
 
-fn parse_governments(source: &str) -> Result<GovernmentCatalog, String> {
+fn parse_governments(
+    source: &str,
+    technologies: &TechnologyCatalog,
+) -> Result<GovernmentCatalog, String> {
     let mut catalog: GovernmentCatalog =
         toml::from_str(source).map_err(|error| error.to_string())?;
+    validate_ids(
+        catalog.governments.iter().map(|g| g.government.as_str()),
+        "government",
+    )?;
+    validate_ids(
+        catalog.assimilation.iter().map(|r| r.id.as_str()),
+        "assimilation",
+    )?;
+    validate_ids(
+        catalog.resistance.iter().map(|r| r.id.as_str()),
+        "resistance",
+    )?;
+    validate_ids(
+        catalog.military_law.iter().map(|r| r.id.as_str()),
+        "military law",
+    )?;
     for government in &mut catalog.governments {
         if !government.required_technology.is_empty() {
-            let index = super::technologies::runtime_index(&government.required_technology)
-                .ok_or_else(|| {
-                    format!(
-                        "government {:?} requires unknown technology ID {:?}",
-                        government.government, government.required_technology
-                    )
-                })?;
+            let index = super::technologies::runtime_index_in(
+                technologies,
+                &government.required_technology,
+            )
+            .ok_or_else(|| {
+                format!(
+                    "government {:?} requires unknown technology ID {:?}",
+                    government.government, government.required_technology
+                )
+            })?;
             government.technology = Some(super::Tech(index));
         }
     }
@@ -761,27 +786,11 @@ fn parse_governments(source: &str) -> Result<GovernmentCatalog, String> {
 pub(crate) fn governments() -> &'static GovernmentCatalog {
     static CATALOG: OnceLock<GovernmentCatalog> = OnceLock::new();
     CATALOG.get_or_init(|| {
-        let catalog = parse_governments(include_str!(
-            "../../data/rulesets/civcraft/content/governments.toml"
-        ))
-        .unwrap_or_else(|error| panic!("invalid native government catalog: {error}"));
-        validate_ids(
-            catalog.governments.iter().map(|g| g.government.as_str()),
-            "government",
-        );
-        validate_ids(
-            catalog.assimilation.iter().map(|r| r.id.as_str()),
-            "assimilation",
-        );
-        validate_ids(
-            catalog.resistance.iter().map(|r| r.id.as_str()),
-            "resistance",
-        );
-        validate_ids(
-            catalog.military_law.iter().map(|r| r.id.as_str()),
-            "military law",
-        );
-        catalog
+        parse_governments(
+            include_str!("../../data/rulesets/civcraft/content/governments.toml"),
+            technologies(),
+        )
+        .unwrap_or_else(|error| panic!("invalid native government catalog: {error}"))
     })
 }
 
@@ -795,29 +804,35 @@ pub(crate) fn economy() -> &'static EconomyCatalog {
     })
 }
 
+pub(crate) fn parse_settlements(
+    source: &str,
+    units: &UnitCatalog,
+) -> Result<SettlementCatalog, String> {
+    let catalog: SettlementCatalog = toml::from_str(source).map_err(|error| error.to_string())?;
+    catalog.villages.validate().map_err(str::to_owned)?;
+    for id in [
+        &catalog.barbarians.basic_unit,
+        &catalog.barbarians.advanced_unit,
+        &catalog.barbarians.sea_unit,
+        &catalog.citizens.partisan_unit,
+    ] {
+        if !units.units.iter().any(|unit| unit.id == *id) {
+            return Err(format!(
+                "native settlement policy references unknown unit {id:?}"
+            ));
+        }
+    }
+    Ok(catalog)
+}
+
 pub(crate) fn settlements() -> &'static SettlementCatalog {
     static CATALOG: OnceLock<SettlementCatalog> = OnceLock::new();
     CATALOG.get_or_init(|| {
-        let catalog: SettlementCatalog = toml::from_str(include_str!(
-            "../../data/rulesets/civcraft/content/settlements.toml"
-        ))
-        .expect("native settlement TOML must be valid");
-        catalog
-            .villages
-            .validate()
-            .expect("native village outcomes must be valid");
-        for id in [
-            &catalog.barbarians.basic_unit,
-            &catalog.barbarians.advanced_unit,
-            &catalog.barbarians.sea_unit,
-            &catalog.citizens.partisan_unit,
-        ] {
-            assert!(
-                units().units.iter().any(|unit| unit.id == *id),
-                "native settlement policy references unknown unit {id:?}"
-            );
-        }
-        catalog
+        parse_settlements(
+            include_str!("../../data/rulesets/civcraft/content/settlements.toml"),
+            units(),
+        )
+        .unwrap_or_else(|error| panic!("invalid native settlement TOML: {error}"))
     })
 }
 
@@ -837,8 +852,21 @@ mod tests {
     fn government_catalog_rejects_unknown_technology_ids() {
         let source = include_str!("../../data/rulesets/civcraft/content/governments.toml");
         let bad = source.replace("TECH_The_Republic", "TECH_The_Republiqq");
-        let error = super::parse_governments(&bad).unwrap_err();
+        let error = super::parse_governments(&bad, super::technologies()).unwrap_err();
         assert!(error.contains("republic") && error.contains("TECH_The_Republiqq"));
+    }
+
+    #[test]
+    fn parse_buildings_and_units_reject_unknown_technology_ids() {
+        let buildings_src = include_str!("../../data/rulesets/civcraft/content/buildings.toml");
+        let bad_buildings = buildings_src.replace("TECH_Flight", "TECH_Missing_Flight");
+        let err = super::parse_buildings(&bad_buildings, super::technologies()).unwrap_err();
+        assert!(err.contains("building_airport"));
+
+        let units_src = include_str!("../../data/rulesets/civcraft/content/units.toml");
+        let bad_units = units_src.replace("TECH_Bronze_Working", "TECH_Missing_Bronze");
+        let err = super::parse_units(&bad_units, super::technologies()).unwrap_err();
+        assert!(err.contains("unknown technology ID"));
     }
 
     use super::*;
