@@ -12,27 +12,45 @@ pub(crate) struct ReviewFixture<'a>(pub(in crate::sim) &'a mut Simulation);
 
 impl ReviewFixture<'_> {
     pub(crate) fn leader_army(&mut self) -> u32 {
-        let mut world = fixtures::WorldBuilder::new(self.0);
-        world.grassland_campaign(false);
-        for position in [(10, 24), (16, 24), (22, 24), (28, 24)] {
-            world.founding_city(HUMAN, position);
+        let sim = &mut self.0;
+        sim.units.clear();
+        sim.cities.clear();
+        for tile in &mut sim.tiles {
+            tile.terrain = Terrain::Grassland;
+            tile.resource = None;
+            tile.river = false;
+            tile.hut = false;
+            tile.base = None;
         }
-        let leader = world.unit(HUMAN, UnitKind::Leader, (10, 24));
-        world.finish();
-        ui_review_record_knowledge(self.0);
+        for (x, y) in [(10, 24), (16, 24), (22, 24), (28, 24)] {
+            sim.create_city(HUMAN, x, y);
+        }
+        let leader = sim.spawn_unit(HUMAN, UnitKind::Leader, 10, 24);
+        sim.refresh_visibility();
+        sim.refresh_score_snapshot();
+        ui_review_record_knowledge(sim);
         leader
     }
 
     pub(crate) fn loaded_army(&mut self) -> u32 {
         self.leader_army();
-        let city = self.0.city_at(10, 24).unwrap().id;
-        fixtures::WorldBuilder::new(self.0).culture_building(city, Building::PENTAGON);
-        let army = self.0.spawn_unit(HUMAN, UnitKind::Army, 10, 24);
-        for kind in [UnitKind::Swordsman, UnitKind::Spearman, UnitKind::Warrior] {
-            let member = self.0.spawn_unit(HUMAN, kind, 10, 24);
-            assert!(self.0.board_specific_ship(member, army));
+        let sim = &mut self.0;
+        let year = sim.year;
+        let city = sim
+            .cities
+            .iter_mut()
+            .find(|city| city.x == 10 && city.y == 24)
+            .unwrap();
+        if !city.buildings.contains(&Building::PENTAGON) {
+            city.buildings.push(Building::PENTAGON);
         }
-        ui_review_record_knowledge(self.0);
+        city.record_culture_building(Building::PENTAGON, HUMAN, year);
+        let army = sim.spawn_unit(HUMAN, UnitKind::Army, 10, 24);
+        for kind in [UnitKind::Swordsman, UnitKind::Spearman, UnitKind::Warrior] {
+            let member = sim.spawn_unit(HUMAN, kind, 10, 24);
+            assert!(sim.board_specific_ship(member, army));
+        }
+        ui_review_record_knowledge(sim);
         army
     }
 
@@ -1140,8 +1158,15 @@ pub(crate) fn ui_review_army_combat_setup(
         opponent_at.0,
         opponent_at.1,
     );
-    fixtures::WorldBuilder::new(sim).unit_experience_rank(opponent, 3);
-    fixtures::WorldBuilder::new(sim).legacy_random_seed(42);
+    let unit = sim
+        .units
+        .iter_mut()
+        .find(|unit| unit.id == opponent)
+        .unwrap();
+    unit.veteran = 3;
+    unit.hp = unit.max_hit_points();
+    sim.native_random = None;
+    sim.rng = 42;
     sim.refresh_visibility();
     ui_review_record_knowledge(sim);
     sim.enable_visual_events();

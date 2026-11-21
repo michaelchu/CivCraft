@@ -16,7 +16,9 @@ mod trade_policy;
 mod transitions;
 pub(in crate::sim) mod vassalage;
 mod vision;
-pub(crate) use vassalage::{VassalKind, VassalTerms};
+#[cfg(any(test, feature = "scenarios"))]
+pub(crate) use vassalage::VassalKind;
+pub(crate) use vassalage::VassalTerms;
 mod war_planning;
 #[cfg(feature = "desktop")]
 pub(crate) use espionage::EspionageRivalView;
