@@ -855,6 +855,30 @@ impl RulesetData {
         })
     }
 
+    #[cfg(test)]
+    pub(crate) fn with_test_units(&self, units_source: &str) -> Self {
+        let mut files = self.files.clone();
+        let units_file = files
+            .iter_mut()
+            .find(|file| file.name == "units.ruleset")
+            .expect("campaign ruleset includes units.ruleset");
+        let parsed = super::section_file::parse(units_source).expect("valid test units.ruleset");
+        units_file.parsed.sections.extend(parsed.sections);
+        Self::from_files(&self.name, files).expect("valid campaign + test units ruleset")
+    }
+
+    #[cfg(test)]
+    pub(crate) fn test_unit_record_from_ruleset(source: &str, section: &str) -> ContentRecord {
+        let rules = Self::campaign_default().with_test_units(source);
+        rules
+            .content
+            .into_iter()
+            .find(|record| {
+                record.kind == ContentKind::Unit && record.section.eq_ignore_ascii_case(section)
+            })
+            .expect("test unit section")
+    }
+
     pub(crate) fn optional_parameter(
         &self,
         file: &str,
@@ -2499,7 +2523,8 @@ mod tests {
                 .iter()
                 .filter(|record| record.kind == ContentKind::Unit)
                 .count(),
-            57
+            0,
+            "the mechanics ruleset no longer embeds unit records"
         );
         assert_eq!(
             rules
@@ -2547,7 +2572,7 @@ mod tests {
                 .iter()
                 .filter(|r| r.kind == ContentKind::Unit)
                 .count(),
-            57
+            0
         );
         assert_eq!(
             rules

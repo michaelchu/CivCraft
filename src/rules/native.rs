@@ -105,6 +105,8 @@ pub(crate) struct NativeBuildingRule {
     pub(crate) obsolete: Vec<NativeBuildingRequirement>,
     #[serde(default)]
     pub(crate) flags: Vec<String>,
+    #[serde(default)]
+    pub(crate) selected_obsolescence: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -507,29 +509,14 @@ pub(crate) fn buildings() -> &'static BuildingCatalog {
         ))
         .expect("native buildings TOML must be valid");
         let mut seen = std::collections::HashSet::new();
-        for rule in &mut catalog.rules {
+        for (index, rule) in catalog.rules.iter_mut().enumerate() {
             assert!(
                 seen.insert(rule.id.clone()),
                 "duplicate building ID {}",
                 rule.id
             );
-            rule.legacy_runtime_index = super::compatibility::building_index(&rule.id)
-                .unwrap_or_else(|| panic!("unknown building save identity {}", rule.id));
+            rule.legacy_runtime_index = index;
         }
-        assert_eq!(
-            catalog.rules.len(),
-            super::compatibility::BUILDINGS.len(),
-            "missing building save identities"
-        );
-        catalog.rules.sort_by_key(|rule| rule.legacy_runtime_index);
-        assert!(
-            catalog
-                .rules
-                .iter()
-                .enumerate()
-                .all(|(index, rule)| index == rule.legacy_runtime_index),
-            "building rule order must preserve save identities"
-        );
         for rule in &catalog.rules {
             for requirement in rule.requirements.iter().chain(&rule.obsolete) {
                 match requirement.kind.as_str() {
@@ -1000,18 +987,23 @@ mod tests {
     }
 
     #[test]
-    fn native_building_ids_preserve_serialized_identity() {
+    fn selected_obsolescence_policy_preserves_pre_removal_behavior() {
+        let expected: Vec<String> = serde_json::from_str(include_str!(
+            "../../tests/fixtures/building_obsolescence_policy_v1.json"
+        ))
+        .unwrap();
         let catalog = buildings();
-        assert_eq!(
-            catalog.rules.len(),
-            super::super::compatibility::BUILDINGS.len()
-        );
-        for rule in &catalog.rules {
-            assert_eq!(
-                super::super::compatibility::building_index(&rule.id),
-                Some(rule.legacy_runtime_index)
-            );
-        }
+        let actual: Vec<_> = catalog
+            .rules
+            .iter()
+            .enumerate()
+            .filter(|(index, rule)| {
+                assert_eq!(*index, rule.legacy_runtime_index);
+                rule.selected_obsolescence
+            })
+            .map(|(_, rule)| rule.id.as_str())
+            .collect();
+        assert_eq!(actual, expected);
     }
 
     #[test]

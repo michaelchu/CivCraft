@@ -25,7 +25,6 @@ pub(crate) mod native;
 pub(crate) mod engine_rules;
 mod section_file;
 
-pub(crate) mod compatibility;
 pub(crate) mod policies;
 pub(crate) mod technologies;
 pub(crate) mod terrain_catalog;

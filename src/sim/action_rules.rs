@@ -863,7 +863,9 @@ pub(crate) fn selected_building_is_obsolete(
     building: Building,
     granted: Option<Tech>,
 ) -> Option<bool> {
-    if !crate::rules::compatibility::uses_selected_obsolescence(building.0) {
+    if !crate::rules::native::building_rule(building.0)
+        .is_some_and(|rule| rule.selected_obsolescence)
+    {
         return None;
     }
     let obsolete_technology = building
@@ -3261,14 +3263,14 @@ mod tests {
         let (x, y) = (10, 20);
         game.create_city(crate::sim::HUMAN, x, y);
         game.cities[0].production = super::super::Production::Building(Building::PYRAMIDS);
-        let caravan_record = RulesetData::campaign_default()
-            .content
-            .iter()
-            .find(|record| {
-                record.kind == crate::rules::engine_rules::ContentKind::Unit
-                    && record.section.eq_ignore_ascii_case("unit_caravan")
-            })
-            .unwrap();
+        static CARAVAN: std::sync::OnceLock<crate::rules::engine_rules::ContentRecord> =
+            std::sync::OnceLock::new();
+        let caravan_record = CARAVAN.get_or_init(|| {
+            RulesetData::test_unit_record_from_ruleset(
+                "[unit_caravan]\nname = \"Caravan\"\ntp_defense = \"Alight\"\nflags = \"TradeRoute\", \"HelpWonder\", \"NonMil\", \"HasNoZOC\", \"Capturable\", \"ShieldToGold\"\n",
+                "unit_caravan",
+            )
+        });
         let warrior_id = game.spawn_unit(crate::sim::HUMAN, UnitKind::Warrior, x, y);
         let warrior = game.unit_by_id(warrior_id).unwrap().clone();
 

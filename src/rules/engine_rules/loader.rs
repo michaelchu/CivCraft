@@ -966,7 +966,7 @@ fn requirement_value_is_valid(requirement: &Requirement, rules: &RulesetData) ->
             "flags",
             super::identifiers::UNIT_TYPE_FLAG_NAMES,
         ),
-        RequirementKind::UnitType => content_name_exists(rules, ContentKind::Unit, &name),
+        RequirementKind::UnitType => unit_name_exists(rules, &name),
         RequirementKind::Wrap => {
             super::identifiers::contains_case_insensitive(super::identifiers::WRAP_NAMES, &name)
         } // A known type without a source-backed resolver is rejected explicitly.
@@ -1003,6 +1003,18 @@ fn building_name_exists(rules: &RulesetData, name: &str) -> bool {
                 .iter()
                 .any(|building| building.name.eq_ignore_ascii_case(name))
                 || ["Harbour", "Shakespeare's Theatre"]
+                    .iter()
+                    .any(|alias| alias.eq_ignore_ascii_case(name))))
+}
+
+fn unit_name_exists(rules: &RulesetData, name: &str) -> bool {
+    content_name_exists(rules, ContentKind::Unit, name)
+        || (rules.name == "civcraft"
+            && (crate::rules::native::units()
+                .units
+                .iter()
+                .any(|unit| unit.name.eq_ignore_ascii_case(name))
+                || ["Barbarian Leader", "Nuclear"]
                     .iter()
                     .any(|alias| alias.eq_ignore_ascii_case(name))))
 }
@@ -1272,7 +1284,7 @@ mod bundle_tests {
             )
             .filter(|requirement| requirement.kind == RequirementKind::Tech)
             .collect::<Vec<_>>();
-        for (alias, technology) in [("Radio", Tech::FLIGHT), ("Conscription", Tech::NATIONALISM)] {
+        for (alias, technology) in [("Radio", Tech::FLIGHT), ("Nuclear Fission", Tech::FISSION)] {
             let requirement = tech_requirements
                 .iter()
                 .find(|req| matches!(&req.name, RequirementValue::String(name) if name.eq_ignore_ascii_case(alias)))
@@ -1286,6 +1298,10 @@ mod bundle_tests {
                 Ok(FreecivTechBinding::Bound(technology))
             );
         }
+        assert_eq!(
+            bind_freeciv_technology("Conscription"),
+            Ok(FreecivTechBinding::Bound(Tech::NATIONALISM))
+        );
         assert_eq!(
             bind_freeciv_technology("Plastics"),
             Ok(FreecivTechBinding::MissingFromCiv3Catalog)

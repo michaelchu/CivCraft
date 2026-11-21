@@ -315,7 +315,28 @@ mod tests {
 
     #[test]
     fn unit_overrides_replace_the_selected_global_veteran_system() {
-        let rules = RulesetData::campaign_default();
+        let rules = RulesetData::campaign_default().with_test_units(
+            r#"
+[unit_warriors]
+name = _("Warriors")
+
+[unit_settlers]
+name = _("Settlers")
+veteran_names = _("green")
+veteran_base_raise_chance = 0
+veteran_work_raise_chance = 0
+veteran_power_fact = 100
+veteran_move_bonus = 0
+
+[unit_spy]
+name = _("Spy")
+veteran_names = _("green"), _("veteran"), _("hardened"), _("elite")
+veteran_base_raise_chance = 50, 33, 20, 0
+veteran_work_raise_chance = 0, 0, 0, 0
+veteran_power_fact = 100, 105, 110, 115
+veteran_move_bonus = 0, 0, 0, 0
+"#,
+        );
         let global = rules.veteran_system(None).unwrap();
         let warrior = rules.veteran_system(Some("unit_warriors")).unwrap();
         assert_eq!(warrior, global);

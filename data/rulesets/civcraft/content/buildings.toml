@@ -101,6 +101,7 @@ requirements = [{ kind = "Tech", present = true, target = "TECH_Monotheism" }, {
 obsolete = []
 flags = []
 id = "building_cathedral"
+selected_obsolescence = true
 
 [[rules]]
 name = "City Walls"
@@ -201,6 +202,7 @@ requirements = [{ kind = "Tech", present = true, target = "TECH_Literature" }]
 obsolete = []
 flags = []
 id = "building_library"
+selected_obsolescence = true
 
 [[rules]]
 name = "Marketplace"
@@ -267,6 +269,7 @@ requirements = []
 obsolete = []
 flags = ["SaveSmallWonder"]
 id = "building_palace"
+selected_obsolescence = true
 
 [[rules]]
 name = "Ecclesiastical Palace"
@@ -333,6 +336,7 @@ requirements = [{ kind = "Tech", present = true, target = "TECH_Computers" }, { 
 obsolete = []
 flags = []
 id = "building_research_lab"
+selected_obsolescence = true
 
 [[rules]]
 name = "SAM Battery"
@@ -355,6 +359,7 @@ requirements = [{ kind = "Tech", present = true, target = "TECH_Integrated_Defen
 obsolete = []
 flags = []
 id = "building_sdi_defense"
+selected_obsolescence = true
 
 [[rules]]
 name = "Sewer System"
@@ -454,6 +459,7 @@ requirements = [{ kind = "Tech", present = true, target = "TECH_Ceremonial_Buria
 obsolete = []
 flags = []
 id = "building_temple"
+selected_obsolescence = true
 
 [[rules]]
 name = "University"
@@ -465,6 +471,7 @@ requirements = [{ kind = "Tech", present = true, target = "TECH_Education" }, { 
 obsolete = []
 flags = []
 id = "building_university"
+selected_obsolescence = true
 
 [[rules]]
 name = "Apollo Program"
@@ -476,6 +483,7 @@ requirements = [{ kind = "Tech", present = true, target = "TECH_Space_Flight" }]
 obsolete = []
 flags = []
 id = "building_apollo_program"
+selected_obsolescence = true
 
 [[rules]]
 name = "A.Smith's Trading Co."
@@ -487,6 +495,7 @@ requirements = [{ kind = "Tech", present = true, target = "TECH_Economics" }, { 
 obsolete = []
 flags = []
 id = "building_a_smith_s_trading_co"
+selected_obsolescence = true
 
 [[rules]]
 name = "Colossus"
@@ -498,6 +507,7 @@ requirements = [{ kind = "Tech", present = true, target = "TECH_Bronze_Working" 
 obsolete = [{ kind = "Tech", present = true, target = "TECH_Flight" }]
 flags = []
 id = "building_colossus"
+selected_obsolescence = true
 
 [[rules]]
 name = "Copernicus' Observatory"
@@ -509,6 +519,7 @@ requirements = [{ kind = "Tech", present = true, target = "TECH_Astronomy" }]
 obsolete = [{ kind = "Tech", present = true, target = "TECH_Computers" }]
 flags = []
 id = "building_copernicus_observatory"
+selected_obsolescence = true
 
 [[rules]]
 name = "Cure For Cancer"
@@ -520,6 +531,7 @@ requirements = [{ kind = "Tech", present = true, target = "TECH_Genetics" }]
 obsolete = []
 flags = []
 id = "building_cure_for_cancer"
+selected_obsolescence = true
 
 [[rules]]
 name = "Darwin's Voyage"
@@ -553,6 +565,7 @@ requirements = [{ kind = "Tech", present = true, target = "TECH_Literature" }, {
 obsolete = []
 flags = []
 id = "building_great_library"
+selected_obsolescence = true
 
 [[rules]]
 name = "Great Wall"
@@ -564,6 +577,7 @@ requirements = [{ kind = "Tech", present = true, target = "TECH_Construction" }]
 obsolete = [{ kind = "Tech", present = true, target = "TECH_Metallurgy" }]
 flags = []
 id = "building_great_wall"
+selected_obsolescence = true
 
 [[rules]]
 name = "Hanging Gardens"
@@ -575,6 +589,7 @@ requirements = [{ kind = "Tech", present = true, target = "TECH_Monarchy" }]
 obsolete = [{ kind = "Tech", present = true, target = "TECH_Steam_Power" }]
 flags = []
 id = "building_hanging_gardens"
+selected_obsolescence = true
 
 [[rules]]
 name = "Hoover Dam"
@@ -586,6 +601,7 @@ requirements = [{ kind = "Tech", present = true, target = "TECH_Electronics" }, 
 obsolete = []
 flags = []
 id = "building_hoover_dam"
+selected_obsolescence = true
 
 [[rules]]
 name = "Isaac Newton's College"
@@ -597,6 +613,7 @@ requirements = [{ kind = "Tech", present = true, target = "TECH_Theory_of_Gravit
 obsolete = []
 flags = []
 id = "building_isaac_newton_s_college"
+selected_obsolescence = true
 
 [[rules]]
 name = "J.S. Bach's Cathedral"
@@ -608,6 +625,7 @@ requirements = [{ kind = "Tech", present = true, target = "TECH_Music_Theory" }]
 obsolete = []
 flags = []
 id = "building_j_s_bach_s_cathedral"
+selected_obsolescence = true
 
 [[rules]]
 name = "King Richard's Crusade"
@@ -630,6 +648,7 @@ requirements = [{ kind = "Tech", present = true, target = "TECH_Invention" }]
 obsolete = [{ kind = "Tech", present = true, target = "TECH_Combustion" }]
 flags = []
 id = "building_leonardo_s_workshop"
+selected_obsolescence = true
 
 [[rules]]
 name = "Lighthouse"
@@ -641,6 +660,7 @@ requirements = [{ kind = "Tech", present = true, target = "TECH_Map_Making" }, {
 obsolete = [{ kind = "Tech", present = true, target = "TECH_Magnetism" }]
 flags = []
 id = "building_lighthouse"
+selected_obsolescence = true
 
 [[rules]]
 name = "Magellan's Expedition"
@@ -652,6 +672,7 @@ requirements = [{ kind = "Tech", present = true, target = "TECH_Navigation" }, {
 obsolete = [{ kind = "Tech", present = true, target = "TECH_Nuclear_Power" }]
 flags = []
 id = "building_magellan_s_expedition"
+selected_obsolescence = true
 
 [[rules]]
 name = "Manhattan Project"
@@ -663,6 +684,7 @@ requirements = [{ kind = "Tech", present = true, target = "TECH_Fission" }]
 obsolete = []
 flags = []
 id = "building_manhattan_project"
+selected_obsolescence = true
 
 [[rules]]
 name = "Marco Polo's Embassy"
@@ -696,6 +718,7 @@ requirements = [{ kind = "Tech", present = true, target = "TECH_Philosophy" }]
 obsolete = [{ kind = "Tech", present = true, target = "TECH_Sanitation" }]
 flags = []
 id = "building_mausoleum_of_mausolos"
+selected_obsolescence = true
 
 [[rules]]
 name = "Statue of Zeus"
@@ -707,6 +730,7 @@ requirements = [{ kind = "Tech", present = true, target = "TECH_Mathematics" }]
 obsolete = [{ kind = "Tech", present = true, target = "TECH_Metallurgy" }]
 flags = []
 id = "building_statue_of_zeus"
+selected_obsolescence = true
 
 [[rules]]
 name = "Temple of Artemis"
@@ -718,6 +742,7 @@ requirements = [{ kind = "Tech", present = true, target = "TECH_Polytheism" }, {
 obsolete = [{ kind = "Tech", present = true, target = "TECH_Education" }]
 flags = []
 id = "building_temple_of_artemis"
+selected_obsolescence = true
 
 [[rules]]
 name = "Pyramids"
@@ -729,6 +754,7 @@ requirements = [{ kind = "Tech", present = true, target = "TECH_Masonry" }]
 obsolete = []
 flags = []
 id = "building_pyramids"
+selected_obsolescence = true
 
 [[rules]]
 name = "Internet"
@@ -740,6 +766,7 @@ requirements = [{ kind = "Tech", present = true, target = "TECH_Computers" }, { 
 obsolete = []
 flags = []
 id = "building_internet"
+selected_obsolescence = true
 
 [[rules]]
 name = "Shakespeare's Theater"
@@ -751,6 +778,7 @@ requirements = [{ kind = "Tech", present = true, target = "TECH_Free_Artistry" }
 obsolete = []
 flags = []
 id = "building_shakespeare_s_theater"
+selected_obsolescence = true
 
 [[rules]]
 name = "Statue of Liberty"
@@ -773,6 +801,7 @@ requirements = [{ kind = "Tech", present = true, target = "TECH_Feudalism" }]
 obsolete = [{ kind = "Tech", present = true, target = "TECH_Motorized_Transportation" }]
 flags = []
 id = "building_sun_tzu_s_war_academy"
+selected_obsolescence = true
 
 [[rules]]
 name = "United Nations"
@@ -784,6 +813,7 @@ requirements = [{ kind = "Tech", present = true, target = "TECH_Fission" }]
 obsolete = []
 flags = []
 id = "building_united_nations"
+selected_obsolescence = true
 
 [[rules]]
 name = "Women's Suffrage"
@@ -817,6 +847,7 @@ requirements = [{ kind = "Tech", present = true, target = "TECH_Construction" }]
 obsolete = []
 flags = []
 id = "building_colosseum"
+selected_obsolescence = true
 
 [[rules]]
 name = "Hospital"
@@ -839,6 +870,7 @@ requirements = [{ kind = "Tech", present = true, target = "TECH_Genetics" }]
 obsolete = []
 flags = []
 id = "building_longevity"
+selected_obsolescence = true
 
 [[rules]]
 name = "Oracle"
@@ -850,6 +882,7 @@ requirements = [{ kind = "Tech", present = true, target = "TECH_Mysticism" }]
 obsolete = [{ kind = "Tech", present = true, target = "TECH_Theology" }]
 flags = []
 id = "building_oracle"
+selected_obsolescence = true
 
 [[rules]]
 name = "Theory of Evolution"
@@ -861,6 +894,7 @@ requirements = [{ kind = "Tech", present = true, target = "TECH_Scientific_Metho
 obsolete = []
 flags = []
 id = "building_theory_of_evolution"
+selected_obsolescence = true
 
 [[rules]]
 name = "Universal Suffrage"
@@ -872,6 +906,7 @@ requirements = [{ kind = "Tech", present = true, target = "TECH_Industrializatio
 obsolete = []
 flags = []
 id = "building_universal_suffrage"
+selected_obsolescence = true
 
 [[rules]]
 name = "SETI Program"
@@ -883,6 +918,7 @@ requirements = [{ kind = "Tech", present = true, target = "TECH_Computers" }]
 obsolete = []
 flags = []
 id = "building_seti_program"
+selected_obsolescence = true
 
 [[rules]]
 name = "Forbidden Palace"
@@ -894,6 +930,7 @@ requirements = [{ kind = "OwnerCityCount", present = true, value = 8 }]
 obsolete = []
 flags = []
 id = "building_forbidden_palace"
+selected_obsolescence = true
 
 [[rules]]
 name = "Heroic Epic"
@@ -906,6 +943,7 @@ requirements = [{ kind = "OwnerEliteUnit", present = true }]
 obsolete = []
 flags = []
 id = "building_heroic_epic"
+selected_obsolescence = true
 
 [[rules]]
 name = "Iron Works"
@@ -917,6 +955,7 @@ requirements = [{ kind = "Resource", present = true, target = "Coal" }, { kind =
 obsolete = []
 flags = []
 id = "building_iron_works"
+selected_obsolescence = true
 
 [[rules]]
 name = "Military Academy"
@@ -928,6 +967,7 @@ requirements = [{ kind = "Tech", present = true, target = "TECH_Military_Traditi
 obsolete = []
 flags = []
 id = "building_military_academy"
+selected_obsolescence = true
 
 [[rules]]
 name = "Pentagon"
@@ -939,6 +979,7 @@ requirements = [{ kind = "OwnerArmyCount", present = true, value = 3 }]
 obsolete = []
 flags = []
 id = "building_pentagon"
+selected_obsolescence = true
 
 [[rules]]
 name = "Wall Street"
@@ -950,6 +991,7 @@ requirements = [{ kind = "OwnerBuildingCount", present = true, count = 5, target
 obsolete = []
 flags = []
 id = "building_wall_street"
+selected_obsolescence = true
 
 [[rules]]
 name = "Intelligence Agency"
@@ -961,6 +1003,7 @@ requirements = [{ kind = "Tech", present = true, target = "TECH_Espionage" }]
 obsolete = []
 flags = []
 id = "building_intelligence_agency"
+selected_obsolescence = true
 
 [[rules]]
 name = "Battlefield Medicine"
@@ -972,6 +1015,7 @@ requirements = [{ kind = "OwnerBuildingCount", present = true, count = 5, target
 obsolete = []
 flags = []
 id = "building_battlefield_medicine"
+selected_obsolescence = true
 
 [[rules]]
 name = "Sistine Chapel"
@@ -983,6 +1027,7 @@ requirements = [{ kind = "Tech", present = true, target = "TECH_Theology" }]
 obsolete = []
 flags = []
 id = "building_sistine_chapel"
+selected_obsolescence = true
 
 [[rules]]
 name = "Knights Templar"
@@ -994,6 +1039,7 @@ requirements = [{ kind = "Tech", present = true, target = "TECH_Chivalry" }]
 obsolete = [{ kind = "Tech", present = true, target = "TECH_Steam_Power" }]
 flags = []
 id = "building_knights_templar"
+selected_obsolescence = true
 
 [[rules]]
 name = "Secret Police HQ"
@@ -1005,3 +1051,4 @@ requirements = [{ kind = "Tech", present = true, target = "TECH_Espionage" }]
 obsolete = []
 flags = []
 id = "building_secret_police_hq"
+selected_obsolescence = true

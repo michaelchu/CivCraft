@@ -350,6 +350,45 @@ fn parse_combat_bonus_kind(name: &str) -> Option<CombatBonusKind> {
 mod tests {
     use super::*;
 
+    const TEST_UNITS: &str = r#"
+[unit_destroyer]
+name = _("Destroyer")
+tp_defense = "Alight"
+bonuses =
+   { "flag", "type", "value"
+     "Submarine", "DefenseMultiplier", 1
+   }
+flags = "BadCityDefender", "ShieldToGold"
+
+[unit_aegis_cruiser]
+name = _("AEGIS Cruiser")
+tp_defense = "Alight"
+bonuses =
+   { "flag", "type", "value"
+     "AirAttacker", "DefenseMultiplier", 4
+   }
+flags = "BadCityDefender", "ShieldToGold"
+
+[unit_submarine]
+name = _("Submarine")
+tp_defense = "Alight"
+flags = "BadCityDefender", "Only_Native_Attack", "Submarine", "Provoking", "ShieldToGold"
+
+[unit_settlers]
+name = _("Settlers")
+tp_defense = "Alight"
+flags = "Cant_Fortify", "NonMil", "HasNoZOC", "AddToCity", "Cities", "Fortress"
+
+[unit_migrants]
+name = _("Migrants")
+tp_defense = "Alight"
+flags = "Workers", "Cant_Fortify", "NonMil", "HasNoZOC", "AddToCity", "Capturable", "Fortress"
+"#;
+
+    fn test_rules() -> RulesetData {
+        RulesetData::campaign_default().with_test_units(TEST_UNITS)
+    }
+
     fn unit_record_mut<'a>(rules: &'a mut RulesetData, section: &str) -> &'a mut ContentRecord {
         rules
             .content
@@ -370,7 +409,7 @@ mod tests {
 
     #[test]
     fn selected_unit_combat_bonuses_parse_destroyer_and_aegis_records() {
-        let rules = RulesetData::campaign_default();
+        let rules = test_rules();
         assert_eq!(
             rules.unit_combat_bonuses("unit_destroyer").unwrap(),
             vec![UnitCombatBonus {
@@ -397,7 +436,7 @@ mod tests {
 
     #[test]
     fn unit_transport_defense_uses_selected_values_and_engine_default() {
-        let rules = RulesetData::campaign_default();
+        let rules = test_rules();
         assert_eq!(
             rules.unit_transport_defense("unit_settlers").unwrap(),
             TransportDefense::Alight
@@ -407,7 +446,7 @@ mod tests {
             TransportDefense::Alight
         );
 
-        let mut rules = RulesetData::campaign_default().clone();
+        let mut rules = test_rules();
         let record = unit_record_mut(&mut rules, "unit_settlers");
         record
             .fields
@@ -417,7 +456,7 @@ mod tests {
             TransportDefense::Alight
         );
 
-        let mut rules = RulesetData::campaign_default().clone();
+        let mut rules = test_rules();
         let record = unit_record_mut(&mut rules, "unit_settlers");
         let field = record
             .fields
@@ -430,7 +469,7 @@ mod tests {
             TransportDefense::Blocked
         );
 
-        let mut rules = RulesetData::campaign_default().clone();
+        let mut rules = test_rules();
         let record = unit_record_mut(&mut rules, "unit_settlers");
         let field = record
             .fields
@@ -443,7 +482,7 @@ mod tests {
 
     #[test]
     fn unit_combat_bonus_parser_rejects_malformed_and_unsupported_data() {
-        let mut rules = RulesetData::campaign_default().clone();
+        let mut rules = test_rules();
         let record = unit_record_mut(&mut rules, "unit_destroyer");
         let entry = record
             .fields
@@ -454,7 +493,7 @@ mod tests {
         record.fields.push(entry);
         assert!(rules.unit_combat_bonuses("unit_destroyer").is_err());
 
-        let mut rules = RulesetData::campaign_default().clone();
+        let mut rules = test_rules();
         let record = unit_record_mut(&mut rules, "unit_destroyer");
         let Value::Table { rows, .. } = &mut bonuses_entry_mut(record).value else {
             panic!("campaign bonuses are a table");
@@ -462,7 +501,7 @@ mod tests {
         rows[0][2] = Value::String("1".to_owned());
         assert!(rules.unit_combat_bonuses("unit_destroyer").is_err());
 
-        let mut rules = RulesetData::campaign_default().clone();
+        let mut rules = test_rules();
         let record = unit_record_mut(&mut rules, "unit_destroyer");
         let Value::Table { rows, .. } = &mut bonuses_entry_mut(record).value else {
             panic!("campaign bonuses are a table");
@@ -470,7 +509,7 @@ mod tests {
         rows[0][1] = Value::String("UnknownBonus".to_owned());
         assert!(rules.unit_combat_bonuses("unit_destroyer").is_err());
 
-        let mut rules = RulesetData::campaign_default().clone();
+        let mut rules = test_rules();
         let record = unit_record_mut(&mut rules, "unit_destroyer");
         let Value::Table { rows, .. } = &mut bonuses_entry_mut(record).value else {
             panic!("campaign bonuses are a table");
@@ -478,7 +517,7 @@ mod tests {
         rows[0].pop();
         assert!(rules.unit_combat_bonuses("unit_destroyer").is_err());
 
-        let mut rules = RulesetData::campaign_default().clone();
+        let mut rules = test_rules();
         let record = unit_record_mut(&mut rules, "unit_destroyer");
         bonuses_entry_mut(record).value = Value::List(Vec::new());
         assert!(rules.unit_combat_bonuses("unit_destroyer").is_err());
@@ -486,7 +525,7 @@ mod tests {
 
     #[test]
     fn unit_combat_bonus_parser_rejects_invalid_columns_and_row_types() {
-        let mut rules = RulesetData::campaign_default().clone();
+        let mut rules = test_rules();
         let record = unit_record_mut(&mut rules, "unit_destroyer");
         let Value::Table { columns, .. } = &mut bonuses_entry_mut(record).value else {
             panic!("campaign bonuses are a table");
@@ -494,7 +533,7 @@ mod tests {
         columns[0] = "target".to_owned();
         assert!(rules.unit_combat_bonuses("unit_destroyer").is_err());
 
-        let mut rules = RulesetData::campaign_default().clone();
+        let mut rules = test_rules();
         let record = unit_record_mut(&mut rules, "unit_destroyer");
         let Value::Table { columns, .. } = &mut bonuses_entry_mut(record).value else {
             panic!("campaign bonuses are a table");
@@ -502,7 +541,7 @@ mod tests {
         columns.push("flag".to_owned());
         assert!(rules.unit_combat_bonuses("unit_destroyer").is_err());
 
-        let mut rules = RulesetData::campaign_default().clone();
+        let mut rules = test_rules();
         let record = unit_record_mut(&mut rules, "unit_destroyer");
         let Value::Table { rows, .. } = &mut bonuses_entry_mut(record).value else {
             panic!("campaign bonuses are a table");
@@ -510,7 +549,7 @@ mod tests {
         rows[0][0] = Value::Integer(1);
         assert!(rules.unit_combat_bonuses("unit_destroyer").is_err());
 
-        let mut rules = RulesetData::campaign_default().clone();
+        let mut rules = test_rules();
         let record = unit_record_mut(&mut rules, "unit_destroyer");
         let Value::Table { rows, .. } = &mut bonuses_entry_mut(record).value else {
             panic!("campaign bonuses are a table");
@@ -518,7 +557,7 @@ mod tests {
         rows[0][1] = Value::Bool(true);
         assert!(rules.unit_combat_bonuses("unit_destroyer").is_err());
 
-        let mut rules = RulesetData::campaign_default().clone();
+        let mut rules = test_rules();
         let record = unit_record_mut(&mut rules, "unit_destroyer");
         let Value::Table { columns, rows } = &mut bonuses_entry_mut(record).value else {
             panic!("campaign bonuses are a table");
