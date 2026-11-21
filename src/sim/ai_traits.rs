@@ -1,43 +1,12 @@
-//! Selected Freeciv AI trait defaults.
+//! Selected AI trait defaults.
 
-use crate::rules::engine_rules::RulesetData;
-
-/// Freeciv's default `traitdistribution` is fixed, so omitted nation-specific
-/// values use the selected ruleset's `*_default` (or its default midpoint).
-/// CivCraft currently has no Freeciv nation-specific trait overrides.
-pub(super) fn fixed_default(trait_name: &str) -> i32 {
-    use std::sync::OnceLock;
-    static BUILDER: OnceLock<i32> = OnceLock::new();
-    static EXPANSIONIST: OnceLock<i32> = OnceLock::new();
-    static AGGRESSIVE: OnceLock<i32> = OnceLock::new();
-    let cached = match trait_name {
-        "builder" => &BUILDER,
-        "expansionist" => &EXPANSIONIST,
-        "aggressive" => &AGGRESSIVE,
-        _ => return read_default(trait_name),
-    };
-    *cached.get_or_init(|| read_default(trait_name))
+/// Default AI trait value (`50` on the `[1, 2500]` scale).
+pub(super) const fn fixed_default(_trait_name: &str) -> i32 {
+    50
 }
 
-fn read_default(trait_name: &str) -> i32 {
-    let rules = RulesetData::campaign_default();
-    let read = |suffix: &str| -> Option<i32> {
-        let key = format!("{trait_name}_{suffix}");
-        rules
-            .optional_i32_parameter("nations.ruleset", "default_traits", &key)
-            .unwrap_or_else(|error| panic!("{error}"))
-    };
-
-    let value = read("default").unwrap_or_else(|| {
-        let minimum = read("min").unwrap_or(50);
-        let maximum = read("max").unwrap_or(50);
-        minimum + (maximum - minimum) / 2
-    });
-    value.clamp(1, 2500)
-}
-
-/// Freeciv's `domestic_advisor_choose_build` and military building
-/// substitutions use this literal integer-expression scale for Builder.
+/// `domestic_advisor_choose_build` and military building substitutions use
+/// this literal integer-expression scale for Builder.
 pub(super) fn builder_building_want_factor() -> f32 {
     0.5 + (fixed_default("builder") / 50 / 2) as f32
 }

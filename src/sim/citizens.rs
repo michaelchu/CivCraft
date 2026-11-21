@@ -57,22 +57,12 @@ impl City {
     }
 }
 
-fn selected_citizen_convert_speed() -> i32 {
-    static SPEED: std::sync::OnceLock<i32> = std::sync::OnceLock::new();
-    *SPEED.get_or_init(|| {
-        crate::rules::engine_rules::RulesetData::campaign_default()
-            .required_i32_parameter("cities.ruleset", "citizen", "convert_speed")
-            .unwrap_or_else(|error| panic!("{error}"))
-    })
+const fn selected_citizen_convert_speed() -> i32 {
+    50
 }
 
-fn selected_conquest_convert_pct() -> i32 {
-    static PERCENT: std::sync::OnceLock<i32> = std::sync::OnceLock::new();
-    *PERCENT.get_or_init(|| {
-        crate::rules::engine_rules::RulesetData::campaign_default()
-            .required_i32_parameter("cities.ruleset", "citizen", "conquest_convert_pct")
-            .unwrap_or_else(|error| panic!("{error}"))
-    })
+const fn selected_conquest_convert_pct() -> i32 {
+    0
 }
 
 impl Simulation {

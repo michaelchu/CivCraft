@@ -1,7 +1,7 @@
 //! Unit support and upkeep calculations.
 
 use super::*;
-use crate::rules::engine_rules::{RulesetData, UnitUpkeepOutput};
+use crate::rules::engine_rules::UnitUpkeepOutput;
 use crate::sim::action_rules::SimulationRequirementContext;
 use std::sync::OnceLock;
 
@@ -42,12 +42,28 @@ pub(crate) struct UnitUpkeepRow {
 
 fn missing_unit_upkeep_settings() -> &'static crate::rules::engine_rules::MissingUnitUpkeepSettings
 {
-    static SETTINGS: OnceLock<crate::rules::engine_rules::MissingUnitUpkeepSettings> =
-        OnceLock::new();
-    SETTINGS.get_or_init(|| {
-        RulesetData::campaign_default()
-            .missing_unit_upkeep_settings()
-            .unwrap_or_else(|error| panic!("invalid C2C3 missing-unit-upkeep settings: {error}"))
+    use crate::rules::engine_rules::{MissingUnitUpkeepOutputSettings, MissingUnitUpkeepSettings};
+    static SETTINGS: OnceLock<MissingUnitUpkeepSettings> = OnceLock::new();
+    SETTINGS.get_or_init(|| MissingUnitUpkeepSettings {
+        food: MissingUnitUpkeepOutputSettings {
+            protected_flags: vec!["EvacuateFirst".to_owned()],
+            actions: Vec::new(),
+            wipe: true,
+        },
+        shield: MissingUnitUpkeepOutputSettings {
+            protected_flags: vec!["EvacuateFirst".to_owned()],
+            actions: vec![
+                "Help Wonder".to_owned(),
+                "Disband Unit Recover".to_owned(),
+                "Disband Unit".to_owned(),
+            ],
+            wipe: false,
+        },
+        gold: MissingUnitUpkeepOutputSettings {
+            protected_flags: Vec::new(),
+            actions: Vec::new(),
+            wipe: true,
+        },
     })
 }
 

@@ -1297,53 +1297,6 @@ fn required_setting<'a>(
 }
 
 impl RulesetData {
-    /// Decode the selected Freeciv missing-upkeep auto-performer inputs.
-    /// Omitted protected/action lists are empty; omitted wipe values use the
-    /// defaults in the pinned server ruleset loader (food/gold TRUE, shield
-    /// FALSE).
-    pub(crate) fn missing_unit_upkeep_settings(
-        &self,
-    ) -> Result<MissingUnitUpkeepSettings, LoadError> {
-        let read_list = |key: &str| -> Result<Vec<String>, LoadError> {
-            let Some(parameter) =
-                optional_parameter(self, "cities.ruleset", "missing_unit_upkeep", key)?
-            else {
-                return Ok(Vec::new());
-            };
-            parameter
-                .string_list_value()
-                .map_err(|error| LoadError::new(format!("invalid missing upkeep rules: {error}")))
-                .map(|value| value.unwrap_or_default())
-        };
-        let read_bool = |key: &str, default: bool| -> Result<bool, LoadError> {
-            match optional_parameter(self, "cities.ruleset", "missing_unit_upkeep", key)? {
-                Some(parameter) => parameter
-                    .boolean_value()
-                    .map_err(|error| {
-                        LoadError::new(format!("invalid missing upkeep rules: {error}"))
-                    })
-                    .map(|value| value.unwrap_or(default)),
-                None => Ok(default),
-            }
-        };
-        let read_output = |output: UnitUpkeepOutput,
-                           default_wipe: bool|
-         -> Result<MissingUnitUpkeepOutputSettings, LoadError> {
-            let prefix = output.parameter_name();
-            Ok(MissingUnitUpkeepOutputSettings {
-                protected_flags: read_list(&format!("{prefix}_protected"))?,
-                actions: read_list(&format!("{prefix}_unit_act"))?,
-                wipe: read_bool(&format!("{prefix}_wipe"), default_wipe)?,
-            })
-        };
-
-        Ok(MissingUnitUpkeepSettings {
-            food: read_output(UnitUpkeepOutput::Food, true)?,
-            shield: read_output(UnitUpkeepOutput::Shield, false)?,
-            gold: read_output(UnitUpkeepOutput::Gold, true)?,
-        })
-    }
-
     /// Resolve the border settings used by Freeciv's `unit_being_aggressive`.
     /// The engine defaults are explicit in the CivCraft-owned derivative.
     pub(crate) fn unit_happiness_settings(
@@ -1804,13 +1757,12 @@ mod tests {
     use super::section_file::{Entry, Value};
     use super::{
         ActionEnabler, ActionRecord, ContentKind, EffectContext, EffectKind, EffectRecord,
-        EffectSet, FreeTechnologyStyle, HappyBorders, LoadedRuleFile,
-        MissingUnitUpkeepOutputSettings, MissingUnitUpkeepSettings, RULESET_FILES, Requirement,
+        EffectSet, FreeTechnologyStyle, HappyBorders, LoadedRuleFile, RULESET_FILES, Requirement,
         RequirementContext, RequirementEvaluationError, RequirementKind, RequirementRange,
         RequirementValue, ResearchCostStyle, ResearchRulesetSettings, RevolutionType,
         RuleFileSource, RuleSourceLocation, RulesetData, TechnologyLeakageStyle,
-        TechnologyUpkeepStyle, UnitHappinessRulesetSettings, UnitUpkeepOutput, VictoryCondition,
-        action_enabled, effect_value, requirements_met,
+        TechnologyUpkeepStyle, UnitHappinessRulesetSettings, VictoryCondition, action_enabled,
+        effect_value, requirements_met,
     };
     use std::fs;
     use std::path::PathBuf;
@@ -1920,118 +1872,6 @@ mod tests {
             .unwrap()
             .value = Value::String("unknown".to_owned());
         assert!(rules.unit_happiness_settings().is_err());
-    }
-
-    #[test]
-    fn campaign_missing_unit_upkeep_settings_preserve_lists_and_loader_defaults() {
-        let rules = RulesetData::campaign_default();
-        let settings = rules.missing_unit_upkeep_settings().unwrap();
-        assert_eq!(
-            settings,
-            MissingUnitUpkeepSettings {
-                food: MissingUnitUpkeepOutputSettings {
-                    protected_flags: vec!["EvacuateFirst".to_owned()],
-                    actions: Vec::new(),
-                    wipe: true,
-                },
-                shield: MissingUnitUpkeepOutputSettings {
-                    protected_flags: vec!["EvacuateFirst".to_owned()],
-                    actions: vec![
-                        "Help Wonder".to_owned(),
-                        "Disband Unit Recover".to_owned(),
-                        "Disband Unit".to_owned(),
-                    ],
-                    wipe: false,
-                },
-                gold: MissingUnitUpkeepOutputSettings {
-                    protected_flags: Vec::new(),
-                    actions: Vec::new(),
-                    wipe: true,
-                },
-            }
-        );
-        assert_eq!(
-            settings.for_output(UnitUpkeepOutput::Shield).actions,
-            vec![
-                "Help Wonder".to_owned(),
-                "Disband Unit Recover".to_owned(),
-                "Disband Unit".to_owned(),
-            ]
-        );
-
-        let mut rules = rules.clone();
-        rules.parameters.retain(|parameter| {
-            !(parameter.file.eq_ignore_ascii_case("cities.ruleset")
-                && parameter
-                    .section
-                    .eq_ignore_ascii_case("missing_unit_upkeep"))
-        });
-        assert_eq!(
-            rules.missing_unit_upkeep_settings().unwrap(),
-            MissingUnitUpkeepSettings {
-                food: MissingUnitUpkeepOutputSettings {
-                    protected_flags: Vec::new(),
-                    actions: Vec::new(),
-                    wipe: true,
-                },
-                shield: MissingUnitUpkeepOutputSettings {
-                    protected_flags: Vec::new(),
-                    actions: Vec::new(),
-                    wipe: false,
-                },
-                gold: MissingUnitUpkeepOutputSettings {
-                    protected_flags: Vec::new(),
-                    actions: Vec::new(),
-                    wipe: true,
-                },
-            }
-        );
-    }
-
-    #[test]
-    fn missing_unit_upkeep_settings_reject_malformed_and_duplicate_values() {
-        let mut rules = RulesetData::campaign_default().clone();
-        let actions = rules
-            .parameters
-            .iter_mut()
-            .find(|parameter| {
-                parameter.file == "cities.ruleset"
-                    && parameter.section == "missing_unit_upkeep"
-                    && parameter.key == "shield_unit_act"
-            })
-            .unwrap();
-        actions.value = Value::List(vec![
-            Value::String("Help Wonder".to_owned()),
-            Value::Bool(true),
-        ]);
-        assert!(rules.missing_unit_upkeep_settings().is_err());
-
-        let mut rules = RulesetData::campaign_default().clone();
-        let wipe = rules
-            .parameters
-            .iter_mut()
-            .find(|parameter| {
-                parameter.file == "cities.ruleset"
-                    && parameter.section == "missing_unit_upkeep"
-                    && parameter.key == "food_wipe"
-            })
-            .unwrap();
-        wipe.value = Value::String("TRUE".to_owned());
-        assert!(rules.missing_unit_upkeep_settings().is_err());
-
-        let mut rules = RulesetData::campaign_default().clone();
-        let duplicate = rules
-            .parameters
-            .iter()
-            .find(|parameter| {
-                parameter.file == "cities.ruleset"
-                    && parameter.section == "missing_unit_upkeep"
-                    && parameter.key == "food_wipe"
-            })
-            .unwrap()
-            .clone();
-        rules.parameters.push(duplicate);
-        assert!(rules.missing_unit_upkeep_settings().is_err());
     }
 
     #[test]
@@ -2577,8 +2417,8 @@ mod tests {
             if *name == "units.ruleset" {
                 continue;
             }
-            let contents = if *name == "nations.ruleset" {
-                "[compatibility]\nfirst = \"parent\"\n*include \"default/nationlist.ruleset\"\n"
+            let contents = if *name == "game.ruleset" {
+                "[compatibility]\nfirst = \"parent\"\n*include \"default/extra.ruleset\"\n"
             } else {
                 "[datafile]\nformat_version = 1\n"
             };
@@ -2590,8 +2430,8 @@ mod tests {
         )
         .unwrap();
         fs::write(
-            default_dir.join("nationlist.ruleset"),
-            "[compatibility]\nsecond = \"included\"\n[nation_fixture]\nrule_name = \"fixture_nation\"\nname = \"Fixture Nation\"\n",
+            default_dir.join("extra.ruleset"),
+            "[compatibility]\nsecond = \"included\"\n",
         )
         .unwrap();
 
@@ -2605,15 +2445,12 @@ mod tests {
                 .source,
             RuleFileSource::DefaultRuleset
         );
-        assert!(rules.content.iter().any(|record| {
-            record.kind == ContentKind::Nation && record.rule_name == "fixture_nation"
-        }));
-        let nations = rules
+        let game = rules
             .files
             .iter()
-            .find(|file| file.name == "nations.ruleset")
+            .find(|file| file.name == "game.ruleset")
             .unwrap();
-        let compatibility = nations
+        let compatibility = game
             .parsed
             .sections
             .iter()
@@ -2623,8 +2460,8 @@ mod tests {
         assert_eq!(compatibility[0].entries.len(), 2);
 
         fs::write(
-            default_dir.join("nationlist.ruleset"),
-            "[compatibility]\nfirst = \"duplicate\"\n[nation_fixture]\nrule_name = \"fixture_nation\"\nname = \"Fixture Nation\"\n",
+            default_dir.join("extra.ruleset"),
+            "[compatibility]\nfirst = \"duplicate\"\n",
         )
         .unwrap();
         let duplicate_error = RulesetData::load(&root, "fixture").unwrap_err();
@@ -2684,8 +2521,8 @@ mod tests {
                 .iter()
                 .filter(|record| record.kind == ContentKind::Nation)
                 .count(),
-            3,
-            "the mechanics ruleset retains only special non-player nations"
+            0,
+            "the mechanics ruleset no longer embeds nation records"
         );
         assert!(
             data_root

@@ -523,14 +523,8 @@ fn selected_migration_pml() -> i32 {
     })
 }
 
-pub(crate) fn selected_citizen_nationality() -> bool {
-    static NATIONALITY: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-    *NATIONALITY.get_or_init(|| {
-        RulesetData::campaign_default()
-            .optional_boolean_parameter("cities.ruleset", "citizen", "nationality")
-            .unwrap_or_else(|error| panic!("{error}"))
-            .unwrap_or(false)
-    })
+pub(crate) const fn selected_citizen_nationality() -> bool {
+    true
 }
 
 #[cfg(test)]

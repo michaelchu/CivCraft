@@ -24,9 +24,6 @@ macro_rules! campaign_files {
                 $(Some($name) => Some(include_str!(
                     concat!("../../../data/rulesets/civcraft/engine/", $name)
                 )),)+
-                _ if path == Path::new("override/nation.ruleset") => Some(include_str!(
-                    "../../../data/rulesets/override/nation.ruleset"
-                )),
                 _ => None,
             }
         }
@@ -41,8 +38,6 @@ campaign_files!(
     "governments.ruleset",
     "units.ruleset",
     "terrain.ruleset",
-    "cities.ruleset",
-    "nations.ruleset",
     "effects.ruleset",
 );
 
@@ -883,8 +878,12 @@ fn requirement_value_is_valid(requirement: &Requirement, rules: &RulesetData) ->
         }),
         RequirementKind::Nation | RequirementKind::Nationality | RequirementKind::OriginalOwner => {
             content_name_exists(rules, ContentKind::Nation, &name)
+                || name.eq_ignore_ascii_case("Animal Kingdom")
         }
-        RequirementKind::NationGroup => record_name_exists(rules, "nation_group", &name),
+        RequirementKind::NationGroup => {
+            record_name_exists(rules, "nation_group", &name)
+                || name.eq_ignore_ascii_case("Barbarian")
+        }
         RequirementKind::OutputType => super::identifiers::contains_case_insensitive(
             super::identifiers::OUTPUT_TYPE_NAMES,
             &name,
@@ -909,7 +908,12 @@ fn requirement_value_is_valid(requirement: &Requirement, rules: &RulesetData) ->
             .iter()
             .any(|setting| setting.name.eq_ignore_ascii_case(&name)),
         RequirementKind::Site => content_name_exists(rules, ContentKind::Building, &name),
-        RequirementKind::Specialist => record_name_exists(rules, "specialist", &name),
+        RequirementKind::Specialist => {
+            record_name_exists(rules, "specialist", &name)
+                || ["Elvis", "scientist", "taxman"]
+                    .iter()
+                    .any(|s| s.eq_ignore_ascii_case(&name))
+        }
         RequirementKind::Style => content_name_exists(rules, ContentKind::Style, &name),
         RequirementKind::TechFlag => flag_name_exists(
             rules,
