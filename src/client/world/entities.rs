@@ -198,10 +198,12 @@ impl Game {
             );
         }
 
+        let size_x = left + (side_width - size_metrics.width) * 0.5;
+        let size_baseline = centered_text_baseline(top, height, size_metrics);
         draw_text(
             &size_text,
-            left + (side_width - size_metrics.width) * 0.5,
-            centered_text_baseline(top, height, size_metrics),
+            size_x,
+            size_baseline,
             size_font,
             city_size_text_color(owner_color),
         );
