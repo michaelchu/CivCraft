@@ -3,7 +3,7 @@
 This directory is the single CivCraft campaign ruleset package for the
 Civilization III: Conquests campaign. Its editable layers are `content/`, which
 contains CivCraft-owned native TOML catalogs, while `engine/` contains the
-Freeciv-compatible inputs still needed by the reusable rules engine.
+generic engine ruleset inputs (`actions`, `effects`, `game`, `terrain`, `units`).
 
 The catalogs under `content/` are the runtime source for the migrated campaign systems.  The
 legacy extraction tables and one-time conversion tool have been removed after
@@ -39,7 +39,7 @@ settlement AI valuation, and shield-recovery base values share that cost.
 The unit-economics crosswalk has been removed. Capabilities and AI roles use named fields rather than raw PRTO masks; experience and government support use their native catalogs.
 Barbarian and partisan choices are configured in `src/rules/native.rs` alongside
 the settlement rules.
-The generic engine's remaining algorithm gaps are recorded in the Freeciv port
-plan; removal of inherited content does not claim full gameplay parity.
+The generic engine's remaining algorithm notes live in docs; removal of inherited
+content does not claim full gameplay parity.
 
 Animation pacing lives in `data/presentation/unit_animation_pacing.toml`; it does not define simulation behavior. BIQ files and extracted metadata are no longer required.

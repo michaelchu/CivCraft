@@ -1,17 +1,8 @@
-; Modifying this file:
-; You should not modify this file except to make bugfixes or
-; for other "maintenance". If you want to make custom changes,
-; you should create a new datadir subdirectory and copy this file
-; into that directory, and then modify that copy. Then use the
-; command "rulesetdir <mysubdir>" in the server to have freeciv
-; use your new customized file.
-
-; Note that the freeciv AI may not cope well with anything more
-; than minor changes.
+; CivCraft engine actions and action enablers.
 
 [datafile]
-description = "Civ2Civ3 actions data for Freeciv"
-options = "+Freeciv-ruleset-3.4-Devel-2025.Jan.17 web-compatible"
+description = "CivCraft engine actions"
+options = "+civcraft-ruleset"
 format_version = 50
 
 [auto_attack]
@@ -272,11 +263,8 @@ quiet_actions = "Transport Disembark 2", "Conquer City Shrink 2", "Enter Hut 2",
 ;
 ; action               = the action to configure.
 ; ui_name              = What each action should be called when showing them to the player.
-;                        The first %s should be before the mnemonic of the action.
-;                        A Freeciv client that supports mnemonics will replace it with
-;                        the in-band signal that marks the following character as a mnemonic
-;                        in its graphical toolkit.
-;                        The second %s marks where extra details should be inserted.
+;                        The first %s marks the mnemonic position; the second %s marks
+;                        where extra details should be inserted.
 ;
 ; README.actions lists the possible actions
 ;
@@ -365,8 +353,8 @@ ui_name = _("%sKeep moving%s")
 ; action               = the action to enable.
 ; actor_reqs           = requirements that apply to the actor.
 ; target_reqs          = requirements that apply to the target.
-; comment              = Comment for the benefit to someone examining the ruleset
-;                        Not used by freeciv any other way.
+; comment              = Comment for the benefit of someone examining the ruleset
+;                        Not used by the engine in any other way.
 ;
 ; README.actions lists the possible actions and their hard coded
 ; requirements.

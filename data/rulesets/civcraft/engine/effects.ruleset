@@ -1,17 +1,8 @@
-; Modifying this file:
-; You should not modify this file except to make bugfixes or
-; for other "maintenance". If you want to make custom changes,
-; you should create a new datadir subdirectory and copy this file
-; into that directory, and then modify that copy. Then use the
-; command "rulesetdir <mysubdir>" in the server to have freeciv
-; use your new customized file.
-
-; Note that the freeciv AI may not cope well with anything more
-; than minor changes.
+; CivCraft engine effects table.
 
 [datafile]
-description = "Civ2Civ3 effects data for Freeciv"
-options = "+Freeciv-ruleset-3.4-Devel-2025.Jan.17 web-compatible"
+description = "CivCraft engine effects"
+options = "+civcraft-ruleset"
 format_version = 50
 
 ; /* <-- avoid gettext warnings
@@ -39,8 +30,8 @@ format_version = 50
 ; multiplier              = Name of the policy that gives a multiplier for effect's value
 ; reqs                    = Requirements for the effect to be active.
 ;                           See README.effects for help on requirements
-; comment                 = Comment for the benefit to someone examining the ruleset
-;                           Not used by freeciv any other way.
+; comment                 = Comment for the benefit of someone examining the ruleset
+;                           Not used by the engine in any other way.
 ;
 ; */ <-- avoid gettext warnings
 
