@@ -688,7 +688,7 @@ impl Game {
         actions.extend(self.draw_stack_menu());
         if let Some(text) = self.targeting.banner() {
             let viewport = Self::viewport_rect();
-            let width = measure_text(text, None, 22, 1.0).width;
+            let width = measure_cached(text, 22).width;
             draw_rectangle(
                 viewport.x + viewport.w * 0.5 - width * 0.5 - 14.0,
                 viewport.y + 66.0,
@@ -853,8 +853,7 @@ fn draw_ui_button(rect: Rect, label: &str, enabled: bool, accent: bool) {
     draw_rectangle(rect.x, rect.y, rect.w, rect.h, fill);
     draw_rectangle_lines(rect.x, rect.y, rect.w, rect.h, 1.0, border);
     let mut font_size = if rect.h > 38.0 { 19.0 } else { 15.0 };
-    while font_size > 13.0 && measure_text(label, None, font_size as u16, 1.0).width > rect.w - 10.0
-    {
+    while font_size > 13.0 && measure_cached(label, font_size as u16).width > rect.w - 10.0 {
         font_size -= 1.0;
     }
     let fitted = fit_text(
@@ -863,7 +862,7 @@ fn draw_ui_button(rect: Rect, label: &str, enabled: bool, accent: bool) {
         rect.w - if rect.w < 40.0 { 6.0 } else { 16.0 },
     );
     let label = fitted.as_str();
-    let size = measure_text(label, None, font_size as u16, 1.0);
+    let size = measure_cached(label, font_size as u16);
     draw_text(
         label,
         rect.x + (rect.w - size.width) * 0.5,
@@ -911,7 +910,7 @@ fn draw_meter(rect: Rect, value: i32, maximum: i32, color: Color) {
 }
 
 fn centered_text(text: &str, y: f32, size: f32, color: Color) {
-    let width = measure_text(text, None, size as u16, 1.0).width;
+    let width = measure_cached(text, size as u16).width;
     draw_text(text, (screen_width() - width) * 0.5, y, size, color);
 }
 

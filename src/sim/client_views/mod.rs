@@ -933,14 +933,21 @@ mod tests {
             }
         }
         crate::sim::ui_review::ui_review_reveal_all_tiles(&mut sim);
-        println!("map {w}x{h}, cities {}, units {}", sim.cities.len(), sim.units.len());
+        println!(
+            "map {w}x{h}, cities {}, units {}",
+            sim.cities.len(),
+            sim.units.len()
+        );
         let reps = 200u32;
         let time = |name: &str, f: &dyn Fn()| {
             let t = Instant::now();
             for _ in 0..reps {
                 f();
             }
-            println!("{name:32} {:>9.1} us/call", t.elapsed().as_secs_f64() * 1e6 / reps as f64);
+            println!(
+                "{name:32} {:>9.1} us/call",
+                t.elapsed().as_secs_f64() * 1e6 / reps as f64
+            );
         };
         let id = sim.cities[0].id;
         time("city_manager_view", &|| {
@@ -952,10 +959,12 @@ mod tests {
         time("render_cities", &|| {
             std::hint::black_box(sim.render_cities());
         });
-        let tiles: std::collections::HashSet<(i32, i32)> =
-            (0..40).flat_map(|y| (0..60).map(move |x| (x % w, y % h))).collect();
-        let view: std::collections::HashSet<(i32, i32)> =
-            (10..24).flat_map(|y| (4..24).map(move |x| (x, y))).collect();
+        let tiles: std::collections::HashSet<(i32, i32)> = (0..40)
+            .flat_map(|y| (0..60).map(move |x| (x % w, y % h)))
+            .collect();
+        let view: std::collections::HashSet<(i32, i32)> = (10..24)
+            .flat_map(|y| (4..24).map(move |x| (x, y)))
+            .collect();
         time("render_city_markers (sources)", &|| {
             std::hint::black_box(sim.render_city_markers());
         });

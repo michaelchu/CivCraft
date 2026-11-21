@@ -289,7 +289,7 @@ impl Game {
             let age = self.research_tree.age(req);
             let age_name = RESEARCH_AGES[age].0;
             let label = format!("{} ({})", req.name(), age_name);
-            let width = measure_text(&label, None, 15, 1.0).width + 22.0;
+            let width = measure_cached(&label, 15).width + 22.0;
             let button = Rect::new(x, y + 53.0, width, 29.0);
             draw_ui_button(button, &label, true, false);
             actions.push((button, UiAction::InspectResearch(req)));
