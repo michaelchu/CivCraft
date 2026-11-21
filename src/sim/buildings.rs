@@ -155,7 +155,11 @@ impl Simulation {
             .all(|&resource| self.resource_connected_to_city(city, resource))
     }
 
-    fn resource_connected_to_city(&self, city: &City, resource: Resource) -> bool {
+    pub(in crate::sim) fn resource_connected_to_city(
+        &self,
+        city: &City,
+        resource: Resource,
+    ) -> bool {
         let center = self.tile(city.x, city.y);
         if center.active_resource() == Some(resource) {
             return true;
@@ -237,6 +241,13 @@ impl Simulation {
                 self.cities
                     .iter()
                     .filter(|other| other.owner == city.owner && other.has_building(Building(id)))
+                    .count()
+                    >= count
+            }
+            Requirement::OwnerArmyCount(count) => {
+                self.units
+                    .iter()
+                    .filter(|unit| unit.owner == city.owner && unit.kind == UnitKind::Army)
                     .count()
                     >= count
             }
@@ -399,6 +410,7 @@ fn requirement_name(requirement: Requirement) -> String {
         Requirement::Water => "nearby sea or lake".into(),
         Requirement::MinSize(size) => format!("city size {size}"),
         Requirement::OwnerCityCount(count) => format!("{count} cities"),
+        Requirement::OwnerArmyCount(count) => format!("{count} armies"),
         Requirement::OwnerEliteUnit => "an elite unit".into(),
         Requirement::OwnerBuildingCount(id, count) => {
             format!("{count} {} buildings", Building(id).data().name)

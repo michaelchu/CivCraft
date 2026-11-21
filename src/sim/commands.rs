@@ -29,6 +29,7 @@ pub(crate) enum Command {
     FoundCity(u32),
     Work(u32, WorkKind),
     Fortify(u32),
+    FormArmy(u32),
     Sentry(u32),
     Automate(u32),
     Produce(u32, Production),
@@ -144,6 +145,7 @@ impl Simulation {
             | FoundCity(id)
             | Work(id, ..)
             | Fortify(id)
+            | FormArmy(id)
             | Sentry(id)
             | Automate(id)
             | HomeCity(id)
@@ -164,6 +166,9 @@ impl Simulation {
                 .position(|unit| unit.id == id && unit.owner == HUMAN)
         });
         if unit_id.is_some() && unit_index.is_none() {
+            return false;
+        }
+        if unit_index.is_some_and(|index| self.is_army_member(&self.units[index])) {
             return false;
         }
         let applied = match command {
@@ -205,6 +210,7 @@ impl Simulation {
             Airlift(id, city) => self.airlift(id, city),
             Work(id, kind) => self.begin_work(id, kind),
             Fortify(id) => self.fortify_unit(id),
+            FormArmy(id) => self.form_army(id),
             Sentry(id) => self.set_unit_sentry(id),
             Automate(_) => {
                 let unit = &mut self.units[unit_index.unwrap()];

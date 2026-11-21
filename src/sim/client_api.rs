@@ -79,6 +79,9 @@ impl ClientSimulation {
     pub(crate) fn city_religion_summary(&self, city: u32) -> String {
         self.simulation.city_religion_summary(city)
     }
+    pub(crate) fn city_faith_shares(&self, city: u32) -> Vec<super::religion::CityFaithShare> {
+        self.simulation.city_faith_shares(city)
+    }
     pub(crate) fn public_faith_summary(&self, owner: usize) -> String {
         self.simulation.public_faith_summary(owner)
     }

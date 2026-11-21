@@ -41,10 +41,18 @@ pub(super) fn configure_event_combat_timing(
         let (a, d) = combat.hp.last().copied().unwrap_or((1, 1));
         combat.result_duration = if a <= 0 {
             art.combat_clip_seconds(&combat.attacker, Death)
-                .max(art.combat_clip_seconds(&combat.defender, Victory))
+                .max(if combat.battle_ended {
+                    art.combat_clip_seconds(&combat.defender, Victory)
+                } else {
+                    0.0
+                })
         } else if d <= 0 {
             art.combat_clip_seconds(&combat.defender, Death)
-                .max(art.combat_clip_seconds(&combat.attacker, Victory))
+                .max(if combat.battle_ended {
+                    art.combat_clip_seconds(&combat.attacker, Victory)
+                } else {
+                    0.0
+                })
         } else {
             0.0
         };
@@ -161,6 +169,23 @@ impl Playback {
         true
     }
 
+    pub(super) fn review_combat_exchange(&mut self, exchange: usize, fraction: f64) -> bool {
+        let Some(index) = self
+            .events
+            .iter()
+            .enumerate()
+            .filter(|(_, event)| matches!(event, PresentationEventView::Combat(_)))
+            .nth(exchange)
+            .map(|(index, _)| index)
+        else {
+            return false;
+        };
+        self.events.drain(..index);
+        self.front_sound_started = false;
+        self.rebuild_overrides();
+        self.review_first_combat_clip(fraction)
+    }
+
     pub(super) fn pending(&self) -> bool {
         !self.events.is_empty()
     }
@@ -273,10 +298,14 @@ fn sound_requests(
                 let end = combat.round_durations.iter().sum();
                 if attacker_hp <= 0 {
                     request(&combat.attacker, "DEATH", end);
-                    request(&combat.defender, "VICTORY", end);
+                    if combat.battle_ended {
+                        request(&combat.defender, "VICTORY", end);
+                    }
                 } else if defender_hp <= 0 {
                     request(&combat.defender, "DEATH", end);
-                    request(&combat.attacker, "VICTORY", end);
+                    if combat.battle_ended {
+                        request(&combat.attacker, "VICTORY", end);
+                    }
                 }
             }
         }
@@ -284,7 +313,7 @@ fn sound_requests(
     requests
 }
 impl Game {
-    pub(super) fn draw_playback(&self, assets: &Assets) {
+    pub(super) fn draw_playback(&self, assets: &Assets, view: world::WorldMapView) {
         let Some(event) = self.playback.events.front() else {
             return;
         };
@@ -294,14 +323,14 @@ impl Game {
         ) {
             return;
         }
-        let project = |x, y| self.world_screen_position(x, y);
+        let project = |x, y| view.project(self.sim.map_wrap(), x, y);
         let progress = self.playback.progress();
         for (unit, phase) in self.playback.active() {
             let center = match event {
                 PresentationEventView::Move { from, to, .. } => {
                     let from_center = project(from.0, from.1);
                     let to_center = project(to.0, to.1);
-                    let period = self.sim.map_wrap().width() as f32 * TILE_W * self.zoom;
+                    let period = self.sim.map_wrap().width() as f32 * TILE_W * view.zoom;
                     let dx = map_view::shortest_wrapped_delta(to_center.x - from_center.x, period);
                     let dy = to_center.y - from_center.y;
                     from_center + vec2(dx, dy) * phase.x
@@ -335,7 +364,7 @@ impl Game {
                     clip_duration = local_duration;
                     if result && unit_hp <= 0 {
                         Action::Death
-                    } else if result && opponent_hp <= 0 {
+                    } else if result && opponent_hp <= 0 && combat.battle_ended {
                         Action::Victory
                     } else if result {
                         Action::Default
@@ -348,7 +377,7 @@ impl Game {
                 PresentationEventView::WorkStarted { .. }
                 | PresentationEventView::Fortify { .. } => Action::Default,
             };
-            self.draw_unit(
+            self.draw_unit_at_zoom(
                 assets,
                 &unit,
                 center,
@@ -356,9 +385,10 @@ impl Game {
                 action,
                 clip_progress,
                 Some(clip_duration),
+                view.zoom,
             );
             if matches!(event, PresentationEventView::Combat(_)) {
-                self.draw_unit_health(assets, &unit, center);
+                self.draw_unit_health_at_zoom(assets, &unit, center, view.zoom);
             }
         }
         if let PresentationEventView::Combat(combat) = event
@@ -369,7 +399,7 @@ impl Game {
             if elapsed >= explosion_start {
                 let center = project(combat.defender.x, combat.defender.y);
                 let frame = (((elapsed - explosion_start) / 0.020) as i32).min(4);
-                let radius = (7.0 + frame as f32 * 3.0) * self.zoom;
+                let radius = (7.0 + frame as f32 * 3.0) * view.zoom;
                 draw_circle(
                     center.x,
                     center.y,
@@ -380,7 +410,7 @@ impl Game {
                     center.x,
                     center.y,
                     radius,
-                    (2.0 * self.zoom).max(1.0),
+                    (2.0 * view.zoom).max(1.0),
                     Color::from_rgba(255, 222, 115, 240),
                 );
             }
@@ -455,6 +485,7 @@ mod tests {
                 hp: vec![(3, 3), (2, 0)],
                 city: Some(city),
                 bombard_effects: false,
+                battle_ended: true,
             })));
         let PresentationEventView::Combat(combat) = &mut first else {
             unreachable!()
@@ -539,6 +570,7 @@ mod tests {
             hp: vec![(3, 3), (2, 3), (2, 0)],
             city: None,
             bombard_effects: false,
+            battle_ended: true,
         }));
         let PresentationEventView::Combat(mut combat) = sim.presentation_event_view_for_test(event)
         else {
@@ -583,6 +615,7 @@ mod tests {
             hp: vec![(3, 3), (2, 1), (2, 0)],
             city: None,
             bombard_effects: false,
+            battle_ended: true,
         }));
         let requests = sound_requests_for(&sim, event, Some(attacker_id));
         assert_eq!(
@@ -707,6 +740,7 @@ mod tests {
                 hp,
                 city: None,
                 bombard_effects: false,
+                battle_ended: true,
             }));
             let requests = sound_requests_for(&sim, event, Some(attacker.id));
             assert_eq!(requests.len(), 2);
@@ -721,6 +755,66 @@ mod tests {
             );
             assert_eq!(requests[1].unit_id, attacker.id);
             assert_ne!(loser_id, winner_id);
+        }
+    }
+    #[test]
+    fn army_playback_switches_member_art_health_and_sounds_and_delays_victory_until_the_battle_ends()
+     {
+        for attacking in [true, false] {
+            let mut sim = Simulation::new(crate::mapgen::generate(42));
+            let (actor, _, army) =
+                crate::sim::ui_review::ui_review_army_combat_setup(&mut sim, attacking);
+            assert!(sim.apply(Command::move_civ3_by_offset(&sim, actor, 1, 0)));
+            let mut playback = Playback {
+                review_progress: Some(0.0),
+                ..Default::default()
+            };
+            playback.update(sim.take_presentation_event_views(), 0.0, Some(army));
+            let expected = if attacking {
+                [UnitKind::Swordsman, UnitKind::Horseman, UnitKind::Spearman]
+            } else {
+                [UnitKind::Swordsman, UnitKind::Spearman, UnitKind::Horseman]
+            };
+            for (index, kind) in expected.into_iter().enumerate() {
+                if index > 0 {
+                    playback.events.pop_front();
+                    playback.rebuild_overrides();
+                }
+                assert!(playback.is_active(army));
+                assert_eq!(playback.overrides()[&army].kind, kind);
+                let active = playback.active();
+                assert_eq!(active.len(), 2);
+                let member = &active[usize::from(!attacking)].0;
+                assert_eq!(member.kind, kind);
+                assert_eq!(member.hp, 1);
+                let event = playback.events.front().unwrap();
+                let sounds = sound_requests(event, Some(army));
+                assert!(sounds.iter().all(|sound| sound.kind == kind));
+                assert!(
+                    sounds
+                        .iter()
+                        .any(|sound| sound.action == if attacking { "ATTACK1" } else { "DEFEND" })
+                );
+                assert!(sounds.iter().any(|sound| sound.action == "DEATH"));
+                // The opponent has not won while the next member can still fight.
+                let opponent = if attacking {
+                    if let PresentationEventView::Combat(c) = event {
+                        c.defender.id
+                    } else {
+                        unreachable!()
+                    }
+                } else {
+                    actor
+                };
+                assert_eq!(
+                    sound_requests(event, Some(opponent))
+                        .iter()
+                        .any(|s| s.action == "VICTORY"),
+                    index == 2
+                );
+            }
+            playback.finish();
+            assert!(playback.overrides().is_empty());
         }
     }
 }

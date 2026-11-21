@@ -48,6 +48,10 @@ impl From<&City> for CityRecord {
 #[derive(Clone, Debug, Serialize)]
 #[serde(tag = "source", rename_all = "snake_case")]
 pub(crate) enum UnitOrigin {
+    ArmyFormed {
+        leader_id: u32,
+        city_id: u32,
+    },
     Spawned,
     Built {
         city_id: u32,
@@ -155,6 +159,9 @@ impl Change {
                 match origin {
                     UnitOrigin::Built { city_id } => entities.push(City(*city_id)),
                     UnitOrigin::GreatLeader { winner_id } => entities.push(Unit(*winner_id)),
+                    UnitOrigin::ArmyFormed { leader_id, city_id } => {
+                        entities.extend([Unit(*leader_id), City(*city_id)])
+                    }
                     UnitOrigin::Transferred {
                         previous_owner,
                         previous_unit_id,
@@ -303,9 +310,9 @@ impl Ledger {
                         total.created += 1;
                         total.built += 1;
                     }
-                    UnitOrigin::Spawned | UnitOrigin::GreatLeader { .. } => {
-                        self.unit_total(unit).created += 1
-                    }
+                    UnitOrigin::Spawned
+                    | UnitOrigin::GreatLeader { .. }
+                    | UnitOrigin::ArmyFormed { .. } => self.unit_total(unit).created += 1,
                     UnitOrigin::Transferred { .. } => self.unit_total(unit).transferred_in += 1,
                     UnitOrigin::Unobserved => {
                         self.unit_total(unit).unobserved_added += 1;

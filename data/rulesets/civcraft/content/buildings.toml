@@ -935,7 +935,7 @@ genus = "SmallWonder"
 cost = 400
 upkeep = 0
 culture_per_turn = 1
-requirements = []
+requirements = [{ kind = "OwnerArmyCount", present = true, value = 3 }]
 obsolete = []
 flags = []
 id = "building_pentagon"

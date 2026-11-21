@@ -4,6 +4,9 @@ use super::*;
 
 impl Simulation {
     pub(super) fn upgrade_target(&self, unit: &Unit) -> Option<UnitKind> {
+        if self.is_army_member(unit) {
+            return None;
+        }
         let target = self.available_unit_successor(unit.owner, unit.kind)?;
         if unit.kind == UnitKind::Galley
             && !self.tile(unit.x, unit.y).terrain.is_water()

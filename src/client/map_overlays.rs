@@ -31,8 +31,14 @@ impl Game {
         );
     }
 
-    pub(super) fn draw_unit_health(&self, assets: &Assets, unit: &RenderedUnitView, center: Vec2) {
-        let camera_zoom = self.zoom.clamp(0.5, 1.0);
+    pub(super) fn draw_unit_health_at_zoom(
+        &self,
+        assets: &Assets,
+        unit: &RenderedUnitView,
+        center: Vec2,
+        zoom: f32,
+    ) {
+        let camera_zoom = zoom.clamp(0.5, 1.0);
         let max_hp = unit.max_hp.max(1);
         let current_hp = unit.hp.clamp(0, max_hp);
         let has_health_bar = unit.attack > 0 || unit.defense > 0;

@@ -886,7 +886,7 @@ impl UnitClassMovementData {
         if source.unit_type == 0 {
             // Foot/wheeled flags restrict transport/terrain; they do not remove
             // Civ III ground-unit pillage, occupation, or terrain defense.
-            self.can_occupy_city = source.attack > 0;
+            self.can_occupy_city = source.attack > 0 || kind == UnitKind::Army;
         }
         self
     }

@@ -9,7 +9,27 @@ enum PhysicalAttackResult {
     Unreachable,
 }
 
+/// Individual member identities choose exchange boundaries. Visual proxies keep
+/// the Army's map id so normal playback hides the carrier and restores it later.
+struct ArmyVisualExchange {
+    member_ids: (u32, u32),
+    combat: super::super::presentation::CombatVisual,
+}
+
 impl Simulation {
+    fn combat_visual_actor(&self, root: &Unit, attacking: bool, hp: i32) -> (u32, Unit) {
+        if let Some(mut member) = self.army_combat_member(root, attacking) {
+            let member_id = member.id;
+            member.id = root.id;
+            member.facing = root.facing;
+            (member_id, member)
+        } else {
+            let mut unit = root.clone();
+            unit.hp = hp;
+            (root.id, unit)
+        }
+    }
+
     pub(crate) fn attack_power(unit: &Unit) -> i32 {
         Self::attack_power_with_base(unit, unit.kind.attack_strength())
     }
@@ -25,6 +45,9 @@ impl Simulation {
     }
 
     pub(in crate::sim) fn attack_power_against(&self, attacker: &Unit, x: i32, y: i32) -> i32 {
+        if let Some(member) = self.army_combat_member(attacker, true) {
+            return self.attack_power_against(&member, x, y);
+        }
         self.attack_power_against_with_base_for_action(
             attacker,
             x,
@@ -117,6 +140,9 @@ impl Simulation {
         attacker: Option<UnitKind>,
         building: Option<Building>,
     ) -> i32 {
+        if let Some(member) = self.army_combat_member(unit, false) {
+            return self.defense_power_with_attacker(&member, x, y, attacker, building);
+        }
         // Freeciv applies these as separate integer-multiplication stages:
         // terrain and nativity in get_defense_power, unit-type multipliers,
         // Defend_Bonus, unit-type dividers, extras, then fortification.
@@ -247,6 +273,10 @@ impl Simulation {
     }
 
     pub(in crate::sim) fn combat_firepower(&self, attacker: &Unit, defender: &Unit) -> (i32, i32) {
+        let army_attacker = self.army_combat_member(attacker, true);
+        let army_defender = self.army_combat_member(defender, false);
+        let attacker = army_attacker.as_ref().unwrap_or(attacker);
+        let defender = army_defender.as_ref().unwrap_or(defender);
         let mut attack = attacker.kind.stats().firepower;
         let mut defense = defender.kind.stats().firepower;
         let in_city = self
@@ -343,7 +373,10 @@ impl Simulation {
         y: i32,
     ) -> (i32, i32, i32) {
         let attack_power = self.attack_power_against(attacker, x, y);
-        let defense_power = self.defense_power_against(defender, x, y, attacker.kind);
+        let attack_kind = self
+            .army_combat_member(attacker, true)
+            .map_or(attacker.kind, |u| u.kind);
+        let defense_power = self.defense_power_against(defender, x, y, attack_kind);
         let defender_stats = defender.kind.stats();
         let (attack_firepower, defense_firepower) = self.combat_firepower(attacker, defender);
         let attacker_win = combat_win_chance(
@@ -618,6 +651,9 @@ impl Simulation {
     /// when their selected `tp_defense` policy permits it. `Alight` requires
     /// both a legal on-tile existence and a ruleset-enabled deboard/unload.
     pub(in crate::sim) fn combat_unit_can_defend_here(&self, unit: &Unit) -> bool {
+        if self.is_army_member(unit) {
+            return false;
+        }
         let Some(carrier_id) = unit.transport else {
             return self.combat_unit_can_exist_at_tile(unit, unit.x, unit.y);
         };
@@ -768,6 +804,7 @@ impl Simulation {
                 {
                     unit.hp = (unit.hp - 1).max(1);
                 }
+                self.sync_army_damage(attacker_id);
                 return true;
             }
         }
@@ -792,6 +829,7 @@ impl Simulation {
         {
             unit.hp = (unit.hp - 1).max(1);
         }
+        self.sync_army_damage(attacker_id);
         true
     }
 
@@ -834,7 +872,6 @@ impl Simulation {
             attacker.facing = facing;
         }
         let defender = self.units[defender_index].clone();
-        let attack_action = self.combat_action_for_unit(&attacker);
         let attacker_moves_used = (self.unit_move_rate(&attacker) - attacker.moves_left).max(0);
         let defender_moves_used = (self.unit_move_rate(&defender) - defender.moves_left).max(0);
         let (attack_firepower, defense_firepower) = self.combat_firepower(&attacker, &defender);
@@ -843,18 +880,18 @@ impl Simulation {
         let attack_power = if air_to_air {
             attacker.kind.stats().attack
         } else {
-            self.attack_power_against_with_base_for_action(
-                &attacker,
-                nx,
-                ny,
-                attacker.kind.attack_strength(),
-                attack_action,
-            )
+            self.attack_power_against(&attacker, nx, ny)
         };
         let defense_power = if air_to_air {
             defender.kind.stats().defense
         } else {
-            self.defense_power_against(&defender, nx, ny, attacker.kind)
+            self.defense_power_against(
+                &defender,
+                nx,
+                ny,
+                self.army_combat_member(&attacker, true)
+                    .map_or(attacker.kind, |u| u.kind),
+            )
         };
         let attacker_strength =
             i64::from(attack_power) * i64::from(attacker.hp) * i64::from(attack_firepower);
@@ -873,20 +910,104 @@ impl Simulation {
         } else if defense_power <= 0 {
             def_hp = 0;
         }
-        let mut visual_hp = self
-            .visual_events
-            .enabled
-            .then(|| vec![(attacker.hp, defender.hp)]);
+        let army_battle = attacker.kind == UnitKind::Army || defender.kind == UnitKind::Army;
+        let mut army_exchanges: Option<Vec<ArmyVisualExchange>> =
+            (self.visual_events.enabled && army_battle).then(Vec::new);
+        let mut visual_hp =
+            (self.visual_events.enabled && !army_battle).then(|| vec![(attacker.hp, defender.hp)]);
         let mut rounds = 0;
         while att_hp > 0 && def_hp > 0 {
-            if self.rand_below(attack_power + defense_power) >= defense_power {
-                def_hp -= attack_firepower;
+            let exchange = army_exchanges.as_ref().map(|_| {
+                let (attacker_member, a) = self.combat_visual_actor(&attacker, true, att_hp);
+                let (defender_member, d) = self.combat_visual_actor(&defender, false, def_hp);
+                ArmyVisualExchange {
+                    member_ids: (attacker_member, defender_member),
+                    combat: super::super::presentation::CombatVisual {
+                        hp: vec![(a.hp, d.hp)],
+                        attacker: a,
+                        defender: d,
+                        city: self.city_at(nx, ny).cloned(),
+                        bombard_effects: false,
+                        battle_ended: false,
+                    },
+                }
+            });
+            // Ordinary combat keeps its original powers and RNG sequence.
+            // Armies switch to another member as the active member is exhausted.
+            let (round_attack, round_defense, attack_fp, defense_fp) =
+                if attacker.kind == UnitKind::Army || defender.kind == UnitKind::Army {
+                    let (a, d) = self.combat_firepower(&attacker, &defender);
+                    (
+                        self.attack_power_against(&attacker, nx, ny),
+                        self.defense_power_against(
+                            &defender,
+                            nx,
+                            ny,
+                            self.army_combat_member(&attacker, true)
+                                .map_or(attacker.kind, |u| u.kind),
+                        ),
+                        a,
+                        d,
+                    )
+                } else {
+                    (
+                        attack_power,
+                        defense_power,
+                        attack_firepower,
+                        defense_firepower,
+                    )
+                };
+            if self.rand_below(round_attack + round_defense) >= round_defense {
+                def_hp = if defender.kind == UnitKind::Army {
+                    self.damage_army_member(&defender, attack_fp, false)
+                } else {
+                    def_hp - attack_fp
+                };
             } else {
-                att_hp -= defense_firepower;
+                att_hp = if attacker.kind == UnitKind::Army {
+                    self.damage_army_member(&attacker, defense_fp, true)
+                } else {
+                    att_hp - defense_fp
+                };
+            }
+            if let (Some(exchanges), Some(mut exchange)) = (&mut army_exchanges, exchange) {
+                let member_hp = |root: &Unit, member_id, total_hp: i32| {
+                    if root.kind == UnitKind::Army {
+                        self.unit_by_id(member_id).map_or(0, |unit| unit.hp.max(0))
+                    } else {
+                        total_hp.max(0)
+                    }
+                };
+                let hp = (
+                    member_hp(&attacker, exchange.member_ids.0, att_hp),
+                    member_hp(&defender, exchange.member_ids.1, def_hp),
+                );
+                let battle_ended = att_hp <= 0 || def_hp <= 0;
+                if let Some(previous) = exchanges
+                    .last_mut()
+                    .filter(|previous| previous.member_ids == exchange.member_ids)
+                {
+                    previous.combat.hp.push(hp);
+                    previous.combat.battle_ended = battle_ended;
+                } else {
+                    exchange.combat.hp.push(hp);
+                    exchange.combat.battle_ended = battle_ended;
+                    exchanges.push(exchange);
+                }
             }
             rounds += 1;
             if let Some(hp) = &mut visual_hp {
                 hp.push((att_hp.max(0), def_hp.max(0)));
+            }
+        }
+        if let Some(exchanges) = army_exchanges {
+            if exchanges.is_empty() {
+                // An empty Army or a powerless opponent has no selected member exchange.
+                visual_hp = Some(vec![(attacker.hp, defender.hp)]);
+            } else {
+                for exchange in exchanges {
+                    self.publish_visual_event(VisualEvent::Combat(Box::new(exchange.combat)));
+                }
             }
         }
         if let Some(mut hp) = visual_hp {
@@ -898,6 +1019,7 @@ impl Simulation {
                     hp,
                     city: self.city_at(nx, ny).cloned(),
                     bombard_effects: false,
+                    battle_ended: true,
                 },
             )));
         }
@@ -935,9 +1057,15 @@ impl Simulation {
         // in this fight does not make the winner eligible.
         let attacker_can_lead = self.great_leader_eligible(&attacker, &defender);
         let defender_can_lead = self.great_leader_eligible(&defender, &attacker);
+        let experienced_attacker = self
+            .army_combat_member(&attacker, true)
+            .map_or(attacker_id, |u| u.id);
+        let experienced_defender = self
+            .army_combat_member(&defender, false)
+            .map_or(defender_id, |u| u.id);
         self.promote_combat_veterans(
-            attacker_id,
-            defender_id,
+            experienced_attacker,
+            experienced_defender,
             attack_power <= 0 || defense_power <= 0,
             attacker_veteran_chance,
             defender_veteran_chance,

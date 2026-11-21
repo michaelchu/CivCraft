@@ -908,6 +908,7 @@ impl Simulation {
             } else if let Some(defender) = self.units.iter_mut().find(|unit| unit.id == target.id) {
                 defender.hp = hp;
             }
+            self.sync_army_damage(target.id);
             if self.visual_events.enabled {
                 self.publish_visual_event(VisualEvent::Combat(Box::new(
                     presentation::CombatVisual {
@@ -916,6 +917,7 @@ impl Simulation {
                         hp: hp_steps,
                         city: self.city_at(x, y).cloned(),
                         bombard_effects: attacker.kind.has_bombard_effects(),
+                        battle_ended: true,
                     },
                 )));
             }

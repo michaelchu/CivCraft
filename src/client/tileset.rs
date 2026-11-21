@@ -1094,6 +1094,17 @@ pub(super) struct Civ3 {
     civilization_city_styles: HashMap<String, String>,
 }
 
+fn territory_sprite_rect(center: Vec2, zoom: f32) -> Rect {
+    let scale = WORLD_ART_SCALE * zoom;
+    // Source cells have 8px of headroom above their 128×64 tile diamond.
+    Rect::new(
+        center.x - 64.0 * scale,
+        center.y - 40.0 * scale,
+        128.0 * scale,
+        72.0 * scale,
+    )
+}
+
 struct TerritoryArt {
     source: Image,
     textures: RefCell<HashMap<[u8; 3], Texture2D>>,
@@ -1138,9 +1149,9 @@ impl TerritoryArt {
             self.cache_hits.set(self.cache_hits.get() + 1);
         }
         let texture = textures.get(&main).unwrap();
-        let scale = WORLD_ART_SCALE * zoom;
-        let size = vec2(128.0, 72.0) * scale;
-        let position = center - size * 0.5 + vec2(0.0, size.y * 0.055);
+        let rect = territory_sprite_rect(center, zoom);
+        let size = vec2(rect.w, rect.h);
+        let position = vec2(rect.x, rect.y);
         draw_texture_ex(
             texture,
             position.x,
@@ -2907,5 +2918,27 @@ mod tests {
         image.get_image_data_mut()[1] = [0, 255, 0, 255];
         prepare_keyed_overlay(&mut image);
         assert_eq!(image.get_image_data(), &[[255, 0, 255, 0], [0, 255, 0, 0]]);
+    }
+}
+
+#[cfg(test)]
+mod territory_alignment_tests {
+    use super::*;
+
+    #[test]
+    fn source_diamond_vertices_match_the_tile_grid_at_every_zoom() {
+        let center = vec2(320.0, 240.0);
+        for zoom in [0.5, 0.78, 1.0, 1.5, 2.0] {
+            let rect = territory_sprite_rect(center, zoom);
+            let scale = WORLD_ART_SCALE * zoom;
+            for (source, target) in [
+                (vec2(64.0, 8.0), center - vec2(0.0, TILE_H * zoom * 0.5)),
+                (vec2(128.0, 40.0), center + vec2(TILE_W * zoom * 0.5, 0.0)),
+                (vec2(64.0, 72.0), center + vec2(0.0, TILE_H * zoom * 0.5)),
+                (vec2(0.0, 40.0), center - vec2(TILE_W * zoom * 0.5, 0.0)),
+            ] {
+                assert!((vec2(rect.x, rect.y) + source * scale).distance(target) < 0.001);
+            }
+        }
     }
 }

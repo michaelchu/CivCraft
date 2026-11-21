@@ -11,6 +11,31 @@ mod tests;
 pub(crate) struct ReviewFixture<'a>(pub(in crate::sim) &'a mut Simulation);
 
 impl ReviewFixture<'_> {
+    pub(crate) fn leader_army(&mut self) -> u32 {
+        let mut world = fixtures::WorldBuilder::new(self.0);
+        world.grassland_campaign(false);
+        for position in [(10, 24), (16, 24), (22, 24), (28, 24)] {
+            world.founding_city(HUMAN, position);
+        }
+        let leader = world.unit(HUMAN, UnitKind::Leader, (10, 24));
+        world.finish();
+        ui_review_record_knowledge(self.0);
+        leader
+    }
+
+    pub(crate) fn loaded_army(&mut self) -> u32 {
+        self.leader_army();
+        let city = self.0.city_at(10, 24).unwrap().id;
+        fixtures::WorldBuilder::new(self.0).culture_building(city, Building::PENTAGON);
+        let army = self.0.spawn_unit(HUMAN, UnitKind::Army, 10, 24);
+        for kind in [UnitKind::Swordsman, UnitKind::Spearman, UnitKind::Warrior] {
+            let member = self.0.spawn_unit(HUMAN, kind, 10, 24);
+            assert!(self.0.board_specific_ship(member, army));
+        }
+        ui_review_record_knowledge(self.0);
+        army
+    }
+
     pub(crate) fn ai_city_garrisons(&mut self) {
         let sim = &mut self.0;
         ui_review_fog(sim);
@@ -120,6 +145,10 @@ impl ReviewFixture<'_> {
 
     pub(crate) fn fog(&mut self) -> u32 {
         ui_review_fog(self.0)
+    }
+
+    pub(crate) fn army_combat_setup(&mut self, attacking: bool) -> (u32, (i32, i32), u32) {
+        ui_review_army_combat_setup(self.0, attacking)
     }
 
     pub(crate) fn animation_setup(&mut self, combat: bool) -> (u32, (i32, i32)) {
@@ -1084,4 +1113,37 @@ fn ui_review_borders_fog_cities(sim: &mut Simulation) {
         }
     }
     ui_review_record_knowledge(sim);
+}
+
+/// A mixed Army loses its three wounded members in turn. Both sides retain an
+/// independent city so the battle can be reviewed without a victory overlay.
+pub(crate) fn ui_review_army_combat_setup(
+    sim: &mut Simulation,
+    attacking: bool,
+) -> (u32, (i32, i32), u32) {
+    let (_, target) = ui_review_animation_setup(sim, true);
+    sim.units.clear();
+    sim.create_city(HUMAN, 10, 40);
+    sim.sign_pact(HUMAN, 1, Pact::War);
+    let owner = if attacking { HUMAN } else { 1 };
+    let at = if attacking { (20, 24) } else { target };
+    let army = sim.spawn_unit(owner, UnitKind::Army, at.0, at.1);
+    for kind in [UnitKind::Swordsman, UnitKind::Horseman, UnitKind::Spearman] {
+        let id = sim.spawn_unit(owner, kind, at.0, at.1);
+        sim.units.iter_mut().find(|unit| unit.id == id).unwrap().hp = 1;
+        assert!(sim.board_specific_ship(id, army));
+    }
+    let opponent_at = if attacking { target } else { (20, 24) };
+    let opponent = sim.spawn_unit(
+        if attacking { 1 } else { HUMAN },
+        UnitKind::ModernArmor,
+        opponent_at.0,
+        opponent_at.1,
+    );
+    fixtures::WorldBuilder::new(sim).unit_experience_rank(opponent, 3);
+    fixtures::WorldBuilder::new(sim).legacy_random_seed(42);
+    sim.refresh_visibility();
+    ui_review_record_knowledge(sim);
+    sim.enable_visual_events();
+    (if attacking { army } else { opponent }, target, army)
 }

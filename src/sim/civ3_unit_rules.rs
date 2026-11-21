@@ -159,7 +159,8 @@ impl UnitRule {
         let nonmilitary = self.attack == 0
             && self.defense == 0
             && self.bombard_strength == 0
-            && class != C::Missile;
+            && class != C::Missile
+            && self.id != "army";
         set_flag(F::Workers, worker);
         set_flag(F::NonMil, nonmilitary);
         let can_gain_ranks =
@@ -172,10 +173,10 @@ impl UnitRule {
         );
         set_flag(
             F::NoBuild,
-            // A Leader is a Great Leader: it only ever comes from combat.
+            // Leaders come from combat; Armies can only be formed by consuming one.
             self.available_to.is_empty()
                 || self.category == "wonder_created"
-                || self.id == "leader",
+                || matches!(self.id, "leader" | "army"),
         );
         set_flag(F::Unique, self.category == "unique");
         set_flag(F::Cities, self.has_capability("FoundCity"));
@@ -197,10 +198,13 @@ impl UnitRule {
         set_flag(F::Fortress, self.has_capability("BuildFortress"));
         // Ordinary unit capture is based on combat capability, not the PRTO
         // StealthAttack flag at Flags3[6].0 (which is a different mechanic).
-        set_flag(F::Capturer, self.attack > 0);
+        set_flag(F::Capturer, self.attack > 0 || self.id == "army");
         set_flag(
             F::Capturable,
-            self.attack == 0 && self.defense == 0 && class != C::Missile && self.id != "leader",
+            self.attack == 0
+                && self.defense == 0
+                && class != C::Missile
+                && !matches!(self.id, "leader" | "army"),
         );
         set_flag(F::GameLoss, self.has_capability("GameLoss"));
         set_flag(F::AirAttacker, self.has_capability("AttackAir"));

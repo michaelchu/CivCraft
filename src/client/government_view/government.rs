@@ -23,10 +23,6 @@ impl Game {
         let close = panel_close_rect(panel);
         draw_ui_button(close, "X", true, false);
         let mut actions = vec![(close, UiAction::ToggleGovernment)];
-        let religion = Rect::new(panel.right() - 159.0, panel.y + 43.0, 135.0, 27.0);
-        draw_ui_button(religion, "Religion...", true, false);
-        actions.push((religion, UiAction::ToggleReligion));
-
         text_in(
             &view.leader_line,
             panel.x + 18.0,

@@ -30,6 +30,7 @@ pub(crate) enum Requirement {
     Water,
     MinSize(i32),
     OwnerCityCount(usize),
+    OwnerArmyCount(usize),
     OwnerBuildingCount(usize, usize),
     Resource(usize),
     /// The owner has at least one unit at the top level of its veteran system.
@@ -206,6 +207,7 @@ fn native_building_requirement(
         "Water" => Requirement::Water,
         "MinSize" => Requirement::MinSize(requirement.value),
         "OwnerCityCount" => Requirement::OwnerCityCount(value),
+        "OwnerArmyCount" => Requirement::OwnerArmyCount(value),
         "OwnerBuildingCount" => Requirement::OwnerBuildingCount(
             value,
             usize::try_from(requirement.second_value)
@@ -241,7 +243,12 @@ mod migration_tests {
                     .iter()
                     .map(native_building_requirement)
                     .collect();
-                assert_eq!(actual, expected, "building {index} {key}");
+                if Building(index) == Building::PENTAGON && key == "requirements" {
+                    // Owner-authorized correction to the historical migration baseline.
+                    assert_eq!(actual, &[(Requirement::OwnerArmyCount(3), true)]);
+                } else {
+                    assert_eq!(actual, expected, "building {index} {key}");
+                }
             }
         }
     }

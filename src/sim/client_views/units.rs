@@ -153,6 +153,7 @@ impl Simulation {
                 && !matches!(unit.order, Some(UnitOrder::AirSuperiority { .. })),
             has_order: unit.order.is_some(),
             capture_units: self.can_begin_capture_units(unit),
+            form_army: self.can_form_army(unit),
             cities,
             nuclear_weapon: unit.kind.is_nuclear_weapon(),
             nuclear_strike: self.can_begin_nuclear_strike(unit),
@@ -207,6 +208,7 @@ impl Simulation {
     fn selectable_units(&self) -> impl Iterator<Item = &Unit> {
         self.units.iter().filter(|unit| {
             unit.owner == HUMAN
+                && !self.is_army_member(unit)
                 && unit.moves_left > 0
                 && unit.work_left == 0
                 && !unit.automated
@@ -273,7 +275,7 @@ impl Simulation {
             format!(
                 "Cargo {}/{}",
                 self.cargo_count(unit.id),
-                unit.kind.transport_capacity()
+                self.unit_transport_capacity(unit)
             )
         } else if unit.automated {
             "Automated".to_owned()

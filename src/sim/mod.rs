@@ -28,6 +28,7 @@ mod ai;
 mod ai_economy;
 mod ai_strategy;
 mod ai_traits;
+mod armies;
 mod aviation;
 mod bases;
 mod borders;

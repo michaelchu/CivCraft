@@ -192,3 +192,139 @@ fn reverse_query_keeps_the_native_permissive_unarmed_and_nonnative_target_quirks
         MOVE_FRAGMENTS
     );
 }
+
+fn army_empire(owner: usize, count: usize) -> (Simulation, u32) {
+    let mut game = world();
+    for index in 0..count {
+        game.create_city(
+            owner,
+            8 + (index % 6) as i32 * 4,
+            12 + (index / 6) as i32 * 6,
+        );
+    }
+    let leader = game.spawn_unit(owner, UnitKind::Leader, 8, 12);
+    (game, leader)
+}
+
+#[test]
+fn form_army_consumes_the_leader_and_preserves_owner_home_and_remaining_moves() {
+    let (mut game, leader) = army_empire(HUMAN, 4);
+    let home = game.cities[0].id;
+    game.units
+        .iter_mut()
+        .find(|unit| unit.id == leader)
+        .unwrap()
+        .moves_left = 1;
+    let rng = game.random_snapshot();
+    assert!(game.can_form_army(game.unit_by_id(leader).unwrap()));
+    assert!(game.unit_action_view(leader).unwrap().form_army);
+    assert!(game.apply(Command::FormArmy(leader)));
+    assert!(game.unit_by_id(leader).is_none());
+    let army = game
+        .units
+        .iter()
+        .find(|unit| unit.kind == UnitKind::Army)
+        .unwrap();
+    assert_eq!(
+        (army.owner, army.x, army.y, army.home_city),
+        (HUMAN, 8, 12, Some(home))
+    );
+    assert_eq!(army.moves_left, 1);
+    assert_eq!(game.random_snapshot(), rng);
+    assert!(!game.apply(Command::FormArmy(leader)));
+}
+
+#[test]
+fn army_formation_checks_city_ownership_capacity_transport_and_moves() {
+    let (mut game, leader) = army_empire(HUMAN, 3);
+    assert!(!game.apply(Command::FormArmy(leader)));
+    assert!(game.unit_by_id(leader).is_some());
+    game.create_city(1, 30, 30); // Foreign cities do not provide Army capacity.
+    assert!(!game.apply(Command::FormArmy(leader)));
+    game.create_city(HUMAN, 24, 24);
+    let index = game
+        .units
+        .iter()
+        .position(|unit| unit.id == leader)
+        .unwrap();
+    game.units[index].moves_left = 0;
+    assert!(!game.apply(Command::FormArmy(leader)));
+    game.units[index].moves_left = MOVE_FRAGMENTS;
+    game.units[index].transport = Some(9999);
+    assert!(!game.apply(Command::FormArmy(leader)));
+    game.units[index].transport = None;
+    game.units[index].x = 9;
+    assert!(!game.apply(Command::FormArmy(leader)));
+    game.units[index].x = 8;
+    assert!(game.apply(Command::FormArmy(leader)));
+    let second = game.spawn_unit(HUMAN, UnitKind::Leader, 8, 12);
+    assert!(!game.apply(Command::FormArmy(second)));
+    for x in [4, 12, 20, 28] {
+        game.create_city(HUMAN, x, 36);
+    }
+    assert!(game.apply(Command::FormArmy(second)));
+}
+
+#[test]
+fn army_cannot_be_produced_or_queued_even_with_all_technologies_and_military_academy() {
+    let (mut game, _) = army_empire(HUMAN, 4);
+    game.players[HUMAN].known = Tech::all().collect();
+    let city = game.cities[0].id;
+    game.cities[0].buildings.push(Building::MILITARY_ACADEMY);
+    assert!(!game.unit_available(HUMAN, UnitKind::Army));
+    assert!(!game.can_produce(&game.cities[0], Production::Unit(UnitKind::Army)));
+    assert!(!game.apply(Command::Produce(city, Production::Unit(UnitKind::Army))));
+    assert!(!game.apply(Command::EditWorklist {
+        city_id: city,
+        edit: WorklistEdit::Append(Production::Unit(UnitKind::Army))
+    }));
+    let enemy_leader = game.spawn_unit(1, UnitKind::Leader, 8, 12);
+    assert!(!game.apply(Command::FormArmy(enemy_leader)));
+    assert!(game.unit_by_id(enemy_leader).is_some());
+}
+
+#[test]
+fn pentagon_requires_three_owned_armies_and_rechecks_after_an_army_is_lost() {
+    let (mut game, _) = army_empire(HUMAN, 4);
+    game.players[HUMAN].known = Tech::all().collect();
+    assert_eq!(
+        game.building_blocker(&game.cities[0], Building::PENTAGON)
+            .as_deref(),
+        Some("Needs 3 armies")
+    );
+    for _ in 0..3 {
+        game.spawn_unit(1, UnitKind::Army, 32, 24);
+    }
+    assert!(!game.can_produce(&game.cities[0], Production::Building(Building::PENTAGON)));
+    let first = game.spawn_unit(HUMAN, UnitKind::Army, 8, 12);
+    game.spawn_unit(HUMAN, UnitKind::Army, 8, 12);
+    assert!(!game.can_produce(&game.cities[0], Production::Building(Building::PENTAGON)));
+    game.spawn_unit(HUMAN, UnitKind::Army, 8, 12);
+    assert!(game.can_produce(&game.cities[0], Production::Building(Building::PENTAGON)));
+    game.remove_units_with_cargo_because(vec![first], lifecycle::UnitRemoval::Combat);
+    assert!(!game.can_produce(&game.cities[0], Production::Building(Building::PENTAGON)));
+}
+
+#[test]
+fn a_formed_army_round_trips_through_campaign_saves() {
+    let (mut game, leader) = army_empire(HUMAN, 4);
+    assert!(game.apply(Command::FormArmy(leader)));
+    let path =
+        std::env::temp_dir().join(format!("civcraft-formed-army-{}.save", std::process::id()));
+    game.save_campaign(&path).unwrap();
+    let loaded = Simulation::load_campaign(&path).unwrap();
+    std::fs::remove_file(path).unwrap();
+    assert_eq!(
+        game.encode_campaign().unwrap(),
+        loaded.encode_campaign().unwrap()
+    );
+    assert_eq!(
+        loaded
+            .units
+            .iter()
+            .filter(|unit| unit.kind == UnitKind::Army)
+            .count(),
+        1
+    );
+    assert!(!loaded.unit_available(HUMAN, UnitKind::Army));
+}

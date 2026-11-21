@@ -5,8 +5,6 @@ use super::*;
 impl Simulation {
     pub(crate) fn city_manager_view(&self, city_id: u32) -> Option<CityManagerView> {
         let city = self.city_by_id(city_id)?;
-        let observed = self.observed_city(city);
-        let city_sprite = self.rendered_city_view_from_observed(&observed);
         let forecast = self.city_forecast(city);
         let support = &forecast.support;
         let governor = self
@@ -101,15 +99,20 @@ impl Simulation {
                 }
             })
             .collect();
-        let garrison = self
-            .units
-            .iter()
-            .filter(|unit| unit.owner == HUMAN && unit.x == city.x && unit.y == city.y)
-            .map(|unit| GarrisonUnitView {
-                id: unit.id,
-                kind: unit.kind,
-            })
-            .collect();
+        // Civ III luxury identities, using the existing city resource-supply network.
+        let luxuries = [
+            (Resource::Dyes, "Dyes"),
+            (Resource::Furs, "Furs"),
+            (Resource::Gems, "Gems"),
+            (Resource::Incense, "Incense"),
+            (Resource::Ivory, "Ivory"),
+            (Resource::Silk, "Silk"),
+            (Resource::Spice, "Spices"),
+            (Resource::Wine, "Wine"),
+        ]
+        .into_iter()
+        .filter(|(resource, _)| self.resource_connected_to_city(city, *resource))
+        .collect();
         Some(CityManagerView {
             id: city.id,
             name: city.name.clone(),
@@ -118,8 +121,12 @@ impl Simulation {
             y: city.y,
             civilization_id: self.players[city.owner].civilization_id.clone(),
             era_index: self.research_era(city.owner).index(),
-            city_sprite,
             size: city.size,
+            culture: self.city_culture_score(city),
+            culture_per_turn: self.city_culture_per_turn(city),
+            next_border_threshold: crate::sim::culture::next_city_culture_border_threshold(
+                self.city_culture_score(city),
+            ),
             food: city.food,
             shields: city.shields,
             production_name: city.production.name().to_owned(),
@@ -137,14 +144,11 @@ impl Simulation {
             disorder: forecast.disorder,
             growth_box: Self::growth_box(city.size),
             growth_limited: city.size >= self.city_size_limit(city),
-            support_food: support.food,
-            support_shields: support.shields,
-            support_gold: support.gold,
             rush_cost: self.rush_cost(city),
             treasury: self.players[city.owner].gold,
+            luxuries,
             buildings,
             units,
-            garrison,
             map_tiles: city_map_tiles,
         })
     }
@@ -171,5 +175,40 @@ impl Simulation {
                 self.city_culture_score(city),
             ),
         })
+    }
+}
+
+#[cfg(test)]
+mod city_luxury_tests {
+    use super::*;
+
+    #[test]
+    fn city_luxuries_require_an_owned_road_connection_and_exclude_other_resources() {
+        let mut sim = Simulation::new(crate::test_support::seeded_map());
+        sim.cities.clear();
+        sim.units.clear();
+        for tile in &mut sim.tiles {
+            tile.resource = None;
+            tile.road = false;
+        }
+        sim.create_city(HUMAN, 10, 20);
+        let city_id = sim.cities[0].id;
+        let (x, y) = sim.map_wrap.civ3_neighbor(10, 20, 2).unwrap();
+        let tile = sim.tile_mut(x, y);
+        tile.terrain = Terrain::Grassland;
+        tile.owner = Some(HUMAN);
+        tile.resource = Some(Resource::Wine);
+        assert!(sim.city_manager_view(city_id).unwrap().luxuries.is_empty());
+        sim.tile_mut(x, y).road = true;
+        assert_eq!(
+            sim.city_manager_view(city_id).unwrap().luxuries,
+            vec![(Resource::Wine, "Wine")]
+        );
+        sim.tile_mut(x, y).owner = Some(1);
+        assert!(sim.city_manager_view(city_id).unwrap().luxuries.is_empty());
+        let tile = sim.tile_mut(x, y);
+        tile.owner = Some(HUMAN);
+        tile.resource = Some(Resource::Horses);
+        assert!(sim.city_manager_view(city_id).unwrap().luxuries.is_empty());
     }
 }

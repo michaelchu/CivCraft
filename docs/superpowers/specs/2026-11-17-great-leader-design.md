@@ -100,7 +100,7 @@ of it is removed by this work.
 - Leaders complete all wonders and improvements.
 - Leaders can never be built.
 - Heroic Epic requires the owner to have at least one elite unit (a stand-in
-  for Civ III's "a victorious army"; Army forming is out of scope). Today it has
+  for Civ III's "a victorious army"; Army forming was originally deferred). Today it has
   no requirement at all and no effect; this work gives it the Leader-odds
   effect and this requirement.
 
@@ -213,3 +213,79 @@ Does not change (checked, not Leader-specific):
 - Forum threads and the Civilization Wiki page for Leader (Civ3) on whether
   Conquests military leaders can rush Great Wonders; sources conflict, and
   the owner has decided.
+
+
+## Army formation extension (2026-11-20)
+
+The owner authorized a **Form Army** action for a combat-earned Great Leader.
+It requires remaining movement, no transport, and an owned city on the same
+tile. Each four owned cities support one living Army. Successful formation
+consumes the Leader, creates an Army at that city, assigns that home city,
+and caps its movement at the Leader's remaining movement. Rejected commands
+consume neither the Leader nor random numbers. The command checks human
+ownership; the lower-level legality helper applies to every owner.
+
+Armies are excluded from city production and queues, including Military
+Academy cities, at the owner's request. This deliberately differs from the
+installed Conquests Civilopedia, which also allows Military Academy production.
+The Pentagon's missing prerequisite is restored: three owned Armies in the
+field, as recorded under `BLDG_Pentagon` in the installed Civilopedia. Formation
+capacity lives in `content/settlements.toml`; the Pentagon requirement lives
+in `content/buildings.toml`.
+
+The owner subsequently authorized completing Army combat and the Pentagon
+capacity bonus. Army cargo is restricted to owned land combat troops; civilians,
+bombard-only units, nuclear units and nested Armies cannot join. Membership is
+permanent. Three members fit normally; an active owned Pentagon adds one slot.
+Losing the Pentagon prevents further loading without ejecting existing members.
+Armies can themselves ride compatible naval transports, with their members.
+
+An Army's health is the sum of member health. The healthiest of the strongest
+available attackers/defenders fights each round, with stable unit-ID ties.
+Existing combat modifiers and firepower apply to that member; another member
+continues when it is exhausted. Exhausted members stay in the formation and
+recover with it. The last surviving active member can gain ordinary experience;
+Army victories do not create Leaders. Defeat removes all members, including in
+stack-protected cities. Occupation carries the members into the conquered tile.
+Bombardment damages the same pool. Stationary recovery uses the existing recovery
+effects against combined maximum health and restores members, rather than
+independently healing each cargo unit. Movement uses the slowest member plus one
+move (installed Conquests readme); normal action costs allow repeated attacks
+while movement remains.
+
+This is a documented CivCraft adapter: the installed Civilopedia establishes
+combined-unit combat but does not specify an exact strength-bonus or member
+switching formula. No undocumented Conquests strength bonus is invented. The
+existing AI Great Leader building-completion preference remains in place.
+Member identities and health use existing saved cargo records; maximum Army
+health is a derived cache rebuilt on load, including old campaign layouts.
+
+Validation: `leader-army` exercises real formation commands, Leader consumption,
+the city limit, and the Pentagon unlock; `army-combat` exercises loading, the
+fourth slot, combined health, combat, and occupation through player commands.
+`great-leader` covers existing AI use.
+Source-adjacent tests cover rejected actions, ownership, movement, production
+and queue rejection, loss of a qualifying Army, and save round trips. The
+`leader-form-army` UI review scene clicks the action and checks selection;
+`army-loaded` verifies the Pentagon capacity in the unit context.
+
+
+### Army combat presentation (2026-11-20)
+
+The owner requested regular battle animations for the members selected by the
+combat resolver. When visual observation is enabled, a battle records one
+exchange per continuous pair of selected members. Each exchange snapshots the
+actual member's type and individual health before damage, then uses the existing
+regular attack/defend clips, source timings, facing, health display and sounds.
+Visual proxies retain their carrier's map ID so playback hides the Army flag
+and does not reveal other cargo or draw duplicate troops. Snapshots survive
+member/Army removal and the carrier returns normally when playback finishes.
+Member exhaustion can play the member's Death clip, but the opponent does not
+celebrate victory between members. Only the final exchange celebrates the
+complete battle's result. Disabled visual events add no member snapshots and
+consume no random numbers; tests compare campaign bytes and random state.
+
+Native scenes `army-attack-swordsman`, `army-attack-horseman`,
+`army-attack-spearman`, `army-defend-swordsman`, `army-defend-spearman`, and
+`army-defend-horseman` inspect both roles across all three members. Ordinary
+`combat-animation-frames` is compared against a capture of the prior executable.

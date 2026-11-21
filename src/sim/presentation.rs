@@ -7,6 +7,8 @@ pub(crate) struct CombatVisual {
     pub(crate) attacker: Unit,
     pub(crate) defender: Unit,
     pub(crate) hp: Vec<(i32, i32)>,
+    /// False while an Army changes members within the same battle.
+    pub(crate) battle_ended: bool,
     pub(crate) city: Option<City>,
     /// The Conquests PRTO Bombard Effects flag requests a target explosion
     /// effect even when bombardment does not kill the selected unit.
@@ -140,6 +142,7 @@ impl Simulation {
                         .as_ref()
                         .map(|city| self.rendered_city_override_view(city)),
                     bombard_effects: combat.bombard_effects,
+                    battle_ended: combat.battle_ended,
                     round_durations,
                     result_duration: 0.5,
                     duration,
@@ -197,6 +200,7 @@ mod tests {
             hp: vec![(10, 10)],
             city: None,
             bombard_effects: false,
+            battle_ended: true,
         }));
         let PresentationEventView::Combat(combat) = sim.presentation_event_view_for_test(event)
         else {
@@ -304,6 +308,61 @@ mod tests {
                     VisualEvent::Move { from: (20, 24), .. }
                 ));
             }
+        }
+    }
+    #[test]
+    fn army_member_playback_preserves_selected_troops_health_and_battle_outcome_without_changing_rules()
+     {
+        for attacking in [true, false] {
+            let mut observed = Simulation::new(crate::mapgen::generate(42));
+            let (actor, _, army) =
+                crate::sim::ui_review::ui_review_army_combat_setup(&mut observed, attacking);
+            let mut unobserved = observed.clone();
+            unobserved.visual_events = VisualEvents::default();
+            assert!(observed.apply(Command::move_civ3_by_offset(&observed, actor, 1, 0)));
+            assert!(unobserved.apply(Command::move_civ3_by_offset(&unobserved, actor, 1, 0)));
+            assert_eq!(observed.native_random, unobserved.native_random);
+            assert_eq!(
+                observed.encode_campaign().unwrap(),
+                unobserved.encode_campaign().unwrap()
+            );
+            let combats: Vec<_> = observed
+                .take_presentation_event_views()
+                .into_iter()
+                .filter_map(|event| {
+                    if let PresentationEventView::Combat(combat) = event {
+                        Some(combat)
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+            let expected = if attacking {
+                [UnitKind::Swordsman, UnitKind::Horseman, UnitKind::Spearman]
+            } else {
+                [UnitKind::Swordsman, UnitKind::Spearman, UnitKind::Horseman]
+            };
+            assert_eq!(combats.len(), 3);
+            for (index, combat) in combats.iter().enumerate() {
+                let member = if attacking {
+                    &combat.attacker
+                } else {
+                    &combat.defender
+                };
+                assert_eq!(member.id, army, "carrier remains the playback anchor");
+                assert_eq!(member.kind, expected[index]);
+                assert_eq!(member.hp, 1);
+                assert_eq!(member.max_hp, expected[index].stats().hp);
+                assert!(member.transport.is_none());
+                assert_eq!(combat.battle_ended, index == 2);
+                assert_eq!(combat.attacker.facing, (combat.defender.facing + 4) % 8);
+                let hp = combat.hp.last().unwrap();
+                assert_eq!(if attacking { hp.0 } else { hp.1 }, 0);
+            }
+            assert!(
+                observed.unit_by_id(army).is_none(),
+                "queued member snapshots survive the Army's removal"
+            );
         }
     }
 }

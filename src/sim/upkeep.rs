@@ -346,15 +346,27 @@ impl Simulation {
                 lost.push(unit.id);
             }
         }
-        for unit in self.units.iter().filter(|unit| {
-            lost.contains(&unit.id) || unit.transport.is_some_and(|id| lost.contains(&id))
-        }) {
+        // Army members can be nested inside a naval transport. Remove the
+        // complete unsupported cargo tree, not just its first generation.
+        let mut index = 0;
+        while let Some(&carrier) = lost.get(index) {
+            let cargo: Vec<_> = self
+                .units
+                .iter()
+                .filter(|u| u.transport == Some(carrier) && !lost.contains(&u.id))
+                .map(|u| u.id)
+                .collect();
+            lost.extend(cargo);
+            index += 1;
+        }
+        for unit in self.units.iter().filter(|unit| lost.contains(&unit.id)) {
             self.trace
                 .unit_removed(self.turn, unit, lifecycle::UnitRemoval::CityLost);
         }
         self.units.retain(|unit| {
             !lost.contains(&unit.id) && unit.transport.is_none_or(|id| !lost.contains(&id))
         });
+        self.rebuild_armies();
         self.prune_unit_ai_state();
     }
 }

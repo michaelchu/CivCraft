@@ -179,6 +179,9 @@ impl Simulation {
 
     pub(crate) fn unit_move_rate(&self, unit: &Unit) -> i32 {
         let fragments = campaign_move_fragments();
+        if unit.kind == UnitKind::Army {
+            return self.army_move_rate(unit);
+        }
         if unit.kind.conquests_rule().unit_type == 2 {
             // Aircraft execute a one-turn mission within their source range;
             // the planner's tile budget is not the PRTO action-count field.
@@ -1087,7 +1090,7 @@ impl Simulation {
             {
                 return MoveResult::Blocked;
             }
-            if unit.kind.attack_strength() <= 0
+            if self.unit_attack_strength(&unit) <= 0
                 || unit.kind.is_nuclear_weapon()
                 || (unit.kind == UnitKind::Submarine && !self.tile(nx, ny).terrain.is_water())
                 || (unit.transport.is_some()

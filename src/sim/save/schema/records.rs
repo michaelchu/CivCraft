@@ -281,6 +281,8 @@ struct UnitWire {
     facing: u8,
     x: i32,
     y: i32,
+    #[serde(skip)]
+    army_max_hp: i32,
     hp: i32,
     moves_left: i32,
     #[serde(with = "record")]

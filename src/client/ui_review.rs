@@ -54,6 +54,14 @@ pub(crate) const UI_REVIEW_SCENES: &[&str] = &[
     "borders-fog-cities",
     "ai-city-garrisons",
     "combat-animation-frames",
+    "leader-form-army",
+    "army-loaded",
+    "army-attack-swordsman",
+    "army-attack-horseman",
+    "army-attack-spearman",
+    "army-defend-swordsman",
+    "army-defend-spearman",
+    "army-defend-horseman",
 ];
 /// Cloning preserves the complete RNG and campaign state. Fixtures are built
 /// once and kept immutable; every scenario receives an independent clone.
@@ -167,6 +175,17 @@ impl Game {
         let (city, _rival) = sources.ids;
         self.set_unit_selection(Vec::new(), None);
         match scene {
+            49 | 50 => {
+                let id = if scene == 50 {
+                    self.sim.review_fixture().loaded_army()
+                } else {
+                    self.sim.review_fixture().leader_army()
+                };
+                self.select_unit_group(vec![id], Some(id));
+                self.focus_camera_on(10, 24);
+                self.zoom = 1.25;
+                return;
+            }
             47 => {
                 self.sim.review_fixture().ai_city_garrisons();
                 self.zoom = 0.65;
@@ -182,7 +201,6 @@ impl Game {
             1..=4 => {
                 self.selected_city = Some(city);
                 self.production_page = usize::from(scene == 2);
-                self.city_tiles = scene == 3;
                 self.worklist_page = (scene == 4).then_some(0);
             }
             45 => {
@@ -308,6 +326,12 @@ impl Game {
                     0.7
                 };
             }
+            51..=56 => {
+                let (unit, _, _) = self.sim.review_fixture().army_combat_setup(scene <= 53);
+                self.select_unit_group(vec![unit], Some(unit));
+                self.playback.review_progress = Some(0.0);
+                self.zoom = 1.35;
+            }
             23..=25 | 48 => {
                 let (unit, _) = self.sim.review_fixture().animation_setup(scene != 23);
                 self.selected_unit = Some(unit);
@@ -399,6 +423,86 @@ impl Game {
         assets: &Assets,
         sequence: &mut UiReviewSequence,
     ) -> Result<bool, &'static str> {
+        if scene == 50 && phase == 6 {
+            let id = self.selected_unit.unwrap();
+            let view = self.sim.unit_context_view_by_id(id).unwrap();
+            sequence.check(
+                "pentagon_capacity_in_context",
+                view.status.contains("Cargo 3/4"),
+            )?;
+            sequence.check(
+                "loaded_army_selected",
+                self.sim.unit_kind_view(id) == Some(UnitKind::Army),
+            )?;
+            return Ok(true);
+        }
+        if scene == 49 && phase == 6 {
+            let leader = self.selected_unit.unwrap();
+            sequence.click(self, buttons, "form_army_action", |action| {
+                matches!(action, UiAction::FormArmy)
+            })?;
+            sequence.check(
+                "leader_consumed_by_formation",
+                self.sim.unit_kind_view(leader).is_none(),
+            )?;
+            sequence.check(
+                "formed_army_selected",
+                self.selected_unit
+                    .and_then(|id| self.sim.unit_kind_view(id))
+                    == Some(UnitKind::Army),
+            )?;
+            return Ok(true);
+        }
+        if scene == 2 && phase == 1 {
+            let view = self
+                .sim
+                .city_manager_view(self.selected_city.unwrap())
+                .unwrap();
+            sequence.check(
+                "production_excludes_built_buildings",
+                buttons.iter().all(|(_, action)| {
+                    if let UiAction::Produce(Production::Building(building)) = action {
+                        !view
+                            .buildings
+                            .iter()
+                            .any(|item| item.building == *building && item.built)
+                    } else {
+                        true
+                    }
+                }),
+            )?;
+        }
+        if scene == 3 && phase == 6 {
+            let city_id = self.selected_city.unwrap();
+            let before = self.sim.city_manager_view(city_id).unwrap();
+            let sale = before
+                .buildings
+                .iter()
+                .find_map(|item| item.sale_price.map(|price| (item.building, price)));
+            sequence.check("fixture_has_sellable_building", sale.is_some())?;
+            let (building, price) = sale.unwrap();
+            let column = Self::city_manager_rect();
+            sequence.check(
+                "sell_controls_in_left_building_list",
+                buttons
+                    .iter()
+                    .filter_map(|(rect, action)| {
+                        matches!(action, UiAction::SellBuilding(..)).then_some(rect)
+                    })
+                    .all(|rect| rect.right() < column.x + column.w * 0.3),
+            )?;
+            sequence.click(self, buttons, "sell_from_built_buildings", |action| matches!(action, UiAction::SellBuilding(id, target) if id == city_id && target == building))?;
+            let after = self.sim.city_manager_view(city_id).unwrap();
+            sequence.check(
+                "building_removed_and_sale_paid",
+                !after
+                    .buildings
+                    .iter()
+                    .any(|item| item.building == building && item.built)
+                    && after.treasury == before.treasury + price,
+            )?;
+            return Ok(true);
+        }
         if scene == 45 && phase == 6 {
             sequence.click(self, buttons, "religion_choose_faith", |a| {
                 matches!(a, UiAction::ReligionFaith)
@@ -650,7 +754,6 @@ impl Game {
         if scene == 28 {
             if phase == 6 {
                 self.selected_city = self.sim.review_state().cities().first().map(|c| c.id);
-                self.city_tiles = true;
                 sequence.check(
                     "layer_order_shared_with_city_map",
                     self.selected_city.is_some(),
@@ -723,6 +826,37 @@ impl Game {
                     self.move_selected(self.sim.review_state().move_command(id, 1, 0), id),
                 )?;
                 sequence.check("movement_refreshes_visibility", before != visibility(self))?;
+                return Ok(true);
+            }
+            return Ok(false);
+        }
+        if (51..=56).contains(&scene) {
+            if phase == 1 {
+                let id = self.selected_unit.unwrap();
+                sequence.check(
+                    "army_battle_real_command",
+                    self.move_selected(self.sim.review_state().move_command(id, 1, 0), id),
+                )?;
+            }
+            if phase == 6 {
+                let exchange = (scene - 51) % 3;
+                sequence.check(
+                    "army_member_exchange_available",
+                    self.playback.review_combat_exchange(exchange, 0.65),
+                )?;
+                let expected = match scene {
+                    51 | 54 => UnitKind::Swordsman,
+                    52 | 56 => UnitKind::Horseman,
+                    _ => UnitKind::Spearman,
+                };
+                let active = self.playback.active();
+                sequence.check("both_combatants_rendered", active.len() == 2)?;
+                let member = &active[usize::from(scene >= 54)].0;
+                sequence.check("selected_member_sprite", member.kind == expected)?;
+                sequence.check(
+                    "member_health_not_army_pool",
+                    member.hp == 1 && member.max_hp == 3,
+                )?;
                 return Ok(true);
             }
             return Ok(false);
@@ -808,7 +942,7 @@ impl Game {
                 && let Some(id) = self.selected_city
             {
                 sequence.check("city_view_opened_after_build", true)?;
-                if !self.city_tiles {
+                {
                     let city = self.sim.city_manager_view(id).unwrap();
                     let mut city_buttons = Vec::new();
                     if city.governor.active {
@@ -835,10 +969,15 @@ impl Game {
                     } else {
                         buttons
                     };
-                    sequence.click(self, buttons, "worked_tiles_control", |action| {
-                        matches!(action, UiAction::CityTiles)
-                    })?;
-                    sequence.check("worked_tiles_open", self.city_tiles)?;
+                    sequence.check(
+                        "city_map_and_production_visible",
+                        buttons
+                            .iter()
+                            .any(|(_, action)| matches!(action, UiAction::WorkCityTile(..)))
+                            && buttons
+                                .iter()
+                                .any(|(_, action)| matches!(action, UiAction::Produce(_))),
+                    )?;
                     return Ok(true);
                 }
             }

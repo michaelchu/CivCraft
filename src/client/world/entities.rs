@@ -2,6 +2,9 @@
 
 use super::*;
 
+/// Civ III FLIC direction row 2 faces southeast, toward the lower right.
+const FORTIFY_FACING: u8 = 2;
+
 fn centered_sprite_position(center: Vec2, width: f32, height: f32) -> Vec2 {
     center - vec2(width, height) * 0.5
 }
@@ -16,130 +19,6 @@ fn city_size_text_color(background: Color) -> Color {
 }
 
 impl Game {
-    pub(in crate::client) fn draw_city_map(
-        &self,
-        assets: &Assets,
-        city: &CityManagerView,
-        layout: &super::city_map::CityMapLayout,
-    ) {
-        let bounds = layout.bounds;
-        let scale = screen_dpi_scale();
-        // QuadGl records clipping per draw call. Coordinates are physical pixels
-        // from the top-left, so clip both terrain overhangs and surrounding fog.
-        unsafe {
-            get_internal_gl().quad_gl.scissor(Some((
-                (bounds.x * scale) as i32,
-                (bounds.y * scale) as i32,
-                (bounds.w * scale) as i32,
-                (bounds.h * scale) as i32,
-            )));
-        }
-        draw_rectangle(
-            bounds.x,
-            bounds.y,
-            bounds.w,
-            bounds.h,
-            map_view::MAP_UNKNOWN,
-        );
-        // The simulation supplies the radius in staggered row (painter) order,
-        // including the wrapped world position used by worker assignments.
-        let tiles: Vec<_> = city
-            .map_tiles
-            .iter()
-            .filter(|tile| tile.seen)
-            .map(|tile| (tile, layout.center(tile.dx, tile.dy)))
-            .collect();
-        let painter = super::civ3::Civ3WorldPainter::new(self, assets);
-        for &(tile, center) in &tiles {
-            painter.draw_map_base(tile.x, tile.y, center, layout.tile_w, layout.tile_h);
-        }
-        for layer in map_layers::MAP_LAYERS {
-            for &(tile, center) in &tiles {
-                if layer == map_layers::MapLayer::City {
-                    if tile.is_city {
-                        self.draw_city_manager_at_scale(
-                            assets,
-                            city,
-                            center,
-                            layout.tile_w / TILE_W,
-                        );
-                    }
-                } else {
-                    painter.draw_map_layer(
-                        layer,
-                        tile.x,
-                        tile.y,
-                        TileGeometry::new(center, layout.tile_w, layout.tile_h),
-                        tile.is_city,
-                    );
-                }
-            }
-        }
-
-        // Include surrounding intersections so fog also covers overhanging art.
-        let seen: std::collections::HashSet<_> =
-            tiles.iter().map(|(tile, _)| (tile.x, tile.y)).collect();
-        let wrap = self.sim.map_wrap();
-        let columns = (bounds.w / (2.0 * layout.tile_w)).ceil() as i32 + 1;
-        let rows = (bounds.h / layout.tile_h).ceil() as i32 + 2;
-        for dy in -rows..=rows {
-            let y = city.y + dy;
-            for col in -columns..=columns {
-                let x = (city.x + col).rem_euclid(wrap.width());
-                let dx = 2 * col + y.rem_euclid(2) - city.y.rem_euclid(2);
-                self.draw_fog_intersection(
-                    assets,
-                    layout.center(dx, dy),
-                    layout.tile_w,
-                    layout.tile_h,
-                    (x, y),
-                    None,
-                    |nx, ny| {
-                        if seen.contains(&(nx, ny)) {
-                            self.fog_knowledge(nx, ny)
-                        } else {
-                            super::fog::Knowledge::Unknown
-                        }
-                    },
-                );
-            }
-        }
-        for &(tile, center) in &tiles {
-            self.draw_visible_base_foreground(
-                assets,
-                tile.x,
-                tile.y,
-                center,
-                layout.tile_w,
-                layout.tile_h,
-            );
-        }
-        unsafe {
-            get_internal_gl().quad_gl.scissor(None);
-        }
-    }
-
-    fn draw_city_manager_at_scale(
-        &self,
-        assets: &Assets,
-        city: &CityManagerView,
-        center: Vec2,
-        zoom: f32,
-    ) {
-        let city = &city.city_sprite;
-        self.draw_city_sprite(
-            assets,
-            city.size,
-            city.civ3_style,
-            city.civ3_era,
-            city.civilization_id.as_deref(),
-            city.occupied,
-            city.disorder,
-            center,
-            zoom,
-        );
-    }
-
     pub(super) fn draw_observed_city(
         &self,
         assets: &Assets,
@@ -208,8 +87,7 @@ impl Game {
         }
     }
 
-    pub(super) fn draw_city_label(&self, city: &RenderedCityView, center: Vec2) {
-        let zoom = self.zoom;
+    pub(super) fn draw_city_label_at_zoom(&self, city: &RenderedCityView, center: Vec2, zoom: f32) {
         let top_text = city.growth_label.as_ref().map_or_else(
             || city.name.clone(),
             |growth| format!("{} : {growth}", city.name),
@@ -260,7 +138,7 @@ impl Game {
             side_width,
             height,
             Color {
-                a: 205,
+                a: 205.0,
                 ..owner_color
             },
         );
@@ -278,7 +156,7 @@ impl Game {
                 side_width,
                 height,
                 Color {
-                    a: 205,
+                    a: 205.0,
                     ..secondary_color
                 },
             );
@@ -392,9 +270,9 @@ impl Game {
 
     #[expect(
         clippy::too_many_arguments,
-        reason = "Unit rendering combines stack state, animation playback, and viewport geometry."
+        reason = "A viewport supplies its own zoom for shared entity rendering."
     )]
-    pub(in crate::client) fn draw_unit(
+    pub(in crate::client) fn draw_unit_at_zoom(
         &self,
         assets: &Assets,
         unit: &RenderedUnitView,
@@ -403,30 +281,40 @@ impl Game {
         action: super::super::tileset::Civ3UnitAction,
         animation_progress: f32,
         playback_duration_seconds: Option<f32>,
+        zoom: f32,
     ) {
-        let unit_zoom = self.zoom * WORLD_ART_SCALE;
+        let unit_zoom = zoom * WORLD_ART_SCALE;
         let unit_w = 58.0 * unit_zoom;
         let unit_h = 44.0 * unit_zoom;
         let is_selected = self.selected_unit == Some(unit.id);
         let is_group_selected = self.selected_units.contains(&unit.id);
         if is_selected {
-            assets.civ3.draw_unit_cursor(center, self.zoom);
+            assets.civ3.draw_unit_cursor(center, zoom);
         } else if is_group_selected {
             draw_ellipse_lines(
                 center.x,
-                center.y - 9.0 * self.zoom,
+                center.y - 9.0 * zoom,
                 unit_w * 0.47,
                 unit_h * 0.57,
                 0.0,
-                (2.0 * self.zoom).max(1.5),
+                (2.0 * zoom).max(1.5),
                 Color::from_rgba(255, 220, 112, 230),
             );
         }
+        let facing = if matches!(
+            action,
+            super::super::tileset::Civ3UnitAction::Fortify
+                | super::super::tileset::Civ3UnitAction::FortifyHold
+        ) {
+            FORTIFY_FACING
+        } else {
+            unit.facing
+        };
         let native_unit_drawn = assets.civ3.draw_unit(
             unit.kind,
             unit.owner,
             unit.civilization_id.as_deref(),
-            unit.facing,
+            facing,
             unit.era_index,
             action,
             animation_progress,
@@ -439,7 +327,7 @@ impl Game {
             let color = player_color(unit.civilization_id.as_deref(), unit.owner);
             draw_ellipse(
                 center.x,
-                center.y - 9.0 * self.zoom,
+                center.y - 9.0 * zoom,
                 unit_w * 0.35,
                 unit_h * 0.42,
                 0.0,
@@ -447,11 +335,11 @@ impl Game {
             );
             draw_ellipse_lines(
                 center.x,
-                center.y - 9.0 * self.zoom,
+                center.y - 9.0 * zoom,
                 unit_w * 0.35,
                 unit_h * 0.42,
                 0.0,
-                (1.5 * self.zoom).max(1.0),
+                (1.5 * zoom).max(1.0),
                 BLACK,
             );
             draw_line(
@@ -459,23 +347,23 @@ impl Game {
                 center.y - unit_h * 0.55,
                 center.x,
                 center.y + unit_h * 0.25,
-                (2.0 * self.zoom).max(1.0),
+                (2.0 * zoom).max(1.0),
                 WHITE,
             );
         }
-        self.draw_unit_health(assets, unit, center);
+        self.draw_unit_health_at_zoom(assets, unit, center, zoom);
         if stack_count > 1 {
             draw_circle(
-                center.x + 31.0 * self.zoom,
-                center.y - 8.0 * self.zoom,
-                (8.0 * self.zoom).max(6.0),
+                center.x + 31.0 * zoom,
+                center.y - 8.0 * zoom,
+                (8.0 * zoom).max(6.0),
                 Color::from_rgba(25, 24, 21, 235),
             );
             draw_text(
                 stack_count.to_string(),
-                center.x + 27.0 * self.zoom,
-                center.y - 4.0 * self.zoom,
-                (13.0 * self.zoom).max(10.0),
+                center.x + 27.0 * zoom,
+                center.y - 4.0 * zoom,
+                (13.0 * zoom).max(10.0),
                 WHITE,
             );
         }
@@ -489,8 +377,14 @@ mod tests {
 
     #[test]
     fn city_size_text_uses_black_on_light_and_white_on_dark_backgrounds() {
-        assert_eq!(city_size_text_color(Color::from_rgba(240, 220, 180, 255)), BLACK);
-        assert_eq!(city_size_text_color(Color::from_rgba(40, 70, 150, 255)), WHITE);
+        assert_eq!(
+            city_size_text_color(Color::from_rgba(240, 220, 180, 255)),
+            BLACK
+        );
+        assert_eq!(
+            city_size_text_color(Color::from_rgba(40, 70, 150, 255)),
+            WHITE
+        );
     }
 
     #[test]

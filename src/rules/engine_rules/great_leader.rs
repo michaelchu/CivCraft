@@ -8,6 +8,7 @@ use std::sync::OnceLock;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct GreatLeaderSettings {
+    pub(crate) cities_per_army: usize,
     pub(crate) attack_denominator: i32,
     pub(crate) attack_heroic_epic_denominator: i32,
     pub(crate) defense_denominator: i32,
@@ -19,11 +20,13 @@ impl GreatLeaderSettings {
         static SETTINGS: OnceLock<GreatLeaderSettings> = OnceLock::new();
         SETTINGS.get_or_init(|| {
             let native = &crate::rules::native::settlements().great_leader;
+            assert!(native.cities_per_army > 0);
             assert!(native.attack_denominator > 0);
             assert!(native.attack_heroic_epic_denominator > 0);
             assert!(native.defense_denominator > 0);
             assert!(native.defense_heroic_epic_denominator > 0);
             Self {
+                cities_per_army: native.cities_per_army,
                 attack_denominator: native.attack_denominator,
                 attack_heroic_epic_denominator: native.attack_heroic_epic_denominator,
                 defense_denominator: native.defense_denominator,

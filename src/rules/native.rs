@@ -276,6 +276,7 @@ pub(crate) struct NativeSettlementAi {
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct NativeGreatLeaderRules {
+    pub(crate) cities_per_army: usize,
     pub(crate) attack_denominator: i32,
     pub(crate) attack_heroic_epic_denominator: i32,
     pub(crate) defense_denominator: i32,
@@ -563,7 +564,7 @@ pub(crate) fn buildings() -> &'static BuildingCatalog {
                         rule.id
                     ),
                     "River" | "Lake" | "Sea" | "Water" | "MinSize" | "OwnerCityCount"
-                    | "OwnerEliteUnit" => {
+                    | "OwnerEliteUnit" | "OwnerArmyCount" => {
                         assert!(
                             requirement.target.is_none(),
                             "unexpected named target in {}",

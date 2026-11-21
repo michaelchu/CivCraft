@@ -22,7 +22,8 @@ impl Simulation {
     /// Whether this kill could create a Great Leader. Cheap checks come first
     /// and nothing here draws from the RNG.
     pub(in crate::sim) fn great_leader_eligible(&self, winner: &Unit, loser: &Unit) -> bool {
-        if winner.created_leader
+        if winner.kind == UnitKind::Army
+            || winner.created_leader
             || winner.owner == BARBARIANS
             || loser.owner == BARBARIANS
             || winner.kind.is_naval()

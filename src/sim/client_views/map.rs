@@ -143,8 +143,10 @@ impl Simulation {
             movement_rate: self.unit_move_rate(unit),
             hp: unit.hp,
             max_hp: unit.max_hit_points(),
-            attack: stats.attack,
-            defense: stats.defense,
+            attack: self.unit_attack_strength(unit),
+            defense: self
+                .army_combat_member(unit, false)
+                .map_or(stats.defense, |u| u.kind.stats().defense),
             visible: self.unit_visible_to_human(unit),
             context: None,
         }

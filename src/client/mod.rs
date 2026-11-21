@@ -131,9 +131,9 @@ pub(crate) enum UiAction {
     DismissIntro,
     ToggleMusicPanel,
     ToggleMusicMute,
-    AdjustMusicVolume(i8),
+    SetMusicVolume(u8),
     ToggleSfxMute,
-    AdjustSfxVolume(i8),
+    SetSfxVolume(u8),
     ActionPage(usize),
     EndTurn,
     LaunchSpaceship,
@@ -143,7 +143,6 @@ pub(crate) enum UiAction {
     /// Sets the science, tax and luxury split from a rate slider.
     SetRates([i32; 3]),
     Specialist(u32, usize, i32),
-    CityTiles,
     CityGovernorPage,
     SetCityGovernor(u32, crate::sim::CityGovernor),
     WorkCityTile(u32, i32, i32),
@@ -157,6 +156,7 @@ pub(crate) enum UiAction {
     BeginPatrol,
     PatrolTo(i32, i32),
     CompleteProduction(u32),
+    FormArmy,
     JoinCity(u32),
     Airlift(u32),
     BeginParadrop,
@@ -222,6 +222,7 @@ pub(crate) enum UiAction {
     Produce(Production),
     RushProduction(u32),
     SellBuilding(u32, Building),
+    CityBuildingsPage(usize),
     ProductionPage(usize),
     UnitProductionPage(usize),
     WorklistPage(Option<usize>),
@@ -290,10 +291,10 @@ pub(crate) struct Game {
     waiting_units: std::collections::BTreeSet<u32>,
     pending_city_view: Option<u32>,
     action_page: usize,
+    city_buildings_page: usize,
     production_page: usize,
     unit_production_page: usize,
     worklist_page: Option<usize>,
-    city_tiles: bool,
     city_governor_page: bool,
     city_governor_preview: Option<[i32; 6]>,
     camera: Vec2,
@@ -395,10 +396,10 @@ impl Game {
             waiting_units: Default::default(),
             pending_city_view: None,
             action_page: 0,
+            city_buildings_page: 0,
             production_page: 0,
             unit_production_page: 0,
             worklist_page: None,
-            city_tiles: false,
             city_governor_page: false,
             city_governor_preview: None,
             camera: vec2(x as f32, y as f32),
@@ -478,10 +479,10 @@ impl Game {
                 self.pending_sound_unit = Some(id);
             }
             self.set_unit_selection(Vec::new(), None);
+            self.city_buildings_page = 0;
             self.production_page = 0;
             self.unit_production_page = 0;
             self.worklist_page = None;
-            self.city_tiles = false;
             self.city_governor_page = false;
             self.selected_city = None;
             self.pending_city_view = self.sim.newest_city_id_view();
@@ -540,10 +541,10 @@ impl Game {
         if let Some(unit_id) = self.selected_unit.take() {
             self.waiting_units.insert(unit_id);
         }
+        self.city_buildings_page = 0;
         self.production_page = 0;
         self.unit_production_page = 0;
         self.worklist_page = None;
-        self.city_tiles = false;
         self.city_governor_page = false;
         self.action_page = 0;
         self.selected_city = Some(city_id);

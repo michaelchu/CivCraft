@@ -2,6 +2,67 @@
 
 use super::*;
 
+const CITY_OUTER_PAD: f32 = 18.0;
+const CITY_PANEL_PAD: f32 = 12.0;
+const CITY_PANEL_GAP: f32 = 12.0;
+const CITY_SIDEBAR_TOP_H: f32 = 144.0;
+
+/// Shared geometry keeps the map, local religion and production areas disjoint.
+struct CityViewLayout {
+    buildings: Rect,
+    map: Rect,
+    religion: Rect,
+    production: Rect,
+}
+impl CityViewLayout {
+    fn new(rect: Rect) -> Self {
+        let inner = Rect::new(
+            rect.x + CITY_OUTER_PAD,
+            rect.y + 130.0,
+            rect.w - 2.0 * CITY_OUTER_PAD,
+            rect.h - 130.0 - CITY_OUTER_PAD,
+        );
+        let production_h = 172.0;
+        let production = Rect::new(
+            inner.x,
+            inner.bottom() - production_h,
+            inner.w,
+            production_h,
+        );
+        let sidebar_w = (inner.w * 0.19).clamp(146.0, 220.0).round();
+        let buildings = Rect::new(
+            inner.x,
+            inner.y,
+            sidebar_w,
+            production.y - inner.y - CITY_PANEL_GAP,
+        );
+        let map = Rect::new(
+            buildings.right() + CITY_PANEL_GAP,
+            inner.y,
+            inner.w - 2.0 * sidebar_w - 2.0 * CITY_PANEL_GAP,
+            production.y - inner.y - CITY_PANEL_GAP,
+        );
+        let religion = Rect::new(map.right() + CITY_PANEL_GAP, inner.y, sidebar_w, map.h);
+        Self {
+            buildings,
+            map,
+            religion,
+            production,
+        }
+    }
+}
+
+fn city_sidebar_sections(column: Rect) -> (Rect, Rect) {
+    let top = Rect::new(column.x, column.y, column.w, CITY_SIDEBAR_TOP_H);
+    let bottom = Rect::new(
+        column.x,
+        top.bottom() + CITY_PANEL_GAP,
+        column.w,
+        column.h - CITY_SIDEBAR_TOP_H - CITY_PANEL_GAP,
+    );
+    (top, bottom)
+}
+
 impl Game {
     pub(super) fn draw_city_manager(&self, assets: &Assets, actions: &mut Vec<(Rect, UiAction)>) {
         let Some(city_id) = self.selected_city else {
@@ -43,21 +104,18 @@ impl Game {
 
         text_in(
             &city.name,
-            rect.x + 22.0,
+            rect.x + CITY_OUTER_PAD,
             rect.y + 35.0,
             26.0,
-            rect.w - 196.0,
+            (rect.w - 196.0).max(0.0),
             Color::from_rgba(248, 222, 139, 255),
         );
-        text_in(
-            &self.sim.city_religion_summary(city_id),
-            rect.x + 22.0,
-            rect.y + rect.h - 12.0,
-            13.0,
-            rect.w - 44.0,
-            GOLD,
+        let close_rect = Rect::new(
+            rect.right() - CITY_OUTER_PAD - 28.0,
+            rect.y + CITY_OUTER_PAD,
+            28.0,
+            28.0,
         );
-        let close_rect = Rect::new(rect.right() - 50.0, rect.y + 14.0, 28.0, 28.0);
         draw_ui_button(close_rect, "X", true, false);
         actions.push((close_rect, UiAction::CloseCity));
         text_in(
@@ -65,15 +123,14 @@ impl Game {
                 "Size {} · Food {:+} · Shields {} · Science {} · Gold {:+} · Luxury {}",
                 city.size, city.food_net, city.shield_net, city.science, city.gold_net, city.luxury
             ),
-            rect.x + 22.0,
+            rect.x + CITY_OUTER_PAD,
             rect.y + 61.0,
             16.0,
-            rect.w - 44.0,
+            rect.w - 2.0 * CITY_OUTER_PAD,
             Color::from_rgba(188, 220, 166, 255),
         );
         let growth_box = city.growth_box;
-        let production_cost = city.production_cost;
-        let half = (rect.w - 60.0) / 2.0;
+        let half = (rect.w - 2.0 * CITY_OUTER_PAD - CITY_PANEL_GAP) / 2.0;
         let growth = if city.disorder {
             "Civil disorder".to_owned()
         } else if city.growth_limited {
@@ -81,67 +138,67 @@ impl Game {
         } else {
             format!("Growth {}/{}", city.food, growth_box)
         };
-        text_in(&growth, rect.x + 22.0, rect.y + 87.0, 15.0, half, LIGHTGRAY);
         text_in(
-            &format!(
-                "{} {}/{}",
-                city.production_name, city.shields, production_cost
-            ),
-            rect.x + 38.0 + half,
+            &growth,
+            rect.x + CITY_OUTER_PAD,
             rect.y + 87.0,
             15.0,
             half,
             LIGHTGRAY,
         );
+        let culture_label = match city.next_border_threshold {
+            Some(target) => format!(
+                "Culture {}/{} (+{}/turn)",
+                city.culture, target, city.culture_per_turn
+            ),
+            None => format!(
+                "Culture {} (+{}/turn) · Maximum borders",
+                city.culture, city.culture_per_turn
+            ),
+        };
+        text_in(
+            &culture_label,
+            rect.x + CITY_OUTER_PAD + CITY_PANEL_GAP + half,
+            rect.y + 87.0,
+            15.0,
+            half,
+            Color::from_rgba(206, 177, 234, 255),
+        );
         draw_meter(
-            Rect::new(rect.x + 22.0, rect.y + 96.0, half, 10.0),
+            Rect::new(rect.x + CITY_OUTER_PAD, rect.y + 96.0, half, 10.0),
             city.food,
             growth_box,
             Color::from_rgba(82, 166, 82, 255),
         );
+        let culture_fraction = city.next_border_threshold.map_or(1.0, |target| {
+            (city.culture as f64 / target.max(1) as f64).clamp(0.0, 1.0)
+        });
         draw_meter(
-            Rect::new(rect.x + 38.0 + half, rect.y + 96.0, half, 10.0),
-            city.shields,
-            production_cost,
-            Color::from_rgba(173, 133, 62, 255),
+            Rect::new(
+                rect.x + CITY_OUTER_PAD + CITY_PANEL_GAP + half,
+                rect.y + 96.0,
+                half,
+                10.0,
+            ),
+            (culture_fraction * 1000.0).round() as i32,
+            1000,
+            Color::from_rgba(159, 109, 191, 255),
         );
-        let specialist_w = (rect.w - 44.0) / 3.0;
-        for (index, label) in ["Scientists", "Taxmen", "Entertainers"]
-            .into_iter()
-            .enumerate()
-        {
-            let x = rect.x + 22.0 + index as f32 * specialist_w;
-            let count = city.specialists[index];
-            for (delta, offset, symbol, enabled) in [
-                (-1, 0.0, "-", count > 0),
-                (1, specialist_w - 36.0, "+", city.tile_workers > 0),
-            ] {
-                let enabled = enabled && !city.governor.active;
-                let button = Rect::new(x + offset, rect.y + 118.0, 28.0, 26.0);
-                draw_ui_button(button, symbol, enabled, false);
-                if enabled {
-                    actions.push((button, UiAction::Specialist(city.id, index, delta)));
-                }
-            }
-            text_in(
-                &format!("{label} {count}"),
-                x + 34.0,
-                rect.y + 136.0,
-                14.0,
-                specialist_w - 76.0,
-                LIGHTGRAY,
-            );
-        }
         draw_line(
-            rect.x + 22.0,
-            rect.y + 154.0,
-            rect.right() - 22.0,
-            rect.y + 154.0,
+            rect.x + CITY_OUTER_PAD,
+            rect.y + 118.0,
+            rect.right() - CITY_OUTER_PAD,
+            rect.y + 118.0,
             1.0,
             Color::from_rgba(105, 102, 86, 255),
         );
         if city.owner == HUMAN {
-            let button = Rect::new(rect.right() - 167.0, rect.y + 14.0, 109.0, 28.0);
+            let button = Rect::new(
+                close_rect.x - CITY_PANEL_GAP - 109.0,
+                rect.y + CITY_OUTER_PAD,
+                109.0,
+                28.0,
+            );
             draw_ui_button(
                 button,
                 if city.governor.active {
@@ -158,40 +215,382 @@ impl Game {
                 return;
             }
         }
+        let CityViewLayout {
+            buildings,
+            map,
+            religion,
+            production,
+        } = CityViewLayout::new(rect);
+        let (specialist_panel, built_panel) = city_sidebar_sections(buildings);
+        self.draw_city_specialists(&city, specialist_panel, actions);
+        self.draw_city_buildings(&city, built_panel, actions);
+        self.draw_city_tiles_map(assets, &city, map, actions);
+        let (faith_panel, luxury_panel) = city_sidebar_sections(religion);
+        self.draw_city_religion(&city, faith_panel);
+        self.draw_city_luxuries(assets, &city, luxury_panel);
+        draw_rectangle(
+            production.x,
+            production.y,
+            production.w,
+            production.h,
+            Color::from_rgba(31, 35, 31, 255),
+        );
+        draw_rectangle_lines(
+            production.x,
+            production.y,
+            production.w,
+            production.h,
+            1.0,
+            Color::from_rgba(105, 102, 86, 255),
+        );
         if let Some(page) = self.worklist_page {
-            self.draw_worklist(&city, rect, page, actions);
-            return;
+            // The queue replaces only the production strip; the map stays visible.
+            self.draw_worklist(&city, production, page, actions);
+        } else {
+            self.draw_city_production(assets, &city, production, actions);
         }
-        let tiles_button = Rect::new(rect.x + rect.w - 277.0, rect.y + 169.0, 82.0, 25.0);
-        draw_ui_button(
-            tiles_button,
-            if self.city_tiles {
-                "Production"
-            } else {
-                "City tiles"
-            },
-            true,
-            self.city_tiles,
-        );
-        actions.push((tiles_button, UiAction::CityTiles));
-        if self.city_tiles {
-            self.draw_city_tiles(assets, &city, rect, actions);
-            return;
-        }
-        draw_text(
-            "CHOOSE PRODUCTION",
-            rect.x + 22.0,
-            rect.y + 187.0,
-            18.0,
-            Color::from_rgba(226, 211, 162, 255),
-        );
+    }
 
+    fn draw_city_specialists(
+        &self,
+        city: &CityManagerView,
+        panel: Rect,
+        actions: &mut Vec<(Rect, UiAction)>,
+    ) {
+        draw_rectangle(
+            panel.x,
+            panel.y,
+            panel.w,
+            panel.h,
+            Color::from_rgba(31, 35, 31, 255),
+        );
+        draw_rectangle_lines(
+            panel.x,
+            panel.y,
+            panel.w,
+            panel.h,
+            1.0,
+            Color::from_rgba(105, 102, 86, 255),
+        );
+        text_in(
+            "SPECIALISTS",
+            panel.x + CITY_PANEL_PAD,
+            panel.y + 21.0,
+            14.0,
+            panel.w - 2.0 * CITY_PANEL_PAD,
+            GOLD,
+        );
+        for (index, label) in ["Scientists", "Taxmen", "Entertainers"]
+            .into_iter()
+            .enumerate()
+        {
+            let y = panel.y + 23.0 + index as f32 * 36.0;
+            text_in(
+                label,
+                panel.x + CITY_PANEL_PAD,
+                y + 10.0,
+                13.0,
+                panel.w - 2.0 * CITY_PANEL_PAD,
+                LIGHTGRAY,
+            );
+            let count = city.specialists[index];
+            for (delta, x, label, enabled) in [
+                (-1, panel.x + CITY_PANEL_PAD, "-", count > 0),
+                (
+                    1,
+                    panel.right() - CITY_PANEL_PAD - 26.0,
+                    "+",
+                    city.tile_workers > 0,
+                ),
+            ] {
+                let enabled = enabled && !city.governor.active;
+                let button = Rect::new(x, y + 15.0, 26.0, 22.0);
+                draw_ui_button(button, label, enabled, false);
+                if enabled {
+                    actions.push((button, UiAction::Specialist(city.id, index, delta)));
+                }
+            }
+            let count = count.to_string();
+            let width = measure_text(&count, None, 13, 1.0).width;
+            draw_text(
+                &count,
+                panel.x + (panel.w - width) * 0.5,
+                y + 30.0,
+                13.0,
+                LIGHTGRAY,
+            );
+        }
+    }
+
+    fn draw_city_buildings(
+        &self,
+        city: &CityManagerView,
+        panel: Rect,
+        actions: &mut Vec<(Rect, UiAction)>,
+    ) {
+        draw_rectangle(
+            panel.x,
+            panel.y,
+            panel.w,
+            panel.h,
+            Color::from_rgba(31, 35, 31, 255),
+        );
+        draw_rectangle_lines(
+            panel.x,
+            panel.y,
+            panel.w,
+            panel.h,
+            1.0,
+            Color::from_rgba(105, 102, 86, 255),
+        );
+        let built: Vec<_> = city
+            .buildings
+            .iter()
+            .filter(|building| building.built)
+            .collect();
+        text_in(
+            &format!("BUILDINGS ({})", built.len()),
+            panel.x + CITY_PANEL_PAD,
+            panel.y + 21.0,
+            14.0,
+            panel.w - 2.0 * CITY_PANEL_PAD,
+            GOLD,
+        );
+        if built.is_empty() {
+            text_in(
+                "None built yet",
+                panel.x + CITY_PANEL_PAD,
+                panel.y + 48.0,
+                13.0,
+                panel.w - 2.0 * CITY_PANEL_PAD,
+                LIGHTGRAY,
+            );
+            return;
+        }
+        let row_h = if panel.h < 90.0 { 22.0 } else { 28.0 };
+        let rows = ((panel.h - 72.0) / row_h).floor().max(1.0) as usize;
+        let pages = built.len().div_ceil(rows);
+        let page = self.city_buildings_page.min(pages - 1);
+        for (index, building) in built.iter().skip(page * rows).take(rows).enumerate() {
+            let y = panel.y + if panel.h < 90.0 { 26.0 } else { 36.0 } + index as f32 * row_h;
+            let sell_width = if building.sale_price.is_some() {
+                52.0
+            } else {
+                0.0
+            };
+            let text_width = panel.w
+                - 2.0 * CITY_PANEL_PAD
+                - sell_width
+                - if sell_width > 0.0 {
+                    CITY_PANEL_GAP
+                } else {
+                    0.0
+                };
+            text_in(
+                building.name,
+                panel.x + CITY_PANEL_PAD,
+                y + 14.0,
+                13.0,
+                text_width,
+                LIGHTGRAY,
+            );
+            if building.sale_price.is_some() {
+                let button = Rect::new(
+                    panel.right() - CITY_PANEL_PAD - sell_width,
+                    y - 2.0,
+                    sell_width,
+                    20.0,
+                );
+                draw_ui_button(button, "Sell", true, false);
+                actions.push((button, UiAction::SellBuilding(city.id, building.building)));
+            }
+        }
+        if pages > 1 {
+            let button_h = if panel.h < 90.0 { 18.0 } else { 24.0 };
+            let y = panel.bottom() - CITY_PANEL_PAD - button_h;
+            for (x, label, target, enabled) in [
+                (
+                    panel.x + CITY_PANEL_PAD,
+                    "<",
+                    page.saturating_sub(1),
+                    page > 0,
+                ),
+                (
+                    panel.right() - CITY_PANEL_PAD - 26.0,
+                    ">",
+                    page + 1,
+                    page + 1 < pages,
+                ),
+            ] {
+                let button = Rect::new(x, y, 26.0, button_h);
+                draw_ui_button(button, label, enabled, false);
+                if enabled {
+                    actions.push((button, UiAction::CityBuildingsPage(target)));
+                }
+            }
+            let label = format!("{}/{}", page + 1, pages);
+            let width = measure_text(&label, None, 12, 1.0).width;
+            draw_text(
+                &label,
+                panel.x + (panel.w - width) * 0.5,
+                y + button_h * 0.5 + 4.0,
+                12.0,
+                LIGHTGRAY,
+            );
+        }
+    }
+
+    fn draw_city_luxuries(&self, assets: &Assets, city: &CityManagerView, panel: Rect) {
+        draw_rectangle(
+            panel.x,
+            panel.y,
+            panel.w,
+            panel.h,
+            Color::from_rgba(31, 35, 31, 255),
+        );
+        draw_rectangle_lines(
+            panel.x,
+            panel.y,
+            panel.w,
+            panel.h,
+            1.0,
+            Color::from_rgba(105, 102, 86, 255),
+        );
+        text_in(
+            "LUXURIES",
+            panel.x + CITY_PANEL_PAD,
+            panel.y + 21.0,
+            14.0,
+            panel.w - 2.0 * CITY_PANEL_PAD,
+            GOLD,
+        );
+        if city.luxuries.is_empty() {
+            text_in(
+                "None connected",
+                panel.x + CITY_PANEL_PAD,
+                panel.y + 65.0,
+                13.0,
+                panel.w - 2.0 * CITY_PANEL_PAD,
+                LIGHTGRAY,
+            );
+            return;
+        }
+        let cell_w = (panel.w - 2.0 * CITY_PANEL_PAD) / 4.0;
+        let row_h = (panel.h - 48.0) / 2.0;
+        let mut tooltip = None;
+        for (index, &(resource, name)) in city.luxuries.iter().enumerate() {
+            let cell = Rect::new(
+                panel.x + CITY_PANEL_PAD + (index % 4) as f32 * cell_w,
+                panel.y + 48.0 + (index / 4) as f32 * row_h,
+                cell_w,
+                row_h,
+            );
+            assets.civ3.draw_resource(
+                resource,
+                cell.center(),
+                vec2((cell.w.min(cell.h) - 4.0).clamp(12.0, 30.0) / 0.44, 40.0),
+            );
+            if cell.contains(ui_pointer()) {
+                tooltip = Some(name);
+            }
+        }
+        text_in(
+            tooltip.unwrap_or("Connected to city"),
+            panel.x + CITY_PANEL_PAD,
+            panel.y + 39.0,
+            12.0,
+            panel.w - 2.0 * CITY_PANEL_PAD,
+            LIGHTGRAY,
+        );
+    }
+
+    fn draw_city_religion(&self, city: &CityManagerView, panel: Rect) {
+        draw_rectangle(
+            panel.x,
+            panel.y,
+            panel.w,
+            panel.h,
+            Color::from_rgba(31, 35, 31, 255),
+        );
+        draw_rectangle_lines(
+            panel.x,
+            panel.y,
+            panel.w,
+            panel.h,
+            1.0,
+            Color::from_rgba(105, 102, 86, 255),
+        );
+        text_in(
+            "RELIGION",
+            panel.x + CITY_PANEL_PAD,
+            panel.y + 21.0,
+            14.0,
+            panel.w - 2.0 * CITY_PANEL_PAD,
+            GOLD,
+        );
+        let shares = self.sim.city_faith_shares(city.id);
+        if shares.is_empty() {
+            text_in(
+                "Unavailable",
+                panel.x + CITY_PANEL_PAD,
+                panel.y + 46.0,
+                13.0,
+                panel.w - 2.0 * CITY_PANEL_PAD,
+                LIGHTGRAY,
+            );
+            return;
+        }
+        let row_h = ((panel.h - 40.0) / shares.len() as f32).min(40.0);
+        let font_size = (row_h - 2.0).clamp(9.0, 13.0);
+        for (index, share) in shares.iter().enumerate() {
+            let y = panel.y + 38.0 + index as f32 * row_h;
+            let color = if share.dominant { GOLD } else { LIGHTGRAY };
+            text_in(
+                &share.name,
+                panel.x + CITY_PANEL_PAD,
+                y + font_size,
+                font_size,
+                panel.w - 68.0,
+                color,
+            );
+            let percentage = format!("{}%", share.percent);
+            let metrics = measure_text(&percentage, None, font_size as u16, 1.0);
+            draw_text(
+                &percentage,
+                panel.right() - CITY_PANEL_PAD - metrics.width,
+                y + font_size,
+                font_size,
+                color,
+            );
+            if row_h >= 26.0 {
+                draw_meter(
+                    Rect::new(
+                        panel.x + CITY_PANEL_PAD,
+                        y + 18.0,
+                        panel.w - 2.0 * CITY_PANEL_PAD,
+                        4.0,
+                    ),
+                    share.percent,
+                    100,
+                    color,
+                );
+            }
+        }
+    }
+
+    fn draw_city_production(
+        &self,
+        assets: &Assets,
+        city: &CityManagerView,
+        rect: Rect,
+        actions: &mut Vec<(Rect, UiAction)>,
+    ) {
         let choices: Vec<_> = city.units.iter().filter(|unit| unit.available).collect();
-        let columns = grid_columns(rect.w - 44.0, 180.0);
-        let gap = 8.0;
-        let card_w = (rect.w - 44.0 - gap * (columns - 1) as f32) / columns as f32;
+        let columns = grid_columns(rect.w - 2.0 * CITY_PANEL_PAD, 180.0);
+        let gap = CITY_PANEL_GAP;
+        let card_w = (rect.w - 2.0 * CITY_PANEL_PAD - gap * (columns - 1) as f32) / columns as f32;
         let card_h = 72.0;
-        let rows = ((rect.h - 199.0 - 112.0) / (card_h + gap)).floor().max(1.0) as usize;
+        let rows = ((rect.h - 78.0) / (card_h + gap)).floor().max(1.0) as usize;
         let capacity = columns * rows;
         let mouse = ui_pointer();
         let buildings: Vec<_> = if self.production_page == 0 {
@@ -199,35 +598,63 @@ impl Game {
         } else {
             city.buildings
                 .iter()
-                .filter(|building| building.blocker.is_none() || building.built)
+                .filter(|building| !building.built && building.blocker.is_none())
                 .collect()
         };
         let last_page = buildings.len().div_ceil(capacity).max(1);
         let page = self.production_page.min(last_page);
         let unit_pages = choices.len().div_ceil(capacity).max(1);
         let unit_page = self.unit_production_page.min(unit_pages - 1);
-        for (offset, width, label, action, enabled) in [
+        for (offset, label, tab, selected) in [
+            (CITY_PANEL_PAD, "Units", 0, page == 0),
             (
-                0.0,
-                72.0,
-                if page == 0 { "Buildings" } else { "Units" },
-                UiAction::ProductionPage(usize::from(page == 0)),
-                true,
+                CITY_PANEL_PAD + 78.0 + CITY_PANEL_GAP,
+                "Buildings",
+                1,
+                page > 0,
             ),
+        ] {
+            let button = Rect::new(rect.x + offset, rect.y + CITY_PANEL_PAD, 78.0, 26.0);
+            draw_ui_button(button, label, true, selected);
+            actions.push((button, UiAction::ProductionPage(tab)));
+        }
+        text_in(
+            &format!(
+                "{} · {}/{} shields",
+                city.production_name, city.shields, city.production_cost
+            ),
+            rect.x + 2.0 * CITY_PANEL_PAD + 2.0 * 78.0 + CITY_PANEL_GAP,
+            rect.y + 30.0,
+            13.0,
+            (rect.w - 320.0).max(0.0),
+            LIGHTGRAY,
+        );
+        let page_label = if page == 0 {
+            format!("{}/{}", unit_page + 1, unit_pages)
+        } else {
+            format!("{page}/{last_page}")
+        };
+        text_in(
+            &page_label,
+            rect.right() - 128.0,
+            rect.y + 30.0,
+            13.0,
+            44.0,
+            LIGHTGRAY,
+        );
+        for (offset, label, action, enabled) in [
             (
-                79.0,
-                39.0,
+                CITY_PANEL_PAD + 2.0 * 26.0 + CITY_PANEL_GAP,
                 "<",
                 if page == 0 {
                     UiAction::UnitProductionPage(unit_page.saturating_sub(1))
                 } else {
-                    UiAction::ProductionPage(page - 1)
+                    UiAction::ProductionPage(page.saturating_sub(1))
                 },
                 if page == 0 { unit_page > 0 } else { page > 1 },
             ),
             (
-                125.0,
-                39.0,
+                CITY_PANEL_PAD + 26.0,
                 ">",
                 if page == 0 {
                     UiAction::UnitProductionPage(unit_page + 1)
@@ -241,30 +668,18 @@ impl Game {
                 },
             ),
         ] {
-            let button = Rect::new(
-                rect.x + rect.w - 186.0 + offset,
-                rect.y + 169.0,
-                width,
-                25.0,
-            );
+            let button = Rect::new(rect.right() - offset, rect.y + CITY_PANEL_PAD, 26.0, 26.0);
             draw_ui_button(button, label, enabled, false);
             if enabled {
                 actions.push((button, action));
             }
         }
         if page > 0 {
-            draw_text(
-                format!("Buildings {page}/{last_page}"),
-                rect.x + 216.0,
-                rect.y + 187.0,
-                15.0,
-                LIGHTGRAY,
-            );
             if buildings.is_empty() {
                 draw_text(
                     "No buildings available in this city.",
-                    rect.x + 22.0,
-                    rect.y + 230.0,
+                    rect.x + CITY_PANEL_PAD,
+                    rect.y + 67.0,
                     16.0,
                     LIGHTGRAY,
                 );
@@ -277,14 +692,13 @@ impl Game {
             {
                 let building = building_view.building;
                 let card = Rect::new(
-                    rect.x + 22.0 + (index % columns) as f32 * (card_w + gap),
-                    rect.y + 199.0 + (index / columns) as f32 * (card_h + gap),
+                    rect.x + CITY_PANEL_PAD + (index % columns) as f32 * (card_w + gap),
+                    rect.y + 50.0 + (index / columns) as f32 * (card_h + gap),
                     card_w,
                     card_h,
                 );
                 let target = Production::Building(building);
                 let enabled = building_view.can_change;
-                let built = building_view.built;
                 let current = building_view.current;
                 let fill = if current {
                     Color::from_rgba(101, 80, 39, 255)
@@ -301,7 +715,7 @@ impl Game {
                     card.y + 20.0,
                     15.0,
                     card.w - 16.0,
-                    if enabled || built { WHITE } else { LIGHTGRAY },
+                    if enabled { WHITE } else { LIGHTGRAY },
                 );
                 text_in(
                     &building_view.cost_label,
@@ -326,24 +740,12 @@ impl Game {
                     card.w - 92.0,
                     LIGHTGRAY,
                 );
-                if let Some(price) = building_view.sale_price {
-                    let button = Rect::new(card.x + card.w - 69.0, card.y + 44.0, 62.0, 21.0);
-                    draw_ui_button(button, &format!("Sell {price}g"), true, false);
-                    actions.push((button, UiAction::SellBuilding(city.id, building)));
-                }
-                self.draw_queue_button(&city, card, target, building_view.can_queue, actions);
                 if enabled {
                     actions.push((card, UiAction::Produce(target)));
                 }
+                self.draw_queue_button(city, card, target, building_view.can_queue, actions);
             }
         } else {
-            draw_text(
-                format!("Units {}/{}", unit_page + 1, unit_pages),
-                rect.x + 216.0,
-                rect.y + 187.0,
-                15.0,
-                LIGHTGRAY,
-            );
             for (choice_index, unit_view) in choices
                 .into_iter()
                 .skip(unit_page * capacity)
@@ -354,8 +756,8 @@ impl Game {
                 let column = choice_index % columns;
                 let row = choice_index / columns;
                 let card = Rect::new(
-                    rect.x + 22.0 + column as f32 * (card_w + gap),
-                    rect.y + 199.0 + row as f32 * (card_h + gap),
+                    rect.x + CITY_PANEL_PAD + column as f32 * (card_w + gap),
+                    rect.y + 50.0 + row as f32 * (card_h + gap),
                     card_w,
                     card_h,
                 );
@@ -392,17 +794,17 @@ impl Game {
                     city.owner,
                     city.civilization_id.as_deref(),
                     city.era_index,
-                    vec2(card.x + 32.0, card.y + 32.5),
+                    vec2(card.x + 34.0, card.y + 32.5),
                     vec2(52.0, 39.0),
                     enabled,
                 );
                 let name = short_unit_name(kind);
                 text_in(
                     name,
-                    card.x + 62.0,
+                    card.x + 68.0,
                     card.y + 26.0,
                     16.0,
-                    card.w - 70.0,
+                    card.w - 76.0,
                     if enabled {
                         Color::from_rgba(239, 235, 216, 255)
                     } else {
@@ -411,7 +813,7 @@ impl Game {
                 );
                 draw_text(
                     format!("{} shields", cost),
-                    card.x + 62.0,
+                    card.x + 68.0,
                     card.y + 47.0,
                     13.0,
                     if enabled {
@@ -423,27 +825,32 @@ impl Game {
                 if current {
                     draw_text(
                         "CURRENT",
-                        card.x + 7.0,
-                        card.y + card.h - 7.0,
+                        card.x + 8.0,
+                        card.bottom() - 8.0,
                         11.0,
                         Color::from_rgba(247, 211, 112, 255),
                     );
                 }
+                if enabled {
+                    actions.push((card, UiAction::Produce(Production::Unit(kind))));
+                }
                 self.draw_queue_button(
-                    &city,
+                    city,
                     card,
                     Production::Unit(kind),
                     unit_view.can_queue,
                     actions,
                 );
-                if enabled {
-                    actions.push((card, UiAction::Produce(Production::Unit(kind))));
-                }
             }
         }
 
-        let garrison_y = rect.bottom() - 77.0;
-        let worklist_button = Rect::new(rect.x + rect.w - 251.0, garrison_y - 20.0, 104.0, 24.0);
+        let footer_y = rect.bottom() - CITY_PANEL_PAD - 26.0;
+        let worklist_button = Rect::new(
+            rect.right() - CITY_PANEL_PAD - 115.0 - CITY_PANEL_GAP - 104.0,
+            footer_y,
+            104.0,
+            26.0,
+        );
         draw_ui_button(
             worklist_button,
             &format!("Worklist ({})", city.worklist.len()),
@@ -451,7 +858,7 @@ impl Game {
             false,
         );
         actions.push((worklist_button, UiAction::WorklistPage(Some(0))));
-        let buy_button = Rect::new(rect.x + rect.w - 139.0, garrison_y - 20.0, 115.0, 24.0);
+        let buy_button = Rect::new(rect.right() - CITY_PANEL_PAD - 115.0, footer_y, 115.0, 26.0);
         let affordable = city.rush_cost.is_some_and(|price| price <= city.treasury);
         let buy_label = city.rush_cost.map_or_else(
             || {
@@ -467,54 +874,6 @@ impl Game {
         if affordable {
             actions.push((buy_button, UiAction::RushProduction(city.id)));
         }
-        draw_text(
-            format!(
-                "Upkeep: {} food / {} shields / {} gold",
-                city.support_food, city.support_shields, city.support_gold
-            ),
-            rect.x + 22.0,
-            garrison_y + 22.0,
-            14.0,
-            Color::from_rgba(226, 211, 162, 255),
-        );
-        let garrison = &city.garrison;
-        if garrison.is_empty() {
-            draw_text(
-                "No units stationed in this city.",
-                rect.x + 22.0,
-                garrison_y + 27.0,
-                15.0,
-                Color::from_rgba(159, 164, 154, 255),
-            );
-        } else {
-            let button_gap = 7.0;
-            let button_w = ((rect.w - 44.0 - button_gap * 3.0) / 4.0).min(170.0);
-            for (unit_index, unit) in garrison.iter().take(4).enumerate() {
-                let unit_rect = Rect::new(
-                    rect.x + 22.0 + unit_index as f32 * (button_w + button_gap),
-                    garrison_y + 31.0,
-                    button_w,
-                    28.0,
-                );
-                draw_ui_button(
-                    unit_rect,
-                    &format!("Select {}", short_unit_name(unit.kind)),
-                    true,
-                    false,
-                );
-                actions.push((unit_rect, UiAction::SelectUnit(unit.id)));
-            }
-        }
-    }
-
-    fn draw_city_tiles(
-        &self,
-        assets: &Assets,
-        city: &CityManagerView,
-        panel: Rect,
-        actions: &mut Vec<(Rect, UiAction)>,
-    ) {
-        self.draw_city_tiles_map(assets, city, panel, actions);
     }
 
     fn draw_worklist(
@@ -524,22 +883,27 @@ impl Game {
         requested_page: usize,
         actions: &mut Vec<(Rect, UiAction)>,
     ) {
-        let rows = ((panel.h - 208.0) / 34.0).floor().max(1.0) as usize;
+        let rows = ((panel.h - 62.0) / 34.0).floor().max(1.0) as usize;
         let last_page = city.worklist.len().saturating_sub(1) / rows;
         let page = requested_page.min(last_page);
         draw_text(
             format!("WORKLIST  {}/{}", city.worklist.len(), WORKLIST_LIMIT),
-            panel.x + 22.0,
-            panel.y + 187.0,
+            panel.x + CITY_PANEL_PAD,
+            panel.y + 30.0,
             18.0,
             WHITE,
         );
         for (offset, width, label, target, enabled) in [
-            (185.0, 28.0, "<", Some(page.saturating_sub(1)), page > 0),
-            (150.0, 28.0, ">", Some(page + 1), page < last_page),
-            (114.0, 92.0, "Production", None, true),
+            (184.0, 28.0, "<", Some(page.saturating_sub(1)), page > 0),
+            (144.0, 28.0, ">", Some(page + 1), page < last_page),
+            (104.0, 92.0, "Production", None, true),
         ] {
-            let button = Rect::new(panel.x + panel.w - offset, panel.y + 169.0, width, 25.0);
+            let button = Rect::new(
+                panel.x + panel.w - offset,
+                panel.y + CITY_PANEL_PAD,
+                width,
+                26.0,
+            );
             draw_ui_button(button, label, enabled, false);
             if enabled {
                 actions.push((button, UiAction::WorklistPage(target)));
@@ -548,8 +912,8 @@ impl Game {
         if city.worklist.is_empty() {
             draw_text(
                 "Use + on a production card to add it to the worklist.",
-                panel.x + 22.0,
-                panel.y + 224.0,
+                panel.x + CITY_PANEL_PAD,
+                panel.y + 63.0,
                 16.0,
                 LIGHTGRAY,
             );
@@ -561,7 +925,7 @@ impl Game {
             .skip(page * rows)
             .take(rows)
         {
-            let y = panel.y + 201.0 + (index % rows) as f32 * 34.0;
+            let y = panel.y + 50.0 + (index % rows) as f32 * 34.0;
             let target = entry.target;
             let status = if !entry.available {
                 "  (unavailable)".to_owned()
@@ -572,7 +936,7 @@ impl Game {
             };
             text_in(
                 &format!("{}. {}{status}", index + 1, entry.name),
-                panel.x + 22.0,
+                panel.x + CITY_PANEL_PAD,
                 y + 19.0,
                 16.0,
                 panel.w - 158.0,
@@ -580,18 +944,18 @@ impl Game {
             );
             for (offset, label, edit, enabled) in [
                 (
-                    122.0,
+                    132.0,
                     "^",
                     WorklistEdit::Move(index, index.saturating_sub(1)),
                     index > 0,
                 ),
                 (
-                    87.0,
+                    88.0,
                     "v",
                     WorklistEdit::Move(index, index + 1),
                     index + 1 < city.worklist.len(),
                 ),
-                (48.0, "X", WorklistEdit::Remove(index), true),
+                (44.0, "X", WorklistEdit::Remove(index), true),
             ] {
                 let button = Rect::new(panel.x + panel.w - offset, y, 32.0, 24.0);
                 draw_ui_button(button, label, enabled, false);
@@ -611,7 +975,12 @@ impl Game {
         actions: &mut Vec<(Rect, UiAction)>,
     ) {
         if can_queue {
-            let button = Rect::new(card.x + card.w - 29.0, card.y + card.h - 23.0, 22.0, 18.0);
+            let button = Rect::new(
+                card.right() - 8.0 - 22.0,
+                card.bottom() - 8.0 - 18.0,
+                22.0,
+                18.0,
+            );
             draw_ui_button(button, "+", true, false);
             actions.push((
                 button,
@@ -817,5 +1186,45 @@ impl Game {
             state.settings.fastest_growth,
         );
         actions.push((growth, UiAction::SetCityGovernor(city.id, next)));
+    }
+}
+
+#[cfg(test)]
+mod layout_tests {
+    use super::*;
+
+    #[test]
+    fn city_regions_fit_without_overlap_at_supported_window_sizes() {
+        for (width, height) in [(768.0, 568.0), (1248.0, 688.0), (1440.0, 868.0)] {
+            let panel = Rect::new(16.0, 16.0, width, height);
+            let layout = CityViewLayout::new(panel);
+            for region in [
+                layout.buildings,
+                layout.map,
+                layout.religion,
+                layout.production,
+            ] {
+                assert!(region.w > 0.0 && region.h > 0.0);
+                assert!(region.x >= panel.x && region.right() <= panel.right());
+                assert!(region.y >= panel.y && region.bottom() <= panel.bottom());
+            }
+            assert!(layout.buildings.right() < layout.map.x);
+            assert!(layout.map.right() < layout.religion.x);
+            assert!(layout.map.bottom() < layout.production.y);
+            assert!(layout.religion.bottom() < layout.production.y);
+            assert!(layout.map.w > layout.religion.w * 2.0);
+            assert_eq!(layout.production.x, layout.buildings.x);
+            assert_eq!(layout.production.right(), layout.religion.right());
+            assert_eq!(layout.map.y, layout.buildings.y);
+            assert_eq!(layout.map.y, layout.religion.y);
+            assert_eq!(layout.map.bottom(), layout.religion.bottom());
+            let (left_top, left_bottom) = city_sidebar_sections(layout.buildings);
+            let (right_top, right_bottom) = city_sidebar_sections(layout.religion);
+            assert_eq!(left_top.bottom(), right_top.bottom());
+            assert_eq!(left_bottom.y, right_bottom.y);
+            assert_eq!(left_bottom.bottom(), layout.map.bottom());
+            assert!(left_bottom.h >= 64.0 && right_bottom.h >= 64.0);
+            assert!(layout.production.h >= 172.0);
+        }
     }
 }

@@ -93,6 +93,9 @@ pub(crate) struct Unit {
     pub(crate) facing: u8,
     pub(crate) x: i32,
     pub(crate) y: i32,
+    /// Derived from Army members, rebuilt after loading; never changes the save layout.
+    #[serde(skip)]
+    pub(in crate::sim) army_max_hp: i32,
     pub(crate) hp: i32,
     pub(crate) moves_left: i32,
     pub(crate) state: UnitState,
@@ -137,6 +140,7 @@ impl Unit {
             facing: 2,
             x,
             y,
+            army_max_hp: 0,
             hp: kind.hit_points_at_rank(veteran),
             moves_left: 0,
             state: UnitState::Idle,
@@ -153,7 +157,11 @@ impl Unit {
     }
 
     pub(crate) fn max_hit_points(&self) -> i32 {
-        self.kind.hit_points_at_rank(self.veteran)
+        if self.kind == UnitKind::Army && self.army_max_hp > 0 {
+            self.army_max_hp
+        } else {
+            self.kind.hit_points_at_rank(self.veteran)
+        }
     }
 }
 

@@ -284,8 +284,8 @@ impl Game {
     }
 
     pub(super) fn city_manager_rect() -> Rect {
-        let width = (screen_width() - 48.0).min(920.0);
-        let height = (screen_height() - 80.0).min(640.0);
+        let width = (screen_width() - 32.0).min(1440.0);
+        let height = (screen_height() - 32.0).min(960.0);
         Rect::new(
             (screen_width() - width) * 0.5,
             (screen_height() - height) * 0.5,
@@ -370,6 +370,18 @@ impl Game {
             return;
         }
         let mouse = vec2(mouse_position().0, mouse_position().1);
+
+        if self.music_open
+            && is_mouse_button_down(MouseButton::Left)
+            && let Some(action) = Self::ui_action_at(mouse, buttons)
+            && matches!(
+                action,
+                UiAction::SetMusicVolume(_) | UiAction::SetSfxVolume(_)
+            )
+        {
+            self.perform_action(action);
+            return;
+        }
 
         if let Some(menu) = &mut self.stack_menu {
             let (_, wheel) = mouse_wheel();

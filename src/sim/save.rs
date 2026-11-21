@@ -488,6 +488,7 @@ impl Simulation {
         // Borders follow culture and the map alone. A save written under an
         // earlier border rule (such as size-based territory) would otherwise
         // keep its stale claims, workers and discoveries until a turn ends.
+        game.rebuild_armies();
         game.rebuild_city_ownership();
         game.rebuild_observed_city_index();
         game.refresh_diplomatic_intelligence();

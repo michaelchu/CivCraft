@@ -96,12 +96,29 @@ fn unit_animation_progress(
     }
 }
 
+/// Projection and viewport for the shared world and city-map rendering pipeline.
+#[derive(Clone, Copy)]
+pub(in crate::client) struct WorldMapView {
+    pub viewport: Rect,
+    pub camera: Vec2,
+    pub zoom: f32,
+    pub interactive: bool,
+}
+impl WorldMapView {
+    pub fn project(self, wrap: MapWrap, x: i32, y: i32) -> Vec2 {
+        super::civ3_world_screen_position(wrap, self.viewport, self.camera, self.zoom, x, y)
+    }
+    pub fn tiles(self, wrap: MapWrap) -> Vec<(i32, i32, Vec2)> {
+        visible_world_tiles(wrap, self.viewport, self.camera, self.zoom)
+    }
+}
+
 /// Owns the Civ III world-pass orchestration for one frame.
 ///
 /// The map-layer primitives still live on `Game`; keeping the frame inputs in
 /// this renderer object gives the Civ III pass a concrete boundary while those
 /// primitives are migrated out of the shared world module.
-pub(super) struct Civ3WorldPainter<'a> {
+pub(in crate::client) struct Civ3WorldPainter<'a> {
     game: &'a Game,
     assets: &'a Assets,
 }
@@ -146,13 +163,19 @@ fn contamination_sprite_index(diagonal_neighbors: [bool; 4], variation: usize) -
 }
 
 impl<'a> Civ3WorldPainter<'a> {
-    pub(super) fn new(game: &'a Game, assets: &'a Assets) -> Self {
+    pub(in crate::client) fn new(game: &'a Game, assets: &'a Assets) -> Self {
         Self { game, assets }
     }
 
     pub(super) fn draw(&self) {
         let assets = self.assets;
-        self.draw_ordered_world_passes(assets);
+        let view = WorldMapView {
+            viewport: Game::viewport_rect(),
+            camera: self.game.camera_overview_position(),
+            zoom: self.game.zoom,
+            interactive: true,
+        };
+        self.draw_view(assets, view, || {}, || {});
     }
 
     pub(super) fn draw_map_base(&self, x: i32, y: i32, center: Vec2, width: f32, height: f32) {
@@ -412,9 +435,15 @@ impl<'a> Civ3WorldPainter<'a> {
         }
     }
 
-    fn draw_ordered_world_passes(&self, assets: &Assets) {
+    pub(in crate::client) fn draw_view(
+        &self,
+        assets: &Assets,
+        view: WorldMapView,
+        mut before_borders: impl FnMut(),
+        mut before_cities: impl FnMut(),
+    ) {
         let game = self.game;
-        let viewport = Game::viewport_rect();
+        let viewport = view.viewport;
         draw_rectangle(
             viewport.x,
             viewport.y,
@@ -423,16 +452,11 @@ impl<'a> Civ3WorldPainter<'a> {
             map_view::MAP_UNKNOWN,
         );
 
-        let tile_w = TILE_W * game.zoom;
-        let tile_h = TILE_H * game.zoom;
+        let tile_w = TILE_W * view.zoom;
+        let tile_h = TILE_H * view.zoom;
         // Native rows are already in painter order. Cull before collecting and
         // project each visible tile once for both terrain passes.
-        let order = visible_world_tiles(
-            game.sim.map_wrap(),
-            viewport,
-            game.camera_overview_position(),
-            game.zoom,
-        );
+        let order = visible_world_tiles(game.sim.map_wrap(), viewport, view.camera, view.zoom);
         let mut cities = std::collections::HashMap::new();
         let city_overrides = game.playback.city_overrides();
         let visible_tiles: std::collections::HashSet<_> =
@@ -489,7 +513,7 @@ impl<'a> Civ3WorldPainter<'a> {
                 stacks.insert((unit.x, unit.y), (unit, 1));
             }
         }
-        game.draw_edge_water(assets, viewport, tile_w, tile_h);
+        game.draw_edge_water(assets, view);
         // Draw every tile base first. Tall terrain sprites are a separate
         // layer so later diamond bases cannot cut horizontal bands through
         // forests, hills, and mountains.
@@ -510,7 +534,8 @@ impl<'a> Civ3WorldPainter<'a> {
             }
             self.draw_map_base(x, y, center, tile_w, tile_h);
         }
-        if let TargetingMode::Bombard { precision, .. } = game.targeting
+        if view.interactive
+            && let TargetingMode::Bombard { precision, .. } = game.targeting
             && let Some(unit_id) = game.selected_unit
         {
             let targets = if precision {
@@ -519,7 +544,7 @@ impl<'a> Civ3WorldPainter<'a> {
                 game.sim.bombardable_targets_in_range(unit_id)
             };
             for (x, y) in targets {
-                let center = game.world_screen_position(x, y);
+                let center = view.project(game.sim.map_wrap(), x, y);
                 if center.x < viewport.x - tile_w
                     || center.x > viewport.right() + tile_w
                     || center.y < viewport.y - tile_h
@@ -544,6 +569,12 @@ impl<'a> Civ3WorldPainter<'a> {
             }
         }
         for layer in map_layers::MAP_LAYERS {
+            if layer == map_layers::MapLayer::Grid {
+                before_borders();
+            }
+            if layer == map_layers::MapLayer::City {
+                before_cities();
+            }
             for &(x, y, center) in &order {
                 if !game.sim.render_tile_view(x, y).seen {
                     if layer == map_layers::MapLayer::Grid
@@ -565,7 +596,7 @@ impl<'a> Civ3WorldPainter<'a> {
                 let city = cities.get(&(x, y)).copied();
                 if layer == map_layers::MapLayer::City {
                     if let Some(city) = city {
-                        game.draw_observed_city(assets, city, center, game.zoom);
+                        game.draw_observed_city(assets, city, center, view.zoom);
                     }
                 } else {
                     self.draw_map_layer(
@@ -581,8 +612,7 @@ impl<'a> Civ3WorldPainter<'a> {
         // Blend corners after terrain/cities and before units, labels and focus
         // sprites. Visual water inherits polar-row fog.
         let pointer = ui_pointer();
-        let target_tile = viewport
-            .contains(pointer)
+        let target_tile = (view.interactive && viewport.contains(pointer))
             .then(|| game.screen_to_world(pointer))
             .flatten();
         for &(x, y, center) in &order {
@@ -601,7 +631,7 @@ impl<'a> Civ3WorldPainter<'a> {
         let bottom_corner = Some(bottom);
         for y in game.edge_water_rows().chain(bottom_corner) {
             for x in 0..game.sim.map_wrap().width() {
-                let center = game.world_screen_position(x, y);
+                let center = view.project(game.sim.map_wrap(), x, y);
                 if center.y > viewport.bottom() + tile_h || center.y < viewport.y - tile_h {
                     continue;
                 }
@@ -622,7 +652,7 @@ impl<'a> Civ3WorldPainter<'a> {
             if tile.seen
                 && let Some(city) = cities.get(&(x, y)).copied()
             {
-                game.draw_city_label(city, center);
+                game.draw_city_label_at_zoom(city, center, view.zoom);
             }
         }
         for &(x, y, center) in &order {
@@ -640,7 +670,9 @@ impl<'a> Civ3WorldPainter<'a> {
                             .get(&unit.id)
                             .copied(),
                     );
-                    game.draw_unit(assets, unit, center, *count, action, progress, duration);
+                    game.draw_unit_at_zoom(
+                        assets, unit, center, *count, action, progress, duration, view.zoom,
+                    );
                 }
             }
         }
@@ -662,11 +694,15 @@ impl<'a> Civ3WorldPainter<'a> {
                         .get(&unit.id)
                         .copied(),
                 );
-                game.draw_unit(assets, unit, center, *count, action, progress, duration);
+                game.draw_unit_at_zoom(
+                    assets, unit, center, *count, action, progress, duration, view.zoom,
+                );
             }
         }
-        game.draw_playback(assets);
-        game.draw_goto_preview(assets);
+        game.draw_playback(assets, view);
+        if view.interactive {
+            game.draw_goto_preview(assets);
+        }
     }
 }
 

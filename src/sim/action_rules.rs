@@ -1512,6 +1512,12 @@ impl Simulation {
         target_city: Option<&super::City>,
         city_tile_center_override: Option<((i32, i32), bool)>,
     ) -> Result<bool, ActionEvaluationError> {
+        if actor.kind == UnitKind::Army
+            && matches!(action, "Attack" | "Capture Units" | "Conquer City")
+            && self.unit_attack_strength(actor) <= 0
+        {
+            return Ok(false);
+        }
         if target_unit_override.is_some_and(|unit| (unit.x, unit.y) != target_xy) {
             return Ok(false);
         }

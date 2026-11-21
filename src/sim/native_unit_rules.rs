@@ -59,7 +59,8 @@ fn derive(kind: UnitKind) -> UnitCapabilities {
             rule.attack == 0
                 && rule.defense == 0
                 && rule.bombard_strength == 0
-                && class != UnitClass::Missile,
+                && class != UnitClass::Missile
+                && kind != UnitKind::Army,
         ),
         ("IgTer", rule.has_capability("IgnoreTerrain")),
         ("HasNoZOC", rule.zone_of_control == 0),
@@ -86,7 +87,10 @@ fn derive(kind: UnitKind) -> UnitCapabilities {
         ("ZOC", ground),
         ("CanFortify", rule.has_capability("Fortify")),
         ("CanPillage", ground && rule.attack > 0),
-        ("CanOccupyCity", ground && rule.attack > 0),
+        (
+            "CanOccupyCity",
+            ground && (rule.attack > 0 || kind == UnitKind::Army),
+        ),
         ("BuildAnywhere", ground),
         ("Barracks", ground),
         ("Airliftable", rule.has_capability("Airlift")),
@@ -96,7 +100,10 @@ fn derive(kind: UnitKind) -> UnitCapabilities {
         ("NonNatBombardTgt", ground),
         ("AttackNonNative", rule.unit_type == 1),
         ("AttFromNonNative", rule.unit_type == 1),
-        ("DoesntOccupyTile", aerial || rule.attack == 0),
+        (
+            "DoesntOccupyTile",
+            aerial || (rule.attack == 0 && kind != UnitKind::Army),
+        ),
     ] {
         if enabled {
             class_flags.push(name.to_owned());
@@ -170,6 +177,13 @@ pub(super) fn can_carry(carrier: UnitKind, passenger: UnitKind) -> bool {
     if source.capacity == 0 || carrier == passenger {
         return false;
     }
+    if carrier == UnitKind::Army {
+        return cargo.unit_type == 0
+            && cargo.attack > 0
+            && cargo.defense > 0
+            && cargo.capacity == 0
+            && !passenger.is_nuclear_weapon();
+    }
     if source.has_capability("CarryIcbm") {
         return cargo.has_capability("Icbm");
     }
@@ -179,5 +193,5 @@ pub(super) fn can_carry(carrier: UnitKind, passenger: UnitKind) -> bool {
     if source.has_capability("CarryFootOnly") && !cargo.has_capability("Foot") {
         return false;
     }
-    cargo.unit_type == 0 && !cargo.has_capability("Army")
+    cargo.unit_type == 0
 }

@@ -548,6 +548,13 @@ impl Simulation {
 }
 
 #[cfg(feature = "desktop")]
+pub(crate) struct CityFaithShare {
+    pub(crate) name: String,
+    pub(crate) percent: i32,
+    pub(crate) dominant: bool,
+}
+
+#[cfg(feature = "desktop")]
 pub(crate) struct ReligionManagementView {
     pub(crate) cities: Vec<(u32, String)>,
     pub(crate) founding: Vec<FoundingOption>,
@@ -557,6 +564,35 @@ pub(crate) struct ReligionManagementView {
 }
 #[cfg(feature = "desktop")]
 impl Simulation {
+    /// Local influence shares, visible only for the human player's own cities.
+    pub(crate) fn city_faith_shares(&self, city: u32) -> Vec<CityFaithShare> {
+        if self.city_by_id(city).is_none_or(|c| c.owner != HUMAN) {
+            return Vec::new();
+        }
+        let state = self.religion.cities.get(&city);
+        let total =
+            rules().unaligned_weight + state.map_or(0, |s| s.influence.values().sum::<i32>());
+        let mut shares = Vec::new();
+        let mut used = 0;
+        if let Some(state) = state {
+            for (&id, &influence) in &state.influence {
+                let percent = influence * 100 / total;
+                used += percent;
+                shares.push(CityFaithShare {
+                    name: self.religion_name(id).to_owned(),
+                    percent,
+                    dominant: state.dominant == Some(id),
+                });
+            }
+        }
+        shares.push(CityFaithShare {
+            name: "Unaligned".into(),
+            percent: 100 - used,
+            dominant: false,
+        });
+        shares
+    }
+
     pub(crate) fn religion_management_view(&self) -> ReligionManagementView {
         let n = self.national_faith(HUMAN);
         let eligible = self.eligible_faiths(HUMAN);

@@ -321,7 +321,8 @@ impl UnitKind {
             .into_iter()
             .filter(|kind| {
                 let class = kind.unit_class();
-                !kind.is_civilian()
+                *kind != Self::Army
+                    && !kind.is_civilian()
                     && !kind.is_missile()
                     && kind.fuel_capacity() == 0
                     && kind.transport_capacity() < 8
@@ -447,7 +448,7 @@ impl UnitKind {
     }
 
     pub(crate) fn is_military(self) -> bool {
-        self.attack_strength() > 0
+        self == Self::Army || self.attack_strength() > 0
     }
 
     /// Strength consumed by the retained combat-action engine. Ordinary attacks

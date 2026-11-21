@@ -31,8 +31,22 @@ city's current improvement or wonder. This is not a Freeciv mechanic, and the
 Leader is not a `GameLoss` unit. The design is in
 [`docs/superpowers/specs/2026-11-17-great-leader-design.md`](docs/superpowers/specs/2026-11-17-great-leader-design.md);
 the odds are community-documented for Civ III patch 1.29f and live in
-`data/rulesets/civcraft/content/settlements.toml`. Keep other mechanics on the
-Freeciv authority above.
+`data/rulesets/civcraft/content/settlements.toml`. On 2026-11-20 the owner also
+authorized consuming a Great Leader in an owned city to form an Army, with one
+Army per four owned cities. Armies cannot be produced or queued by cities,
+including cities with a Military Academy, as an explicit owner preference.
+The Pentagon requires three living owned Armies; it has no artificial era gate.
+Army combat uses loaded land combat troops, a combined hitpoint pool, and
+member-specific attack/defense through the existing combat modifiers. Loaded
+members stay in formation; defeat destroys the whole Army. The Pentagon adds
+a fourth slot to its owner's Armies. The slowest member plus one sets movement;
+healing, bombardment, presentation and saves preserve the member health pool.
+Combat playback shows each selected member's own sprite, health and ordinary
+battle clips/sounds. The carrier remains the map anchor; victory plays only
+when the complete battle ends.
+Keep the existing AI preference for rushing buildings. Validate with
+`leader-army`, `army-combat`, `great-leader`, and the source-adjacent Army tests. Keep other
+mechanics on the Freeciv authority above.
 
 ### Recorded exception: core culture (Civ III Conquests)
 

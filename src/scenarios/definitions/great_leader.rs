@@ -52,3 +52,163 @@ fn execute(game: &mut Simulation, checks: &mut Checks) {
         ),
     ]);
 }
+
+pub(super) const ARMY: Scenario = Scenario::new(
+    "leader-army",
+    1,
+    ScenarioKind::Actions {
+        control: Control::Human,
+        execute: army_formation,
+    },
+);
+
+fn army_formation(game: &mut Simulation, checks: &mut Checks) {
+    use crate::sim::{Command, HUMAN};
+    let mut world = WorldBuilder::new(game);
+    world.grassland_campaign(false);
+    let mut cities = Vec::new();
+    for index in 0..12 {
+        cities.push(world.founding_city(HUMAN, (8 + (index % 6) * 4, 12 + (index / 6) * 6)));
+    }
+    world.finish();
+    let city_id = cities[0];
+    let initially_blocked = !game.can_produce(
+        game.city_by_id(city_id).unwrap(),
+        Production::Building(Building::PENTAGON),
+    );
+    let army_unbuildable = !game.apply(Command::Produce(city_id, Production::Unit(UnitKind::Army)));
+    let mut formed = true;
+    let mut leaders_consumed = true;
+    for _ in 0..3 {
+        let leader = WorldBuilder::new(game).unit(HUMAN, UnitKind::Leader, (8, 12));
+        formed &= game.apply(Command::FormArmy(leader));
+        leaders_consumed &= game.unit_by_id(leader).is_none();
+    }
+    let armies = game
+        .units()
+        .iter()
+        .filter(|unit| unit.owner == HUMAN && unit.kind == UnitKind::Army)
+        .count();
+    let pentagon_unlocked = game.can_produce(
+        game.city_by_id(city_id).unwrap(),
+        Production::Building(Building::PENTAGON),
+    );
+    let extra = WorldBuilder::new(game).unit(HUMAN, UnitKind::Leader, (8, 12));
+    let capacity_enforced =
+        !game.apply(Command::FormArmy(extra)) && game.unit_by_id(extra).is_some();
+    checks.extend([
+        (
+            "army_not_city_production",
+            army_unbuildable,
+            "Armies cannot be chosen as ordinary city production".into(),
+        ),
+        (
+            "leaders_form_armies",
+            formed && armies == 3,
+            "Three Leaders form three Armies through the player command".into(),
+        ),
+        (
+            "leaders_consumed",
+            leaders_consumed,
+            "Each successful formation consumes exactly its Leader".into(),
+        ),
+        (
+            "army_city_limit",
+            capacity_enforced,
+            "Twelve cities support three Armies; a fourth Leader is retained on rejection".into(),
+        ),
+        (
+            "pentagon_requires_armies",
+            initially_blocked && pentagon_unlocked,
+            "The Pentagon unlocks only after three owned Armies exist".into(),
+        ),
+    ]);
+}
+
+pub(super) const ARMY_COMBAT: Scenario = Scenario::new(
+    "army-combat",
+    1,
+    ScenarioKind::Actions {
+        control: Control::Human,
+        execute: army_combat,
+    },
+);
+
+fn army_combat(game: &mut Simulation, checks: &mut Checks) {
+    use crate::sim::{Command, HUMAN, Pact};
+    let origin = (10, 24);
+    let target = game.map_wrap.civ3_neighbor(origin.0, origin.1, 2).unwrap();
+    let mut world = WorldBuilder::new(game);
+    world.grassland_campaign(false);
+    let home = world.founding_city(HUMAN, origin);
+    let enemy_city = world.city(1, target, 3);
+    world.founding_city(1, (24, 24));
+    let army = world.unit(HUMAN, UnitKind::Army, origin);
+    let members: Vec<_> = (0..4)
+        .map(|_| world.unit(HUMAN, UnitKind::ModernArmor, origin))
+        .collect();
+    let defender = world.unit(1, UnitKind::Warrior, target);
+    world.finish();
+    game.sign_pact(HUMAN, 1, Pact::War);
+    let mut loaded = true;
+    for &member in &members[..3] {
+        loaded &= game.apply(Command::BoardOrDeboard(member));
+    }
+    let fourth_blocked = !game.apply(Command::BoardOrDeboard(members[3]));
+    WorldBuilder::new(game).culture_building(home, Building::PENTAGON);
+    let fourth_loaded = game.apply(Command::BoardOrDeboard(members[3]));
+    let max_hp: i32 = members
+        .iter()
+        .map(|&id| game.unit_by_id(id).unwrap().max_hit_points())
+        .sum();
+    let combined_health = game.unit_by_id(army).unwrap().hp == max_hp
+        && game.unit_by_id(army).unwrap().max_hit_points() == max_hp;
+    let retained = !game.apply(Command::BoardOrDeboard(members[0]));
+    let attacked = game.apply(Command::MoveCiv3(army, 2));
+    let won =
+        game.unit_by_id(defender).is_none() && game.city_by_id(enemy_city).unwrap().owner == HUMAN;
+    let cohesive = game.unit_by_id(army).is_some_and(|army| {
+        army.hp
+            == members
+                .iter()
+                .filter_map(|&id| game.unit_by_id(id))
+                .map(|u| u.hp)
+                .sum::<i32>()
+            && members.iter().all(|&id| {
+                game.unit_by_id(id)
+                    .is_some_and(|u| (u.x, u.y) == target && u.transport == Some(army.id))
+            })
+    });
+    checks.extend([
+        (
+            "army_loads_three",
+            loaded && fourth_blocked,
+            "Three troops load; a fourth is blocked without the Pentagon".into(),
+        ),
+        (
+            "pentagon_fourth_member",
+            fourth_loaded && game.cargo_count(army) == 4,
+            "The owner's Pentagon enables the fourth member".into(),
+        ),
+        (
+            "combined_army_health",
+            combined_health,
+            "Army HP and maximum HP combine the four members".into(),
+        ),
+        (
+            "army_members_stay_formed",
+            retained,
+            "Loaded members cannot leave or act independently".into(),
+        ),
+        (
+            "army_wins_and_captures",
+            attacked && won,
+            "A player movement command resolves Army combat and captures the defended city".into(),
+        ),
+        (
+            "army_damage_and_movement",
+            cohesive,
+            "Members retain damage and follow the Army into the captured tile".into(),
+        ),
+    ]);
+}

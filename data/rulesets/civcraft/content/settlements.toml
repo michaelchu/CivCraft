@@ -44,6 +44,8 @@ ferry_tech_want = 500
 # Civ III Great Leader creation odds: 1 in N per eligible elite kill. Values
 # are from the community guide for patch 1.29f; Heroic Epic improves them.
 [great_leader]
+# One living Army per four owned cities; formation consumes a Great Leader.
+cities_per_army = 4
 attack_denominator = 16
 attack_heroic_epic_denominator = 12
 defense_denominator = 32

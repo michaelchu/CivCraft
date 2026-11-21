@@ -18,10 +18,61 @@ fn controls_row_rect(button_start: f32, width: f32) -> Rect {
     )
 }
 
-/// Left edge of the floating button row: five buttons, plus one while a
+fn draw_volume_slider(
+    panel: Rect,
+    row_y: f32,
+    value: u8,
+    make_action: fn(u8) -> UiAction,
+    actions: &mut Vec<(Rect, UiAction)>,
+) {
+    let track_left = panel.x + 119.0;
+    let track_right = panel.right() - 12.0;
+    let step = (track_right - track_left) / 10.0;
+    let track_y = row_y + 11.0;
+    let color = Color::from_rgba(241, 238, 218, 255);
+
+    draw_text(
+        format!("{value}%"),
+        panel.x + 81.0,
+        row_y + 18.0,
+        13.0,
+        WHITE,
+    );
+    draw_rectangle(
+        track_left,
+        track_y,
+        track_right - track_left,
+        4.0,
+        Color::from_rgba(28, 32, 28, 255),
+    );
+    draw_rectangle(
+        track_left,
+        track_y,
+        (track_right - track_left) * f32::from(value.min(100)) / 100.0,
+        4.0,
+        Color::from_rgba(171, 133, 55, 255),
+    );
+    for tick in 0..=10 {
+        let x = track_left + step * tick as f32;
+        draw_line(
+            x,
+            row_y + 8.0,
+            x,
+            row_y + 18.0,
+            1.0,
+            Color::from_rgba(90, 98, 88, 255),
+        );
+        let hit = Rect::new(x - step * 0.5, row_y, step, 26.0);
+        actions.push((hit, make_action(tick as u8 * 10)));
+    }
+    let handle_x = track_left + step * f32::from(value.min(100) / 10);
+    draw_rectangle(handle_x - 5.0, row_y + 3.0, 10.0, 20.0, color);
+}
+
+/// Left edge of the floating button row: six buttons, plus one while a
 /// spaceship status is shown, right-aligned to the HUD margin.
 pub(super) fn controls_start_x(screen_width: f32, has_spaceship: bool) -> f32 {
-    let count = 5 + usize::from(has_spaceship);
+    let count = 6 + usize::from(has_spaceship);
     screen_width - HUD_MARGIN - count as f32 * 42.0 + 4.0
 }
 
@@ -40,7 +91,7 @@ impl Game {
             return;
         };
         let status = view.spaceship_status;
-        let button_count = 5 + usize::from(status.is_some());
+        let button_count = 6 + usize::from(status.is_some());
         let button_width = 38.0;
         let step = button_width + 4.0;
         let button_start = controls_start_x(width, status.is_some());
@@ -56,6 +107,13 @@ impl Game {
                 HudIcon::Government,
                 UiAction::ToggleGovernment,
                 "Government".to_owned(),
+                true,
+                false,
+            ),
+            (
+                HudIcon::Religion,
+                UiAction::ToggleReligion,
+                "Religion".to_owned(),
                 true,
                 false,
             ),
@@ -135,7 +193,7 @@ impl Game {
         }
 
         if self.music_open {
-            let panel = Rect::new(width - HUD_MARGIN - 190.0, CONTROLS_H + 4.0, 190.0, 132.0);
+            let panel = Rect::new(width - HUD_MARGIN - 250.0, CONTROLS_H + 4.0, 250.0, 132.0);
             draw_hud_card(panel);
             // The panel blocks clicks through to the map, while its controls
             // are added afterward so they remain clickable.
@@ -151,25 +209,13 @@ impl Game {
             );
             actions.push((mute, UiAction::ToggleMusicMute));
 
-            let down = Rect::new(panel.x + 83.0, panel.y + 25.0, 28.0, 30.0);
-            draw_ui_button(down, "−", self.music_volume > 0, false);
-            if self.music_volume > 0 {
-                actions.push((down, UiAction::AdjustMusicVolume(-1)));
-            }
-            let volume = format!("{}%", self.music_volume);
-            let volume_width = measure_text(&volume, None, 13, 1.0).width;
-            draw_text(
-                &volume,
-                panel.x + 117.0 - volume_width * 0.5,
-                panel.y + 44.0,
-                13.0,
-                WHITE,
+            draw_volume_slider(
+                panel,
+                panel.y + 25.0,
+                self.music_volume,
+                UiAction::SetMusicVolume,
+                actions,
             );
-            let up = Rect::new(panel.x + 133.0, panel.y + 25.0, 28.0, 30.0);
-            draw_ui_button(up, "+", self.music_volume < 100, false);
-            if self.music_volume < 100 {
-                actions.push((up, UiAction::AdjustMusicVolume(1)));
-            }
 
             draw_text("Sound effects", panel.x + 10.0, panel.y + 77.0, 14.0, GOLD);
             let sfx_mute = Rect::new(panel.x + 9.0, panel.y + 84.0, 66.0, 30.0);
@@ -180,25 +226,13 @@ impl Game {
                 false,
             );
             actions.push((sfx_mute, UiAction::ToggleSfxMute));
-            let sfx_down = Rect::new(panel.x + 83.0, panel.y + 84.0, 28.0, 30.0);
-            draw_ui_button(sfx_down, "−", self.sfx_volume > 0, false);
-            if self.sfx_volume > 0 {
-                actions.push((sfx_down, UiAction::AdjustSfxVolume(-1)));
-            }
-            let sfx_volume = format!("{}%", self.sfx_volume);
-            let sfx_width = measure_text(&sfx_volume, None, 13, 1.0).width;
-            draw_text(
-                &sfx_volume,
-                panel.x + 117.0 - sfx_width * 0.5,
-                panel.y + 103.0,
-                13.0,
-                WHITE,
+            draw_volume_slider(
+                panel,
+                panel.y + 84.0,
+                self.sfx_volume,
+                UiAction::SetSfxVolume,
+                actions,
             );
-            let sfx_up = Rect::new(panel.x + 133.0, panel.y + 84.0, 28.0, 30.0);
-            draw_ui_button(sfx_up, "+", self.sfx_volume < 100, false);
-            if self.sfx_volume < 100 {
-                actions.push((sfx_up, UiAction::AdjustSfxVolume(1)));
-            }
         }
         if let Some((button, label)) = tooltip {
             let width = measure_text(&label, None, 15, 1.0).width + 16.0;
@@ -222,7 +256,7 @@ mod tests {
     fn controls_start_x_ends_at_the_margin_and_a_spaceship_button_widens_the_row() {
         let step = 42.0;
         let plain = controls_start_x(1280.0, false);
-        assert_eq!(plain + 5.0 * step - 4.0, 1280.0 - HUD_MARGIN);
+        assert_eq!(plain + 6.0 * step - 4.0, 1280.0 - HUD_MARGIN);
         assert_eq!(controls_start_x(1280.0, true), plain - step);
     }
 

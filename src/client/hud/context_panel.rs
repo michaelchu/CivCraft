@@ -80,30 +80,31 @@ impl Game {
             let muted = Color::from_rgba(181, 190, 174, 255);
             let status_color = Color::from_rgba(188, 219, 175, 255);
             let inline_status = unit_status_inline(&view, card.w);
-            let state = if self.selected_units.len() > 1 {
-                format!(
-                    "{} selected · actions for active",
-                    self.selected_units.len()
-                )
+            let is_unit_stack = self.selected_units.len() > 1;
+            let state = if is_unit_stack {
+                format!("{} selected", self.selected_units.len())
             } else {
                 view.status.clone()
             };
             let state_width = measure_text(&state, None, 12, 1.0).width;
-            let inline_status = if self.selected_units.len() > 1 {
-                let name_width = measure_text(view.kind.name(), None, 14, 1.0).width;
-                identity_x + name_width + state_width + 8.0 <= right
-            } else {
-                inline_status
-            };
+            let inline_status = if is_unit_stack { true } else { inline_status };
             let title_y = card.y + 20.0;
+            let title_width = if is_unit_stack {
+                right - identity_x - state_width - 8.0
+            } else {
+                right - identity_x
+            };
             text_in(
                 view.kind.name(),
                 identity_x,
                 title_y,
                 14.0,
-                right - identity_x,
+                title_width,
                 Color::from_rgba(244, 221, 147, 255),
             );
+            if is_unit_stack {
+                draw_text(&state, right - state_width, title_y, 12.0, status_color);
+            }
             text_in(
                 &format!("{} · {}", view.owner_name, view.terrain_name,),
                 identity_x,
@@ -112,10 +113,12 @@ impl Game {
                 right - identity_x,
                 muted,
             );
-            if inline_status {
-                draw_text(&state, right - state_width, title_y, 12.0, status_color);
-            } else {
-                text_in(&state, x, title_y + 29.0, 12.0, width, status_color);
+            if !is_unit_stack {
+                if inline_status {
+                    draw_text(&state, right - state_width, title_y, 12.0, status_color);
+                } else {
+                    text_in(&state, x, title_y + 29.0, 12.0, width, status_color);
+                }
             }
 
             self.draw_info_block(card, card.y + unit_info_top(inline_status));

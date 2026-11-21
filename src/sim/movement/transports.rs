@@ -45,10 +45,14 @@ impl Simulation {
             && passenger.id != ship.id
             && !self.transport_would_create_cycle(passenger.id, ship.id)
             && self.allied(passenger.owner, ship.owner)
+            && (ship.kind != UnitKind::Army
+                || (passenger.owner == ship.owner && ship.transport.is_none()))
             && self.ruleset_transport_pair_allowed_fail_closed(ship.kind, passenger.kind)
             && (ship.kind != UnitKind::Helicopter
                 || self.helicopter_embark_access(passenger, ship.x, ship.y))
-            && self.ruleset_transport_has_space_fail_closed(ship.kind, self.cargo_count(ship.id))
+            && (self.ruleset_transport_has_space_fail_closed(ship.kind, self.cargo_count(ship.id))
+                || (ship.kind == UnitKind::Army
+                    && self.cargo_count(ship.id) < self.unit_transport_capacity(ship)))
     }
 
     pub(in crate::sim) fn board_specific_ship(&mut self, unit_id: u32, ship_id: u32) -> bool {
@@ -128,8 +132,13 @@ impl Simulation {
                 .iter()
                 .find(|unit| unit.id == id)
                 .is_some_and(|carrier| {
-                    carrier.kind != UnitKind::Helicopter
-                        || self.helicopter_disembark_access(passenger, passenger.x, passenger.y)
+                    carrier.kind != UnitKind::Army
+                        && (carrier.kind != UnitKind::Helicopter
+                            || self.helicopter_disembark_access(
+                                passenger,
+                                passenger.x,
+                                passenger.y,
+                            ))
                 })
         })
     }
@@ -224,6 +233,12 @@ impl Simulation {
         } else {
             self.release_ai_ferry(unit.id);
         }
+        if let Some(army) = carrier.filter(|id| {
+            self.unit_by_id(*id)
+                .is_some_and(|u| u.kind == UnitKind::Army)
+        }) {
+            self.rebuild_army(army);
+        }
         self.reconcile_city_workers();
     }
 
@@ -285,6 +300,7 @@ impl Simulation {
         for lost in losses {
             self.discard_unit_ai(lost);
         }
+        self.rebuild_armies();
     }
 
     fn rescue_transport_cargo(
@@ -294,6 +310,12 @@ impl Simulation {
         helpless: bool,
         losses: &[u32],
     ) -> bool {
+        if self
+            .unit_by_id(lost)
+            .is_some_and(|carrier| carrier.kind == UnitKind::Army)
+        {
+            return false;
+        }
         let tile = (passenger.x, passenger.y);
         let can_survive = !helpless
             && (passenger.kind.is_aircraft() || !self.tile(tile.0, tile.1).terrain.is_water());

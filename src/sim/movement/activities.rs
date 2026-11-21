@@ -165,6 +165,11 @@ impl Simulation {
         let Some(unit) = self.unit_by_id(id) else {
             return;
         };
+        if self.is_army_member(unit) {
+            return;
+        }
+        let army = unit.kind == UnitKind::Army;
+        let old_hp = unit.hp;
         let hp = unit.hp + self.unit_hitpoint_gain_at(unit, unit.x, unit.y);
         let unit = self.units.iter_mut().find(|unit| unit.id == id).unwrap();
         unit.hp = hp;
@@ -172,6 +177,9 @@ impl Simulation {
         unit.defensive_bombarded = false;
         unit.air_superiority_shot = false;
         unit.paradropped = false;
+        if army {
+            self.heal_army_members(id, (hp - old_hp).max(0));
+        }
         if hp <= 0 {
             self.remove_units_with_cargo_because(vec![id], lifecycle::UnitRemoval::Attrition);
         }

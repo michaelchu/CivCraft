@@ -30,9 +30,9 @@ impl Game {
                 action,
                 UiAction::ToggleMusicPanel
                     | UiAction::ToggleMusicMute
-                    | UiAction::AdjustMusicVolume(_)
+                    | UiAction::SetMusicVolume(_)
                     | UiAction::ToggleSfxMute
-                    | UiAction::AdjustSfxVolume(_)
+                    | UiAction::SetSfxVolume(_)
             ))
             || self.pending_city_view.is_some()
         {
@@ -44,9 +44,9 @@ impl Game {
                 UiAction::EndTurn
                     | UiAction::ToggleMusicPanel
                     | UiAction::ToggleMusicMute
-                    | UiAction::AdjustMusicVolume(_)
+                    | UiAction::SetMusicVolume(_)
                     | UiAction::ToggleSfxMute
-                    | UiAction::AdjustSfxVolume(_)
+                    | UiAction::SetSfxVolume(_)
             )
         {
             return;
@@ -56,21 +56,11 @@ impl Game {
             UiAction::DismissIntro => self.overlay.close(Overlay::Intro),
             UiAction::ToggleMusicPanel => self.music_open = !self.music_open,
             UiAction::ToggleMusicMute => self.music_muted = !self.music_muted,
-            UiAction::AdjustMusicVolume(delta) => {
-                self.music_volume =
-                    (i16::from(self.music_volume) + i16::from(delta) * 10).clamp(0, 100) as u8;
-            }
+            UiAction::SetMusicVolume(volume) => self.music_volume = volume.min(100),
             UiAction::ToggleSfxMute => self.sfx_muted = !self.sfx_muted,
-            UiAction::AdjustSfxVolume(delta) => {
-                self.sfx_volume =
-                    (i16::from(self.sfx_volume) + i16::from(delta) * 10).clamp(0, 100) as u8;
-            }
+            UiAction::SetSfxVolume(volume) => self.sfx_volume = volume.min(100),
             UiAction::SetRates(rates) => {
                 self.sim.apply(Command::SetRates(rates));
-            }
-            UiAction::CityTiles => {
-                self.city_tiles = !self.city_tiles;
-                self.city_governor_page = false;
             }
             UiAction::CityGovernorPage => {
                 self.city_governor_page = !self.city_governor_page;
@@ -114,6 +104,13 @@ impl Game {
                         target,
                         price,
                     });
+                }
+            }
+            UiAction::FormArmy => {
+                if let Some(id) = self.selected_unit
+                    && self.sim.apply(Command::FormArmy(id))
+                {
+                    self.select_next_unit();
                 }
             }
             UiAction::CompleteProduction(city) => {
@@ -330,8 +327,10 @@ impl Game {
                 }
             }
             UiAction::Fortify => {
-                if let Some(id) = self.selected_unit {
-                    self.sim.apply(Command::Fortify(id));
+                if let Some(id) = self.selected_unit
+                    && self.sim.apply(Command::Fortify(id))
+                {
+                    self.select_next_unit();
                 }
             }
             UiAction::Wait => {
@@ -354,6 +353,7 @@ impl Game {
                 }
             }
             UiAction::ActionPage(page) => self.action_page = page,
+            UiAction::CityBuildingsPage(page) => self.city_buildings_page = page,
             UiAction::ProductionPage(page) => self.production_page = page,
             UiAction::UnitProductionPage(page) => self.unit_production_page = page,
             UiAction::WorklistPage(page) => self.worklist_page = page,

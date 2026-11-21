@@ -70,15 +70,62 @@ impl Game {
         panel: Rect,
         actions: &mut Vec<(Rect, UiAction)>,
     ) {
-        draw_text("WORKED TILES", panel.x + 22.0, panel.y + 187.0, 18.0, WHITE);
-        let bounds = Rect::new(
-            panel.x + 22.0,
-            panel.y + 201.0,
-            panel.w - 44.0,
-            panel.h - 245.0,
-        );
+        let bounds = panel;
         let layout = CityMapLayout::new(bounds);
-        self.draw_city_map(assets, city, &layout);
+        let scale = screen_dpi_scale();
+        unsafe {
+            get_internal_gl().quad_gl.scissor(Some((
+                (bounds.x * scale) as i32,
+                (bounds.y * scale) as i32,
+                (bounds.w * scale) as i32,
+                (bounds.h * scale) as i32,
+            )));
+        }
+        let view = world::WorldMapView {
+            viewport: Rect::new(bounds.x, bounds.y + 8.0, bounds.w, bounds.h),
+            camera: vec2((2 * city.x + city.y.rem_euclid(2)) as f32, city.y as f32),
+            zoom: layout.tile_w / TILE_W,
+            interactive: false,
+        };
+        let tiles = view.tiles(self.sim.map_wrap());
+        world::Civ3WorldPainter::new(self, assets).draw_view(
+            assets,
+            view,
+            || {
+                // Cover the entire terrain underlay, including the fog fringe.
+                // Fog masks this optional city-ownership emphasis afterward.
+                for &(x, y, center) in &tiles {
+                    if self.sim.territory_geometry_owner_view(x, y) != Some(city.owner) {
+                        draw_diamond(
+                            center,
+                            layout.tile_w,
+                            layout.tile_h,
+                            Color::from_rgba(5, 15, 24, 75),
+                        );
+                    }
+                }
+            },
+            || self.draw_city_work_overlays(city, &layout, actions),
+        );
+        unsafe {
+            get_internal_gl().quad_gl.scissor(None);
+        }
+        draw_rectangle_lines(
+            bounds.x,
+            bounds.y,
+            bounds.w,
+            bounds.h,
+            1.0,
+            Color::from_rgba(105, 102, 86, 255),
+        );
+    }
+
+    fn draw_city_work_overlays(
+        &self,
+        city: &CityManagerView,
+        layout: &CityMapLayout,
+        actions: &mut Vec<(Rect, UiAction)>,
+    ) {
         let mouse = ui_pointer();
         let mut outlined_tiles = Vec::new();
         for tile in &city.map_tiles {
@@ -90,23 +137,14 @@ impl Game {
             let rect = layout.tile_rect(tile.dx, tile.dy);
             let center = layout.center(tile.dx, tile.dy);
             let hovered = tile.can_assign && tile_hit(rect, mouse);
-            if !worked && !is_city {
-                draw_diamond(
-                    center,
-                    layout.tile_w - 2.0,
-                    layout.tile_h - 2.0,
-                    Color::from_rgba(5, 15, 24, 100),
-                );
-            }
             if worked || is_city || hovered {
                 outlined_tiles.push((tile.dx, tile.dy, hovered));
             }
-            let label = if is_city {
-                "City".to_owned()
-            } else {
-                let (food, shields, trade) = tile.yields;
-                format!("{food}/{shields}/{trade}")
-            };
+            if is_city {
+                continue;
+            }
+            let (food, shields, trade) = tile.yields;
+            let label = format!("{food}/{shields}/{trade}");
             let size = if layout.tile_w < 95.0 { 12.0 } else { 14.0 };
             let measured = measure_text(&label, None, size as u16, 1.0);
             let label_y = center.y + layout.tile_h * 0.22;
@@ -138,28 +176,11 @@ impl Game {
                 actions.push((rect, UiAction::WorkCityTile(city.id, tile.x, tile.y)));
             }
         }
-        // Draw after dimming all unworked tiles so shared edges keep one color
-        // and thickness rather than accumulating two inset diamond outlines.
+        // Share worked-tile edges so the yellow outline has one consistent width.
         for (((ax, ay), (bx, by)), hovered) in city_tile_edges(outlined_tiles) {
             let (a, b) = (layout.center(ax, ay), layout.center(bx, by));
             draw_line(a.x, a.y, b.x, b.y, 2.0, if hovered { WHITE } else { GOLD });
         }
-        draw_rectangle_lines(
-            bounds.x,
-            bounds.y,
-            bounds.w,
-            bounds.h,
-            1.0,
-            Color::from_rgba(105, 102, 86, 255),
-        );
-        text_in(
-            "Food / shields / trade · Gold: worked · Click a tile to assign a citizen",
-            panel.x + 22.0,
-            panel.bottom() - 17.0,
-            14.0,
-            panel.w - 44.0,
-            LIGHTGRAY,
-        );
     }
 }
 
@@ -188,15 +209,19 @@ mod tests {
         let zoom = layout.tile_w / TILE_W;
         for (cx, cy) in [(0, 0), (0, 21), (79, 20), (79, 79)] {
             let camera = vec2((2 * cx + cy % 2) as f32, cy as f32);
-            let project =
-                |x, y| world::civ3_world_screen_position(wrap, bounds, camera, zoom, x, y);
+            let view = world::WorldMapView {
+                viewport: Rect::new(bounds.x, bounds.y + 8.0, bounds.w, bounds.h),
+                camera,
+                zoom,
+                interactive: false,
+            };
             let tiles: Vec<_> = wrap.city_radius(cx, cy).collect();
             let actions: Vec<_> = tiles
                 .iter()
                 .map(|&(dx, dy, x, y)| (layout.tile_rect(dx, dy), UiAction::WorkCityTile(1, x, y)))
                 .collect();
             for (dx, dy, x, y) in tiles {
-                let expected = layout.center(0, 0) + (project(x, y) - project(cx, cy));
+                let expected = view.project(wrap, x, y);
                 assert!(layout.center(dx, dy).distance(expected) < 0.001);
                 assert!(matches!(Game::ui_action_at(expected, &actions),
                     Some(UiAction::WorkCityTile(1, tx, ty)) if (tx, ty) == (x, y)));

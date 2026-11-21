@@ -153,6 +153,7 @@ pub(crate) struct UnitActionView {
     pub(crate) air_superiority: bool,
     pub(crate) has_order: bool,
     pub(crate) capture_units: bool,
+    pub(crate) form_army: bool,
     pub(crate) cities: Vec<UnitCityActionView>,
     pub(crate) nuclear_weapon: bool,
     pub(crate) nuclear_strike: bool,
@@ -289,6 +290,7 @@ pub(crate) struct CombatPresentationView {
     pub(crate) attacker: RenderedUnitView,
     pub(crate) defender: RenderedUnitView,
     pub(crate) hp: Vec<(i32, i32)>,
+    pub(crate) battle_ended: bool,
     pub(crate) city: Option<RenderedCityView>,
     pub(crate) bombard_effects: bool,
     /// Client may replace these defaults with the resolved source clip timings.
@@ -332,8 +334,10 @@ pub(crate) struct CityManagerView {
     pub(crate) y: i32,
     pub(crate) civilization_id: Option<String>,
     pub(crate) era_index: usize,
-    pub(crate) city_sprite: RenderedCityView,
     pub(crate) size: i32,
+    pub(crate) culture: i64,
+    pub(crate) culture_per_turn: i64,
+    pub(crate) next_border_threshold: Option<i64>,
     pub(crate) food: i32,
     pub(crate) shields: i32,
     pub(crate) production_name: String,
@@ -351,14 +355,11 @@ pub(crate) struct CityManagerView {
     pub(crate) disorder: bool,
     pub(crate) growth_box: i32,
     pub(crate) growth_limited: bool,
-    pub(crate) support_food: i32,
-    pub(crate) support_shields: i32,
-    pub(crate) support_gold: i32,
     pub(crate) rush_cost: Option<i32>,
     pub(crate) treasury: i32,
+    pub(crate) luxuries: Vec<(Resource, &'static str)>,
     pub(crate) buildings: Vec<BuildingProductionView>,
     pub(crate) units: Vec<UnitProductionView>,
-    pub(crate) garrison: Vec<GarrisonUnitView>,
     pub(crate) map_tiles: Vec<CityMapTileView>,
 }
 
@@ -434,11 +435,6 @@ pub(crate) struct UnitProductionView {
     pub(crate) current: bool,
     pub(crate) can_change: bool,
     pub(crate) can_queue: bool,
-}
-
-pub(crate) struct GarrisonUnitView {
-    pub(crate) id: u32,
-    pub(crate) kind: UnitKind,
 }
 
 pub(crate) struct CityMapTileView {

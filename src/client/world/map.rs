@@ -54,17 +54,14 @@ impl Game {
         self.fog_knowledge(x, y)
     }
 
-    pub(super) fn draw_edge_water(
-        &self,
-        assets: &Assets,
-        viewport: Rect,
-        tile_w: f32,
-        tile_h: f32,
-    ) {
+    pub(super) fn draw_edge_water(&self, assets: &Assets, view: super::civ3::WorldMapView) {
+        let viewport = view.viewport;
+        let tile_w = TILE_W * view.zoom;
+        let tile_h = TILE_H * view.zoom;
         let width = self.sim.map_wrap().width();
         for y in self.edge_water_rows() {
             for x in 0..width {
-                let center = self.world_screen_position(x, y);
+                let center = view.project(self.sim.map_wrap(), x, y);
                 if center.x < viewport.x - tile_w
                     || center.x > viewport.right() + tile_w
                     || center.y < viewport.y - tile_h

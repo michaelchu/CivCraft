@@ -138,6 +138,9 @@ impl Simulation {
         let Some(unit) = self.unit_by_id(id).cloned() else {
             return;
         };
+        if unit.kind == UnitKind::Army {
+            return;
+        }
         let system = selected_veteran_system(unit.kind);
         let Some(level) = system.level(unit.c2c3_veteran) else {
             return;

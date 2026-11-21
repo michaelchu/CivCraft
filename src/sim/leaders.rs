@@ -11,6 +11,68 @@ struct LeaderPaths {
 }
 
 impl Simulation {
+    /// A combat-earned Great Leader can form an Army in an owned city,
+    /// provided the empire can support another one (one Army per four cities).
+    pub(crate) fn can_form_army(&self, unit: &Unit) -> bool {
+        unit.kind == UnitKind::Leader
+            && unit.moves_left > 0
+            && unit.transport.is_none()
+            && self
+                .cities
+                .iter()
+                .any(|city| city.owner == unit.owner && (city.x, city.y) == (unit.x, unit.y))
+            && self
+                .cities
+                .iter()
+                .filter(|city| city.owner == unit.owner)
+                .count()
+                / crate::rules::engine_rules::GreatLeaderSettings::campaign().cities_per_army
+                > self
+                    .units
+                    .iter()
+                    .filter(|army| army.owner == unit.owner && army.kind == UnitKind::Army)
+                    .count()
+    }
+
+    pub(in crate::sim) fn form_army(&mut self, unit_id: u32) -> bool {
+        let Some(leader) = self
+            .unit_by_id(unit_id)
+            .filter(|unit| self.can_form_army(unit))
+            .cloned()
+        else {
+            return false;
+        };
+        let city_id = self
+            .cities
+            .iter()
+            .find(|city| city.owner == leader.owner && (city.x, city.y) == (leader.x, leader.y))
+            .unwrap()
+            .id;
+        self.remove_units_with_cargo_because(vec![unit_id], lifecycle::UnitRemoval::Expended);
+        let army_id = self.spawn_unit_with_origin(
+            leader.owner,
+            UnitKind::Army,
+            leader.x,
+            leader.y,
+            lifecycle::UnitOrigin::ArmyFormed {
+                leader_id: unit_id,
+                city_id,
+            },
+        );
+        let army = self
+            .units
+            .iter_mut()
+            .find(|unit| unit.id == army_id)
+            .unwrap();
+        army.home_city = Some(city_id);
+        army.home_order = army_id;
+        army.moves_left = army.moves_left.min(leader.moves_left);
+        if leader.owner == HUMAN {
+            self.add_event("A Great Leader formed an Army.");
+        }
+        true
+    }
+
     /// Whether a Great Leader may complete `city`'s current production: it must
     /// be in its owner's city, and that city must be building an improvement,
     /// small wonder or Great Wonder it can legally build. Coinage, spaceship

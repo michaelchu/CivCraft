@@ -5,6 +5,7 @@ use super::*;
 #[cfg(test)]
 use crate::sim::Simulation;
 mod civ3;
+pub(super) use civ3::{Civ3WorldPainter, WorldMapView};
 mod entities;
 mod map;
 

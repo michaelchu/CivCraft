@@ -70,6 +70,9 @@ impl Game {
                         true,
                     ));
                 }
+                if view.form_army {
+                    entries.push(("Form Army".to_owned(), UiAction::FormArmy, true));
+                }
                 for city in &view.cities {
                     if city.can_airlift {
                         entries.push((
@@ -298,6 +301,7 @@ pub(super) fn unit_action_icon(action: UiAction) -> HudIcon {
         UiAction::CancelUnitOrder => HudIcon::Cross,
         UiAction::Airlift(_) => HudIcon::Plane,
         UiAction::BoardOrDeboard => HudIcon::Boat,
+        UiAction::FormArmy => HudIcon::Shield,
         UiAction::CompleteProduction(_) => HudIcon::Wonder,
         UiAction::Disband(None) => HudIcon::Cross,
         _ => HudIcon::More,

@@ -112,6 +112,8 @@ pub(super) const SCENARIOS: &[Scenario] = &[
     expansion_balance::SCENARIO,
     lifecycle_history::SCENARIO,
     great_leader::SCENARIO,
+    great_leader::ARMY,
+    great_leader::ARMY_COMBAT,
     research_history::SCENARIO,
     combat_matrix::SCENARIO,
     ai_paradrops::SCENARIO,
