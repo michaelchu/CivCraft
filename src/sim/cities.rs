@@ -583,6 +583,7 @@ impl Simulation {
             }
         }
         self.cities[city_index].buildings = kept_buildings;
+        self.cities[city_index].retain_existing_culture_buildings();
         // Palace has the selected SaveSmallWonder flag in C2C3. Other
         // small-wonder save flags are not present in this catalog.
         if first_city_for_taker && unit.owner != BARBARIANS {

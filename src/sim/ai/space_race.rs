@@ -71,29 +71,13 @@ impl Simulation {
                 .1
                 .saturating_sub(ship.built[part])
         });
-        let needs_space_tech = !self.apollo_completed
-            || spaceship::SPACE_PART_PROJECTS
-                .iter()
-                .enumerate()
-                .any(|(part, &(building, _))| {
-                    remaining[part] > 0
-                        && !sites.iter().any(|&(city, _)| {
-                            self.can_change_production(city, Production::Building(building))
-                        })
-                });
-        let required_infra: &[Building] = if needs_space_tech {
-            &PART_INFRASTRUCTURE
-        } else {
-            &[Building::FACTORY]
-        };
         let mut available = Vec::new();
         for (city, _) in sites {
             if plan.contains_key(&city.id) {
                 continue;
             }
-            if let Some(building) = required_infra
-                .iter()
-                .copied()
+            if let Some(building) = PART_INFRASTRUCTURE
+                .into_iter()
                 .find(|&required| !city.has_building(required))
             {
                 if !strategy.economic_crisis

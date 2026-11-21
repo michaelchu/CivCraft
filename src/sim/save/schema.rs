@@ -394,11 +394,10 @@ fn apply_culture_building_history(
         let Some(city) = game.cities.iter_mut().find(|city| city.id == city_id) else {
             return Err("Culture building history has no city");
         };
-        if records.iter().any(|record| {
-            record.builder >= player_count
-                || record.active_since_year > current_year
-                || !city.buildings.contains(&record.building)
-        }) {
+        if records
+            .iter()
+            .any(|record| record.builder >= player_count || record.active_since_year > current_year)
+        {
             return Err("Invalid culture building history");
         }
         let mut seen = Vec::new();
@@ -408,7 +407,10 @@ fn apply_culture_building_history(
             }
             seen.push(record.building);
         }
-        city.culture_buildings = records;
+        city.culture_buildings = records
+            .into_iter()
+            .filter(|record| city.buildings.contains(&record.building))
+            .collect();
     }
     Ok(())
 }

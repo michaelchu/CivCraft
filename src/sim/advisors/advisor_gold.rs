@@ -338,6 +338,9 @@ impl Simulation {
         let RequirementValue::String(name) = &requirement.name else {
             return false;
         };
+        if building == Building::AMPHITHEATER && name.eq_ignore_ascii_case("Colosseum") {
+            return true;
+        }
         Self::ai_ruleset_building_record(building)
             .is_some_and(|record| record.name.eq_ignore_ascii_case(name))
     }
