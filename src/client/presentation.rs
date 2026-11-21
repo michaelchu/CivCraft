@@ -229,9 +229,9 @@ impl Playback {
             | PresentationEventView::FoundCity { unit, .. } => {
                 vec![(unit.clone(), vec2(0.0, 0.0))]
             }
-            PresentationEventView::WorkStarted { .. } | PresentationEventView::Fortify { .. } => {
-                Vec::new()
-            }
+            PresentationEventView::WorkStarted { .. }
+            | PresentationEventView::Fortify { .. }
+            | PresentationEventView::EnterHut { .. } => Vec::new(),
             PresentationEventView::Combat(combat) => {
                 let (index, _, _, _) = combat_phase(combat, f64::from(p) * event.duration());
                 let mut a = combat.attacker.clone();
@@ -247,7 +247,14 @@ fn sound_requests(
     event: &PresentationEventView,
     active_unit: Option<u32>,
 ) -> Vec<super::unit_sound::UnitSoundRequest> {
-    let Some(active_unit) = active_unit.filter(|id| event.actors().any(|unit| unit.id == *id))
+    let is_hut = matches!(event, PresentationEventView::EnterHut { .. });
+    let Some(active_unit) = active_unit
+        .filter(|id| event.actors().any(|unit| unit.id == *id))
+        .or_else(|| {
+            is_hut
+                .then(|| event.actors().next().map(|unit| unit.id))
+                .flatten()
+        })
     else {
         return Vec::new();
     };
@@ -285,6 +292,16 @@ fn sound_requests(
             request(unit, action, 0.0);
         }
         PresentationEventView::Fortify { unit, .. } => request(unit, "FORTIFY", 0.0),
+        PresentationEventView::EnterHut { unit, .. } => {
+            requests.push(super::unit_sound::UnitSoundRequest {
+                #[cfg(test)]
+                unit_id: unit.id,
+                kind: unit.kind,
+                era_index: unit.era_index,
+                action: "HUT".to_owned(),
+                delay_seconds: 0.0,
+            });
+        }
         PresentationEventView::Combat(combat) => {
             let steps = combat.hp.len().saturating_sub(1).max(1);
             let mut delay = 0.0;
@@ -319,7 +336,9 @@ impl Game {
         };
         if matches!(
             event,
-            PresentationEventView::WorkStarted { .. } | PresentationEventView::Fortify { .. }
+            PresentationEventView::WorkStarted { .. }
+                | PresentationEventView::Fortify { .. }
+                | PresentationEventView::EnterHut { .. }
         ) {
             return;
         }
@@ -375,7 +394,8 @@ impl Game {
                     }
                 }
                 PresentationEventView::WorkStarted { .. }
-                | PresentationEventView::Fortify { .. } => Action::Default,
+                | PresentationEventView::Fortify { .. }
+                | PresentationEventView::EnterHut { .. } => Action::Default,
             };
             self.draw_unit_at_zoom(
                 assets,
@@ -664,6 +684,7 @@ mod tests {
             (VisualEvent::Capture { unit: unit.clone() }, "CAPTURE"),
             (VisualEvent::FoundCity { unit: unit.clone() }, "BUILD"),
             (VisualEvent::Fortify { unit: unit.clone() }, "FORTIFY"),
+            (VisualEvent::EnterHut { unit: unit.clone() }, "HUT"),
         ] {
             let requests = sound_requests_for(&sim, event, Some(unit.id));
             assert_eq!(requests.len(), 1, "{expected_action} request count");
@@ -671,6 +692,10 @@ mod tests {
             assert_eq!(requests[0].action, expected_action);
             assert_eq!(requests[0].delay_seconds, 0.0);
         }
+        let unselected_hut =
+            sound_requests_for(&sim, VisualEvent::EnterHut { unit: unit.clone() }, None);
+        assert_eq!(unselected_hut.len(), 1);
+        assert_eq!(unselected_hut[0].action, "HUT");
     }
 
     #[test]

@@ -282,6 +282,10 @@ pub(crate) enum PresentationEventView {
         unit: RenderedUnitView,
         duration: f64,
     },
+    EnterHut {
+        unit: RenderedUnitView,
+        duration: f64,
+    },
     Combat(Box<CombatPresentationView>),
 }
 
@@ -306,7 +310,8 @@ impl PresentationEventView {
             | Self::Capture { duration, .. }
             | Self::FoundCity { duration, .. }
             | Self::WorkStarted { duration, .. }
-            | Self::Fortify { duration, .. } => *duration,
+            | Self::Fortify { duration, .. }
+            | Self::EnterHut { duration, .. } => *duration,
             Self::Combat(combat) => combat.duration,
         }
     }
@@ -317,7 +322,8 @@ impl PresentationEventView {
             | Self::Capture { unit, .. }
             | Self::FoundCity { unit, .. }
             | Self::WorkStarted { unit, .. }
-            | Self::Fortify { unit, .. } => [Some(unit), None],
+            | Self::Fortify { unit, .. }
+            | Self::EnterHut { unit, .. } => [Some(unit), None],
             Self::Combat(combat) => [Some(&combat.attacker), Some(&combat.defender)],
         }
         .into_iter()

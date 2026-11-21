@@ -99,6 +99,7 @@ pub(crate) fn window_conf() -> Conf {
 pub(crate) struct Assets {
     pub(super) civ3: super::tileset::Civ3,
     pub(super) source_fog: Texture2D,
+    pub(super) hut_sound: Option<std::path::PathBuf>,
 }
 
 impl Assets {
@@ -108,6 +109,9 @@ impl Assets {
         era: usize,
         action: &str,
     ) -> Option<std::path::PathBuf> {
+        if action.eq_ignore_ascii_case("HUT") {
+            return self.hut_sound.clone();
+        }
         self.civ3
             .unit_sound_source(kind, era, action)
             .map(|source| source.path.clone())
@@ -121,7 +125,24 @@ impl Assets {
         let source_fog = Texture2D::from_image(&source_fog_image);
         // Match OpenCiv3's nearest-filter sampling of the source fog atlas.
         source_fog.set_filter(FilterMode::Nearest);
-        Ok(Self { civ3, source_fog })
+        #[cfg(feature = "desktop-audio")]
+        let hut_sound = match context.audio.as_ref() {
+            Some(library) => library.resolve_key("hut")?,
+            None => context
+                .media
+                .lookup("Sounds/Hut.wav")?
+                .map(|found| found.path),
+        };
+        #[cfg(not(feature = "desktop-audio"))]
+        let hut_sound = context
+            .media
+            .lookup("Sounds/Hut.wav")?
+            .map(|found| found.path);
+        Ok(Self {
+            civ3,
+            source_fog,
+            hut_sound,
+        })
     }
 }
 

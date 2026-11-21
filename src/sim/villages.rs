@@ -13,13 +13,14 @@ impl Simulation {
             return;
         }
         self.tile_mut(x, y).hut = false;
-        let Some(unit) = self.unit_by_id(unit_id) else {
+        let Some(unit) = self.unit_by_id(unit_id).cloned() else {
             return;
         };
         let owner = unit.owner;
         if owner == BARBARIANS {
             return;
         }
+        self.publish_visual_event(VisualEvent::EnterHut { unit });
 
         let villages = &crate::rules::native::settlements().villages;
         let message = match villages.reward_at(self.rand_below(villages.total_weight())) {

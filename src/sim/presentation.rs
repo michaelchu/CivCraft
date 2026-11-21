@@ -39,6 +39,10 @@ pub(crate) enum VisualEvent {
     Fortify {
         unit: Unit,
     },
+    /// A unit entered a hut tile.
+    EnterHut {
+        unit: Unit,
+    },
     Combat(Box<CombatVisual>),
 }
 
@@ -46,7 +50,7 @@ impl VisualEvent {
     pub(crate) fn duration(&self) -> f64 {
         match self {
             Self::Move { .. } => 0.030, // native smooth_move_unit_msec
-            Self::WorkStarted { .. } | Self::Fortify { .. } => 0.0,
+            Self::WorkStarted { .. } | Self::Fortify { .. } | Self::EnterHut { .. } => 0.0,
             // The original Settler, Worker, ICBM, and Tactical Nuke INIs use
             // a 0.5 second CAPTURE action; for nuclear units this is launch.
             Self::Capture { .. } => 0.5,
@@ -116,6 +120,10 @@ impl Simulation {
                 unit: self.rendered_unit_override_view(&unit),
                 duration,
             },
+            VisualEvent::EnterHut { unit } => PresentationEventView::EnterHut {
+                unit: self.rendered_unit_override_view(&unit),
+                duration,
+            },
             VisualEvent::Combat(combat) => {
                 let mut attacker = self.rendered_unit_override_view(&combat.attacker);
                 let mut defender = self.rendered_unit_override_view(&combat.defender);
@@ -167,7 +175,9 @@ impl Simulation {
             VisualEvent::Capture { unit } | VisualEvent::FoundCity { unit } => {
                 unit.owner == HUMAN || self.unit_visible_to_human(unit)
             }
-            VisualEvent::WorkStarted { unit, .. } | VisualEvent::Fortify { unit } => {
+            VisualEvent::WorkStarted { unit, .. }
+            | VisualEvent::Fortify { unit }
+            | VisualEvent::EnterHut { unit } => {
                 unit.owner == HUMAN || self.unit_visible_to_human(unit)
             }
             VisualEvent::Combat(combat) => {

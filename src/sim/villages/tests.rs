@@ -39,11 +39,18 @@ fn approach(roll: i32) -> (Simulation, u32, (i32, i32)) {
 fn entering_a_village_resolves_every_reference_roll_once() {
     for roll in 0..14 {
         let (mut game, id, (x, y)) = approach(roll);
+        game.enable_visual_events();
         let before = game.units.len();
         let known = game.players[HUMAN].known.len();
         game.players[HUMAN].research = 7;
         assert!(game.apply(Command::move_civ3_by_offset(&game, id, 0, -1)));
         assert!(!game.tile(x, y).hut);
+        assert!(
+            game.take_visual_events()
+                .iter()
+                .any(|event| matches!(event, VisualEvent::EnterHut { unit } if unit.id == id)),
+            "roll {roll} should emit EnterHut visual event"
+        );
         match roll {
             0 => assert_eq!(game.players[HUMAN].gold, 75),
             1..=3 => assert_eq!(game.players[HUMAN].gold, 100),

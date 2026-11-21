@@ -81,6 +81,7 @@ const CAMPAIGN_AUDIO: &[(&str, &str)] = &[
         "Sounds/build/IndModern/Techno MixFull.mp3",
     ),
 ];
+const SFX_AUDIO: &[(&str, &str)] = &[("hut", "Sounds/Hut.wav")];
 
 fn default_cues() -> HashMap<String, AudioCue> {
     CAMPAIGN_AUDIO
@@ -96,6 +97,17 @@ fn default_cues() -> HashMap<String, AudioCue> {
                 },
             )
         })
+        .chain(SFX_AUDIO.iter().map(|&(key, path)| {
+            (
+                key.to_owned(),
+                AudioCue {
+                    path: path.to_owned(),
+                    bus: AudioBus::Sfx,
+                    looped: false,
+                    required: false,
+                },
+            )
+        }))
         .collect()
 }
 
@@ -285,6 +297,9 @@ required=true
             scenario.join("scenario.ogg").canonicalize().unwrap()
         );
         assert!(!library.default_looped("Sounds/build/ancient/AncGRfull.mp3"));
+        assert_eq!(library.cue("hut").unwrap().path, "Sounds/Hut.wav");
+        assert_eq!(library.cue("hut").unwrap().bus, AudioBus::Sfx);
+        assert!(!library.cue("hut").unwrap().looped);
         assert_eq!(library.cue("click").unwrap().bus, AudioBus::Ui);
         assert!(library.resolve_key("click").unwrap().is_none());
         assert!(
