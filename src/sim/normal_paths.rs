@@ -173,6 +173,7 @@ pub(in crate::sim) struct NormalPaths {
     class_build_anywhere: bool,
     class_can_occupy_city: bool,
     omniscient: bool,
+    main_sight: Option<std::sync::Arc<[bool]>>,
     risk: bool,
     nodes: Vec<Node>,
     queue: NormalPathQueue,
@@ -275,6 +276,7 @@ impl NormalPaths {
             class_build_anywhere: class_rules.build_anywhere,
             class_can_occupy_city: class_rules.can_occupy_city,
             omniscient,
+            main_sight: (!omniscient).then(|| sim.observer_sight_layers(unit.owner).0),
             risk,
             nodes: vec![Node::default(); sim.tiles.len()],
             queue: NormalPathQueue::new(sim.tiles.len()),
@@ -462,7 +464,7 @@ impl NormalPaths {
                     self.actor.owner,
                     (x, y),
                     true,
-                    self.omniscient || sim.pf_main_sight(self.actor.owner, x, y),
+                    self.omniscient || self.main_sight.as_ref().is_some_and(|sight| sight[index]),
                     self.style == Style::Default,
                 )
             };

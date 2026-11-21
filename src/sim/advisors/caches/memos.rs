@@ -21,6 +21,8 @@ pub(in crate::sim) type CachedOffensiveAdvice = (Option<AiBuildChoice>, Vec<(Tec
 pub(in crate::sim) type UnitClassTotals = BTreeMap<Option<String>, i32>;
 pub(in crate::sim) type ActionKey = (usize, usize, usize, bool, bool, bool);
 pub(in crate::sim) type OverlapMapKey = (usize, usize, i32, i32, i32, i32, usize);
+pub(in crate::sim) type SightRevision = (u64, usize, usize);
+pub(in crate::sim) type SightLayers = (Arc<[bool]>, Arc<[bool]>);
 type VirtualCityTileYields = (Government, Vec<Option<(i32, i32, i32)>>);
 type RouteZones = [Vec<Option<bool>>; 2];
 
@@ -43,6 +45,7 @@ struct MemoData {
     route_zone_control: BTreeMap<usize, RouteZones>,
     pf_actions: HashMap<ActionKey, PfAction>,
     overlap_maps: HashMap<OverlapMapKey, NormalPaths>,
+    sight_layers: HashMap<usize, (SightRevision, SightLayers)>,
 }
 
 impl AdvisorMemos {
@@ -94,6 +97,29 @@ impl AdvisorMemos {
     }
     pub(in crate::sim) fn return_overlap_map(&self, key: OverlapMapKey, map: NormalPaths) {
         self.0.borrow_mut().overlap_maps.insert(key, map);
+    }
+    pub(in crate::sim) fn sight_layers(
+        &self,
+        observer: usize,
+        revision: SightRevision,
+    ) -> Option<SightLayers> {
+        self.0
+            .borrow()
+            .sight_layers
+            .get(&observer)
+            .filter(|(rev, _)| *rev == revision)
+            .map(|(_, layers)| layers.clone())
+    }
+    pub(in crate::sim) fn remember_sight_layers(
+        &self,
+        observer: usize,
+        revision: SightRevision,
+        layers: SightLayers,
+    ) {
+        self.0
+            .borrow_mut()
+            .sight_layers
+            .insert(observer, (revision, layers));
     }
     pub(in crate::sim) fn invasion_support(&self, key: usize) -> Option<SharedInvasionSupport> {
         self.0.borrow().invasion_support.get(&key).cloned()

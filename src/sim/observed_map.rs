@@ -104,30 +104,126 @@ impl Simulation {
         campaign_effect(kind, &context)
     }
 
+    fn vision_givers_mask(&self, observer: usize) -> u64 {
+        let mut mask = 0_u64;
+        for giver in 0..self.players.len().min(64) {
+            if self.vision_recipients(giver).contains(&observer) {
+                mask |= 1_u64 << giver;
+            }
+        }
+        mask
+    }
+
+    fn build_observer_sight_layers(
+        &self,
+        observer: usize,
+    ) -> (std::sync::Arc<[bool]>, std::sync::Arc<[bool]>) {
+        let tile_count = self.tiles.len();
+        let mut main = vec![false; tile_count];
+        let mut stealth = vec![false; tile_count];
+        let givers_mask = self.vision_givers_mask(observer);
+        if givers_mask == 0 {
+            return (main.into(), stealth.into());
+        }
+        let stamp = |main: &mut [bool], stealth: &mut [bool], x: i32, y: i32, radius_sq: i32| {
+            if radius_sq >= 0 {
+                let max_dist = (radius_sq as u32).isqrt() as i32;
+                let stealth_sq = radius_sq.clamp(0, 2);
+                for (nx, ny, dist) in self.map_wrap.civ3_radius(x, y, max_dist) {
+                    let idx = self.map_wrap.index(nx, ny);
+                    main[idx] = true;
+                    if dist * dist <= stealth_sq {
+                        stealth[idx] = true;
+                    }
+                }
+            }
+        };
+        for unit in &self.units {
+            if unit.owner < 64 && ((givers_mask >> unit.owner) & 1) != 0 {
+                let radius_sq =
+                    self.unit_vision_radius_sq_for(unit.owner, unit.kind, unit.x, unit.y);
+                stamp(&mut main, &mut stealth, unit.x, unit.y, radius_sq);
+            }
+        }
+        let mut city_radii = [None; 64];
+        for city in &self.cities {
+            if city.owner < 64 && ((givers_mask >> city.owner) & 1) != 0 {
+                let radius_sq = *city_radii[city.owner]
+                    .get_or_insert_with(|| self.city_vision_radius_sq(city.owner));
+                stamp(&mut main, &mut stealth, city.x, city.y, radius_sq);
+            }
+        }
+        (main.into(), stealth.into())
+    }
+
+    pub(in crate::sim) fn observer_sight_layers(
+        &self,
+        observer: usize,
+    ) -> (std::sync::Arc<[bool]>, std::sync::Arc<[bool]>) {
+        if self.advisor_cache.active() {
+            let revision = (
+                self.list_order.tile_revision(),
+                self.units.len(),
+                self.cities.len(),
+            );
+            if let Some(layers) = self.advisor_cache.memos().sight_layers(observer, revision) {
+                return layers;
+            }
+            let layers = self.build_observer_sight_layers(observer);
+            self.advisor_cache
+                .memos()
+                .remember_sight_layers(observer, revision, layers.clone());
+            return layers;
+        }
+        self.build_observer_sight_layers(observer)
+    }
+
     pub(crate) fn has_main_sight_at(&self, observer: usize, x: i32, y: i32) -> bool {
+        if self.advisor_cache.active() {
+            let index = self.map_wrap.index(x, y);
+            return self.observer_sight_layers(observer).0[index];
+        }
+        let givers_mask = self.vision_givers_mask(observer);
+        if givers_mask == 0 {
+            return false;
+        }
+        let mut city_radii = [None; 64];
         self.units.iter().any(|unit| {
-            self.vision_recipients(unit.owner).contains(&observer)
+            unit.owner < 64
+                && ((givers_mask >> unit.owner) & 1) != 0
                 && self.within_vision_radius_sq(
                     (unit.x, unit.y),
                     (x, y),
                     self.unit_vision_radius_sq_for(unit.owner, unit.kind, unit.x, unit.y),
                 )
         }) || self.cities.iter().any(|city| {
-            self.vision_recipients(city.owner).contains(&observer)
+            city.owner < 64
+                && ((givers_mask >> city.owner) & 1) != 0
                 && self.within_vision_radius_sq(
                     (city.x, city.y),
                     (x, y),
-                    self.city_vision_radius_sq(city.owner),
+                    *city_radii[city.owner]
+                        .get_or_insert_with(|| self.city_vision_radius_sq(city.owner)),
                 )
         })
     }
 
     pub(crate) fn unit_is_visible_from_sources(&self, observer: usize, target: &Unit) -> bool {
+        let requires_detection = self.unit_vision_layer_for(target.kind).requires_detection();
+        if self.advisor_cache.active() {
+            let index = self.map_wrap.index(target.x, target.y);
+            let (main, stealth) = self.observer_sight_layers(observer);
+            return main[index]
+                && (self.allied(observer, target.owner) || !requires_detection || stealth[index]);
+        }
+        let givers_mask = self.vision_givers_mask(observer);
+        if givers_mask == 0 {
+            return false;
+        }
         let mut visible = false;
         let mut stealth_visible = false;
-        let requires_detection = self.unit_vision_layer_for(target.kind).requires_detection();
         for viewer in &self.units {
-            if !self.vision_recipients(viewer.owner).contains(&observer) {
+            if viewer.owner >= 64 || ((givers_mask >> viewer.owner) & 1) == 0 {
                 continue;
             }
             let radius_sq =
@@ -145,11 +241,13 @@ impl Simulation {
                 return true;
             }
         }
+        let mut city_radii = [None; 64];
         for city in &self.cities {
-            if !self.vision_recipients(city.owner).contains(&observer) {
+            if city.owner >= 64 || ((givers_mask >> city.owner) & 1) == 0 {
                 continue;
             }
-            let radius_sq = self.city_vision_radius_sq(city.owner);
+            let radius_sq = *city_radii[city.owner]
+                .get_or_insert_with(|| self.city_vision_radius_sq(city.owner));
             let distance_visible =
                 self.within_vision_radius_sq((city.x, city.y), (target.x, target.y), radius_sq);
             stealth_visible |= self.within_vision_radius_sq(
