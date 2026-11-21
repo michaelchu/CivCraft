@@ -416,8 +416,28 @@ impl Simulation {
             if let Some(site) =
                 self.advisor_city_site_result_with_threat_map(founder, x, y, &context)
             {
+                let mut total_radius = 0_usize;
+                let mut unshared = 0_usize;
+                for (_, _, tx, ty) in self.map_city_radius_at(x, y) {
+                    total_radius += 1;
+                    if reservations[self.map_wrap.index(tx, ty)] == 0 {
+                        unshared += 1;
+                    }
+                }
+                // Avoid cramped "chicken-pox" filler cities that heavily
+                // overlap existing or reserved city radii.
+                if total_radius >= 12 && unshared < 12 {
+                    continue;
+                }
+                let overlap_factor = if total_radius > 0 && unshared < total_radius {
+                    let ratio = unshared as f64 / total_radius as f64;
+                    ratio * ratio
+                } else {
+                    1.0
+                };
                 viable_candidates += 1;
                 let score = site.value
+                    * overlap_factor
                     * ((settings.discount_period - 1) as f64 / settings.discount_period as f64)
                         .powi(settings.perfection * turns)
                     - f64::from(crate::sim::action_rules::unit_build_cost(founder.kind));

@@ -929,7 +929,9 @@ impl Simulation {
             }
             drop(_profile);
             let _profile = profiler.scope("advisor.build.settlement");
-            if let Some(choice) = self.cached_settlement_choice(city, wonder_city) {
+            if !upkeep_constrained
+                && let Some(choice) = self.cached_settlement_choice(city, wonder_city)
+            {
                 consider(choice.production, choice.want);
             }
             drop(_profile);
