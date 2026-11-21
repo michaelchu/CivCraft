@@ -9,7 +9,6 @@ use crate::rules::TechEra;
 pub(crate) struct UnitContextView {
     pub(crate) kind: UnitKind,
     pub(crate) owner: usize,
-    pub(crate) civilization_id: Option<String>,
     pub(crate) era_index: usize,
     pub(crate) owner_name: String,
     pub(crate) terrain_name: &'static str,
@@ -194,7 +193,6 @@ pub(crate) struct MinimapCityView {
     pub(crate) x: i32,
     pub(crate) y: i32,
     pub(crate) owner: usize,
-    pub(crate) civilization_id: Option<String>,
 }
 
 pub(crate) struct MinimapTileView {
@@ -338,7 +336,6 @@ pub(crate) struct CityManagerView {
     pub(crate) owner: usize,
     pub(crate) x: i32,
     pub(crate) y: i32,
-    pub(crate) civilization_id: Option<String>,
     pub(crate) era_index: usize,
     pub(crate) size: i32,
     pub(crate) culture: i64,
@@ -395,7 +392,6 @@ pub(crate) struct RenderedUnitView {
     pub(crate) id: u32,
     pub(crate) kind: UnitKind,
     pub(crate) owner: usize,
-    pub(crate) civilization_id: Option<String>,
     pub(crate) era_index: usize,
     pub(crate) x: i32,
     pub(crate) y: i32,
@@ -714,10 +710,7 @@ mod tests {
             .find(|view| view.id == city.id)
             .unwrap();
         assert_eq!((view.x, view.y, view.owner), (city.x, city.y, city.owner));
-        assert_eq!(
-            view.civilization_id.as_deref(),
-            sim.players[HUMAN].civilization_id.as_deref()
-        );
+        assert_eq!(sim.player_team_palette_view(view.owner), Some(1));
     }
 
     #[test]

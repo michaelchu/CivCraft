@@ -305,7 +305,6 @@ impl Simulation {
         UnitContextView {
             kind: unit.kind,
             owner: unit.owner,
-            civilization_id: player.civilization_id.clone(),
             era_index: self.research_era(unit.owner).index(),
             owner_name: player.name.clone(),
             terrain_name: self.tile(unit.x, unit.y).terrain.name(),

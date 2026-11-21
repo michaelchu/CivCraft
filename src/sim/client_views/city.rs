@@ -119,7 +119,6 @@ impl Simulation {
             owner: city.owner,
             x: city.x,
             y: city.y,
-            civilization_id: self.players[city.owner].civilization_id.clone(),
             era_index: self.research_era(city.owner).index(),
             size: city.size,
             culture: self.city_culture_score(city),

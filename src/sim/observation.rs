@@ -204,18 +204,25 @@ impl Simulation {
                     population: c.size,
                 })
                 .collect(),
-            civilizations: self
-                .players
-                .iter()
-                .enumerate()
-                .map(|(id, p)| MinimapCivilization {
-                    id,
-                    name: p.name.clone(),
-                    color: crate::map_palette::player_rgb(p.civilization_id.as_deref(), id)
+            civilizations: {
+                let palettes = crate::map_palette::resolve_team_palette_indices(
+                    self.players.iter().map(|p| p.civilization_id.as_deref()),
+                );
+                self.players
+                    .iter()
+                    .enumerate()
+                    .map(|(id, p)| MinimapCivilization {
+                        id,
+                        name: p.name.clone(),
+                        color: crate::map_palette::player_rgb_for_palette(
+                            palettes.get(id).copied().flatten(),
+                            id,
+                        )
                         .to_rgb8(),
-                    alive: self.player_alive(id),
-                })
-                .collect(),
+                        alive: self.player_alive(id),
+                    })
+                    .collect()
+            },
         }
     }
     pub(crate) fn observe_cities(&self) -> Vec<CitySnapshot> {

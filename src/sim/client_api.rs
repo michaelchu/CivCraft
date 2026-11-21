@@ -360,8 +360,8 @@ impl ClientSimulation {
         self.simulation.game_over_view()
     }
 
-    pub(crate) fn player_civilization_id_view(&self, owner: usize) -> Option<String> {
-        self.simulation.player_civilization_id_view(owner)
+    pub(crate) fn player_team_palette_view(&self, owner: usize) -> Option<u8> {
+        self.simulation.player_team_palette_view(owner)
     }
 
     pub(crate) fn spaceship_assembly_view(&self, owner: usize) -> SpaceshipAssemblyView {

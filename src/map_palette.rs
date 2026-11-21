@@ -45,43 +45,125 @@ const PLAYER_COLORS: [Rgb; MAX_CIVILIZATIONS + 1] = [
 ];
 
 const SOURCE_COLORS: [Rgb; 32] = [
-    Rgb::from_rgb8(251, 251, 251),
-    Rgb::from_rgb8(255, 156, 138),
-    Rgb::from_rgb8(255, 196, 113),
-    Rgb::from_rgb8(253, 253, 167),
-    Rgb::from_rgb8(53, 204, 52),
-    Rgb::from_rgb8(199, 255, 255),
-    Rgb::from_rgb8(153, 220, 246),
-    Rgb::from_rgb8(255, 175, 248),
-    Rgb::from_rgb8(191, 25, 234),
-    Rgb::from_rgb8(204, 167, 71),
-    Rgb::from_rgb8(205, 255, 123),
-    Rgb::from_rgb8(218, 95, 82),
-    Rgb::from_rgb8(199, 199, 199),
-    Rgb::from_rgb8(99, 125, 214),
-    Rgb::from_rgb8(90, 215, 232),
-    Rgb::from_rgb8(254, 239, 255),
-    Rgb::from_rgb8(136, 136, 136),
-    Rgb::from_rgb8(219, 99, 255),
-    Rgb::from_rgb8(246, 231, 102),
-    Rgb::from_rgb8(191, 102, 255),
-    Rgb::from_rgb8(223, 255, 255),
-    Rgb::from_rgb8(184, 197, 141),
-    Rgb::from_rgb8(255, 237, 102),
-    Rgb::from_rgb8(255, 178, 102),
-    Rgb::from_rgb8(240, 251, 207),
-    Rgb::from_rgb8(185, 255, 224),
-    Rgb::from_rgb8(254, 255, 168),
-    Rgb::from_rgb8(232, 203, 166),
-    Rgb::from_rgb8(183, 164, 112),
-    Rgb::from_rgb8(145, 159, 126),
-    Rgb::from_rgb8(255, 242, 255),
-    Rgb::from_rgb8(241, 220, 255),
+    Rgb::from_rgb8(230, 230, 230),
+    Rgb::from_rgb8(227, 10, 10),
+    Rgb::from_rgb8(255, 140, 0),
+    Rgb::from_rgb8(230, 230, 0),
+    Rgb::from_rgb8(7, 118, 7),
+    Rgb::from_rgb8(29, 216, 218),
+    Rgb::from_rgb8(52, 99, 255),
+    Rgb::from_rgb8(255, 78, 237),
+    Rgb::from_rgb8(121, 0, 156),
+    Rgb::from_rgb8(144, 106, 6),
+    Rgb::from_rgb8(120, 221, 0),
+    Rgb::from_rgb8(148, 8, 8),
+    Rgb::from_rgb8(147, 147, 147),
+    Rgb::from_rgb8(0, 39, 146),
+    Rgb::from_rgb8(14, 135, 151),
+    Rgb::from_rgb8(243, 194, 252),
+    Rgb::from_rgb8(60, 60, 60),
+    Rgb::from_rgb8(192, 0, 255),
+    Rgb::from_rgb8(205, 183, 0),
+    Rgb::from_rgb8(126, 0, 255),
+    Rgb::from_rgb8(172, 217, 234),
+    Rgb::from_rgb8(114, 134, 55),
+    Rgb::from_rgb8(255, 192, 0),
+    Rgb::from_rgb8(255, 108, 0),
+    Rgb::from_rgb8(196, 212, 149),
+    Rgb::from_rgb8(117, 255, 173),
+    Rgb::from_rgb8(189, 200, 68),
+    Rgb::from_rgb8(175, 134, 82),
+    Rgb::from_rgb8(111, 83, 10),
+    Rgb::from_rgb8(72, 91, 44),
+    Rgb::from_rgb8(251, 199, 255),
+    Rgb::from_rgb8(198, 167, 237),
 ];
 
-pub(crate) fn player_rgb(civilization_id: Option<&str>, owner: usize) -> Rgb {
-    if let Some(civilization) = civilization_id.and_then(crate::rules::civilizations::by_id) {
-        return SOURCE_COLORS[usize::from(civilization.primary_color_index)];
+const SOURCE_BORDER_SECONDARY_COLORS: [Rgb; 32] = [
+    Rgb::from_rgb8(184, 184, 184),
+    Rgb::from_rgb8(176, 8, 8),
+    Rgb::from_rgb8(179, 98, 0),
+    Rgb::from_rgb8(191, 175, 0),
+    Rgb::from_rgb8(5, 88, 5),
+    Rgb::from_rgb8(23, 174, 176),
+    Rgb::from_rgb8(42, 79, 204),
+    Rgb::from_rgb8(200, 61, 186),
+    Rgb::from_rgb8(107, 0, 138),
+    Rgb::from_rgb8(120, 88, 5),
+    Rgb::from_rgb8(100, 184, 0),
+    Rgb::from_rgb8(131, 7, 7),
+    Rgb::from_rgb8(126, 126, 126),
+    Rgb::from_rgb8(0, 30, 114),
+    Rgb::from_rgb8(12, 112, 126),
+    Rgb::from_rgb8(185, 148, 192),
+    Rgb::from_rgb8(32, 32, 32),
+    Rgb::from_rgb8(131, 0, 175),
+    Rgb::from_rgb8(143, 118, 0),
+    Rgb::from_rgb8(48, 0, 177),
+    Rgb::from_rgb8(104, 153, 172),
+    Rgb::from_rgb8(88, 103, 42),
+    Rgb::from_rgb8(194, 124, 0),
+    Rgb::from_rgb8(223, 38, 0),
+    Rgb::from_rgb8(118, 134, 71),
+    Rgb::from_rgb8(41, 188, 101),
+    Rgb::from_rgb8(101, 131, 52),
+    Rgb::from_rgb8(127, 79, 18),
+    Rgb::from_rgb8(68, 51, 6),
+    Rgb::from_rgb8(47, 51, 13),
+    Rgb::from_rgb8(173, 121, 177),
+    Rgb::from_rgb8(136, 101, 180),
+];
+
+/// Resolve unique Civ III team palette indices (`1..32`, matching `ntp01`..`ntp31`)
+/// for a match roster so two active civilizations do not share unit/border colors.
+///
+/// Civilizations whose `primary_color_index == secondary_color_index` (the canonical
+/// base owners of palettes `1..=10`, such as Rome or America) reserve their primary
+/// palette first; other civilizations claim `primary_color_index` if still free,
+/// otherwise fall back to `secondary_color_index`, and finally to the lowest free
+/// palette in `1..32` (palette `0` is reserved for barbarians).
+pub(crate) fn resolve_team_palette_indices<'a>(
+    civilization_ids: impl IntoIterator<Item = Option<&'a str>>,
+) -> Vec<Option<u8>> {
+    let entries: Vec<Option<&'static crate::rules::civilizations::Civilization>> = civilization_ids
+        .into_iter()
+        .map(|id| id.and_then(crate::rules::civilizations::by_id))
+        .collect();
+    let mut resolved = vec![None; entries.len()];
+    let mut used: u32 = 1 << 0;
+
+    for (slot, civilization) in entries.iter().enumerate() {
+        if let Some(civ) = civilization
+            && civ.primary_color_index == civ.secondary_color_index
+            && (used & (1u32 << civ.primary_color_index)) == 0
+        {
+            used |= 1u32 << civ.primary_color_index;
+            resolved[slot] = Some(civ.primary_color_index);
+        }
+    }
+
+    for (slot, civilization) in entries.iter().enumerate() {
+        if resolved[slot].is_some() {
+            continue;
+        }
+        let Some(civ) = civilization else {
+            continue;
+        };
+        let chosen = [civ.primary_color_index, civ.secondary_color_index]
+            .into_iter()
+            .find(|&idx| (idx as usize) < 32 && (used & (1u32 << idx)) == 0)
+            .or_else(|| (1u8..32).find(|&idx| (used & (1u32 << idx)) == 0))
+            .unwrap_or(civ.primary_color_index);
+        used |= 1u32 << chosen;
+        resolved[slot] = Some(chosen);
+    }
+
+    resolved
+}
+
+pub(crate) fn player_rgb_for_palette(palette_index: Option<u8>, owner: usize) -> Rgb {
+    if let Some(&color) = palette_index.and_then(|index| SOURCE_COLORS.get(usize::from(index))) {
+        return color;
     }
     const REBEL_COLORS: [Rgb; 5] = [
         Rgb::new(0.00, 0.89, 0.19),
@@ -96,11 +178,21 @@ pub(crate) fn player_rgb(civilization_id: Option<&str>, owner: usize) -> Rgb {
         .unwrap_or_else(|| REBEL_COLORS[(owner - PLAYER_COLORS.len()) % REBEL_COLORS.len()])
 }
 
-pub(crate) fn secondary_civilization_rgb(civilization_id: Option<&str>, owner: usize) -> Rgb {
-    let Some(civilization) = civilization_id.and_then(crate::rules::civilizations::by_id) else {
-        return player_rgb(None, owner);
-    };
-    SOURCE_COLORS[usize::from(civilization.secondary_color_index)]
+pub(crate) fn border_colors_for_palette(
+    palette_index: Option<u8>,
+    owner: usize,
+) -> ([u8; 3], [u8; 3]) {
+    if let Some(index) = palette_index.map(usize::from)
+        && let (Some(&main), Some(&secondary)) = (
+            SOURCE_COLORS.get(index),
+            SOURCE_BORDER_SECONDARY_COLORS.get(index),
+        )
+    {
+        return (main.to_rgb8(), secondary.to_rgb8());
+    }
+    let main = player_rgb_for_palette(None, owner).to_rgb8();
+    let secondary = main.map(|channel| (f32::from(channel) * 0.8).round() as u8);
+    (main, secondary)
 }
 
 impl Terrain {
@@ -123,6 +215,39 @@ impl Terrain {
             Self::FloodPlains => Rgb::from_rgb8(189, 159, 95),
             Self::Volcano => Rgb::from_rgb8(126, 85, 68),
             Self::GrasslandShield => Rgb::from_rgb8(76, 146, 61),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashSet;
+
+    #[test]
+    fn roster_palette_resolution_uses_secondary_color_on_primary_collision() {
+        let resolved = resolve_team_palette_indices([Some("rome"), Some("babylon"), None]);
+        assert_eq!(resolved, vec![Some(1), Some(13), None]);
+
+        // Even if a civilization with a dedicated secondary palette appears in
+        // an earlier slot than the base owner of that primary palette, the base
+        // owner retains its primary palette and the other takes its secondary.
+        let reordered = resolve_team_palette_indices([Some("china"), Some("america")]);
+        assert_eq!(reordered, vec![Some(15), Some(5)]);
+    }
+
+    #[test]
+    fn every_seeded_match_roster_assigns_unique_team_palettes() {
+        for seed in 0..32 {
+            let roster = crate::rules::civilizations::select_roster(seed, MAX_CIVILIZATIONS);
+            let palettes = resolve_team_palette_indices(
+                roster
+                    .iter()
+                    .map(|civilization| Some(civilization.id.as_str())),
+            );
+            let unique: HashSet<u8> = palettes.into_iter().flatten().collect();
+            assert_eq!(unique.len(), MAX_CIVILIZATIONS);
+            assert!(!unique.contains(&0));
         }
     }
 }

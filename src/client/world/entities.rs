@@ -125,10 +125,8 @@ impl Game {
         let side_width = size_metrics.width.max(star_radius * 2.0) + side_padding * 2.0;
         let width = center_width + side_width * if city.capital { 2.0 } else { 1.0 };
         let left = center.x - width * 0.5;
-        let civ_id = city.civilization_id.as_deref();
-        let owner_color = player_color(civ_id, city.owner);
-        let secondary_color =
-            super::sprite_metadata::secondary_civilization_color(civ_id, city.owner);
+        let palette_index = self.sim.player_team_palette_view(city.owner);
+        let owner_color = player_color(palette_index, city.owner);
 
         // Civ III's city banner is a three-part bar: population, two centered
         // information rows, and a capital badge.
@@ -157,7 +155,7 @@ impl Game {
                 height,
                 Color {
                     a: 205.0,
-                    ..secondary_color
+                    ..owner_color
                 },
             );
         }
@@ -312,10 +310,11 @@ impl Game {
         } else {
             unit.facing
         };
+        let palette_index = self.sim.player_team_palette_view(unit.owner);
         let native_unit_drawn = assets.civ3.draw_unit(
             unit.kind,
             unit.owner,
-            unit.civilization_id.as_deref(),
+            palette_index,
             facing,
             unit.era_index,
             action,
@@ -326,7 +325,7 @@ impl Game {
             unit.moves_left > 0,
         );
         if !native_unit_drawn {
-            let color = player_color(unit.civilization_id.as_deref(), unit.owner);
+            let color = player_color(palette_index, unit.owner);
             draw_ellipse(
                 center.x,
                 center.y - 9.0 * zoom,

@@ -49,8 +49,15 @@ impl Simulation {
         Some(GameOverView { message, standings })
     }
 
-    pub(crate) fn player_civilization_id_view(&self, owner: usize) -> Option<String> {
-        self.players.get(owner)?.civilization_id.clone()
+    pub(crate) fn player_team_palette_view(&self, owner: usize) -> Option<u8> {
+        crate::map_palette::resolve_team_palette_indices(
+            self.players
+                .iter()
+                .map(|player| player.civilization_id.as_deref()),
+        )
+        .get(owner)
+        .copied()
+        .flatten()
     }
 
     pub(crate) fn initial_client_focus_view(&self) -> (Option<u32>, Option<(i32, i32)>) {

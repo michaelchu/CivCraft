@@ -63,18 +63,11 @@ impl Simulation {
             x: city.x,
             y: city.y,
             owner: city.owner,
-            civilization_id: city.civilization_id.clone(),
         }
     }
 
     fn minimap_city_view(&self, id: u32, x: i32, y: i32, owner: usize) -> MinimapCityView {
-        MinimapCityView {
-            id,
-            x,
-            y,
-            owner,
-            civilization_id: self.players[owner].civilization_id.clone(),
-        }
+        MinimapCityView { id, x, y, owner }
     }
 
     pub(crate) fn rendered_city_views(&self) -> Vec<RenderedCityView> {
@@ -130,7 +123,6 @@ impl Simulation {
             id: unit.id,
             kind: unit.kind,
             owner: unit.owner,
-            civilization_id: self.players[unit.owner].civilization_id.clone(),
             era_index: self.research_era(unit.owner).index(),
             x: unit.x,
             y: unit.y,

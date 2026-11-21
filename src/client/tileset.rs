@@ -469,6 +469,53 @@ impl Theme {
         }
         Ok(Some(image))
     }
+
+    fn territory_sheet(&self, required: bool) -> AssetResult<Option<TerritorySheet>> {
+        let key = "territory";
+        let default = "Terrain/Territory.pcx";
+        let size = (256, 288);
+        let override_path = self.paths.get(key);
+        let relative = override_path.map_or(default, String::as_str);
+        let transparent_indices = self
+            .transparent_indices
+            .get(key)
+            .map(Vec::as_slice)
+            .unwrap_or(&TERRITORY_PCX_TRANSPARENT_INDICES);
+        let mut names = vec![relative.to_owned()];
+        if Path::new(relative)
+            .extension()
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("png"))
+        {
+            names.push(
+                Path::new(relative)
+                    .with_extension("pcx")
+                    .to_string_lossy()
+                    .into_owned(),
+            );
+        }
+        let resolved = self
+            .images
+            .lookup_variants(&names)
+            .map_err(|e| e.context(relative))?;
+        let Some(resolved) = resolved else {
+            if !required && override_path.is_none() {
+                return Ok(None);
+            }
+            return Err(self.images.missing(relative));
+        };
+        let path = resolved.path;
+        let sheet = read_territory_sheet(&path, transparent_indices)?;
+        if sheet.width < size.0 || sheet.height < size.1 {
+            return Err(format!(
+                "{}: expected at least {}×{} pixels",
+                path.display(),
+                size.0,
+                size.1
+            )
+            .into());
+        }
+        Ok(Some(sheet))
+    }
 }
 
 #[cfg(test)]
@@ -710,8 +757,30 @@ fn read_theme_image(path: &Path, transparent_indices: &[u8]) -> AssetResult<(Pat
     Ok((path.to_owned(), image))
 }
 
+fn read_territory_sheet(path: &Path, transparent_indices: &[u8]) -> AssetResult<TerritorySheet> {
+    let bytes = fs::read(path).map_err(|e| AssetError::io("read image", path, e))?;
+    if path
+        .extension()
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("pcx"))
+    {
+        let pcx = decode_pcx_indexed(&bytes).map_err(|e| AssetError::decode(path, e))?;
+        Ok(TerritorySheet::from_indexed_pcx(&pcx, transparent_indices))
+    } else {
+        let image = Image::from_file_with_format(&bytes, Some(ImageFormat::Png))
+            .map_err(|e| AssetError::decode(path, e))?;
+        Ok(TerritorySheet::from_rgba_image(&image))
+    }
+}
+
+struct DecodedPcx {
+    width: u16,
+    height: u16,
+    indices: Vec<u8>,
+    palette: UnitTeamPalette,
+}
+
 /// Decode the 8-bit, one-plane, indexed RLE PCX form used by Civ III terrain mods.
-fn decode_pcx(bytes: &[u8], transparent_indices: &[u8]) -> AssetResult<Image> {
+fn decode_pcx_indexed(bytes: &[u8]) -> AssetResult<DecodedPcx> {
     if bytes.len() < 897 || bytes[0] != 0x0a || bytes[2] != 1 || bytes[3] != 8 || bytes[65] != 1 {
         return Err("unsupported PCX: expected 8-bit, single-plane RLE image".into());
     }
@@ -738,16 +807,14 @@ fn decode_pcx(bytes: &[u8], transparent_indices: &[u8]) -> AssetResult<Image> {
         return Err("invalid PCX dimensions".into());
     }
     let palette_at = bytes.len() - 769;
-    if bytes[palette_at] != 0x0c {
-        return Err("PCX is missing its 256-color palette".into());
-    }
+    let palette = decode_pcx_palette(bytes)?;
     let pixel_count = width.checked_mul(height).ok_or("PCX dimensions overflow")?;
     let needed = bytes_per_line
         .checked_mul(height)
         .ok_or("PCX dimensions overflow")?;
-    let mut indices = Vec::with_capacity(needed);
+    let mut raw_indices = Vec::with_capacity(needed);
     let mut cursor = 128;
-    while indices.len() < needed {
+    while raw_indices.len() < needed {
         if cursor >= palette_at {
             return Err("truncated PCX RLE data".into());
         }
@@ -764,29 +831,39 @@ fn decode_pcx(bytes: &[u8], transparent_indices: &[u8]) -> AssetResult<Image> {
         } else {
             (1, value)
         };
-        if count == 0 || indices.len() + count > needed {
+        if count == 0 || raw_indices.len() + count > needed {
             return Err("invalid PCX RLE run length".into());
         }
-        indices.resize(indices.len() + count, color);
+        raw_indices.resize(raw_indices.len() + count, color);
     }
-    let mut rgba = Vec::with_capacity(pixel_count * 4);
+    let mut indices = Vec::with_capacity(pixel_count);
     for y in 0..height {
-        for &index in &indices[y * bytes_per_line..y * bytes_per_line + width] {
-            let p = palette_at + 1 + usize::from(index) * 3;
-            let (red, green, blue) = (bytes[p], bytes[p + 1], bytes[p + 2]);
-            let alpha = if transparent_indices.contains(&index)
-                || (red > 200 && green < 40 && blue > 200)
-            {
+        indices.extend_from_slice(&raw_indices[y * bytes_per_line..y * bytes_per_line + width]);
+    }
+    Ok(DecodedPcx {
+        width: width as u16,
+        height: height as u16,
+        indices,
+        palette,
+    })
+}
+
+fn decode_pcx(bytes: &[u8], transparent_indices: &[u8]) -> AssetResult<Image> {
+    let pcx = decode_pcx_indexed(bytes)?;
+    let mut rgba = Vec::with_capacity(pcx.indices.len() * 4);
+    for &index in &pcx.indices {
+        let [red, green, blue] = pcx.palette[usize::from(index)];
+        let alpha =
+            if transparent_indices.contains(&index) || (red > 200 && green < 40 && blue > 200) {
                 0 // Civ III PCX magenta color key.
             } else {
                 255
             };
-            rgba.extend_from_slice(&[red, green, blue, alpha]);
-        }
+        rgba.extend_from_slice(&[red, green, blue, alpha]);
     }
     Ok(Image {
-        width: width as u16,
-        height: height as u16,
+        width: pcx.width,
+        height: pcx.height,
         bytes: rgba,
     })
 }
@@ -1105,15 +1182,106 @@ fn territory_sprite_rect(center: Vec2, zoom: f32) -> Rect {
     )
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum TerritoryPixel {
+    Transparent,
+    Main,
+    Secondary,
+    Shadow(u8),
+    Fixed([u8; 4]),
+}
+
+struct TerritorySheet {
+    width: u16,
+    height: u16,
+    pixels: Vec<TerritoryPixel>,
+}
+
+impl TerritorySheet {
+    fn from_indexed_pcx(pcx: &DecodedPcx, transparent_indices: &[u8]) -> Self {
+        let pixels = pcx
+            .indices
+            .iter()
+            .map(|&index| {
+                let [red, green, blue] = pcx.palette[usize::from(index)];
+                if transparent_indices.contains(&index) {
+                    TerritoryPixel::Transparent
+                } else if index == 64 {
+                    TerritoryPixel::Main
+                } else if index == 65 {
+                    TerritoryPixel::Secondary
+                } else if (240..=253).contains(&index) {
+                    TerritoryPixel::Shadow(255u8.saturating_sub(green))
+                } else if red > 200 && green < 40 && blue > 200 {
+                    TerritoryPixel::Transparent
+                } else {
+                    TerritoryPixel::Fixed([red, green, blue, 255])
+                }
+            })
+            .collect();
+        Self {
+            width: pcx.width,
+            height: pcx.height,
+            pixels,
+        }
+    }
+
+    fn from_rgba_image(image: &Image) -> Self {
+        let pixels = image
+            .get_image_data()
+            .iter()
+            .map(|&pixel| {
+                if pixel[3] == 0 {
+                    TerritoryPixel::Transparent
+                } else if pixel[0..3] == [236, 255, 0] {
+                    TerritoryPixel::Main
+                } else if pixel[0..3] == [255, 0, 0] {
+                    TerritoryPixel::Secondary
+                } else if pixel[0] == 255 && pixel[2] == 255 {
+                    TerritoryPixel::Shadow(255u8.saturating_sub(pixel[1]))
+                } else {
+                    TerritoryPixel::Fixed(pixel)
+                }
+            })
+            .collect();
+        Self {
+            width: image.width,
+            height: image.height,
+            pixels,
+        }
+    }
+
+    fn rasterize(&self, main: [u8; 3], secondary: [u8; 3]) -> Image {
+        let mut bytes = Vec::with_capacity(self.pixels.len() * 4);
+        for &pixel in &self.pixels {
+            let rgba = match pixel {
+                TerritoryPixel::Transparent => [0, 0, 0, 0],
+                TerritoryPixel::Main => [main[0], main[1], main[2], 255],
+                TerritoryPixel::Secondary => [secondary[0], secondary[1], secondary[2], 255],
+                TerritoryPixel::Shadow(alpha) => [0, 0, 0, alpha],
+                TerritoryPixel::Fixed(rgba) => rgba,
+            };
+            bytes.extend_from_slice(&rgba);
+        }
+        Image {
+            width: self.width,
+            height: self.height,
+            bytes,
+        }
+    }
+}
+
+type TerritoryColorPair = ([u8; 3], [u8; 3]);
+
 struct TerritoryArt {
-    source: Image,
-    textures: RefCell<HashMap<[u8; 3], Texture2D>>,
+    source: TerritorySheet,
+    textures: RefCell<HashMap<TerritoryColorPair, Texture2D>>,
     cache_hits: Cell<u64>,
     cache_misses: Cell<u64>,
 }
 
 impl TerritoryArt {
-    fn new(source: Image) -> Self {
+    fn new(source: TerritorySheet) -> Self {
         Self {
             source,
             textures: RefCell::default(),
@@ -1122,25 +1290,10 @@ impl TerritoryArt {
         }
     }
 
-    fn draw(&self, center: Vec2, row: usize, hilly: bool, color: Color, zoom: f32) {
-        let main = [color.r, color.g, color.b]
-            .map(|channel| (channel.clamp(0.0, 1.0) * 255.0).round() as u8);
+    fn draw(&self, center: Vec2, row: usize, hilly: bool, colors: TerritoryColorPair, zoom: f32) {
         let mut textures = self.textures.borrow_mut();
-        if let std::collections::hash_map::Entry::Vacant(e) = textures.entry(main) {
-            let mut image = self.source.clone();
-            let secondary = main.map(|channel| (f32::from(channel) * 0.8).round() as u8);
-            for pixel in image.get_image_data_mut() {
-                let replacement = if pixel[0..3] == [236, 255, 0] {
-                    Some(main)
-                } else if pixel[0..3] == [255, 0, 0] {
-                    Some(secondary)
-                } else {
-                    None
-                };
-                if let Some(rgb) = replacement {
-                    pixel[..3].copy_from_slice(&rgb);
-                }
-            }
+        if let std::collections::hash_map::Entry::Vacant(e) = textures.entry(colors) {
+            let image = self.source.rasterize(colors.0, colors.1);
             let texture = Texture2D::from_image(&image);
             texture.set_filter(FilterMode::Nearest);
             e.insert(texture);
@@ -1148,7 +1301,7 @@ impl TerritoryArt {
         } else {
             self.cache_hits.set(self.cache_hits.get() + 1);
         }
-        let texture = textures.get(&main).unwrap();
+        let texture = textures.get(&colors).unwrap();
         let rect = territory_sprite_rect(center, zoom);
         let size = vec2(rect.w, rect.h);
         let position = vec2(rect.x, rect.y);
@@ -1193,8 +1346,8 @@ struct Civ3UnitCursor {
 }
 
 struct Civ3UnitArt {
-    base: Texture2D,
-    tint: Texture2D,
+    flic: super::flc::Flic,
+    untinted: Option<(Texture2D, Texture2D)>,
     team_textures: HashMap<u8, Texture2D>,
     width: f32,
     height: f32,
@@ -1384,15 +1537,13 @@ impl Civ3 {
             sea: required("sea", "wSSS", (1152, 576))?,
             ocean: required("ocean", "wOOO", (1152, 576))?,
         };
-        let territory_image =
-            theme.image("territory", "Terrain/Territory.pcx", (256, 288), false)?;
-        let territory_image = match territory_image {
-            Some(image) => image,
+        let territory_sheet = match theme.territory_sheet(false)? {
+            Some(sheet) => sheet,
             None => Theme::read_with_media(&locate_default_art(media)?, media)?
-                .image("territory", "Terrain/Territory.pcx", (256, 288), true)?
+                .territory_sheet(true)?
                 .expect("required territory border texture"),
         };
-        let territory = TerritoryArt::new(territory_image);
+        let territory = TerritoryArt::new(territory_sheet);
         let optional = |key, file, size| -> AssetResult<_> {
             Ok(theme
                 .image(key, &format!("Terrain/{file}.png"), size, false)?
@@ -1731,10 +1882,15 @@ impl Civ3 {
         center: Vec2,
         row: usize,
         hilly: bool,
-        color: Color,
+        palette_index: Option<u8>,
+        owner: usize,
         zoom: f32,
     ) {
-        self.territory.draw(center, row, hilly, color, zoom);
+        let colors = palette_index
+            .and_then(|index| self.unit_team_palettes.get(usize::from(index)))
+            .map(|palette| (palette[64], palette[65]))
+            .unwrap_or_else(|| crate::map_palette::border_colors_for_palette(palette_index, owner));
+        self.territory.draw(center, row, hilly, colors, zoom);
     }
 
     pub(super) fn territory_cache_stats(&self) -> (u64, u64, usize) {
@@ -1838,12 +1994,6 @@ impl Civ3 {
         )
     }
 
-    fn unit_team_palette_index(civilization_id: Option<&str>) -> Option<u8> {
-        civilization_id
-            .and_then(crate::rules::civilizations::by_id)
-            .map(|civilization| civilization.primary_color_index)
-    }
-
     fn load_unit_animation(&self, role: &str, palette_index: Option<u8>) -> AssetResult<()> {
         if self.unit_art.borrow().contains_key(role) {
             return Ok(());
@@ -1856,42 +2006,53 @@ impl Civ3 {
             .map_err(|error| AssetError::io("read animation", &source.path, error))?;
         let flic = super::flc::decode_flic(&bytes)
             .map_err(|error| AssetError::decode(&source.path, error))?;
-        let (base_image, tint_image) = flic
-            .image_atlases()
-            .map_err(|error| AssetError::decode(&source.path, error))?;
-        let base = Texture2D::from_image(&base_image);
-        let tint = Texture2D::from_image(&tint_image);
-        base.set_filter(FilterMode::Nearest);
-        tint.set_filter(FilterMode::Nearest);
-        drop((base_image, tint_image));
-        // Prepare the first owner's team atlas from the same decoded frames.
-        // Subsequent owners still load their palettes lazily below.
         let mut team_textures = HashMap::new();
+        let mut untinted = None;
         if let Some((index, palette)) = palette_index.and_then(|index| {
             self.unit_team_palettes
                 .get(usize::from(index))
                 .map(|palette| (index, palette))
-        }) && let Ok(image) = flic.team_color_atlas(palette)
-        {
+        }) {
+            let image = flic
+                .team_color_atlas(palette)
+                .map_err(|error| AssetError::decode(&source.path, error))?;
             let texture = Texture2D::from_image(&image);
             texture.set_filter(FilterMode::Nearest);
             team_textures.insert(index, texture);
+        } else {
+            let (base_image, tint_image) = flic
+                .image_atlases()
+                .map_err(|error| AssetError::decode(&source.path, error))?;
+            let base = Texture2D::from_image(&base_image);
+            let tint = Texture2D::from_image(&tint_image);
+            base.set_filter(FilterMode::Nearest);
+            tint.set_filter(FilterMode::Nearest);
+            untinted = Some((base, tint));
         }
+        let width = flic.width as f32;
+        let height = flic.height as f32;
+        let frame_count = flic.animations[0].len();
+        let frame_columns = frame_count.min(4096 / flic.width);
+        let direction_count = flic.animations.len();
+        let original_width = flic.original_width.max(flic.width) as f32;
+        let original_height = flic.original_height.max(flic.height) as f32;
+        let offset_left = flic.offset_left as f32;
+        let offset_top = flic.offset_top as f32;
         self.unit_art.borrow_mut().insert(
             role.to_owned(),
             Civ3UnitArt {
-                base,
-                tint,
+                flic,
+                untinted,
                 team_textures,
-                width: flic.width as f32,
-                height: flic.height as f32,
-                frame_count: flic.animations[0].len(),
-                frame_columns: flic.animations[0].len().min(4096 / flic.width),
-                direction_count: flic.animations.len(),
-                original_width: flic.original_width.max(flic.width) as f32,
-                original_height: flic.original_height.max(flic.height) as f32,
-                offset_left: flic.offset_left as f32,
-                offset_top: flic.offset_top as f32,
+                width,
+                height,
+                frame_count,
+                frame_columns,
+                direction_count,
+                original_width,
+                original_height,
+                offset_left,
+                offset_top,
                 timing_seconds: source.timing_seconds,
                 normal_speed: source.normal_speed,
                 fast_speed: source.fast_speed,
@@ -1900,38 +2061,45 @@ impl Civ3 {
         Ok(())
     }
 
-    fn ensure_unit_team_texture(&self, role: &str, palette_index: u8) -> AssetResult<()> {
-        let palette = self
-            .unit_team_palettes
-            .get(usize::from(palette_index))
-            .ok_or_else(|| format!("invalid Civ III team palette index {palette_index}"))?;
+    fn ensure_unit_palette_texture(
+        &self,
+        role: &str,
+        palette_index: Option<u8>,
+    ) -> AssetResult<()> {
         let source = self
             .unit_animation_sources
             .get(role)
             .ok_or_else(|| format!("no Civ III animation is mapped for {role}"))?;
-        let needs_texture = self
-            .unit_art
-            .borrow()
-            .get(role)
-            .is_some_and(|art| !art.team_textures.contains_key(&palette_index));
-        if !needs_texture {
-            return Ok(());
-        }
-        let bytes = fs::read(&source.path).map_err(|error| {
-            AssetError::io("read animation for team palette", &source.path, error)
-        })?;
-        let flic = super::flc::decode_flic(&bytes)
-            .map_err(|error| AssetError::decode(&source.path, error))?;
-        let image = flic
-            .team_color_atlas(palette)
-            .map_err(|error| AssetError::decode(&source.path, error))?;
-        let texture = Texture2D::from_image(&image);
-        texture.set_filter(FilterMode::Nearest);
         let mut unit_art = self.unit_art.borrow_mut();
         let art = unit_art
             .get_mut(role)
             .ok_or_else(|| format!("Civ III animation {role} was not loaded"))?;
-        art.team_textures.insert(palette_index, texture);
+        if let Some(index) = palette_index {
+            if art.team_textures.contains_key(&index) {
+                return Ok(());
+            }
+            let palette = self
+                .unit_team_palettes
+                .get(usize::from(index))
+                .ok_or_else(|| format!("invalid Civ III team palette index {index}"))?;
+            let image = art
+                .flic
+                .team_color_atlas(palette)
+                .map_err(|error| AssetError::decode(&source.path, error))?;
+            let texture = Texture2D::from_image(&image);
+            texture.set_filter(FilterMode::Nearest);
+            art.team_textures.insert(index, texture);
+        } else if art.untinted.is_none() {
+            let (base_image, tint_image) = art
+                .flic
+                .image_atlases()
+                .map_err(|error| AssetError::decode(&source.path, error))?;
+            let base = Texture2D::from_image(&base_image);
+            let tint = Texture2D::from_image(&tint_image);
+            base.set_filter(FilterMode::Nearest);
+            tint.set_filter(FilterMode::Nearest);
+            art.untinted = Some((base, tint));
+        }
         Ok(())
     }
 
@@ -1944,17 +2112,14 @@ impl Civ3 {
         &self,
         kind: UnitKind,
         owner: usize,
-        civilization_id: Option<&str>,
+        team_palette_index: Option<u8>,
         era: usize,
         center: Vec2,
         bounds: Vec2,
         has_moves: bool,
     ) -> bool {
         let role = self.unit_animation_role(kind, era);
-        if self
-            .load_unit_animation(&role, Self::unit_team_palette_index(civilization_id))
-            .is_err()
-        {
+        if self.load_unit_animation(&role, team_palette_index).is_err() {
             return false;
         }
         let (frame_width, frame_height, original_width, original_height, offset_left, offset_top) = {
@@ -1980,7 +2145,7 @@ impl Civ3 {
         self.draw_unit(
             kind,
             owner,
-            civilization_id,
+            team_palette_index,
             2,
             era,
             Civ3UnitAction::Default,
@@ -2001,7 +2166,7 @@ impl Civ3 {
         &self,
         kind: UnitKind,
         owner: usize,
-        civilization_id: Option<&str>,
+        team_palette_index: Option<u8>,
         facing: u8,
         era: usize,
         action: Civ3UnitAction,
@@ -2038,16 +2203,13 @@ impl Civ3 {
         let Some(selected_role) = selected_role else {
             return false;
         };
-        let team_palette_index = Self::unit_team_palette_index(civilization_id);
         if self
             .load_unit_animation(selected_role, team_palette_index)
             .is_err()
         {
             return false;
         }
-        if let Some(palette_index) = team_palette_index {
-            let _ = self.ensure_unit_team_texture(selected_role, palette_index);
-        }
+        let _ = self.ensure_unit_palette_texture(selected_role, team_palette_index);
         let loaded_unit_art = self.unit_art.borrow();
         let art = loaded_unit_art.get(selected_role).unwrap();
         let frame = if let Some(still) = action.fixed_frame(
@@ -2110,7 +2272,7 @@ impl Civ3 {
         // Movement exhaustion is shown by the movement indicator; it does not
         // change sight or the unit's map colors.
         let base_tint = WHITE;
-        let team_tint = super::player_color(civilization_id, owner);
+        let team_tint = super::player_color(team_palette_index, owner);
         let draw_layer = |texture: &Texture2D, tint| {
             draw_texture_ex(
                 texture,
@@ -2126,8 +2288,8 @@ impl Civ3 {
         };
         if let Some(texture) = team_palette_index.and_then(|index| art.team_textures.get(&index)) {
             draw_layer(texture, base_tint);
-        } else {
-            for (texture, tint) in [(&art.base, base_tint), (&art.tint, team_tint)] {
+        } else if let Some((base, tint)) = &art.untinted {
+            for (texture, tint) in [(base, base_tint), (tint, team_tint)] {
                 draw_layer(texture, tint);
             }
         }
@@ -2940,5 +3102,41 @@ mod territory_alignment_tests {
                 assert!((vec2(rect.x, rect.y) + source * scale).distance(target) < 0.001);
             }
         }
+    }
+
+    #[test]
+    fn territory_recoloring_tints_border_dashes_and_converts_magenta_shadow_beads() {
+        let mut palette = [[0u8; 3]; 256];
+        palette[1] = [177, 177, 177];
+        // Indexed PCX mapping uses palette indices 64 and 65 directly even if a
+        // mod changes their placeholder RGB values in Territory.pcx.
+        palette[64] = [12, 34, 56];
+        palette[65] = [78, 90, 12];
+        palette[249] = [255, 163, 255];
+        palette[252] = [255, 218, 255];
+        palette[255] = [128, 0, 128];
+
+        let pcx = DecodedPcx {
+            width: 5,
+            height: 1,
+            indices: vec![64, 65, 249, 252, 1],
+            palette,
+        };
+        let sheet = TerritorySheet::from_indexed_pcx(&pcx, &TERRITORY_PCX_TRANSPARENT_INDICES);
+        let (rome_main, rome_secondary) = crate::map_palette::border_colors_for_palette(Some(1), 0);
+        assert_eq!(rome_main, [227, 10, 10]);
+        assert_eq!(rome_secondary, [176, 8, 8]);
+
+        let recolored = sheet.rasterize(rome_main, rome_secondary);
+        assert_eq!(
+            recolored.get_image_data(),
+            &[
+                [227, 10, 10, 255],
+                [176, 8, 8, 255],
+                [0, 0, 0, 92],
+                [0, 0, 0, 37],
+                [0, 0, 0, 0],
+            ]
+        );
     }
 }

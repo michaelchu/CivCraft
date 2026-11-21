@@ -18,8 +18,7 @@ impl Game {
     ) {
         let hill_terrain = |terrain| matches!(terrain, Terrain::Hills | Terrain::Mountains);
         let current_hilly = hill_terrain(self.sim.render_tile_view(x, y).terrain);
-        let civilization_id = self.sim.player_civilization_id_view(owner);
-        let color = player_color(civilization_id.as_deref(), owner);
+        let palette_index = self.sim.player_team_palette_view(owner);
         // Source rows are NW, NE, SW, SE; tile edges are traversed clockwise
         // from the top-right edge, matching Civ III's staggered neighbors.
         for (dx, dy, row) in [(0, -1, 1), (1, 0, 3), (0, 1, 2), (-1, 0, 0)] {
@@ -37,7 +36,7 @@ impl Game {
                 });
             assets
                 .civ3
-                .draw_territory_border(center, row, hilly, color, zoom);
+                .draw_territory_border(center, row, hilly, palette_index, owner, zoom);
         }
     }
 

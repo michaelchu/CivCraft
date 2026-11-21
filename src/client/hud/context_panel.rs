@@ -67,7 +67,7 @@ impl Game {
             assets.civ3.draw_unit_icon(
                 view.kind,
                 view.owner,
-                view.civilization_id.as_deref(),
+                self.sim.player_team_palette_view(view.owner),
                 view.era_index,
                 vec2(x + 18.0, card.y + 21.5),
                 vec2(36.0, 27.0),

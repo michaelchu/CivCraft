@@ -7,13 +7,9 @@ fn color_from_rgb(rgb: crate::map_palette::Rgb) -> Color {
     Color::new(r, g, b, 1.0)
 }
 
-pub(super) fn player_color(civilization_id: Option<&str>, owner: usize) -> Color {
-    color_from_rgb(crate::map_palette::player_rgb(civilization_id, owner))
-}
-
-pub(super) fn secondary_civilization_color(civilization_id: Option<&str>, owner: usize) -> Color {
-    color_from_rgb(crate::map_palette::secondary_civilization_rgb(
-        civilization_id,
+pub(super) fn player_color(palette_index: Option<u8>, owner: usize) -> Color {
+    color_from_rgb(crate::map_palette::player_rgb_for_palette(
+        palette_index,
         owner,
     ))
 }
