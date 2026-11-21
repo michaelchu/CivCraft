@@ -261,7 +261,7 @@ impl super::Generator {
                 }
                 1 => {
                     // Deep Ocean: `surrounded_by` only changes text.
-                    let _ = self.surrounded_by_c2c3_terrain(
+                    let _ = self.surrounded_by_engine_terrain(
                         tiles,
                         tile_index,
                         super::terrain::C2c3MapLabelTerrain::DeepOcean,
@@ -269,17 +269,17 @@ impl super::Generator {
                 }
                 2 => {
                     // Ocean: surrounding/adjacency only changes text.
-                    let _ = self.surrounded_by_c2c3_terrain(
+                    let _ = self.surrounded_by_engine_terrain(
                         tiles,
                         tile_index,
                         super::terrain::C2c3MapLabelTerrain::Ocean,
                     );
-                    let _ = self.adjacent_to_c2c3_terrain(
+                    let _ = self.adjacent_to_engine_terrain(
                         tiles,
                         tile_index,
                         super::terrain::C2c3MapLabelTerrain::Glacier,
                     );
-                    let _ = self.adjacent_to_c2c3_terrain(
+                    let _ = self.adjacent_to_engine_terrain(
                         tiles,
                         tile_index,
                         super::terrain::C2c3MapLabelTerrain::DeepOcean,
@@ -287,23 +287,23 @@ impl super::Generator {
                 }
                 3 => {
                     // Lake: these branches make no random calls.
-                    let _ = self.surrounded_by_c2c3_terrain(
+                    let _ = self.surrounded_by_engine_terrain(
                         tiles,
                         tile_index,
                         super::terrain::C2c3MapLabelTerrain::Lake,
                     );
-                    let _ = self.adjacent_to_c2c3_terrain(
+                    let _ = self.adjacent_to_engine_terrain(
                         tiles,
                         tile_index,
                         super::terrain::C2c3MapLabelTerrain::Lake,
                     );
                 }
                 4 => {
-                    if !self.adjacent_to_c2c3_terrain(
+                    if !self.adjacent_to_engine_terrain(
                         tiles,
                         tile_index,
                         super::terrain::C2c3MapLabelTerrain::Swamp,
-                    ) && self.adjacent_to_c2c3_terrain(
+                    ) && self.adjacent_to_engine_terrain(
                         tiles,
                         tile_index,
                         super::terrain::C2c3MapLabelTerrain::Ocean,
@@ -312,16 +312,16 @@ impl super::Generator {
                     }
                 }
                 5 => {
-                    if !self.surrounded_by_c2c3_terrain(
+                    if !self.surrounded_by_engine_terrain(
                         tiles,
                         tile_index,
                         super::terrain::C2c3MapLabelTerrain::Glacier,
-                    ) && self.adjacent_to_c2c3_terrain(
+                    ) && self.adjacent_to_engine_terrain(
                         tiles,
                         tile_index,
                         super::terrain::C2c3MapLabelTerrain::Glacier,
                     ) {
-                        let _ = self.adjacent_to_c2c3_terrain(
+                        let _ = self.adjacent_to_engine_terrain(
                             tiles,
                             tile_index,
                             super::terrain::C2c3MapLabelTerrain::Ocean,
@@ -330,12 +330,12 @@ impl super::Generator {
                 }
                 6 => {} // Tundra has a single non-random label.
                 7 => {
-                    let surrounded = self.surrounded_by_c2c3_terrain(
+                    let surrounded = self.surrounded_by_engine_terrain(
                         tiles,
                         tile_index,
                         super::terrain::C2c3MapLabelTerrain::Desert,
                     );
-                    let adjacent = self.adjacent_to_c2c3_terrain(
+                    let adjacent = self.adjacent_to_engine_terrain(
                         tiles,
                         tile_index,
                         super::terrain::C2c3MapLabelTerrain::Desert,
@@ -345,7 +345,7 @@ impl super::Generator {
                     }
                 }
                 8 | 9 => {
-                    if !self.adjacent_to_c2c3_terrain(
+                    if !self.adjacent_to_engine_terrain(
                         tiles,
                         tile_index,
                         super::terrain::C2c3MapLabelTerrain::Ocean,
@@ -354,38 +354,38 @@ impl super::Generator {
                     }
                 }
                 10 => {
-                    let _ = self.surrounded_by_c2c3_terrain(
+                    let _ = self.surrounded_by_engine_terrain(
                         tiles,
                         tile_index,
                         super::terrain::C2c3MapLabelTerrain::Jungle,
                     );
-                    let _ = self.adjacent_to_c2c3_terrain(
+                    let _ = self.adjacent_to_engine_terrain(
                         tiles,
                         tile_index,
                         super::terrain::C2c3MapLabelTerrain::Ocean,
                     );
                 }
                 11 => {
-                    let _ = self.adjacent_to_c2c3_terrain(
+                    let _ = self.adjacent_to_engine_terrain(
                         tiles,
                         tile_index,
                         super::terrain::C2c3MapLabelTerrain::Mountains,
                     );
-                    let _ = self.surrounded_by_c2c3_terrain(
+                    let _ = self.surrounded_by_engine_terrain(
                         tiles,
                         tile_index,
                         super::terrain::C2c3MapLabelTerrain::Forest,
                     );
                 }
                 12 => {
-                    if self.adjacent_to_c2c3_terrain(
+                    if self.adjacent_to_engine_terrain(
                         tiles,
                         tile_index,
                         super::terrain::C2c3MapLabelTerrain::Hills,
                     ) {
                         let _ = rng.below(100);
                     } else {
-                        let _ = self.adjacent_to_c2c3_terrain(
+                        let _ = self.adjacent_to_engine_terrain(
                             tiles,
                             tile_index,
                             super::terrain::C2c3MapLabelTerrain::Mountains,
@@ -393,17 +393,17 @@ impl super::Generator {
                     }
                 }
                 13 => {
-                    let surrounded = self.surrounded_by_c2c3_terrain(
+                    let surrounded = self.surrounded_by_engine_terrain(
                         tiles,
                         tile_index,
                         super::terrain::C2c3MapLabelTerrain::Mountains,
                     );
-                    let adjacent_mountains = self.adjacent_to_c2c3_terrain(
+                    let adjacent_mountains = self.adjacent_to_engine_terrain(
                         tiles,
                         tile_index,
                         super::terrain::C2c3MapLabelTerrain::Mountains,
                     );
-                    let adjacent_ocean = self.adjacent_to_c2c3_terrain(
+                    let adjacent_ocean = self.adjacent_to_engine_terrain(
                         tiles,
                         tile_index,
                         super::terrain::C2c3MapLabelTerrain::Ocean,
@@ -417,7 +417,7 @@ impl super::Generator {
         }
     }
 
-    fn adjacent_to_c2c3_terrain(
+    fn adjacent_to_engine_terrain(
         &self,
         tiles: &[GeneratedTile],
         tile: usize,
@@ -429,7 +429,7 @@ impl super::Generator {
         })
     }
 
-    fn surrounded_by_c2c3_terrain(
+    fn surrounded_by_engine_terrain(
         &self,
         tiles: &[GeneratedTile],
         tile: usize,

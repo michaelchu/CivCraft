@@ -112,7 +112,7 @@ impl Simulation {
     }
 
     pub(crate) fn nuclear_ai_role_test(&self) -> bool {
-        !super::super::action_rules::freeciv_unit_has_role(UnitKind::TacticalNuke, "Hunter")
+        !super::super::action_rules::unit_has_role(UnitKind::TacticalNuke, "Hunter")
     }
     pub(crate) fn ai_threat_route_cost_test(&mut self) -> bool {
         self.units.clear();

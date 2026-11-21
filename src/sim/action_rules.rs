@@ -436,7 +436,7 @@ impl<'a> SimulationRequirementContext<'a> {
         unit: UnitKind,
         requirement: &Requirement,
     ) -> Result<String, RequirementEvaluationError> {
-        freeciv_unit_class_rule_name(unit).ok_or_else(|| Self::unsupported(requirement))
+        unit_class_rule_name(unit).ok_or_else(|| Self::unsupported(requirement))
     }
 
     fn unit_class_flag(
@@ -445,7 +445,7 @@ impl<'a> SimulationRequirementContext<'a> {
         flag: &str,
         requirement: &Requirement,
     ) -> Result<bool, RequirementEvaluationError> {
-        freeciv_unit_class_flag(unit, flag).ok_or_else(|| Self::unsupported(requirement))
+        unit_class_flag(unit, flag).ok_or_else(|| Self::unsupported(requirement))
     }
 
     fn tech_present(&self, requirement: &Requirement) -> Result<bool, RequirementEvaluationError> {
@@ -453,11 +453,11 @@ impl<'a> SimulationRequirementContext<'a> {
             Some(ResolvedRequirementValue::Tech(tech)) => tech,
             _ => match &requirement.name {
                 RequirementValue::String(name) => {
-                    match crate::rules::content_adapter::bind_freeciv_technology(name)
+                    match crate::rules::content_adapter::bind_engine_technology(name)
                         .map_err(|_| Self::unsupported(requirement))?
                     {
-                        crate::rules::content_adapter::FreecivTechBinding::Bound(tech) => tech,
-                        crate::rules::content_adapter::FreecivTechBinding::MissingFromCiv3Catalog => {
+                        crate::rules::content_adapter::EngineTechBinding::Bound(tech) => tech,
+                        crate::rules::content_adapter::EngineTechBinding::MissingFromCiv3Catalog => {
                             if self.unbound_content_is_absent {
                                 return Ok(false);
                             }
@@ -1067,18 +1067,18 @@ impl RequirementContext for SimulationRequirementContext<'_> {
                     let Some(unit) = self.unit else {
                         return Ok(false);
                     };
-                    freeciv_unit_type_flag(unit.kind, name).ok_or_else(unsupported)
+                    unit_type_flag(unit.kind, name).ok_or_else(unsupported)
                 }
             }
             RequirementKind::Terrain if requirement.range == RequirementRange::Tile => {
                 let tile = self.tile.ok_or_else(unsupported)?;
                 let actual = self.tile_state(tile).terrain;
-                let Some(actual_name) = actual.c2c3_rule_name() else {
+                let Some(actual_name) = actual.engine_rule_name() else {
                     return Ok(false);
                 };
                 match requirement.resolved {
                     Some(ResolvedRequirementValue::Terrain(expected)) => {
-                        let expected_name = expected.c2c3_rule_name().ok_or_else(unsupported)?;
+                        let expected_name = expected.engine_rule_name().ok_or_else(unsupported)?;
                         Ok(actual_name.eq_ignore_ascii_case(expected_name))
                     }
                     _ => Ok(actual_name.eq_ignore_ascii_case(Self::string_name(requirement)?)),
@@ -1619,7 +1619,7 @@ impl Simulation {
     /// C2C3 uses `Build Road` for both road classes, `Build Irrigation` for the
     /// irrigation/farmland activity family, and `Build Mine` for mine/oil
     /// activity variants.
-    pub(crate) fn freeciv_action_for_work(kind: WorkKind) -> &'static str {
+    pub(crate) fn action_for_work(kind: WorkKind) -> &'static str {
         match kind {
             WorkKind::Road | WorkKind::Railroad => "Build Road",
             WorkKind::Irrigation | WorkKind::Farmland => "Build Irrigation",
@@ -1668,7 +1668,7 @@ impl Simulation {
             // no corresponding extra, clean requirement, or removal time.
             return Ok(false);
         }
-        let action = Self::freeciv_action_for_work(kind);
+        let action = Self::action_for_work(kind);
         if !self.action_available_for_unit_with_tile(actor, action, target_xy, target_state)? {
             return Ok(false);
         }
@@ -1715,7 +1715,7 @@ impl Simulation {
         match self.work_action_available_for_unit_with_tile(actor, kind, target_xy, target_state) {
             Ok(available) => available,
             Err(error) => {
-                Self::report_action_evaluation_error(Self::freeciv_action_for_work(kind), &error);
+                Self::report_action_evaluation_error(Self::action_for_work(kind), &error);
                 false
             }
         }
@@ -1886,7 +1886,7 @@ impl Simulation {
         match self.work_action_available(actor_id, kind, target_xy) {
             Ok(available) => available,
             Err(error) => {
-                Self::report_action_evaluation_error(Self::freeciv_action_for_work(kind), &error);
+                Self::report_action_evaluation_error(Self::action_for_work(kind), &error);
                 false
             }
         }
@@ -1901,7 +1901,7 @@ impl Simulation {
         match self.work_action_available_for_unit(actor, kind, target_xy) {
             Ok(available) => available,
             Err(error) => {
-                Self::report_action_evaluation_error(Self::freeciv_action_for_work(kind), &error);
+                Self::report_action_evaluation_error(Self::action_for_work(kind), &error);
                 false
             }
         }
@@ -2021,7 +2021,7 @@ impl Simulation {
         match self.work_activity_time(kind, terrain) {
             Ok(time) => time,
             Err(error) => {
-                Self::report_action_evaluation_error(Self::freeciv_action_for_work(kind), &error);
+                Self::report_action_evaluation_error(Self::action_for_work(kind), &error);
                 0
             }
         }
@@ -2074,7 +2074,7 @@ fn build_extra_for_work(kind: WorkKind) -> Option<&'static str> {
 /// Apply a selected C2C3 extra as `tile_extra_apply()` does: remove the
 /// extras listed as conflicts, then add the requested extra. The campaign
 /// tile model treats the unrepresented Buoy extra as absent.
-pub(crate) fn apply_freeciv_work_extra(tile: &mut Tile, kind: WorkKind) -> bool {
+pub(crate) fn apply_work_extra(tile: &mut Tile, kind: WorkKind) -> bool {
     let Some(extra_name) = build_extra_for_work(kind) else {
         return false;
     };
@@ -2174,7 +2174,7 @@ pub(super) fn native_unit_capabilities(
     Some(super::native_unit_rules::get(unit))
 }
 
-pub(crate) fn freeciv_unit_has_role(unit: UnitKind, role: &str) -> bool {
+pub(crate) fn unit_has_role(unit: UnitKind, role: &str) -> bool {
     super::native_unit_rules::has_role(unit, role)
 }
 
@@ -2185,7 +2185,7 @@ pub(crate) fn unit_build_cost(unit: UnitKind) -> i32 {
 
 /// Resolve the native unit rule's class while retaining the legacy helper name
 /// used by callers during the migration.
-pub(crate) fn freeciv_unit_class_rule_name(unit: UnitKind) -> Option<String> {
+pub(crate) fn unit_class_rule_name(unit: UnitKind) -> Option<String> {
     native_unit_capabilities(unit).map(|native| native.unit_class.clone())
 }
 
@@ -2225,7 +2225,7 @@ pub(crate) fn freeciv_missile_attack_strength(unit: UnitKind) -> Option<i32> {
 /// Resolve a C2C3 per-unit flag through explicit identity bindings. Returns
 /// `Some(false)` for a roster ID in the audited no-type-flag ledger and
 /// `None` when the ID or selected unit record has no declared binding.
-pub(crate) fn freeciv_unit_type_flag(unit: UnitKind, flag: &str) -> Option<bool> {
+pub(crate) fn unit_type_flag(unit: UnitKind, flag: &str) -> Option<bool> {
     unit.conquests_id()?;
     Some(native_unit_capabilities(unit).is_some_and(|native| {
         native
@@ -2238,10 +2238,7 @@ pub(crate) fn freeciv_unit_type_flag(unit: UnitKind, flag: &str) -> Option<bool>
 /// Resolve whether a selected C2C3 unit record can attack a defender's class.
 /// Freeciv targets every reachable unit class by default and only requires an
 /// explicit `targets` entry for classes marked `Unreachable`.
-pub(crate) fn freeciv_unit_can_target_class(
-    attacker: UnitKind,
-    defender: UnitKind,
-) -> Option<bool> {
+pub(crate) fn unit_can_target_class(attacker: UnitKind, defender: UnitKind) -> Option<bool> {
     let target_is_air = defender.conquests_rule().unit_type == 2 || defender.is_missile();
     Some(!target_is_air || attacker.conquests_rule().has_capability("AttackAir"))
 }
@@ -2249,7 +2246,7 @@ pub(crate) fn freeciv_unit_can_target_class(
 /// Resolve one selected C2C3 class flag through the Civ III unit-class
 /// crosswalk. Callers receive `None` when the runtime identity has no explicit
 /// class mapping or the selected ruleset omits the mapped record.
-pub(crate) fn freeciv_unit_class_flag(unit: UnitKind, flag: &str) -> Option<bool> {
+pub(crate) fn unit_class_flag(unit: UnitKind, flag: &str) -> Option<bool> {
     Some(
         native_unit_capabilities(unit)?
             .class_flags
@@ -2639,10 +2636,7 @@ mod tests {
                 .unwrap()
         );
         let mut projected = game.tile(x, y).clone();
-        assert!(apply_freeciv_work_extra(
-            &mut projected,
-            WorkKind::Irrigation
-        ));
+        assert!(apply_work_extra(&mut projected, WorkKind::Irrigation));
         assert!(projected.irrigation);
         assert!(!projected.mine);
     }
@@ -2966,16 +2960,13 @@ mod tests {
 
     #[test]
     fn retained_nuclear_units_map_the_selected_nuclear_flag_explicitly() {
+        assert_eq!(unit_type_flag(UnitKind::ICBM, "Nuclear"), Some(true));
         assert_eq!(
-            freeciv_unit_type_flag(UnitKind::ICBM, "Nuclear"),
-            Some(true)
-        );
-        assert_eq!(
-            freeciv_unit_type_flag(UnitKind::TacticalNuke, "Nuclear"),
+            unit_type_flag(UnitKind::TacticalNuke, "Nuclear"),
             Some(true)
         );
         assert_ne!(
-            freeciv_unit_type_flag(UnitKind::CruiseMissile, "Nuclear"),
+            unit_type_flag(UnitKind::CruiseMissile, "Nuclear"),
             Some(true)
         );
     }
@@ -3119,52 +3110,46 @@ mod tests {
             assert_eq!(Some(native.id), kind.conquests_id());
             assert!(native.class_flags.iter().all(|flag| !flag.is_empty()));
         }
-        assert_eq!(
-            freeciv_unit_type_flag(UnitKind::Guerilla, "IgZOC"),
-            Some(false)
-        );
-        assert_eq!(
-            freeciv_unit_type_flag(UnitKind::Leader, "GameLoss"),
-            Some(false)
-        );
+        assert_eq!(unit_type_flag(UnitKind::Guerilla, "IgZOC"), Some(false));
+        assert_eq!(unit_type_flag(UnitKind::Leader, "GameLoss"), Some(false));
     }
 
     #[test]
     fn selected_military_roles_use_explicit_civ3_archetype_bindings() {
-        assert!(freeciv_unit_has_role(UnitKind::Warrior, "DefendOk"));
-        assert!(freeciv_unit_has_role(UnitKind::Spearman, "DefendGood"));
-        assert!(freeciv_unit_has_role(UnitKind::Musketman, "DefendGood"));
-        assert!(freeciv_unit_has_role(UnitKind::MechInfantry, "DefendGood"));
-        assert!(freeciv_unit_has_role(UnitKind::Horseman, "Hunter"));
-        assert!(!freeciv_unit_has_role(UnitKind::Curragh, "Ferryboat"));
-        assert!(!freeciv_unit_has_role(UnitKind::Dromon, "BarbarianBoat"));
-        assert!(!freeciv_unit_has_role(UnitKind::Army, "DefendGood"));
+        assert!(unit_has_role(UnitKind::Warrior, "DefendOk"));
+        assert!(unit_has_role(UnitKind::Spearman, "DefendGood"));
+        assert!(unit_has_role(UnitKind::Musketman, "DefendGood"));
+        assert!(unit_has_role(UnitKind::MechInfantry, "DefendGood"));
+        assert!(unit_has_role(UnitKind::Horseman, "Hunter"));
+        assert!(!unit_has_role(UnitKind::Curragh, "Ferryboat"));
+        assert!(!unit_has_role(UnitKind::Dromon, "BarbarianBoat"));
+        assert!(!unit_has_role(UnitKind::Army, "DefendGood"));
     }
 
     #[test]
     fn combat_target_classes_follow_selected_c2c3_rules() {
         assert_eq!(
-            freeciv_unit_can_target_class(UnitKind::Warrior, UnitKind::Worker),
+            unit_can_target_class(UnitKind::Warrior, UnitKind::Worker),
             Some(true)
         );
         assert_eq!(
-            freeciv_unit_can_target_class(UnitKind::Warrior, UnitKind::Fighter),
+            unit_can_target_class(UnitKind::Warrior, UnitKind::Fighter),
             Some(false)
         );
         assert_eq!(
-            freeciv_unit_can_target_class(UnitKind::Fighter, UnitKind::Fighter),
+            unit_can_target_class(UnitKind::Fighter, UnitKind::Fighter),
             Some(true)
         );
         assert_eq!(
-            freeciv_unit_can_target_class(UnitKind::Fighter, UnitKind::Warrior),
+            unit_can_target_class(UnitKind::Fighter, UnitKind::Warrior),
             Some(true)
         );
         assert_eq!(
-            freeciv_unit_class_flag(UnitKind::Fighter, "Unreachable"),
+            unit_class_flag(UnitKind::Fighter, "Unreachable"),
             Some(true)
         );
         assert_eq!(
-            freeciv_unit_class_flag(UnitKind::Warrior, "AttackNonNative"),
+            unit_class_flag(UnitKind::Warrior, "AttackNonNative"),
             Some(false)
         );
     }

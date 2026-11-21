@@ -1,6 +1,6 @@
 //! Filesystem loading and typed decoding for native Freeciv rulesets.
 
-use crate::rules::content_adapter::{FreecivTechBinding, bind_freeciv_technology};
+use crate::rules::content_adapter::{EngineTechBinding, bind_engine_technology};
 use crate::rules::engine_rules::RequirementKind;
 use crate::rules::{Building, Tech};
 use crate::world::Terrain;
@@ -204,9 +204,9 @@ fn resolve_requirements(requirements: &mut [Requirement]) {
 }
 
 fn resolve_tech(name: &str) -> Option<Tech> {
-    match bind_freeciv_technology(name).ok()? {
-        FreecivTechBinding::Bound(tech) => Some(tech),
-        FreecivTechBinding::MissingFromCiv3Catalog => None,
+    match bind_engine_technology(name).ok()? {
+        EngineTechBinding::Bound(tech) => Some(tech),
+        EngineTechBinding::MissingFromCiv3Catalog => None,
     }
 }
 
@@ -796,7 +796,7 @@ fn requirement_value_is_valid(requirement: &Requirement, rules: &RulesetData) ->
         }
         RequirementKind::Tech => {
             content_name_exists(rules, ContentKind::Technology, &name)
-                || (rules.name == "civcraft" && bind_freeciv_technology(&name).is_ok())
+                || (rules.name == "civcraft" && bind_engine_technology(&name).is_ok())
         }
         RequirementKind::Age => integer_value(&name).is_some_and(|value| value > 0),
         RequirementKind::Ai => {
@@ -1294,19 +1294,19 @@ mod bundle_tests {
                 Some(ResolvedRequirementValue::Tech(technology))
             );
             assert_eq!(
-                bind_freeciv_technology(alias),
-                Ok(FreecivTechBinding::Bound(technology))
+                bind_engine_technology(alias),
+                Ok(EngineTechBinding::Bound(technology))
             );
         }
         assert_eq!(
-            bind_freeciv_technology("Conscription"),
-            Ok(FreecivTechBinding::Bound(Tech::NATIONALISM))
+            bind_engine_technology("Conscription"),
+            Ok(EngineTechBinding::Bound(Tech::NATIONALISM))
         );
         assert_eq!(
-            bind_freeciv_technology("Plastics"),
-            Ok(FreecivTechBinding::MissingFromCiv3Catalog)
+            bind_engine_technology("Plastics"),
+            Ok(EngineTechBinding::MissingFromCiv3Catalog)
         );
-        assert!(bind_freeciv_technology("Unknown modification").is_err());
+        assert!(bind_engine_technology("Unknown modification").is_err());
     }
 
     #[test]

@@ -260,9 +260,9 @@ impl NormalPaths {
         let start = sim.map_wrap.index(unit.x, unit.y);
         let &(movement_class, ref class_rules) =
             MovementRules::campaign_unit_movement_data(unit.kind);
-        let ignores_terrain = super::action_rules::freeciv_unit_type_flag(unit.kind, "IgTer")
+        let ignores_terrain = super::action_rules::unit_type_flag(unit.kind, "IgTer")
             .expect("campaign C2C3 unit-type IgTer binding");
-        let coast_strict = super::action_rules::freeciv_unit_type_flag(unit.kind, "CoastStrict")
+        let coast_strict = super::action_rules::unit_type_flag(unit.kind, "CoastStrict")
             .expect("campaign C2C3 CoastStrict unit flag");
         let (allied_mask, war_mask, peace_mask) = sim.pact_masks(unit.owner);
         let mut map = Self {

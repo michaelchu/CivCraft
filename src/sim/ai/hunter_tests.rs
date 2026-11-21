@@ -6,11 +6,11 @@ use super::*;
 fn native_hunter_roles_and_combat_values_match_imported_conquests_rules() {
     use crate::sim::unit_catalog::UnitAiStrategy;
 
-    assert!(super::super::action_rules::freeciv_unit_has_role(
+    assert!(super::super::action_rules::unit_has_role(
         UnitKind::Horseman,
         "Hunter"
     ));
-    assert!(!super::super::action_rules::freeciv_unit_has_role(
+    assert!(!super::super::action_rules::unit_has_role(
         UnitKind::Warrior,
         "Hunter"
     ));

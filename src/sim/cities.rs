@@ -708,7 +708,7 @@ impl Simulation {
             } else if unit.owner != new_owner && !self.allied(new_owner, unit.owner) {
                 // transfer_city_units resolves third-party units that are not
                 // allied to the new city owner through Freeciv's bounce path.
-                self.bounce_unit_freeciv(unit.id);
+                self.bounce_unit(unit.id);
             }
         }
 
@@ -750,17 +750,17 @@ impl Simulation {
         city_id: u32,
         rehome: bool,
     ) {
-        let unique = crate::sim::action_rules::freeciv_unit_type_flag(unit.kind, "Unique")
+        let unique = crate::sim::action_rules::unit_type_flag(unit.kind, "Unique")
             .expect("campaign C2C3 city-transfer Unique flag is explicitly mapped");
         let unique_conflict = unique
             && self.units.iter().any(|other| {
                 other.id != unit.id && other.owner == new_owner && other.kind == unit.kind
             });
         if unique_conflict {
-            let game_loss = crate::sim::action_rules::freeciv_unit_type_flag(unit.kind, "GameLoss")
+            let game_loss = crate::sim::action_rules::unit_type_flag(unit.kind, "GameLoss")
                 .expect("campaign C2C3 city-transfer GameLoss flag is explicitly mapped");
             if game_loss {
-                self.bounce_unit_freeciv(unit.id);
+                self.bounce_unit(unit.id);
             } else {
                 self.remove_units_with_cargo(vec![unit.id]);
             }
@@ -856,7 +856,7 @@ impl Simulation {
                     .is_some_and(|carrier| carrier.owner == owner)
             });
             if !carried_by_own_unit {
-                self.bounce_unit_freeciv(id);
+                self.bounce_unit(id);
             }
         }
     }
@@ -892,7 +892,7 @@ impl Simulation {
                     || occupant.owner == other
                     || !self.unit_can_survive_at_tile(&occupant, x, y)
                 {
-                    self.bounce_unit_freeciv(occupant_id);
+                    self.bounce_unit(occupant_id);
                 }
             }
         }
@@ -995,7 +995,7 @@ impl Simulation {
         government: Government,
     ) -> (i32, i32, i32) {
         let celebrating = self.base_city_celebrating(city);
-        self.c2c3_city_tile_yields(
+        self.ruleset_city_tile_yields(
             city,
             (x, y),
             self.tile(x, y),

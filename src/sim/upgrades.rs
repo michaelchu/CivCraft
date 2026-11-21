@@ -119,8 +119,8 @@ impl Simulation {
             .levels
             .len()
             .saturating_sub(1);
-        unit.c2c3_veteran = unit
-            .c2c3_veteran
+        unit.veteran_level = unit
+            .veteran_level
             .min(max_c2c3_veteran)
             .saturating_sub(veteran_loss);
         let new_max_hp = unit.max_hit_points();
@@ -146,7 +146,7 @@ mod tests {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         game.create_city(HUMAN, 10, 20);
         let id = game.upgrade_fixture();
-        game.units.last_mut().unwrap().c2c3_veteran = 3;
+        game.units.last_mut().unwrap().veteran_level = 3;
         let original = game.units.last().unwrap().clone();
         game.start_lifecycle_observation();
         let cost = UnitKind::Legionary.stats().cost - UnitKind::Warrior.stats().cost / 2;
@@ -175,7 +175,7 @@ mod tests {
         }));
         let unit = game.units.last().unwrap();
         assert_eq!(unit.veteran, 1);
-        assert_eq!(unit.c2c3_veteran, 2);
+        assert_eq!(unit.veteran_level, 2);
         assert_eq!(unit.hp, expected_hp);
         assert_eq!(game.players[HUMAN].gold, gold - price);
         game.reconcile_lifecycle_observation();
@@ -261,7 +261,7 @@ mod tests {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         game.create_city(HUMAN, 10, 20);
         let id = game.upgrade_fixture();
-        game.units.last_mut().unwrap().c2c3_veteran = 3;
+        game.units.last_mut().unwrap().veteran_level = 3;
         game.cities[0].buildings.push(Building::LEONARDOS_WORKSHOP);
 
         game.apply_workshop_upgrades_for(HUMAN);
@@ -269,6 +269,6 @@ mod tests {
         let unit = game.unit_by_id(id).unwrap();
         assert_eq!(unit.kind, UnitKind::Legionary);
         assert_eq!(unit.veteran, 1);
-        assert_eq!(unit.c2c3_veteran, 2);
+        assert_eq!(unit.veteran_level, 2);
     }
 }

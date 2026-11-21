@@ -73,8 +73,8 @@ impl Simulation {
 
     pub(super) fn production_defender_types() -> impl Iterator<Item = UnitKind> {
         UnitKind::simple_military().into_iter().filter(|&kind| {
-            super::super::action_rules::freeciv_unit_has_role(kind, "DefendGood")
-                || super::super::action_rules::freeciv_unit_has_role(kind, "DefendOk")
+            super::super::action_rules::unit_has_role(kind, "DefendGood")
+                || super::super::action_rules::unit_has_role(kind, "DefendOk")
         })
     }
 

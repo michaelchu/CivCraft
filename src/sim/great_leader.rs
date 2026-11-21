@@ -8,7 +8,7 @@ impl Simulation {
     /// True when the unit sits at the top level of its veteran system.
     pub(super) fn unit_is_elite(&self, unit: &Unit) -> bool {
         let levels = veterancy::selected_veteran_system(unit.kind).levels.len();
-        levels > 1 && unit.c2c3_veteran + 1 == levels
+        levels > 1 && unit.veteran_level + 1 == levels
     }
 
     /// True when any living unit of `owner` is elite. Stands in for Civ III's
@@ -155,7 +155,7 @@ mod tests {
             .iter_mut()
             .find(|unit| unit.id == id)
             .unwrap()
-            .c2c3_veteran = level;
+            .veteran_level = level;
         id
     }
 
@@ -176,7 +176,7 @@ mod tests {
             .iter_mut()
             .find(|u| u.id == out_of_range)
             .unwrap()
-            .c2c3_veteran = u8::MAX as usize;
+            .veteran_level = u8::MAX as usize;
         assert!(
             !game.great_leader_eligible(&unit(&game, out_of_range), &loser),
             "only the top level is elite, not any level beyond the table"
@@ -187,7 +187,7 @@ mod tests {
             .iter_mut()
             .find(|u| u.id == veteran)
             .unwrap()
-            .c2c3_veteran = elite_level(UnitKind::Knight) - 1;
+            .veteran_level = elite_level(UnitKind::Knight) - 1;
         assert!(!game.great_leader_eligible(&unit(&game, veteran), &loser));
 
         for kind in [UnitKind::AegisCruiser, UnitKind::Fighter] {
@@ -383,13 +383,13 @@ mod tests {
                 .iter_mut()
                 .find(|u| u.id == attacker)
                 .unwrap()
-                .c2c3_veteran = top - 1;
+                .veteran_level = top - 1;
             game.spawn_unit(1, UnitKind::Warrior, nx, ny);
             let direction = game.civ3_direction_for_unit_offset(attacker, 1, 0).unwrap();
             game.apply(Command::MoveCiv3(attacker, direction));
             let promoted = game
                 .unit_by_id(attacker)
-                .is_some_and(|unit| unit.c2c3_veteran == top);
+                .is_some_and(|unit| unit.veteran_level == top);
             let leader = game.units.iter().any(|u| u.kind == UnitKind::Leader);
             assert!(
                 !(promoted && leader),

@@ -44,7 +44,7 @@ impl Simulation {
             Contamination::Pollution
         };
         let nearby_contamination =
-            super::super::pollution::C2C3_CITY_MAP_RADIUS_5
+            super::super::pollution::CITY_MAP_RADIUS_5
                 .iter()
                 .any(|&(dx, dy)| {
                     self.map_wrap

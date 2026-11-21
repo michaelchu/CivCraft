@@ -45,9 +45,9 @@ impl StepMovementProfile {
     fn new(kind: UnitKind, class: super::unit_catalog::UnitClass, can_occupy_city: bool) -> Self {
         Self {
             class,
-            ignores_terrain: super::action_rules::freeciv_unit_type_flag(kind, "IgTer")
+            ignores_terrain: super::action_rules::unit_type_flag(kind, "IgTer")
                 .expect("campaign C2C3 unit-type IgTer binding"),
-            coast_strict: super::action_rules::freeciv_unit_type_flag(kind, "CoastStrict")
+            coast_strict: super::action_rules::unit_type_flag(kind, "CoastStrict")
                 .expect("campaign C2C3 unit-type CoastStrict binding"),
             can_occupy_city,
         }
@@ -169,7 +169,7 @@ impl Simulation {
         gained.nationality = victim.nationality;
         gained.fuel = victim.fuel;
         gained.veteran = victim.veteran;
-        gained.c2c3_veteran = victim.c2c3_veteran;
+        gained.veteran_level = victim.veteran_level;
         gained.paradropped = victim.paradropped;
         gained.moves_left = victim.moves_left;
         gained.home_city = home;
@@ -371,7 +371,7 @@ impl Simulation {
         );
         let ignores_terrain = profile.map_or_else(
             || {
-                super::action_rules::freeciv_unit_type_flag(unit.kind, "IgTer")
+                super::action_rules::unit_type_flag(unit.kind, "IgTer")
                     .expect("campaign C2C3 unit-type IgTer binding")
             },
             |profile| profile.ignores_terrain,
@@ -391,7 +391,7 @@ impl Simulation {
     ) -> bool {
         let coast_strict = profile.map_or_else(
             || {
-                super::action_rules::freeciv_unit_type_flag(unit.kind, "CoastStrict")
+                super::action_rules::unit_type_flag(unit.kind, "CoastStrict")
                     .expect("campaign C2C3 unit-type CoastStrict binding")
             },
             |profile| profile.coast_strict,
@@ -579,7 +579,7 @@ impl Simulation {
                         && !self.military_access(owner, unit.owner)
                         && unit.transport.is_none()
                         && Self::unit_class_uses_zoc(unit.kind)
-                        && !super::action_rules::freeciv_unit_type_flag(unit.kind, "HasNoZOC")
+                        && !super::action_rules::unit_type_flag(unit.kind, "HasNoZOC")
                             .expect("campaign C2C3 unit-type HasNoZOC binding")
                 })
             })
@@ -614,7 +614,7 @@ impl Simulation {
 
     pub(super) fn unit_ignores_zoc(kind: UnitKind) -> bool {
         !Self::unit_class_uses_zoc(kind)
-            || super::action_rules::freeciv_unit_type_flag(kind, "IgZOC")
+            || super::action_rules::unit_type_flag(kind, "IgZOC")
                 .expect("campaign C2C3 unit-type IgZOC binding")
     }
 
@@ -817,7 +817,7 @@ impl Simulation {
     fn capture_units_unique_preflight(&self, owner: usize, targets: &[Unit]) -> bool {
         let mut unique_types = Vec::new();
         for target in targets {
-            if !super::action_rules::freeciv_unit_type_flag(target.kind, "Unique")
+            if !super::action_rules::unit_type_flag(target.kind, "Unique")
                 .expect("campaign C2C3 unit-type Unique binding")
             {
                 continue;
@@ -850,11 +850,11 @@ impl Simulation {
                 && !remaining_capture_ids.contains(&other.id)
         });
         if city_tile || hostile_city || hostile_unlisted_unit {
-            self.bounce_unit_freeciv(id);
+            self.bounce_unit(id);
         }
     }
 
-    pub(super) fn bounce_unit_freeciv(&mut self, id: u32) {
+    pub(super) fn bounce_unit(&mut self, id: u32) {
         let Some(unit) = self.unit_by_id(id).cloned() else {
             return;
         };
@@ -883,7 +883,7 @@ impl Simulation {
                 .collect();
             for passenger in cargo {
                 if self.unit_by_id(passenger).is_some() {
-                    self.bounce_unit_freeciv(passenger);
+                    self.bounce_unit(passenger);
                 }
             }
             self.remove_units_with_cargo(vec![id]);
@@ -908,7 +908,7 @@ impl Simulation {
     pub(super) fn unit_is_nonallied_to(&self, unit: &Unit, owner: usize) -> bool {
         unit.owner != owner
             && (!self.military_access(owner, unit.owner)
-                || crate::sim::action_rules::freeciv_unit_type_flag(unit.kind, "Flagless")
+                || crate::sim::action_rules::unit_type_flag(unit.kind, "Flagless")
                     .expect("campaign C2C3 unit-type Flagless binding"))
     }
 

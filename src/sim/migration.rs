@@ -301,7 +301,7 @@ impl Simulation {
         self.map_city_radius(destination)
             .filter(|&(_, _, x, y)| self.can_assign_city_tile(destination, x, y))
             .map(|(_, _, x, y)| {
-                self.c2c3_city_tile_yields(
+                self.ruleset_city_tile_yields(
                     destination,
                     (x, y),
                     self.tile(x, y),

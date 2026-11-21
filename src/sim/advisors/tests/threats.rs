@@ -97,12 +97,10 @@ fn counter_defender_selection_accounts_for_attacker_class_and_naval_city_penalty
     );
     assert!(
         game.production_city_defender(city, 100)
-            .is_some_and(|kind| super::super::action_rules::freeciv_unit_has_role(
-                kind,
-                "DefendGood"
-            ) || super::super::action_rules::freeciv_unit_has_role(
-                kind, "DefendOk"
-            ))
+            .is_some_and(
+                |kind| super::super::action_rules::unit_has_role(kind, "DefendGood")
+                    || super::super::action_rules::unit_has_role(kind, "DefendOk")
+            )
     );
 }
 

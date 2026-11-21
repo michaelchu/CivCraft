@@ -334,9 +334,7 @@ impl Simulation {
             if let Some(home) = city_defender_homes.get(&id).copied() {
                 // dai_manage_military tries Hunter management before the
                 // DEFEND_HOME task, even for a unit selected by dai_set_defenders.
-                if owner != BARBARIANS
-                    && super::action_rules::freeciv_unit_has_role(unit.kind, "Hunter")
-                {
+                if owner != BARBARIANS && super::action_rules::unit_has_role(unit.kind, "Hunter") {
                     let _profile = profiler.scope("ai.units.city_hunter");
                     if self.run_existing_hunter(&unit, &mut claimed_targets) {
                         continue;
@@ -401,9 +399,7 @@ impl Simulation {
                 drop(_profile);
                 continue;
             }
-            if owner != BARBARIANS
-                && super::action_rules::freeciv_unit_has_role(unit.kind, "Hunter")
-            {
+            if owner != BARBARIANS && super::action_rules::unit_has_role(unit.kind, "Hunter") {
                 let _profile = profiler.scope("ai.units.hunter");
                 if self.run_existing_hunter(&unit, &mut claimed_targets) {
                     continue;

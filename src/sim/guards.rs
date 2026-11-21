@@ -166,7 +166,7 @@ impl Simulation {
     }
 
     pub(super) fn guard_defender_role(kind: UnitKind) -> bool {
-        super::action_rules::freeciv_unit_has_role(kind, "DefendGood")
+        super::action_rules::unit_has_role(kind, "DefendGood")
     }
 
     fn guard_native_sets(kind: UnitKind) -> (u16, u16) {

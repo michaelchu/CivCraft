@@ -195,8 +195,8 @@ impl Simulation {
         resource.road = true;
         let source_defender = |game: &Simulation| {
             let kind = game.preferred_city_defender(&game.cities[0]);
-            super::super::action_rules::freeciv_unit_has_role(kind, "DefendGood")
-                || super::super::action_rules::freeciv_unit_has_role(kind, "DefendOk")
+            super::super::action_rules::unit_has_role(kind, "DefendGood")
+                || super::super::action_rules::unit_has_role(kind, "DefendOk")
         };
         let budget = source_defender(self);
         self.cities[0].shields = 20;
@@ -211,16 +211,16 @@ impl Simulation {
         self.prepare_ai_city_defenses(1);
         let quiet = no_emergency_bid
             && !matches!(self.cities[0].production, Production::Unit(kind)
-                if super::super::action_rules::freeciv_unit_has_role(kind, "DefendGood")
-                    || super::super::action_rules::freeciv_unit_has_role(kind, "DefendOk"));
+                if super::super::action_rules::unit_has_role(kind, "DefendGood")
+                    || super::super::action_rules::unit_has_role(kind, "DefendOk"));
         self.sign_pact(1, HUMAN, Pact::War);
         self.units
             .retain(|unit| !(unit.owner == 1 && (unit.x, unit.y) == (x, y)));
         self.spawn_unit(HUMAN, UnitKind::Warrior, nx, ny);
         self.prepare_ai_city_defenses(1);
         let responded = matches!(self.cities[0].production, Production::Unit(kind)
-            if super::super::action_rules::freeciv_unit_has_role(kind, "DefendGood")
-                || super::super::action_rules::freeciv_unit_has_role(kind, "DefendOk"));
+            if super::super::action_rules::unit_has_role(kind, "DefendGood")
+                || super::super::action_rules::unit_has_role(kind, "DefendOk"));
         (budget && stocked, quiet, responded)
     }
 }

@@ -41,7 +41,7 @@ impl TerrainMapgenProperty {
     }
 }
 
-fn civ3_terrain_for_freeciv_rule(rule_name: &str) -> Option<Terrain> {
+fn terrain_for_rule_name(rule_name: &str) -> Option<Terrain> {
     Some(match rule_name.to_ascii_lowercase().as_str() {
         "desert" => Terrain::Desert,
         "forest" => Terrain::Forest,
@@ -106,7 +106,7 @@ pub(super) fn validate_freeciv_terrain_mappings(
     terrains: &[TerrainMapgenProperties],
 ) -> Result<(), String> {
     for terrain in terrains {
-        if civ3_terrain_for_freeciv_rule(&terrain.rule_name).is_none()
+        if terrain_for_rule_name(&terrain.rule_name).is_none()
             && (terrain.starter
                 || [
                     terrain.mountainous,
@@ -135,7 +135,7 @@ pub(super) fn civ3_starter_terrains(terrains: &[TerrainMapgenProperties]) -> Vec
     terrains
         .iter()
         .filter(|terrain| terrain.starter)
-        .filter_map(|terrain| civ3_terrain_for_freeciv_rule(&terrain.rule_name))
+        .filter_map(|terrain| terrain_for_rule_name(&terrain.rule_name))
         .collect()
 }
 
@@ -154,9 +154,7 @@ pub(super) fn start_scoring_properties(
     };
     terrains
         .iter()
-        .find(|properties| {
-            civ3_terrain_for_freeciv_rule(&properties.rule_name) == Some(source_terrain)
-        })
+        .find(|properties| terrain_for_rule_name(&properties.rule_name) == Some(source_terrain))
         .map(|properties| (properties, source_terrain))
 }
 
@@ -172,7 +170,7 @@ fn pick_freeciv_terrain(
     rng: &mut MapRng,
 ) -> Option<Terrain> {
     let eligible = |terrain: &&TerrainMapgenProperties| {
-        civ3_terrain_for_freeciv_rule(&terrain.rule_name).is_some()
+        terrain_for_rule_name(&terrain.rule_name).is_some()
             && avoid.is_none_or(|property| property.value(terrain) <= 0)
             && prefer.is_none_or(|property| property.value(terrain) != 0)
     };
@@ -199,7 +197,7 @@ fn pick_freeciv_terrain(
     for terrain in terrains.iter().filter(eligible) {
         let weight = target.map_or(1, |property| property.value(terrain));
         if draw < weight {
-            return civ3_terrain_for_freeciv_rule(&terrain.rule_name);
+            return terrain_for_rule_name(&terrain.rule_name);
         }
         draw -= weight;
     }
@@ -944,7 +942,7 @@ mod freeciv_terrain_tests {
             .find(|terrain| terrain.rule_name == "Swamp")
             .unwrap();
         assert_eq!(
-            civ3_terrain_for_freeciv_rule(&swamp.rule_name),
+            terrain_for_rule_name(&swamp.rule_name),
             Some(Terrain::Marsh)
         );
     }

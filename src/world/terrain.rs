@@ -162,7 +162,7 @@ impl Terrain {
             Self::GrasslandShield => (2, 1, 0),
             _ => {
                 let rule_name = self
-                    .c2c3_rule_name()
+                    .engine_rule_name()
                     .expect("all non-override terrains map to terrain_catalog");
                 let [food, shield, trade] = crate::rules::terrain_catalog::terrain_spec(rule_name)
                     .expect("terrain_catalog contains mapped terrain")

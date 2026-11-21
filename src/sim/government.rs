@@ -201,8 +201,8 @@ impl Simulation {
         government: Government,
     ) -> (i32, i32) {
         (
-            self.c2c3_city_output_after_bonus(city, shields, "Shield", government, granted),
-            self.c2c3_city_output_after_bonus(city, trade, "Trade", government, granted),
+            self.city_output_after_bonus(city, shields, "Shield", government, granted),
+            self.city_output_after_bonus(city, trade, "Trade", government, granted),
         )
     }
 

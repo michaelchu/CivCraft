@@ -248,7 +248,7 @@ impl Simulation {
             if self.base_work_time(&unit, base).is_none() {
                 return false;
             }
-            if !super::super::action_rules::apply_freeciv_work_extra(self.tile_mut(x, y), kind) {
+            if !super::super::action_rules::apply_work_extra(self.tile_mut(x, y), kind) {
                 return false;
             }
             return true;
@@ -278,7 +278,7 @@ impl Simulation {
             WorkKind::Clean(Contamination::Pollution) => tile.pollution = false,
             WorkKind::Clean(Contamination::Fallout) => tile.fallout = false,
             WorkKind::Clean(Contamination::Craters) => tile.craters = false,
-            _ if super::super::action_rules::apply_freeciv_work_extra(tile, kind) => {}
+            _ if super::super::action_rules::apply_work_extra(tile, kind) => {}
             _ => return false,
         }
         true

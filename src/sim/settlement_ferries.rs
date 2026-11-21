@@ -52,7 +52,7 @@ impl Simulation {
         // ordinary settlement trips. BarbarianBoat is a separate creation
         // role and must not qualify a unit for this production choice.
         UnitKind::all()
-            .filter(|&kind| super::action_rules::freeciv_unit_has_role(kind, SETTLEMENT_FERRY_ROLE))
+            .filter(|&kind| super::action_rules::unit_has_role(kind, SETTLEMENT_FERRY_ROLE))
     }
 
     pub(super) fn ferry_tech_want(&self, owner: usize, tech: Tech) -> i32 {

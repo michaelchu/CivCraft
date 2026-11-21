@@ -69,7 +69,7 @@ fn current_campaign_round_trip_preserves_gameplay_and_topology_state() {
         .iter_mut()
         .find(|unit| unit.id == veteran_unit)
         .unwrap()
-        .c2c3_veteran = 2;
+        .veteran_level = 2;
     game.units
         .iter_mut()
         .find(|unit| unit.id == veteran_unit)
@@ -158,7 +158,7 @@ fn current_campaign_round_trip_preserves_gameplay_and_topology_state() {
     assert_eq!(loaded.map_seed, game.map_seed);
     assert_eq!(loaded.random_snapshot(), game.random_snapshot());
     assert_eq!(loaded.turn, game.turn);
-    assert_eq!(loaded.unit_by_id(veteran_unit).unwrap().c2c3_veteran, 2);
+    assert_eq!(loaded.unit_by_id(veteran_unit).unwrap().veteran_level, 2);
     assert!(loaded.unit_by_id(veteran_unit).unwrap().paradropped);
     assert_eq!(
         loaded.unit_by_id(veteran_unit).unwrap().order,

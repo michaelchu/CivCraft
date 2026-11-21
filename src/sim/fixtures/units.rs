@@ -63,7 +63,7 @@ impl WorldBuilder<'_> {
     }
 
     pub(crate) fn legacy_combat_rank(&mut self, id: u32, rank: usize) {
-        self.unit_mut(id).c2c3_veteran = rank;
+        self.unit_mut(id).veteran_level = rank;
     }
 }
 

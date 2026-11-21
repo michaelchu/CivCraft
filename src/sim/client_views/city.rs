@@ -85,7 +85,7 @@ impl Simulation {
                             || (city.specialists.iter().any(|&n| n > 0)
                                 && self.can_assign_city_tile(city, x, y))),
                     yields: tile.map_or((0, 0, 0), |tile| {
-                        self.c2c3_city_tile_yields(
+                        self.ruleset_city_tile_yields(
                             city,
                             (x, y),
                             tile,

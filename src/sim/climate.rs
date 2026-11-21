@@ -74,7 +74,7 @@ impl Simulation {
                 let adjacent = self.tile(nx, ny);
                 adjacent.terrain.is_water() || adjacent.river
             });
-        let terrain_name = tile.terrain.c2c3_rule_name()?;
+        let terrain_name = tile.terrain.engine_rule_name()?;
         let spec = Self::climate_terrain_spec(terrain_name);
         let (preferred_result, fallback_result) = match (warming, wet) {
             (true, true) => (spec.warmer_wetter_result, spec.warmer_drier_result),
@@ -97,10 +97,10 @@ impl Simulation {
     /// Climate changes use terrain-control parameters, while worker
     /// transforms keep the separate CivCraft legality helper in terrain_work.
     fn climate_change_allowed(&self, x: i32, y: i32, target: Terrain) -> bool {
-        let Some(source_name) = self.tile(x, y).terrain.c2c3_rule_name() else {
+        let Some(source_name) = self.tile(x, y).terrain.engine_rule_name() else {
             return false;
         };
-        let Some(target_name) = target.c2c3_rule_name() else {
+        let Some(target_name) = target.engine_rule_name() else {
             return false;
         };
         let source = Self::climate_terrain_spec(source_name);
@@ -118,7 +118,7 @@ impl Simulation {
             .filter(|&&(nx, ny)| {
                 self.tile(nx, ny)
                     .terrain
-                    .c2c3_rule_name()
+                    .engine_rule_name()
                     .is_some_and(|name| Self::climate_terrain_spec(name).oceanic)
             })
             .count() as i32;
@@ -144,7 +144,7 @@ impl Simulation {
             .filter(|&&(nx, ny)| {
                 self.tile(nx, ny)
                     .terrain
-                    .c2c3_rule_name()
+                    .engine_rule_name()
                     .is_some_and(|name| Self::climate_terrain_spec(name).has_flag("Frozen"))
             })
             .count() as i32;

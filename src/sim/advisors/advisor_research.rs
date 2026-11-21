@@ -2,7 +2,7 @@
 
 use super::super::action_rules::SimulationRequirementContext;
 use super::*;
-use crate::rules::content_adapter::{FreecivTechBinding, bind_freeciv_technology};
+use crate::rules::content_adapter::{EngineTechBinding, bind_engine_technology};
 use crate::rules::engine_rules::RequirementKind;
 use crate::rules::engine_rules::{
     EffectRecord, Requirement as FreecivRequirement, RequirementContext, RequirementRange,
@@ -415,7 +415,7 @@ impl Simulation {
         let classes = cached.unwrap_or_else(|| {
             let mut classes = std::collections::BTreeMap::new();
             for unit in self.units_owned_by(owner) {
-                let class = super::super::action_rules::freeciv_unit_class_rule_name(unit.kind);
+                let class = super::super::action_rules::unit_class_rule_name(unit.kind);
                 *classes.entry(class).or_default() += 1;
             }
             let classes = std::sync::Arc::new(classes);
@@ -632,9 +632,9 @@ fn bound_player_tech(requirement: &FreecivRequirement) -> Option<(Tech, bool)> {
     let tech = match requirement.resolved {
         Some(crate::rules::engine_rules::ResolvedRequirementValue::Tech(tech)) => tech,
         _ => match &requirement.name {
-            RequirementValue::String(name) => match bind_freeciv_technology(name).ok()? {
-                FreecivTechBinding::Bound(tech) => tech,
-                FreecivTechBinding::MissingFromCiv3Catalog => return None,
+            RequirementValue::String(name) => match bind_engine_technology(name).ok()? {
+                EngineTechBinding::Bound(tech) => tech,
+                EngineTechBinding::MissingFromCiv3Catalog => return None,
             },
             _ => return None,
         },

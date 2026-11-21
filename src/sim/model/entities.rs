@@ -83,7 +83,7 @@ pub(crate) struct Unit {
     /// Civ III experience rank retained for source HP and display behavior.
     pub(crate) veteran: usize,
     /// Selected Freeciv ruleset veterancy level used for campaign mechanics.
-    pub(crate) c2c3_veteran: usize,
+    pub(crate) veteran_level: usize,
     /// Set once this unit has produced a Great Leader; each unit does so at
     /// most once.
     pub(crate) created_leader: bool,
@@ -133,7 +133,7 @@ impl Unit {
             home_city: None,
             home_order: 0,
             veteran,
-            c2c3_veteran: 0,
+            veteran_level: 0,
             created_leader: false,
             fuel: kind.fuel_capacity(),
             facing: 2,

@@ -496,10 +496,10 @@ impl Simulation {
                 let route_key: CandidateRouteKey = (
                     crate::sim::movement_rules::MovementRules::campaign_unit_class(kind),
                     self.unit_move_rate(&candidate),
-                    super::action_rules::freeciv_unit_type_flag(kind, "IgTer")
+                    super::action_rules::unit_type_flag(kind, "IgTer")
                         .expect("campaign C2C3 unit-type IgTer binding"),
                     Simulation::unit_ignores_zoc(kind),
-                    super::action_rules::freeciv_unit_type_flag(kind, "CoastStrict")
+                    super::action_rules::unit_type_flag(kind, "CoastStrict")
                         .expect("campaign C2C3 CoastStrict unit flag"),
                     kind.has_marine_attack(),
                     kind.is_naval(),

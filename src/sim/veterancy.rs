@@ -39,7 +39,7 @@ pub(super) fn selected_veteran_system(kind: UnitKind) -> &'static VeteranSystem 
 fn selected_veteran_level(unit: &Unit) -> &'static VeteranLevel {
     let system = selected_veteran_system(unit.kind);
     system
-        .level(unit.c2c3_veteran)
+        .level(unit.veteran_level)
         .or_else(|| system.levels.last())
         .expect("selected C2C3 veteran system has at least one level")
 }
@@ -141,10 +141,10 @@ impl Simulation {
             return;
         }
         let system = selected_veteran_system(unit.kind);
-        let Some(level) = system.level(unit.c2c3_veteran) else {
+        let Some(level) = system.level(unit.veteran_level) else {
             return;
         };
-        if unit.c2c3_veteran + 1 >= system.levels.len()
+        if unit.veteran_level + 1 >= system.levels.len()
             || !self
                 .action_available_for_unit(&unit, "Gain Veterancy", (unit.x, unit.y))
                 .unwrap_or(false)
@@ -160,13 +160,13 @@ impl Simulation {
             return;
         }
 
-        let promoted_level = unit.c2c3_veteran + 1;
+        let promoted_level = unit.veteran_level + 1;
         let promoted_name = system
             .level(promoted_level)
             .map(|level| level.name.clone())
             .unwrap_or_else(|| promoted_level.to_string());
         if let Some(index) = self.unit_index_by_id(id) {
-            self.units[index].c2c3_veteran = promoted_level;
+            self.units[index].veteran_level = promoted_level;
         }
         if unit.owner == HUMAN {
             let message = format!(
@@ -225,7 +225,7 @@ mod tests {
             Simulation::attack_power(&regular)
         );
         let mut freeciv_veteran = regular.clone();
-        freeciv_veteran.c2c3_veteran = 1;
+        freeciv_veteran.veteran_level = 1;
         assert_eq!(
             Simulation::attack_power(&freeciv_veteran),
             UnitKind::Warrior.stats().attack * POWER_FACTOR
@@ -257,7 +257,7 @@ mod tests {
             unit.home_city == Some(city)
                 && unit.kind == UnitKind::Warrior
                 && unit.veteran == expected_rank
-                && unit.c2c3_veteran == 1
+                && unit.veteran_level == 1
         }));
     }
 
@@ -285,8 +285,8 @@ mod tests {
 
         let attacker = game.unit_by_id(attacker_id).unwrap();
         let defender = game.unit_by_id(defender_id).unwrap();
-        assert_eq!(attacker.c2c3_veteran, 1);
-        assert_eq!(defender.c2c3_veteran, 1);
+        assert_eq!(attacker.veteran_level, 1);
+        assert_eq!(defender.veteran_level, 1);
         assert_eq!(attacker.veteran, original_attacker.veteran);
         assert_eq!(defender.veteran, original_defender.veteran);
         assert_eq!(attacker.hp, original_attacker.hp);
@@ -326,7 +326,7 @@ mod tests {
             super::super::combat_rules::selected().combat_odds_scaled_veterancy,
         );
         let attacker_level = selected_veteran_system(attacker.kind)
-            .level(attacker.c2c3_veteran)
+            .level(attacker.veteran_level)
             .expect("Warrior starts below the selected veteran cap");
         let veteran_bonus =
             crate::sim::action_rules::SimulationRequirementContext::for_unit(&game, &attacker)
@@ -378,7 +378,7 @@ mod tests {
         assert_eq!(game.random_snapshot(), expected_random);
         assert!(game.unit_by_id(defender_id).is_none());
         assert_eq!(
-            game.unit_by_id(attacker_id).unwrap().c2c3_veteran,
+            game.unit_by_id(attacker_id).unwrap().veteran_level,
             usize::from(expected_promotion),
             "the first post-round draw belongs to the surviving attacker"
         );
@@ -394,7 +394,7 @@ mod tests {
 
         game.promote_combat_veterans(attacker_id, defender_id, true, 200, 200);
 
-        assert_eq!(game.unit_by_id(attacker_id).unwrap().c2c3_veteran, 0);
-        assert_eq!(game.unit_by_id(defender_id).unwrap().c2c3_veteran, 0);
+        assert_eq!(game.unit_by_id(attacker_id).unwrap().veteran_level, 0);
+        assert_eq!(game.unit_by_id(defender_id).unwrap().veteran_level, 0);
     }
 }

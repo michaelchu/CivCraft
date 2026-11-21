@@ -262,7 +262,7 @@ impl Simulation {
             .iter()
             .filter(|bonus| bonus.kind == kind)
             .filter(|bonus| {
-                crate::sim::action_rules::freeciv_unit_type_flag(target, &bonus.flag)
+                crate::sim::action_rules::unit_type_flag(target, &bonus.flag)
                     .expect("campaign C2C3 target flag is explicitly mapped")
             })
             .try_fold(0_i64, |total, bonus| {
@@ -284,13 +284,13 @@ impl Simulation {
             .iter()
             .any(|city| (city.x, city.y) == (defender.x, defender.y));
         let attacker_city_buster =
-            crate::sim::action_rules::freeciv_unit_type_flag(attacker.kind, "CityBuster")
+            crate::sim::action_rules::unit_type_flag(attacker.kind, "CityBuster")
                 .expect("campaign C2C3 CityBuster flags are explicitly mapped");
         if in_city && attacker_city_buster {
             attack *= 2;
         }
         let attacker_bad_wall =
-            crate::sim::action_rules::freeciv_unit_type_flag(attacker.kind, "BadWallAttacker")
+            crate::sim::action_rules::unit_type_flag(attacker.kind, "BadWallAttacker")
                 .expect("campaign C2C3 BadWallAttacker flags are explicitly mapped");
         if attacker_bad_wall
             && self.defend_bonus_against(
@@ -306,7 +306,7 @@ impl Simulation {
             attack = attack.min(low_firepower);
         }
         let defender_bad_city =
-            crate::sim::action_rules::freeciv_unit_type_flag(defender.kind, "BadCityDefender")
+            crate::sim::action_rules::unit_type_flag(defender.kind, "BadCityDefender")
                 .expect("campaign C2C3 BadCityDefender flags are explicitly mapped");
         if in_city && defender_bad_city {
             attack *= 2;
@@ -333,7 +333,7 @@ impl Simulation {
         mut defense: i32,
     ) -> (i32, i32) {
         let non_native_bombard_target =
-            super::super::action_rules::freeciv_unit_class_flag(defender.kind, "NonNatBombardTgt")
+            super::super::action_rules::unit_class_flag(defender.kind, "NonNatBombardTgt")
                 .expect("campaign C2C3 defender unit class is explicitly mapped");
         if non_native_bombard_target
             && !self.combat_unit_is_native_at(attacker.kind, defender.x, defender.y)
@@ -392,7 +392,7 @@ impl Simulation {
         // places, then prefers the cheaper unit and finally the higher
         // defense rating when those values tie.
         let mut defender_value = (100_000.0 * (1.0 - attacker_win)) as i32;
-        let game_loss = crate::sim::action_rules::freeciv_unit_type_flag(defender.kind, "GameLoss")
+        let game_loss = crate::sim::action_rules::unit_type_flag(defender.kind, "GameLoss")
             .expect("campaign C2C3 GameLoss flag is explicitly mapped");
         if game_loss && !self.stack_vulnerable(x, y) {
             // common/combat.c::get_defender keeps a GameLoss unit as the last
@@ -414,9 +414,8 @@ impl Simulation {
         if self.city_at(x, y).is_some() {
             return true;
         }
-        let can_target =
-            crate::sim::action_rules::freeciv_unit_can_target_class(attacker, defender)
-                .expect("campaign C2C3 combat target classes are explicitly mapped");
+        let can_target = crate::sim::action_rules::unit_can_target_class(attacker, defender)
+            .expect("campaign C2C3 combat target classes are explicitly mapped");
         if can_target {
             return true;
         }
@@ -441,10 +440,10 @@ impl Simulation {
     ) -> PhysicalAttackResult {
         let destination_native = self.combat_unit_is_native_at(attacker.kind, x, y);
         let attack_non_native =
-            crate::sim::action_rules::freeciv_unit_class_flag(attacker.kind, "AttackNonNative")
+            crate::sim::action_rules::unit_class_flag(attacker.kind, "AttackNonNative")
                 .expect("campaign C2C3 attacker AttackNonNative class flag is explicitly mapped");
         let only_native_attack =
-            crate::sim::action_rules::freeciv_unit_type_flag(attacker.kind, "Only_Native_Attack")
+            crate::sim::action_rules::unit_type_flag(attacker.kind, "Only_Native_Attack")
                 .expect("campaign C2C3 attacker Only_Native_Attack flag is explicitly mapped");
         if !destination_native && (!attack_non_native || only_native_attack) {
             return PhysicalAttackResult::NonNativeTarget;
@@ -476,11 +475,8 @@ impl Simulation {
             let result = self.physical_attack_result(attacker, defender, x, y);
             if unreachable_protects {
                 if result == PhysicalAttackResult::Unreachable
-                    && crate::sim::action_rules::freeciv_unit_type_flag(
-                        defender.kind,
-                        "NeverProtects",
-                    )
-                    .expect("campaign C2C3 NeverProtects flag is explicitly mapped")
+                    && crate::sim::action_rules::unit_type_flag(defender.kind, "NeverProtects")
+                        .expect("campaign C2C3 NeverProtects flag is explicitly mapped")
                 {
                     any_neverprotect_unit = true;
                     continue;
@@ -522,7 +518,7 @@ impl Simulation {
     }
 
     pub(in crate::sim) fn combat_action_for_unit(&self, attacker: &Unit) -> &'static str {
-        if crate::sim::action_rules::freeciv_unit_class_flag(attacker.kind, "Missile")
+        if crate::sim::action_rules::unit_class_flag(attacker.kind, "Missile")
             .expect("campaign C2C3 attacker Missile class flag is explicitly mapped")
         {
             "Suicide Attack"
@@ -566,9 +562,8 @@ impl Simulation {
                     .any(|(tx, ty)| native_at(tx, ty));
         }
 
-        let coast_strict =
-            crate::sim::action_rules::freeciv_unit_type_flag(unit.kind, "CoastStrict")
-                .expect("campaign C2C3 CoastStrict flags are explicitly mapped");
+        let coast_strict = crate::sim::action_rules::unit_type_flag(unit.kind, "CoastStrict")
+            .expect("campaign C2C3 CoastStrict flags are explicitly mapped");
         if coast_strict && tile.terrain.is_water() && !self.safe_ocean_tile(x, y) {
             return false;
         }
@@ -608,19 +603,20 @@ impl Simulation {
                         .flatten()
                         .unwrap_or_default();
                     flags.iter().any(|flag| flag.eq_ignore_ascii_case("Refuel"))
-                        && super::super::action_rules::freeciv_unit_class_rule_name(unit.kind)
-                            .is_some_and(|class| {
+                        && super::super::action_rules::unit_class_rule_name(unit.kind).is_some_and(
+                            |class| {
                                 native_to
                                     .iter()
                                     .any(|name| name.eq_ignore_ascii_case(&class))
-                            })
+                            },
+                        )
                 })
         });
         if base_refuels {
             return true;
         }
 
-        if crate::sim::action_rules::freeciv_unit_type_flag(unit.kind, "Coast")
+        if crate::sim::action_rules::unit_type_flag(unit.kind, "Coast")
             .expect("campaign C2C3 Coast flag is explicitly mapped")
             && self.safe_ocean_tile(x, y)
         {
@@ -663,9 +659,7 @@ impl Simulation {
         let transport_defense =
             match crate::sim::action_rules::freeciv_unit_transport_defense(unit.kind) {
                 Some(policy) => policy,
-                None if crate::sim::action_rules::freeciv_unit_class_rule_name(unit.kind)
-                    .is_some() =>
-                {
+                None if crate::sim::action_rules::unit_class_rule_name(unit.kind).is_some() => {
                     // Unmapped Civ III identities use Freeciv's selected engine
                     // default from ruleload.c: TDT_ALIGHT.
                     crate::rules::engine_rules::TransportDefense::Alight
@@ -1250,7 +1244,7 @@ mod tests {
     #[test]
     fn selected_c2c3_roster_has_no_never_protects_exception_units() {
         assert!(UnitKind::all().all(|kind| {
-            crate::sim::action_rules::freeciv_unit_type_flag(kind, "NeverProtects") == Some(false)
+            crate::sim::action_rules::unit_type_flag(kind, "NeverProtects") == Some(false)
         }));
     }
 

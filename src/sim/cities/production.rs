@@ -318,7 +318,7 @@ impl Simulation {
                         let nationality =
                             self.remove_citizen_nationalities(index, kind.stats().pop_cost);
                         let rank = self.trained_rank(&snapshot, kind);
-                        let c2c3_veteran = self.trained_c2c3_veteran(&snapshot, kind);
+                        let veteran_level = self.trained_c2c3_veteran(&snapshot, kind);
                         let id = self.spawn_unit_with_origin(
                             snapshot.owner,
                             kind,
@@ -331,7 +331,7 @@ impl Simulation {
                         unit.home_city = Some(city_id);
                         unit.home_order = id;
                         unit.veteran = rank;
-                        unit.c2c3_veteran = c2c3_veteran;
+                        unit.veteran_level = veteran_level;
                         unit.hp = unit.max_hit_points();
                         if kind.stats().pop_cost > 0 {
                             self.rebuild_city_ownership_for_city_event(city_id);

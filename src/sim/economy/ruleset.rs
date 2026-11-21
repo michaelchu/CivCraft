@@ -184,7 +184,7 @@ impl Simulation {
         let trade_output_types = ["Science", "Gold", "Luxury"];
         let trade = CityTradeRuleCache {
             output_additions: trade_output_types
-                .map(|output| self.c2c3_city_output_additions(city, output, government)),
+                .map(|output| self.city_output_additions(city, output, government)),
             output_bonuses: trade_output_types.map(|output| {
                 self.city_output_bonus_percent(city, output, government, granted_tech)
             }),
@@ -324,7 +324,7 @@ impl Simulation {
         clippy::too_many_arguments,
         reason = "Tile yield evaluation takes independent location, celebration, and hypothetical technology inputs."
     )]
-    pub(in crate::sim) fn c2c3_city_tile_yields(
+    pub(in crate::sim) fn ruleset_city_tile_yields(
         &self,
         city: &City,
         tile_xy: (i32, i32),
@@ -340,7 +340,7 @@ impl Simulation {
             .with_celebrating(celebrating)
             .with_tile_override(tile_xy, tile);
         let rules = TileYieldRules::campaign();
-        let terrain = rules.terrains[tile.terrain.c2c3_rugged_rule_name()];
+        let terrain = rules.terrains[tile.terrain.engine_rugged_rule_name()];
         let mut output = terrain.base;
         if let Some(resource) = tile.active_resource().and_then(resource_name) {
             let resource = native_resource(resource);
@@ -401,7 +401,7 @@ impl Simulation {
     /// Science, gold, and luxury are assigned from trade, but C2C3 may add
     /// output directly to the city center or any worked tile. Freeciv's
     /// `city_tile_output()` evaluates those effects per tile before bonuses.
-    pub(in crate::sim) fn c2c3_city_output_additions(
+    pub(in crate::sim) fn city_output_additions(
         &self,
         city: &City,
         output_type: &str,
@@ -490,10 +490,10 @@ impl Simulation {
         // before division matches the pinned build for the city-manager's
         // synthetic sentinel values and is identical for ordinary outputs.
         let produced = gross.wrapping_mul(bonus) / 100;
-        self.c2c3_city_output_after_bonus(city, produced, output_type, government, granted_tech)
+        self.city_output_after_bonus(city, produced, output_type, government, granted_tech)
     }
 
-    pub(in crate::sim) fn c2c3_city_output_after_bonus(
+    pub(in crate::sim) fn city_output_after_bonus(
         &self,
         city: &City,
         produced: i32,

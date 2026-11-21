@@ -59,8 +59,8 @@ fn production_defender_requires_defense_role_and_is_stable_under_training() {
     };
     let untrained = choose(&game);
     assert!(
-        super::super::action_rules::freeciv_unit_has_role(untrained, "DefendGood")
-            || super::super::action_rules::freeciv_unit_has_role(untrained, "DefendOk")
+        super::super::action_rules::unit_has_role(untrained, "DefendGood")
+            || super::super::action_rules::unit_has_role(untrained, "DefendOk")
     );
     game.cities[0].buildings.push(Building::BARRACKS_II);
     assert_eq!(
@@ -70,8 +70,8 @@ fn production_defender_requires_defense_role_and_is_stable_under_training() {
     );
     let is_source_defender = |game: &Simulation| {
         let kind = choose(game);
-        super::super::action_rules::freeciv_unit_has_role(kind, "DefendGood")
-            || super::super::action_rules::freeciv_unit_has_role(kind, "DefendOk")
+        super::super::action_rules::unit_has_role(kind, "DefendGood")
+            || super::super::action_rules::unit_has_role(kind, "DefendOk")
     };
     // Knight is an imported Offense-role unit and is not a source defender.
     game.players[1].known.push(Tech::CHIVALRY);

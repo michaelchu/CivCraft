@@ -348,11 +348,11 @@ fn conquest_invokes_partisans_after_transfer_and_population_loss() {
 #[test]
 fn native_leaders_do_not_inherit_foreign_unique_or_king_flags() {
     assert_eq!(
-        crate::sim::action_rules::freeciv_unit_type_flag(UnitKind::Leader, "Unique"),
+        crate::sim::action_rules::unit_type_flag(UnitKind::Leader, "Unique"),
         Some(false)
     );
     assert_eq!(
-        crate::sim::action_rules::freeciv_unit_type_flag(UnitKind::Leader, "GameLoss"),
+        crate::sim::action_rules::unit_type_flag(UnitKind::Leader, "GameLoss"),
         Some(false)
     );
     let mut game = Simulation::new(crate::test_support::seeded_map());
@@ -1014,7 +1014,7 @@ fn leader_can_never_be_produced_or_queued() {
 #[test]
 fn leader_is_not_capturable() {
     assert_eq!(
-        crate::sim::action_rules::freeciv_unit_type_flag(UnitKind::Leader, "Capturable"),
+        crate::sim::action_rules::unit_type_flag(UnitKind::Leader, "Capturable"),
         Some(false)
     );
 }

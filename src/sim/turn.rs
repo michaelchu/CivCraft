@@ -248,11 +248,11 @@ impl RequirementContext for CalendarContext<'_> {
                 Some(ResolvedRequirementValue::Tech(tech)) => tech,
                 _ => match &requirement.name {
                     RequirementValue::String(name) => {
-                        match crate::rules::content_adapter::bind_freeciv_technology(name)
+                        match crate::rules::content_adapter::bind_engine_technology(name)
                             .map_err(|_| unsupported())?
                         {
-                            crate::rules::content_adapter::FreecivTechBinding::Bound(tech) => tech,
-                            crate::rules::content_adapter::FreecivTechBinding::MissingFromCiv3Catalog => {
+                            crate::rules::content_adapter::EngineTechBinding::Bound(tech) => tech,
+                            crate::rules::content_adapter::EngineTechBinding::MissingFromCiv3Catalog => {
                                 return Ok(false);
                             }
                         }

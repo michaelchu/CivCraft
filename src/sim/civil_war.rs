@@ -241,7 +241,7 @@ impl Simulation {
         self.units.iter().any(|unit| {
             unit.owner == owner
                 && (unit.x, unit.y) == (city.x, city.y)
-                && super::action_rules::freeciv_unit_type_flag(unit.kind, "GameLoss")
+                && super::action_rules::unit_type_flag(unit.kind, "GameLoss")
                     .expect("campaign C2C3 GameLoss flags are explicitly mapped")
         })
     }

@@ -345,43 +345,43 @@ impl Simulation {
         let mut tile = self.tile(actor.x, actor.y).clone();
         let time = match activity {
             WorkKind::Road if !tile.road => {
-                if !super::super::action_rules::apply_freeciv_work_extra(&mut tile, activity) {
+                if !super::super::action_rules::apply_work_extra(&mut tile, activity) {
                     return None;
                 }
                 self.work_activity_time_fail_closed(activity, tile.terrain)
             }
             WorkKind::Railroad if !tile.railroad => {
-                if !super::super::action_rules::apply_freeciv_work_extra(&mut tile, activity) {
+                if !super::super::action_rules::apply_work_extra(&mut tile, activity) {
                     return None;
                 }
                 self.work_activity_time_fail_closed(activity, tile.terrain)
             }
             WorkKind::Irrigation if !tile.irrigation => {
-                if !super::super::action_rules::apply_freeciv_work_extra(&mut tile, activity) {
+                if !super::super::action_rules::apply_work_extra(&mut tile, activity) {
                     return None;
                 }
                 self.work_activity_time_fail_closed(activity, tile.terrain)
             }
             WorkKind::Mine if !tile.mine => {
-                if !super::super::action_rules::apply_freeciv_work_extra(&mut tile, activity) {
+                if !super::super::action_rules::apply_work_extra(&mut tile, activity) {
                     return None;
                 }
                 self.work_activity_time_fail_closed(activity, tile.terrain)
             }
             WorkKind::Farmland if !tile.farmland => {
-                if !super::super::action_rules::apply_freeciv_work_extra(&mut tile, activity) {
+                if !super::super::action_rules::apply_work_extra(&mut tile, activity) {
                     return None;
                 }
                 self.work_activity_time_fail_closed(activity, tile.terrain)
             }
             WorkKind::OilWell if !tile.oil_well => {
-                if !super::super::action_rules::apply_freeciv_work_extra(&mut tile, activity) {
+                if !super::super::action_rules::apply_work_extra(&mut tile, activity) {
                     return None;
                 }
                 self.work_activity_time_fail_closed(activity, tile.terrain)
             }
             WorkKind::OilPlatform if !tile.oil_platform => {
-                if !super::super::action_rules::apply_freeciv_work_extra(&mut tile, activity) {
+                if !super::super::action_rules::apply_work_extra(&mut tile, activity) {
                     return None;
                 }
                 self.work_activity_time_fail_closed(activity, tile.terrain)

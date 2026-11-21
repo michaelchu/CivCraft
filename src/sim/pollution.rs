@@ -23,7 +23,7 @@ impl Contamination {
 // radius-5 city map under C2C3's ISO|HEX topology, then sorts by (distance,
 // dx, dy). The result is the full draw domain used by `cityturn.c::place_pollution`.
 // C2C3's game.ruleset sets `init_city_radius_sq = 5`.
-pub(super) const C2C3_CITY_MAP_RADIUS_5: [(i32, i32); 19] = [
+pub(super) const CITY_MAP_RADIUS_5: [(i32, i32); 19] = [
     (0, 0),
     (-1, -1),
     (-1, 0),
@@ -122,8 +122,8 @@ impl Simulation {
         // random draw but does not consume one of the 100 real-tile attempts.
         let mut checked_tiles = 0;
         while checked_tiles < 100 {
-            let slot = self.rand_below(C2C3_CITY_MAP_RADIUS_5.len() as i32) as usize;
-            let (dx, dy) = C2C3_CITY_MAP_RADIUS_5[slot];
+            let slot = self.rand_below(CITY_MAP_RADIUS_5.len() as i32) as usize;
+            let (dx, dy) = CITY_MAP_RADIUS_5[slot];
             let Some((x, y)) = self.map_wrap.offset(city.x, city.y, dx, dy) else {
                 continue;
             };
@@ -189,9 +189,9 @@ mod tests {
             }
         }
 
-        assert_eq!(C2C3_CITY_MAP_RADIUS_5.len(), 19);
+        assert_eq!(CITY_MAP_RADIUS_5.len(), 19);
         let mut previous = None;
-        for &(dx, dy) in &C2C3_CITY_MAP_RADIUS_5 {
+        for &(dx, dy) in &CITY_MAP_RADIUS_5 {
             let distance_squared = isohex_distance(dx, dy).pow(2);
             assert!(
                 distance_squared <= 5,
@@ -213,7 +213,7 @@ mod tests {
         // Every real source slot is ineligible or already polluted, so the
         // placement must exhaust 100 valid tile checks. Polar slots remain in
         // the draw domain and are skipped without reducing that budget.
-        for &(dx, dy) in &C2C3_CITY_MAP_RADIUS_5 {
+        for &(dx, dy) in &CITY_MAP_RADIUS_5 {
             let Some((x, y)) = game.map_wrap.offset(city.x, city.y, dx, dy) else {
                 continue;
             };
@@ -231,8 +231,8 @@ mod tests {
         let mut valid_attempts = 0;
         let mut draws = 0;
         while valid_attempts < 100 {
-            let slot = expected.rand_below(C2C3_CITY_MAP_RADIUS_5.len() as i32) as usize;
-            let (dx, dy) = C2C3_CITY_MAP_RADIUS_5[slot];
+            let slot = expected.rand_below(CITY_MAP_RADIUS_5.len() as i32) as usize;
+            let (dx, dy) = CITY_MAP_RADIUS_5[slot];
             draws += 1;
             if expected.map_wrap.offset(city.x, city.y, dx, dy).is_some() {
                 valid_attempts += 1;
@@ -259,7 +259,7 @@ mod tests {
             .offset(city.x, city.y, 0, 1)
             .expect("interior city-map slot is on-map");
 
-        for &(dx, dy) in &C2C3_CITY_MAP_RADIUS_5 {
+        for &(dx, dy) in &CITY_MAP_RADIUS_5 {
             if let Some((x, y)) = game.map_wrap.offset(city.x, city.y, dx, dy) {
                 game.tile_mut(x, y).terrain = Terrain::Lake;
             }
@@ -268,8 +268,8 @@ mod tests {
 
         let mut expected = game.clone();
         loop {
-            let slot = expected.rand_below(C2C3_CITY_MAP_RADIUS_5.len() as i32) as usize;
-            if C2C3_CITY_MAP_RADIUS_5[slot] == (0, 1) {
+            let slot = expected.rand_below(CITY_MAP_RADIUS_5.len() as i32) as usize;
+            if CITY_MAP_RADIUS_5[slot] == (0, 1) {
                 break;
             }
         }

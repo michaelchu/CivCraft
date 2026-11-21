@@ -14,7 +14,7 @@ enum CityBombardTarget {
 
 #[cfg(test)]
 fn selected_unit_class_flag(kind: UnitKind, flag: &str) -> Option<bool> {
-    crate::sim::action_rules::freeciv_unit_class_flag(kind, flag)
+    crate::sim::action_rules::unit_class_flag(kind, flag)
 }
 
 fn civ3_air_superiority_unit(kind: UnitKind) -> bool {

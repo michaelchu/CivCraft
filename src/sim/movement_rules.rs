@@ -93,7 +93,7 @@ impl<'a> MovementRules<'a> {
         terrain: Terrain,
     ) -> Result<TerrainMovementData, MovementRulesError> {
         let rule_name = terrain
-            .c2c3_rule_name()
+            .engine_rule_name()
             .ok_or(MovementRulesError::UnsupportedTerrain(terrain))?;
         let spec = crate::rules::terrain_catalog::terrain_spec(rule_name).ok_or_else(|| {
             MovementRulesError::MissingRecord {
@@ -220,7 +220,7 @@ impl<'a> MovementRules<'a> {
             return Ok(direct);
         }
         let terrain_rule_name = terrain
-            .c2c3_rule_name()
+            .engine_rule_name()
             .ok_or(MovementRulesError::UnsupportedTerrain(terrain))?;
         let spec =
             crate::rules::terrain_catalog::terrain_spec(terrain_rule_name).ok_or_else(|| {
@@ -250,7 +250,7 @@ impl<'a> MovementRules<'a> {
             return Ok(direct);
         }
         let terrain_rule_name = terrain
-            .c2c3_rule_name()
+            .engine_rule_name()
             .ok_or(MovementRulesError::UnsupportedTerrain(terrain))?;
         let spec =
             crate::rules::terrain_catalog::terrain_spec(terrain_rule_name).ok_or_else(|| {
@@ -331,7 +331,7 @@ impl<'a> MovementRules<'a> {
         terrain: Terrain,
     ) -> Result<Vec<String>, MovementRulesError> {
         let rule_name = terrain
-            .c2c3_rule_name()
+            .engine_rule_name()
             .ok_or(MovementRulesError::UnsupportedTerrain(terrain))?;
         let spec = crate::rules::terrain_catalog::terrain_spec(rule_name).ok_or_else(|| {
             MovementRulesError::MissingRecord {
@@ -356,7 +356,7 @@ impl<'a> MovementRules<'a> {
         flag: &str,
     ) -> Result<bool, MovementRulesError> {
         let rule_name = terrain
-            .c2c3_rule_name()
+            .engine_rule_name()
             .ok_or(MovementRulesError::UnsupportedTerrain(terrain))?;
         let spec = crate::rules::terrain_catalog::terrain_spec(rule_name).ok_or_else(|| {
             MovementRulesError::MissingRecord {
@@ -368,7 +368,7 @@ impl<'a> MovementRules<'a> {
     }
 
     pub(super) fn terrain_class(&self, terrain: Terrain) -> Result<&'a str, MovementRulesError> {
-        let rule_name = terrain.c2c3_rugged_rule_name();
+        let rule_name = terrain.engine_rugged_rule_name();
         let spec = crate::rules::terrain_catalog::terrain_spec(rule_name).ok_or_else(|| {
             MovementRulesError::MissingRecord {
                 namespace: "terrain".to_owned(),
@@ -385,7 +385,7 @@ impl<'a> MovementRules<'a> {
         &self,
         terrain: Terrain,
     ) -> Result<i32, MovementRulesError> {
-        let rule_name = terrain.c2c3_rugged_rule_name();
+        let rule_name = terrain.engine_rugged_rule_name();
         let spec = crate::rules::terrain_catalog::terrain_spec(rule_name).ok_or_else(|| {
             MovementRulesError::MissingRecord {
                 namespace: "terrain".to_owned(),
@@ -529,8 +529,8 @@ impl<'a> MovementRules<'a> {
         let class = self.unit_class_for_kind(kind)?;
         let class_data = self.unit_class_movement_data(class)?;
         let fragments = self.move_fragments()?;
-        let ignores_terrain = super::action_rules::freeciv_unit_type_flag(kind, "IgTer")
-            .ok_or_else(|| {
+        let ignores_terrain =
+            super::action_rules::unit_type_flag(kind, "IgTer").ok_or_else(|| {
                 invalid_field(
                     &format!("unit {kind:?}"),
                     "flags",
@@ -627,14 +627,13 @@ impl<'a> MovementRules<'a> {
         &self,
         kind: UnitKind,
     ) -> Result<UnitClass, MovementRulesError> {
-        let rule_name =
-            super::action_rules::freeciv_unit_class_rule_name(kind).ok_or_else(|| {
-                invalid_field(
-                    &format!("unit {kind:?}"),
-                    "class",
-                    "no selected C2C3 class binding",
-                )
-            })?;
+        let rule_name = super::action_rules::unit_class_rule_name(kind).ok_or_else(|| {
+            invalid_field(
+                &format!("unit {kind:?}"),
+                "class",
+                "no selected C2C3 class binding",
+            )
+        })?;
         let class = [
             (UnitClass::Land, "Land"),
             (UnitClass::SmallLand, "Small Land"),
@@ -672,14 +671,13 @@ impl<'a> MovementRules<'a> {
         &self,
         kind: UnitKind,
     ) -> Result<UnitMovementData, MovementRulesError> {
-        let ignores_zoc =
-            super::action_rules::freeciv_unit_type_flag(kind, "IgZOC").ok_or_else(|| {
-                invalid_field(
-                    &format!("unit {:?}", kind),
-                    "flags",
-                    "no selected C2C3 unit-type IgZOC binding",
-                )
-            })?;
+        let ignores_zoc = super::action_rules::unit_type_flag(kind, "IgZOC").ok_or_else(|| {
+            invalid_field(
+                &format!("unit {:?}", kind),
+                "flags",
+                "no selected C2C3 unit-type IgZOC binding",
+            )
+        })?;
         Ok(UnitMovementData {
             class: self.unit_class_movement_data_for_kind(kind)?,
             ignores_zoc,
@@ -990,7 +988,7 @@ pub(super) enum MovementRulesError {
 /// movement-only rugged-terrain adaptations in cost and native-tile lookups.
 impl Terrain {
     /// See the crosswalk notes above; `None` only for Volcano.
-    pub(crate) fn c2c3_rule_name(self) -> Option<&'static str> {
+    pub(crate) fn engine_rule_name(self) -> Option<&'static str> {
         Some(match self {
             Terrain::Sea => "Ocean",
             Terrain::Ocean => "Deep Ocean",
@@ -1009,14 +1007,14 @@ impl Terrain {
         })
     }
 
-    /// [`Self::c2c3_rule_name`] with CivCraft's rugged-terrain adaptation:
+    /// [`Self::engine_rule_name`] with CivCraft's rugged-terrain adaptation:
     /// Volcano borrows the Mountains record for defense, output and terrain
     /// class. Its exact identity, terrain flags and worker actions stay distinct.
-    pub(in crate::sim) fn c2c3_rugged_rule_name(self) -> &'static str {
+    pub(in crate::sim) fn engine_rugged_rule_name(self) -> &'static str {
         match self {
             Terrain::Volcano => "Mountains",
             terrain => terrain
-                .c2c3_rule_name()
+                .engine_rule_name()
                 .expect("every terrain except Volcano has a C2C3 record"),
         }
     }
@@ -1518,7 +1516,7 @@ mod tests {
                 );
                 continue;
             };
-            assert_eq!(terrain.c2c3_rule_name(), Some(source_name));
+            assert_eq!(terrain.engine_rule_name(), Some(source_name));
             let spec = crate::rules::terrain_catalog::terrain_spec(source_name).unwrap();
             let adapted = adapter.terrain_data(terrain).unwrap();
             assert_eq!(adapted.rule_name, spec.rule_name, "{terrain:?}");
@@ -1752,7 +1750,7 @@ mod tests {
             let terrain_speed = class_flags
                 .iter()
                 .any(|flag| flag.eq_ignore_ascii_case("TerrainSpeed"));
-            let ignores_terrain = super::super::action_rules::freeciv_unit_type_flag(kind, "IgTer")
+            let ignores_terrain = super::super::action_rules::unit_type_flag(kind, "IgTer")
                 .expect("explicit C2C3 IgTer binding");
 
             let mut expected = if !terrain_speed {
@@ -2005,7 +2003,7 @@ mod tests {
             );
             assert_eq!(
                 adapted.ignores_zoc,
-                super::super::action_rules::freeciv_unit_type_flag(kind, "IgZOC").unwrap(),
+                super::super::action_rules::unit_type_flag(kind, "IgZOC").unwrap(),
                 "{kind:?}"
             );
         }

@@ -491,8 +491,8 @@ impl Simulation {
                 self.rush_production(owner, id);
             } else if grave_danger
                 && matches!(target, Production::Unit(kind)
-                    if super::super::action_rules::freeciv_unit_has_role(kind, "DefendGood")
-                        || super::super::action_rules::freeciv_unit_has_role(kind, "DefendOk"))
+                    if super::super::action_rules::unit_has_role(kind, "DefendGood")
+                        || super::super::action_rules::unit_has_role(kind, "DefendOk"))
                 && assessment.defense == 0
             {
                 if self.ai_sell_one_for_emergency_defense(owner, id)

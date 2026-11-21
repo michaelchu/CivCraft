@@ -10,7 +10,7 @@ impl UnitKind {
     // IgZOC and absence of UCF_ZOC are separate native exemptions.
     #[cfg(test)]
     pub(super) fn ignores_zoc(self) -> bool {
-        super::action_rules::freeciv_unit_type_flag(self, "IgZOC")
+        super::action_rules::unit_type_flag(self, "IgZOC")
             .expect("campaign C2C3 unit-type IgZOC binding")
     }
 }
@@ -41,7 +41,7 @@ impl Simulation {
     pub(super) fn raw_move_cost_for(&self, unit: &Unit, x: i32, y: i32) -> i32 {
         let kind = unit.kind;
         let class = MovementRules::campaign_unit_class(kind);
-        let ignores = super::action_rules::freeciv_unit_type_flag(kind, "IgTer")
+        let ignores = super::action_rules::unit_type_flag(kind, "IgTer")
             .expect("campaign C2C3 unit-type IgTer binding");
         self.raw_move_cost_for_class(unit, x, y, class, ignores)
     }
@@ -309,7 +309,7 @@ impl Simulation {
     pub(super) fn pf_action_move_cost(kind: UnitKind, action: PfAction, rate: i32) -> i32 {
         let fragments = campaign_move_fragments();
         let (_, class) = MovementRules::campaign_unit_movement_data(kind);
-        let one_attack = super::action_rules::freeciv_unit_type_flag(kind, "OneAttack")
+        let one_attack = super::action_rules::unit_type_flag(kind, "OneAttack")
             .expect("campaign C2C3 unit-type OneAttack binding");
         // C2C3's Attack consumes the full move rate for OneAttack units and
         // Missile-class units (the latter can use Suicide Attack). Bombard is

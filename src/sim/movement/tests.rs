@@ -59,17 +59,14 @@ fn stealth_bombing_does_not_grant_native_air_interception() {
             .has_capability("AttackAir")
     );
     assert_eq!(
-        crate::sim::action_rules::freeciv_unit_can_target_class(
+        crate::sim::action_rules::unit_can_target_class(
             UnitKind::StealthFighter,
             UnitKind::Fighter
         ),
         Some(false)
     );
     assert_eq!(
-        crate::sim::action_rules::freeciv_unit_can_target_class(
-            UnitKind::Fighter,
-            UnitKind::Fighter
-        ),
+        crate::sim::action_rules::unit_can_target_class(UnitKind::Fighter, UnitKind::Fighter),
         Some(true)
     );
 }
@@ -90,11 +87,11 @@ fn ordinary_attackers_keep_their_normal_defender_eligibility() {
 #[test]
 fn native_leaders_do_not_inherit_foreign_unique_or_king_flags_during_capture() {
     assert_eq!(
-        crate::sim::action_rules::freeciv_unit_type_flag(UnitKind::Leader, "Unique"),
+        crate::sim::action_rules::unit_type_flag(UnitKind::Leader, "Unique"),
         Some(false)
     );
     assert_eq!(
-        crate::sim::action_rules::freeciv_unit_type_flag(UnitKind::Leader, "GameLoss"),
+        crate::sim::action_rules::unit_type_flag(UnitKind::Leader, "GameLoss"),
         Some(false)
     );
     let mut game = Simulation::new(crate::test_support::seeded_map());
@@ -542,11 +539,11 @@ fn native_capture_does_not_require_the_victims_technology() {
 #[test]
 fn native_leaders_do_not_inherit_foreign_unique_or_king_flags() {
     assert_eq!(
-        crate::sim::action_rules::freeciv_unit_type_flag(UnitKind::Leader, "Unique"),
+        crate::sim::action_rules::unit_type_flag(UnitKind::Leader, "Unique"),
         Some(false)
     );
     assert_eq!(
-        crate::sim::action_rules::freeciv_unit_type_flag(UnitKind::Leader, "GameLoss"),
+        crate::sim::action_rules::unit_type_flag(UnitKind::Leader, "GameLoss"),
         Some(false)
     );
     let mut game = Simulation::new(crate::test_support::seeded_map());
@@ -687,12 +684,12 @@ fn freeciv_bounce_uses_survivable_tiles_and_keeps_source_iteration_order() {
 fn civilian_capture_flags_come_from_native_combat_capability() {
     for kind in [UnitKind::Worker, UnitKind::Settler, UnitKind::Artillery] {
         assert_eq!(
-            crate::sim::action_rules::freeciv_unit_type_flag(kind, "Capturable"),
+            crate::sim::action_rules::unit_type_flag(kind, "Capturable"),
             Some(true)
         );
     }
     assert_eq!(
-        crate::sim::action_rules::freeciv_unit_type_flag(UnitKind::Warrior, "Capturable"),
+        crate::sim::action_rules::unit_type_flag(UnitKind::Warrior, "Capturable"),
         Some(false)
     );
 }
@@ -726,7 +723,7 @@ fn combat_uses_the_selected_attack_action_and_skips_civ3_enslavement_rng() {
     // Keep veteran checks from consuming random draws so this isolates combat
     // rounds and the mandatory occupation-chance roll.
     for unit in &mut game.units {
-        unit.c2c3_veteran = u8::MAX as usize;
+        unit.veteran_level = u8::MAX as usize;
     }
     let attacker_unit = game.unit_by_id(attacker).unwrap().clone();
     assert_eq!(game.combat_action_for_unit(&attacker_unit), "Attack");
@@ -784,7 +781,7 @@ fn combat_recalculates_movement_from_post_combat_hp() {
     let attacker = game.spawn_unit(HUMAN, UnitKind::Horseman, x, y);
     let defender = game.spawn_unit(1, UnitKind::Warrior, nx, ny);
     for unit in &mut game.units {
-        unit.c2c3_veteran = u8::MAX as usize;
+        unit.veteran_level = u8::MAX as usize;
     }
     let rate_before = game.unit_move_rate(game.unit_by_id(attacker).unwrap());
     let moves_used = 1;
@@ -856,7 +853,7 @@ fn combat_recalculates_defender_movement_from_post_combat_hp() {
     // Keep the units at maximum C2C3 veterancy so combat does not insert
     // promotion draws into the movement-focused scenario.
     for unit in &mut game.units {
-        unit.c2c3_veteran = u8::MAX as usize;
+        unit.veteran_level = u8::MAX as usize;
     }
     let defender_rate_before = game.unit_move_rate(game.unit_by_id(defender_id).unwrap());
     let defender_moves_used = 1;

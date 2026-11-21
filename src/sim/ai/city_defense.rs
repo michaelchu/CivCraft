@@ -428,10 +428,7 @@ impl Simulation {
                     && (unit.x, unit.y) != target
                     && !dispatched.contains(&unit.id)
                     && (!reserved_defenders.contains(&unit.id)
-                        || super::super::action_rules::freeciv_unit_has_role(
-                            unit.kind,
-                            "DefendGood",
-                        ))
+                        || super::super::action_rules::unit_has_role(unit.kind, "DefendGood"))
                     && !self.ai_guard_targets.contains_key(&unit.id)
             }) {
                 if !connectivity.can_directly_reach_tile(

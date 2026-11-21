@@ -668,7 +668,7 @@ mod selected_unknown_cost_tests {
             None
         );
         let rules = MovementRules::campaign();
-        assert!(super::action_rules::freeciv_unit_type_flag(actor.kind, "IgTer").unwrap());
+        assert!(super::action_rules::unit_type_flag(actor.kind, "IgTer").unwrap());
         assert_eq!(expected, rules.igter_cost().unwrap() * 2);
     }
 }

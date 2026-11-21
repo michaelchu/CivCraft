@@ -21,7 +21,7 @@ impl Simulation {
         gross: i32,
         government: Government,
     ) -> i32 {
-        self.c2c3_city_output_after_bonus(city, gross, "Food", government, None)
+        self.city_output_after_bonus(city, gross, "Food", government, None)
     }
 }
 
@@ -127,11 +127,7 @@ mod city_output_tests {
         game.cities[0].buildings.push(Building::LIBRARY);
         game.finish_building(city_id, 1, Building::GREAT_LIBRARY, 300);
         assert_eq!(
-            game.c2c3_city_output_additions(
-                &game.cities[0],
-                "Science",
-                game.players[1].government,
-            ),
+            game.city_output_additions(&game.cities[0], "Science", game.players[1].government,),
             4
         );
         game.create_city(
@@ -155,11 +151,7 @@ mod city_output_tests {
             .filter(|&&tile| tile != center)
             .count() as i32;
         assert_eq!(
-            game.c2c3_city_output_additions(
-                &game.cities[0],
-                "Science",
-                game.players[1].government,
-            ),
+            game.city_output_additions(&game.cities[0], "Science", game.players[1].government,),
             4 + worked_output_tiles
         );
         assert_eq!(

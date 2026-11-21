@@ -3,7 +3,7 @@
 use crate::rules::Tech;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum FreecivTechBinding {
+pub(crate) enum EngineTechBinding {
     Bound(Tech),
     MissingFromCiv3Catalog,
 }
@@ -21,12 +21,12 @@ impl std::error::Error for ContentBindingError {}
 
 /// Resolve a Freeciv technology universal to a native campaign identity.
 /// Plastics has no counterpart. Radio maps to Flight for the C2C3 airfield rules.
-pub(crate) fn bind_freeciv_technology(
+pub(crate) fn bind_engine_technology(
     freeciv_name: &str,
-) -> Result<FreecivTechBinding, ContentBindingError> {
+) -> Result<EngineTechBinding, ContentBindingError> {
     let display_name = freeciv_name;
     if display_name.eq_ignore_ascii_case("Plastics") {
-        return Ok(FreecivTechBinding::MissingFromCiv3Catalog);
+        return Ok(EngineTechBinding::MissingFromCiv3Catalog);
     }
     if display_name.eq_ignore_ascii_case("Radio") {
         // C2C3's Radio advance unlocks airstrips and airbases, but Conquests
@@ -34,7 +34,7 @@ pub(crate) fn bind_freeciv_technology(
         // prerequisite for the corresponding Airfield worker action. Bind
         // this selected-ruleset requirement to that Civ III advance without
         // adding the legacy Freeciv Radio ID to the Civ III research tree.
-        return Ok(FreecivTechBinding::Bound(Tech::FLIGHT));
+        return Ok(EngineTechBinding::Bound(Tech::FLIGHT));
     }
 
     // Some C2C3 requirements intentionally name a Freeciv compatibility
@@ -48,7 +48,7 @@ pub(crate) fn bind_freeciv_technology(
                 .or_else(|| tech.civ3_equivalent())
         })
     {
-        return Ok(FreecivTechBinding::Bound(compatibility_tech));
+        return Ok(EngineTechBinding::Bound(compatibility_tech));
     }
 
     let source = crate::rules::native::technologies()
@@ -90,7 +90,7 @@ pub(crate) fn bind_freeciv_technology(
                 source.name
             ))
         })?;
-    Ok(FreecivTechBinding::Bound(tech))
+    Ok(EngineTechBinding::Bound(tech))
 }
 
 #[cfg(test)]
@@ -100,41 +100,41 @@ mod tests {
     #[test]
     fn calendar_technology_effects_use_explicit_civ3_bindings() {
         assert_eq!(
-            bind_freeciv_technology("Space Flight"),
-            Ok(FreecivTechBinding::Bound(Tech::SPACE_FLIGHT))
+            bind_engine_technology("Space Flight"),
+            Ok(EngineTechBinding::Bound(Tech::SPACE_FLIGHT))
         );
         assert_eq!(
-            bind_freeciv_technology("Superconductors"),
-            Ok(FreecivTechBinding::Bound(Tech::SUPERCONDUCTORS))
+            bind_engine_technology("Superconductors"),
+            Ok(EngineTechBinding::Bound(Tech::SUPERCONDUCTORS))
         );
         assert_eq!(
-            bind_freeciv_technology("Nuclear Fission"),
-            Ok(FreecivTechBinding::Bound(Tech::FISSION))
+            bind_engine_technology("Nuclear Fission"),
+            Ok(EngineTechBinding::Bound(Tech::FISSION))
         );
         assert_eq!(
-            bind_freeciv_technology("Conscription"),
-            Ok(FreecivTechBinding::Bound(Tech::NATIONALISM))
+            bind_engine_technology("Conscription"),
+            Ok(EngineTechBinding::Bound(Tech::NATIONALISM))
         );
         assert_eq!(
-            bind_freeciv_technology("Radio"),
-            Ok(FreecivTechBinding::Bound(Tech::FLIGHT))
+            bind_engine_technology("Radio"),
+            Ok(EngineTechBinding::Bound(Tech::FLIGHT))
         );
         assert!(!Tech::RADIO.is_civ3_advance());
         assert_eq!(
-            bind_freeciv_technology("Environmentalism"),
-            Ok(FreecivTechBinding::Bound(Tech::ECOLOGY))
+            bind_engine_technology("Environmentalism"),
+            Ok(EngineTechBinding::Bound(Tech::ECOLOGY))
         );
         assert_eq!(
-            bind_freeciv_technology("Laser"),
-            Ok(FreecivTechBinding::Bound(Tech::THE_LASER))
+            bind_engine_technology("Laser"),
+            Ok(EngineTechBinding::Bound(Tech::THE_LASER))
         );
         assert_eq!(
-            bind_freeciv_technology("Mobile Warfare"),
-            Ok(FreecivTechBinding::Bound(Tech::MOTORIZED_TRANSPORTATION))
+            bind_engine_technology("Mobile Warfare"),
+            Ok(EngineTechBinding::Bound(Tech::MOTORIZED_TRANSPORTATION))
         );
         assert_eq!(
-            bind_freeciv_technology("Plastics"),
-            Ok(FreecivTechBinding::MissingFromCiv3Catalog)
+            bind_engine_technology("Plastics"),
+            Ok(EngineTechBinding::MissingFromCiv3Catalog)
         );
     }
 }
