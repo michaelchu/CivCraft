@@ -25,7 +25,7 @@ fn civ3_air_superiority_unit(kind: UnitKind) -> bool {
 }
 
 fn bombardable_terrain_improvements(sim: &Simulation, x: i32, y: i32) -> Vec<PillageTarget> {
-    if sim.city_at(x, y).is_some() || sim.units.iter().any(|unit| (unit.x, unit.y) == (x, y)) {
+    if sim.city_at(x, y).is_some() || sim.any_unit_at(x, y, |_| true) {
         return Vec::new();
     }
     let tile = sim.tile(x, y);

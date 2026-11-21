@@ -233,14 +233,24 @@ impl Simulation {
         score
     }
 
+    #[cfg(test)]
     pub(super) fn explorer_stack_risk(&self, unit: &Unit, x: i32, y: i32) -> i64 {
+        self.explorer_stack_risk_with_rate(unit, x, y, self.unit_move_rate(unit))
+    }
+
+    pub(super) fn explorer_stack_risk_with_rate(
+        &self,
+        unit: &Unit,
+        x: i32,
+        y: i32,
+        allowance: i32,
+    ) -> i64 {
         let tile = self.tile(x, y);
         let stack = if self.any_city_at_cached(x, y) {
             0
         } else {
-            self.units
-                .iter()
-                .filter(|other| other.owner == unit.owner && (other.x, other.y) == (x, y))
+            self.tile_units_ordered(x, y)
+                .filter(|other| other.owner == unit.owner)
                 .map(|other| other.kind.stats().cost)
                 .sum::<i32>()
         };
@@ -249,10 +259,8 @@ impl Simulation {
             // adv_danger_at's multiplicative extras adjustment.
             + self.pf_extra_class_defense(unit.kind, x, y) / 100;
         let probability = if tile.terrain.is_water() { 0.05 } else { 0.15 };
-        let allowance = self.unit_move_rate(unit).max(1);
-        let move_fragments = MovementRules::campaign()
-            .move_fragments()
-            .expect("selected C2C3 movement fragments");
+        let allowance = allowance.max(1);
+        let move_fragments = campaign_move_fragments();
         let fearfulness =
             PF_TURN_FACTOR as f64 / 36.0 * f64::from(move_fragments) / f64::from(allowance);
         let mut risk = f64::from(unit.kind.stats().cost + stack) * probability * 10.0
@@ -389,7 +397,7 @@ impl Simulation {
                     + if goal.is_some() {
                         // Native pf_normal_node.extra_tile caches EC in an
                         // unsigned short, including the literal truncation.
-                        i64::from(self.explorer_stack_risk(unit, nx, ny) as u16)
+                        i64::from(self.explorer_stack_risk_with_rate(unit, nx, ny, rate) as u16)
                     } else {
                         0
                     };

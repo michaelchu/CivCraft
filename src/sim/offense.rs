@@ -542,6 +542,20 @@ impl Simulation {
                     }
                 }
             }
+            if self.advisor_cache.active()
+                && let (Some(boat), Some(fmap)) = (target.ferry.as_ref(), ferry_path.take())
+            {
+                let key = (
+                    boat.owner,
+                    boat.kind as usize,
+                    boat.x,
+                    boat.y,
+                    boat.moves_left,
+                    boat.hp,
+                    boat.veteran,
+                );
+                self.advisor_cache.memos().return_overlap_map(key, fmap);
+            }
             if selected.want > choice.map_or(0.0, |old| old.want) {
                 if target.new_ferry {
                     // Selection already happened. The source's int role

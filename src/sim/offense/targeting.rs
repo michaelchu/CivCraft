@@ -250,9 +250,24 @@ impl super::Simulation {
                     } else {
                         self.offensive_find_ferry(seed)
                     };
-                    ferry_map = ferry
-                        .as_ref()
-                        .map(|boat| NormalPaths::overlap_map(self, boat));
+                    ferry_map = ferry.as_ref().map(|boat| {
+                        let key = (
+                            boat.owner,
+                            boat.kind as usize,
+                            boat.x,
+                            boat.y,
+                            boat.moves_left,
+                            boat.hp,
+                            boat.veteran,
+                        );
+                        if self.advisor_cache.active()
+                            && let Some(cached) = self.advisor_cache.memos().take_overlap_map(key)
+                        {
+                            cached
+                        } else {
+                            NormalPaths::overlap_map(self, boat)
+                        }
+                    });
                     ferry_initialized = true;
                 }
                 if direct.is_none() && direct_possible && bounded && ferry_map.is_some() {
@@ -457,6 +472,23 @@ impl super::Simulation {
                 }
             }
         }
+        let keep_ferry_map =
+            virtual_unit && best.as_ref().is_some_and(|target| target.ferry.is_some());
+        if !keep_ferry_map
+            && self.advisor_cache.active()
+            && let (Some(boat), Some(fmap)) = (ferry.as_ref(), ferry_map.take())
+        {
+            let key = (
+                boat.owner,
+                boat.kind as usize,
+                boat.x,
+                boat.y,
+                boat.moves_left,
+                boat.hp,
+                boat.veteran,
+            );
+            self.advisor_cache.memos().return_overlap_map(key, fmap);
+        }
         if !virtual_unit && let Some(target) = best.as_mut() {
             let goal = target
                 .ferry
@@ -470,7 +502,7 @@ impl super::Simulation {
                 .and_then(|id| invasion_support.get(&id).copied())
                 .unwrap_or_default();
             // Freeciv's pferrymap output preserves the search for production advice.
-            let ferry_map = ferry_map.filter(|_| virtual_unit && target.ferry.is_some());
+            let ferry_map = ferry_map.filter(|_| keep_ferry_map);
             OffensivePlan {
                 target,
                 ferry_map,

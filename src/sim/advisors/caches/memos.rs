@@ -6,6 +6,7 @@ use crate::{
         Government,
         advisors::{AiBuildChoice, GuardCityAssessment},
         ai::SharedInvasionSupport,
+        normal_paths::NormalPaths,
         pf_actions::PfAction,
         settlement::CitySite,
     },
@@ -19,6 +20,7 @@ use std::{
 pub(in crate::sim) type CachedOffensiveAdvice = (Option<AiBuildChoice>, Vec<(Tech, f32)>, bool);
 pub(in crate::sim) type UnitClassTotals = BTreeMap<Option<String>, i32>;
 pub(in crate::sim) type ActionKey = (usize, usize, usize, bool, bool, bool);
+pub(in crate::sim) type OverlapMapKey = (usize, usize, i32, i32, i32, i32, usize);
 type VirtualCityTileYields = (Government, Vec<Option<(i32, i32, i32)>>);
 type RouteZones = [Vec<Option<bool>>; 2];
 
@@ -40,6 +42,7 @@ struct MemoData {
     virtual_city_tile_yields: BTreeMap<usize, VirtualCityTileYields>,
     route_zone_control: BTreeMap<usize, RouteZones>,
     pf_actions: HashMap<ActionKey, PfAction>,
+    overlap_maps: HashMap<OverlapMapKey, NormalPaths>,
 }
 
 impl AdvisorMemos {
@@ -85,6 +88,12 @@ impl AdvisorMemos {
     }
     pub(in crate::sim) fn remember_offensive_advice(&self, key: u32, value: CachedOffensiveAdvice) {
         self.0.borrow_mut().offensive_advice.insert(key, value);
+    }
+    pub(in crate::sim) fn take_overlap_map(&self, key: OverlapMapKey) -> Option<NormalPaths> {
+        self.0.borrow_mut().overlap_maps.remove(&key)
+    }
+    pub(in crate::sim) fn return_overlap_map(&self, key: OverlapMapKey, map: NormalPaths) {
+        self.0.borrow_mut().overlap_maps.insert(key, map);
     }
     pub(in crate::sim) fn invasion_support(&self, key: usize) -> Option<SharedInvasionSupport> {
         self.0.borrow().invasion_support.get(&key).cloned()

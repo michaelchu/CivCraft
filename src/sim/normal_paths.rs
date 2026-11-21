@@ -39,7 +39,7 @@ enum Style {
 /// Indexed heap for normal path maps. Freeciv's map_index_pq replaces a
 /// queued tile directly; ExplorerQueue::put otherwise scans the heap to find
 /// that tile, making each decrease-key linear in the frontier size.
-#[derive(Default)]
+#[derive(Clone, Default)]
 struct NormalPathQueue {
     heap: Vec<(i64, usize)>,
     positions: Vec<usize>,
@@ -157,7 +157,8 @@ impl Default for Node {
     }
 }
 
-pub(super) struct NormalPaths {
+#[derive(Clone)]
+pub(in crate::sim) struct NormalPaths {
     map_wrap: MapWrap,
     actor: Unit,
     rate: i32,
@@ -505,7 +506,8 @@ impl NormalPaths {
             let fragments = campaign_move_fragments();
             self.nodes[index].extra_tile = (fragments * TURN_FACTOR / 12) as u16;
         } else if self.risk {
-            self.nodes[index].extra_tile = sim.explorer_stack_risk(&self.actor, x, y) as u16;
+            self.nodes[index].extra_tile =
+                sim.explorer_stack_risk_with_rate(&self.actor, x, y, self.rate) as u16;
         }
         true
     }
