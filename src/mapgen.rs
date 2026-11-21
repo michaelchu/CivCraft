@@ -14,12 +14,12 @@
 //! seeded output.
 
 use crate::random::FreecivRng;
-use defaults::{
-    HutPlacementSettings, MapGenerationSettings, OceanDepthSettings,
-    StartPositionScoringSettings, TerrainMapgenProperties,
-};
 pub(crate) use crate::world::{GeneratedMap, GeneratedTile};
 use crate::world::{Terrain, TerrainBase, topology::*};
+use defaults::{
+    HutPlacementSettings, MapGenerationSettings, OceanDepthSettings, StartPositionScoringSettings,
+    TerrainMapgenProperties,
+};
 use std::{collections::hash_map::RandomState, hash::BuildHasher};
 
 /// Named world sizes and custom dimensions.

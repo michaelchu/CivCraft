@@ -259,8 +259,7 @@ fn freeciv_ocean_depth_stages_use_height_and_the_civ3_wrap_topology() {
         settings: WorldSettings::default(),
         civilization_count: 4,
     };
-    let depths = defaults::default_map_generation_settings()
-        .ocean_depths;
+    let depths = defaults::default_map_generation_settings().ocean_depths;
     let mut heights = vec![0; wrap.tile_count()];
     let mut land_mask = vec![false; wrap.tile_count()];
     let land = wrap.index(8, 8);
@@ -1340,8 +1339,12 @@ fn generated_worlds_match_civcraft_resource_goldens_for_each_wrap() {
 
 #[test]
 fn fractal_generator_applies_world_settings_deterministically() {
-    let default_map =
-        generate_for_map_size_with(&FreecivFractalMapGenerator, 42, MapSize::Tiny, WorldSettings::default());
+    let default_map = generate_for_map_size_with(
+        &FreecivFractalMapGenerator,
+        42,
+        MapSize::Tiny,
+        WorldSettings::default(),
+    );
     assert_eq!(
         map_checksum(&default_map.tiles),
         map_checksum(&generate_for_map_size(42, MapSize::Tiny).tiles)
@@ -1371,8 +1374,16 @@ fn fractal_generator_applies_world_settings_deterministically() {
             temperature: Temperature::Cool,
         },
     );
-    let water_a = custom_a.tiles.iter().filter(|t| t.terrain.is_water()).count();
-    let water_b = custom_b.tiles.iter().filter(|t| t.terrain.is_water()).count();
+    let water_a = custom_a
+        .tiles
+        .iter()
+        .filter(|t| t.terrain.is_water())
+        .count();
+    let water_b = custom_b
+        .tiles
+        .iter()
+        .filter(|t| t.terrain.is_water())
+        .count();
     assert!(
         water_b > water_a,
         "80% ocean coverage should produce more water than 60%: {water_b} vs {water_a}"

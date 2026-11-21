@@ -61,13 +61,11 @@ pub async fn run_desktop() {
         eprintln!("{error}");
         std::process::exit(2);
     });
-    let world = WorldSetup::parse(mapgen::MapSize::Small, |flag| {
-        parsed_argument(&args, flag)
-    })
-    .unwrap_or_else(|error| {
-        eprintln!("{error}");
-        std::process::exit(2);
-    });
+    let world = WorldSetup::parse(mapgen::MapSize::Small, |flag| parsed_argument(&args, flag))
+        .unwrap_or_else(|error| {
+            eprintln!("{error}");
+            std::process::exit(2);
+        });
     let load = argument_value("--load");
     if load.is_some() && world.specified {
         eprintln!("world setup options require a newly generated world");
@@ -589,11 +587,7 @@ mod argument_tests {
             ("large", (130, 130)),
             ("huge", (160, 160)),
         ] {
-            let wrap = name
-                .parse::<mapgen::MapSize>()
-                .unwrap()
-                .topology()
-                .unwrap();
+            let wrap = name.parse::<mapgen::MapSize>().unwrap().topology().unwrap();
             assert_eq!((wrap.width(), wrap.height()), dimensions);
         }
         assert_eq!(

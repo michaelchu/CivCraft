@@ -54,9 +54,8 @@ impl WorldProvenance {
     ) -> Self {
         Self {
             seed: game.world_seed,
-            size: size.unwrap_or_else(|| {
-                MapSize::Custom(game.map_wrap.width(), game.map_wrap.height())
-            }),
+            size: size
+                .unwrap_or_else(|| MapSize::Custom(game.map_wrap.width(), game.map_wrap.height())),
             generator,
             settings,
         }
