@@ -14,8 +14,8 @@
 //! seeded output.
 
 use crate::random::FreecivRng;
-use crate::rules::engine_rules::{
-    HutPlacementSettings, MapGenerationSettings, OceanDepthSettings, RulesetData,
+use defaults::{
+    HutPlacementSettings, MapGenerationSettings, OceanDepthSettings,
     StartPositionScoringSettings, TerrainMapgenProperties,
 };
 pub(crate) use crate::world::{GeneratedMap, GeneratedTile};
@@ -102,10 +102,7 @@ impl std::fmt::Display for MapSize {
     }
 }
 
-/// Water coverage choices exposed by Civ III's world setup.
-///
-/// The active Freeciv generator reads its landmass percentage from the
-/// selected ruleset; this Civ III UI choice is not mapped to that setting.
+/// Ocean coverage percentage choices for world generation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub(crate) enum OceanCoverage {
     Percent60,
@@ -137,7 +134,7 @@ impl std::str::FromStr for OceanCoverage {
     }
 }
 
-/// Climate choices from Civ III world setup.
+/// Climate choices for world generation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub(crate) enum Climate {
     Arid,
@@ -199,11 +196,7 @@ impl std::str::FromStr for WorldAge {
     }
 }
 
-/// Landmass scale choices exposed by Civ III's world setup.
-///
-/// The active Freeciv generator does not yet map these presets to Freeciv
-/// `landmass` or `startpos` settings; they currently affect the OpenSimplex
-/// implementation only.
+/// Landmass scale choices for world generation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub(crate) enum Landform {
     Archipelago,
@@ -236,7 +229,7 @@ impl std::str::FromStr for Landform {
     }
 }
 
-/// Temperature options exposed by Civ III's world setup.
+/// Global temperature choices for world generation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub(crate) enum Temperature {
     Cool,
@@ -295,6 +288,7 @@ pub(crate) struct WorldSettings {
     pub(crate) temperature: Temperature,
 }
 
+mod defaults;
 mod noise;
 mod placement;
 mod rivers;
@@ -1175,9 +1169,7 @@ fn map_generation_request(
 }
 
 pub(crate) fn campaign_map_generation_settings() -> MapGenerationSettings {
-    RulesetData::campaign_default()
-        .map_generation_settings()
-        .expect("campaign ruleset map-generation settings must be valid")
+    defaults::default_map_generation_settings()
 }
 
 fn map_generation_request_with_map_settings(
@@ -1188,12 +1180,8 @@ fn map_generation_request_with_map_settings(
     map_generation_settings: MapGenerationSettings,
 ) -> MapGenerationRequest {
     let (map_seed, gameplay_rng) = campaign_randomness(seed);
-    let terrain_properties = RulesetData::campaign_default()
-        .terrain_mapgen_properties()
-        .expect("campaign ruleset terrain properties must be valid");
-    let start_scoring_settings = RulesetData::campaign_default()
-        .start_position_scoring_settings()
-        .expect("campaign ruleset start-position scoring settings must be valid");
+    let terrain_properties = defaults::default_terrain_mapgen_properties();
+    let start_scoring_settings = defaults::default_start_position_scoring_settings();
     MapGenerationRequest {
         seed,
         map_seed,

@@ -200,9 +200,7 @@ mod tests {
     }
 
     fn ruleset_settings() -> MapGenerationSettings {
-        crate::rules::engine_rules::RulesetData::campaign_default()
-            .map_generation_settings()
-            .unwrap()
+        super::super::defaults::default_map_generation_settings()
     }
 
     #[test]

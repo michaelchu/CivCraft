@@ -853,15 +853,14 @@ mod tests {
         MapGenerationSettings,
         Vec<TerrainMapgenProperties>,
     ) {
-        let rules = RulesetData::campaign_default();
         (
             Generator {
                 wrap,
                 settings: WorldSettings::default(),
                 civilization_count: 4,
             },
-            rules.map_generation_settings().unwrap(),
-            rules.terrain_mapgen_properties().unwrap(),
+            super::super::defaults::default_map_generation_settings(),
+            super::super::defaults::default_terrain_mapgen_properties(),
         )
     }
 
@@ -1140,9 +1139,8 @@ mod tests {
 
     #[test]
     fn start_tile_value_uses_c2c3_outputs_and_retains_civ3_resources() {
-        let rules = RulesetData::campaign_default();
-        let terrain_properties = rules.terrain_mapgen_properties().unwrap();
-        let scoring = rules.start_position_scoring_settings().unwrap();
+        let terrain_properties = super::super::defaults::default_terrain_mapgen_properties();
+        let scoring = super::super::defaults::default_start_position_scoring_settings();
 
         assert_eq!(scoring.road_trade_increment, 1);
         assert_eq!(scoring.irrigation_percent, 100);

@@ -119,9 +119,7 @@ fn c2c3_settings_change_freeciv_height_resolution_and_shore_mask() {
         settings: WorldSettings::default(),
         civilization_count: 8,
     };
-    let c2c3 = crate::rules::engine_rules::RulesetData::campaign_default()
-        .map_generation_settings()
-        .unwrap();
+    let c2c3 = defaults::default_map_generation_settings();
     let request = map_generation_request(42, wrap, WorldSettings::default(), 8);
     assert_eq!(request.map_generation_settings, c2c3);
 
@@ -147,7 +145,7 @@ fn c2c3_settings_change_freeciv_height_resolution_and_shore_mask() {
     assert!(more_land_tiles > default_land_tiles);
 
     let more_divisions = MapGenerationSettings {
-        startpos: crate::rules::engine_rules::StartPositionSetting::Single,
+        startpos: defaults::StartPositionSetting::Single,
         ..c2c3
     };
     let mut single_start_rng = MapRng::new(123);
@@ -180,9 +178,7 @@ fn freeciv_fractal_height_consumes_jitter_for_shared_and_bounded_midpoints() {
         settings: WorldSettings::default(),
         civilization_count: 8,
     };
-    let settings = crate::rules::engine_rules::RulesetData::campaign_default()
-        .map_generation_settings()
-        .unwrap();
+    let settings = defaults::default_map_generation_settings();
     let divisions = settings.startpos.fractal_divisions(8);
     let step = wrap.width() + wrap.height();
     let mut expected = crate::random::FreecivRng::new(123);
@@ -222,9 +218,7 @@ fn freeciv_fractal_height_consumes_jitter_for_shared_and_bounded_midpoints() {
 
 #[test]
 fn c2c3_ocean_depths_are_parsed_and_mapped_to_civ3_water_labels() {
-    let settings = crate::rules::engine_rules::RulesetData::campaign_default()
-        .map_generation_settings()
-        .unwrap();
+    let settings = defaults::default_map_generation_settings();
     let depths = settings.ocean_depths;
     assert_eq!(
         depths,
@@ -265,9 +259,7 @@ fn freeciv_ocean_depth_stages_use_height_and_the_civ3_wrap_topology() {
         settings: WorldSettings::default(),
         civilization_count: 4,
     };
-    let depths = crate::rules::engine_rules::RulesetData::campaign_default()
-        .map_generation_settings()
-        .unwrap()
+    let depths = defaults::default_map_generation_settings()
         .ocean_depths;
     let mut heights = vec![0; wrap.tile_count()];
     let mut land_mask = vec![false; wrap.tile_count()];
@@ -308,12 +300,8 @@ fn generated_rivers_reach_the_ocean_and_resources_are_spaced() {
         settings: WorldSettings::default(),
         civilization_count: crate::world::DEFAULT_CIVILIZATION_COUNT,
     };
-    let freeciv_settings = RulesetData::campaign_default()
-        .map_generation_settings()
-        .unwrap();
-    let terrain_properties = RulesetData::campaign_default()
-        .terrain_mapgen_properties()
-        .unwrap();
+    let freeciv_settings = defaults::default_map_generation_settings();
+    let terrain_properties = defaults::default_terrain_mapgen_properties();
     for seed in [0, 42, 12345] {
         let map = generate(seed);
         let tiles = &map.tiles;
@@ -500,9 +488,7 @@ fn freeciv_river_test_map(
         };
         wrap.tile_count()
     ];
-    let properties = crate::rules::engine_rules::RulesetData::campaign_default()
-        .terrain_mapgen_properties()
-        .expect("C2C3 terrain mapgen properties parse");
+    let properties = defaults::default_terrain_mapgen_properties();
     (generator, tiles, properties)
 }
 
@@ -550,9 +536,7 @@ fn freeciv_river_ties_follow_ruleset_order_and_wrap_x_without_wrapping_y() {
 
 #[test]
 fn freeciv_river_density_and_spring_height_follow_c2c3_parameters() {
-    let settings = crate::rules::engine_rules::RulesetData::campaign_default()
-        .map_generation_settings()
-        .expect("C2C3 map-generation settings parse");
+    let settings = defaults::default_map_generation_settings();
 
     assert_eq!(
         rivers::freeciv_river_parameters(settings, 36 * 48),
