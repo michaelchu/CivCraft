@@ -836,28 +836,28 @@ fn default_worlds_match_civcraft_resource_goldens() {
     let cases: [ResourceGolden; 5] = [
         (
             1,
-            0x7397e149e920ef7e,
-            [(2, 28), (5, 12), (13, 18), (14, 33), (21, 30), (32, 22)],
+            0xcc4a5772549ae681,
+            [(3, 18), (9, 13), (15, 17), (15, 32), (27, 28), (34, 34)],
         ),
         (
             42,
-            0x55a4c27d734602b3,
-            [(0, 29), (9, 29), (16, 43), (23, 20), (24, 7), (31, 19)],
+            0x755f24d075938116,
+            [(6, 37), (11, 20), (13, 43), (24, 10), (30, 22), (34, 38)],
         ),
         (
             12345,
-            0x413a934a4d7d6ce8,
-            [(1, 23), (12, 37), (15, 25), (23, 34), (24, 22), (34, 40)],
+            0x2a3d4dd96b709c75,
+            [(0, 27), (10, 29), (14, 35), (22, 22), (25, 37), (28, 28)],
         ),
         (
             700001,
-            0x7871d48c9ce661b0,
-            [(0, 9), (0, 34), (7, 26), (14, 21), (28, 13), (34, 20)],
+            0xaa5f2d9af4058c68,
+            [(0, 34), (2, 9), (10, 13), (14, 21), (25, 7), (31, 18)],
         ),
         (
             2147483647,
-            0xae6e0f41cf92022b,
-            [(1, 34), (16, 20), (22, 33), (25, 12), (27, 41), (35, 17)],
+            0xce53f3dd22b29d9d,
+            [(4, 9), (4, 31), (10, 37), (13, 23), (24, 39), (31, 14)],
         ),
     ];
     for (seed, expected, expected_starts) in cases {
@@ -1239,10 +1239,20 @@ mod wrap_generation_tests {
                 bincode::serialize(&a.tiles).unwrap(),
                 bincode::serialize(&b.tiles).unwrap()
             );
-            for y in [0, a.map_wrap.height() - 1] {
+            for y in [0, 1, a.map_wrap.height() - 2, a.map_wrap.height() - 1] {
                 for x in 0..a.map_wrap.width() {
                     let edge = &a.tiles[a.map_wrap.index(x, y)];
                     assert_eq!(edge.terrain, Terrain::Ocean);
+                    assert_eq!(edge.base_terrain, TerrainBase::Ocean);
+                    assert!(edge.resource.is_none() && !edge.river && !edge.hut);
+                }
+            }
+            let os = super::generate_opensimplex(seed, MapWrap::X, Civ3WorldSettings::default());
+            for y in [0, 1, os.map_wrap.height() - 2, os.map_wrap.height() - 1] {
+                for x in 0..os.map_wrap.width() {
+                    let edge = &os.tiles[os.map_wrap.index(x, y)];
+                    assert_eq!(edge.terrain, Terrain::Ocean);
+                    assert_eq!(edge.base_terrain, TerrainBase::Ocean);
                     assert!(edge.resource.is_none() && !edge.river && !edge.hut);
                 }
             }

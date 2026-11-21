@@ -440,7 +440,7 @@ impl Generator {
 
     fn is_polar_cap_tile(&self, tile: usize) -> bool {
         let (_, y) = self.wrap.position(tile);
-        y == 0 || y == self.wrap.height() - 1
+        y < 2 || y >= self.wrap.height() - 2
     }
 }
 
@@ -764,7 +764,7 @@ impl Generator {
                     (field, heights, None, self.settings.ocean_coverage.percent())
                 }
                 LandmassSource::FreecivFractal(map_settings, _water_depths) => {
-                    let field = self.freeciv_fractal_height_field(
+                    let mut field = self.freeciv_fractal_height_field(
                         &mut rng,
                         map_settings
                             .startpos
@@ -772,6 +772,8 @@ impl Generator {
                         map_settings.landmass_percent,
                         true,
                     );
+                    self.taper_polar_landmass(&mut field, water_seed);
+                    rank_field(&mut field, 1000);
                     let land_mask = freeciv_land_mask(&field, map_settings);
                     (
                         field.clone(),
@@ -1380,15 +1382,15 @@ fn finalize_polar_ocean_boundary(
             };
         }
     }
-    for y in [0, wrap.height() - 1] {
-        for x in 0..wrap.width() {
-            let tile = &mut map.tiles[wrap.index(x, y)];
-            tile.terrain = Terrain::Ocean;
-            tile.base_terrain = TerrainBase::Ocean;
-            tile.resource = None;
-            tile.river = false;
-            tile.hut = false;
+    for (tile_index, tile) in map.tiles.iter_mut().enumerate() {
+        if !generator.is_polar_cap_tile(tile_index) {
+            continue;
         }
+        tile.terrain = Terrain::Ocean;
+        tile.base_terrain = TerrainBase::Ocean;
+        tile.resource = None;
+        tile.river = false;
+        tile.hut = false;
     }
     prune_civ3_river_edges(wrap, &mut map.tiles);
     map
