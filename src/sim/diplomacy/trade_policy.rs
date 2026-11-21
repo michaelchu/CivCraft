@@ -1,79 +1,15 @@
 //! Proactive, trait-aware economic diplomacy. Treaty legality stays in offers.
 use super::*;
 
-use serde::{Deserialize, Serialize};
+use crate::rules::native::{DiplomacyCatalog, NegotiationPolicy, RelationshipPolicy};
+use serde::Serialize;
 use std::collections::BTreeMap;
-use std::sync::OnceLock;
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct Policy {
-    schema_version: u32,
-    cadence_turns: i32,
-    technologies_per_side: usize,
-    seller_percent: i64,
-    commercial_margin_percent: i64,
-    liquidity_discount_percent: i64,
-    scientific_bonus_percent: i64,
-    trait_bonus_percent: i64,
-    research_goal_bonus_percent: i64,
-    military_need_bonus_percent: i64,
-    military_minimum_trust: i32,
-    military_minimum_power: i32,
-    victory_technologies: Vec<String>,
-    interests: BTreeMap<String, Vec<String>>,
-    relationships: super::relationships::Policy,
-    negotiations: super::needs::Policy,
-}
 
 #[cfg(test)]
 mod tests;
 
-fn policy() -> &'static Policy {
-    static POLICY: OnceLock<Policy> = OnceLock::new();
-    POLICY.get_or_init(|| {
-        let policy: Policy = toml::from_str(include_str!(
-            "../../../data/rulesets/civcraft/content/diplomacy.toml"
-        ))
-        .expect("valid diplomacy policy");
-        assert_eq!(policy.schema_version, 1);
-        policy.relationships.validate();
-        policy.negotiations.validate();
-        assert!(policy.cadence_turns > 0 && (1..=16).contains(&policy.technologies_per_side));
-        assert!((1..=100).contains(&policy.seller_percent));
-        assert_eq!(
-            policy.interests.len(),
-            8,
-            "all Conquests traits need trade interests"
-        );
-        assert!(policy.military_minimum_power > 0);
-        for (name, technologies) in &policy.interests {
-            assert!(matches!(
-                name.as_str(),
-                "agricultural"
-                    | "commercial"
-                    | "expansionist"
-                    | "industrious"
-                    | "militaristic"
-                    | "religious"
-                    | "scientific"
-                    | "seafaring"
-            ));
-            for technology in technologies {
-                assert!(
-                    Tech::all().any(|tech| tech.name() == technology),
-                    "unknown policy technology {technology}"
-                );
-            }
-        }
-        for technology in &policy.victory_technologies {
-            assert!(
-                Tech::all().any(|tech| tech.name() == technology),
-                "unknown victory technology {technology}"
-            );
-        }
-        policy
-    })
+fn policy() -> &'static DiplomacyCatalog {
+    crate::rules::native::diplomacy()
 }
 
 #[derive(Clone, Serialize)]
@@ -472,10 +408,10 @@ impl Simulation {
     }
 }
 
-pub(super) fn relationship_policy() -> &'static super::relationships::Policy {
+pub(super) fn relationship_policy() -> &'static RelationshipPolicy {
     &policy().relationships
 }
 
-pub(super) fn negotiation_policy() -> &'static super::needs::Policy {
+pub(super) fn negotiation_policy() -> &'static NegotiationPolicy {
     &policy().negotiations
 }

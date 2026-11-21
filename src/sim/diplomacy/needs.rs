@@ -1,47 +1,9 @@
 //! Bounded negotiations over existing gold, information and peace clauses.
 use super::*;
-use serde::{Deserialize, Serialize};
+use crate::rules::native::NegotiationPolicy;
+use serde::Serialize;
 
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-pub(super) struct Policy {
-    aid_minimum_trust: i32,
-    aid_surplus_percent: i32,
-    maximum_aid: i32,
-    map_minimum_trust: i32,
-    map_minimum_tiles: usize,
-    map_tiles_per_gold: i64,
-    map_seller_percent: i64,
-    map_trait_bonus_percent: i64,
-    maximum_map_value: i64,
-    peace_income_horizon: i32,
-    peace_visible_force_ratio: i64,
-    peace_force_value: i64,
-    maximum_peace_value: i64,
-}
-impl Policy {
-    pub(super) fn validate(&self) {
-        assert!((0..=10000).contains(&self.aid_minimum_trust));
-        assert!((0..=10000).contains(&self.map_minimum_trust));
-        assert!((1..=50).contains(&self.aid_surplus_percent));
-        assert!((1..=10000).contains(&self.maximum_aid));
-        assert!((1..=10000).contains(&self.map_minimum_tiles));
-        for value in [
-            self.map_tiles_per_gold,
-            self.map_seller_percent,
-            self.map_trait_bonus_percent,
-            self.maximum_map_value,
-            i64::from(self.peace_income_horizon),
-            self.peace_visible_force_ratio,
-            self.peace_force_value,
-            self.maximum_peace_value,
-        ] {
-            assert!((1..=1000).contains(&value));
-        }
-        assert!(self.map_seller_percent < 100);
-    }
-}
-fn policy() -> &'static Policy {
+fn policy() -> &'static NegotiationPolicy {
     super::trade_policy::negotiation_policy()
 }
 

@@ -11,17 +11,6 @@ pub(super) fn builder_building_want_factor() -> f32 {
     0.5 + (fixed_default("builder") / 50 / 2) as f32
 }
 
-pub(super) const TRAITS: &[&str] = &[
-    "agricultural",
-    "commercial",
-    "expansionist",
-    "industrious",
-    "militaristic",
-    "religious",
-    "scientific",
-    "seafaring",
-];
-
 pub(super) fn trait_enabled(civ: &crate::rules::native::NativeCivilization, name: &str) -> bool {
     match name {
         "agricultural" => civ.agricultural,

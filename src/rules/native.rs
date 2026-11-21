@@ -121,6 +121,7 @@ pub(crate) struct NativeBuildingRequirement {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub(crate) struct TechnologyCatalog {
     pub(crate) schema_version: u32,
     pub(crate) source: String,
@@ -361,6 +362,7 @@ pub(crate) struct NativeExperienceLevel {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub(crate) struct NativeTechnology {
     pub(crate) id: String,
     /// Stable serialized `Tech` index. This is an identity bridge, not a
@@ -624,8 +626,131 @@ pub(crate) fn building_rule(runtime_index: usize) -> Option<&'static NativeBuild
         .find(|rule| rule.legacy_runtime_index == runtime_index)
 }
 
+pub(crate) use super::policies::{
+    DiplomacyCatalog, FaithDefinition, NegotiationPolicy, RelationshipPolicy, ReligionCatalog,
+    StrategyCatalog, VassalageCatalog,
+};
+
+pub(crate) fn parse_technologies(source: &str) -> Result<TechnologyCatalog, String> {
+    let catalog: TechnologyCatalog = toml::from_str(source).map_err(|error| error.to_string())?;
+    super::technologies::validate(&catalog.technologies)?;
+    Ok(catalog)
+}
+
 pub(crate) fn technologies() -> &'static TechnologyCatalog {
-    super::technologies::catalog()
+    static CATALOG: OnceLock<TechnologyCatalog> = OnceLock::new();
+    CATALOG.get_or_init(|| {
+        parse_technologies(include_str!(
+            "../../data/rulesets/civcraft/content/technologies.toml"
+        ))
+        .unwrap_or_else(|error| panic!("invalid native technology catalog: {error}"))
+    })
+}
+
+pub(crate) fn strategy() -> &'static StrategyCatalog {
+    static CATALOG: OnceLock<StrategyCatalog> = OnceLock::new();
+    CATALOG.get_or_init(|| {
+        super::policies::parse_strategy(include_str!(
+            "../../data/rulesets/civcraft/content/strategy.toml"
+        ))
+        .unwrap_or_else(|error| panic!("invalid native strategy policy: {error}"))
+    })
+}
+
+pub(crate) fn diplomacy() -> &'static DiplomacyCatalog {
+    static CATALOG: OnceLock<DiplomacyCatalog> = OnceLock::new();
+    CATALOG.get_or_init(|| {
+        super::policies::parse_diplomacy(
+            include_str!("../../data/rulesets/civcraft/content/diplomacy.toml"),
+            technologies(),
+        )
+        .unwrap_or_else(|error| panic!("invalid native diplomacy policy: {error}"))
+    })
+}
+
+pub(crate) fn vassalage() -> &'static VassalageCatalog {
+    static CATALOG: OnceLock<VassalageCatalog> = OnceLock::new();
+    CATALOG.get_or_init(|| {
+        super::policies::parse_vassalage(
+            include_str!("../../data/rulesets/civcraft/content/vassalage.toml"),
+            technologies(),
+        )
+        .unwrap_or_else(|error| panic!("invalid native vassalage policy: {error}"))
+    })
+}
+
+pub(crate) fn religion() -> &'static ReligionCatalog {
+    static CATALOG: OnceLock<ReligionCatalog> = OnceLock::new();
+    CATALOG.get_or_init(|| {
+        super::policies::parse_religion(
+            include_str!("../../data/rulesets/civcraft/content/religion.toml"),
+            technologies(),
+        )
+        .unwrap_or_else(|error| panic!("invalid native religion rules: {error}"))
+    })
+}
+
+/// Unified native content package validating every editable TOML file together.
+pub(crate) struct ContentRuleset {
+    pub(crate) units: UnitCatalog,
+    pub(crate) civilizations: CivilizationCatalog,
+    pub(crate) buildings: BuildingCatalog,
+    pub(crate) technologies: TechnologyCatalog,
+    pub(crate) governments: GovernmentCatalog,
+    pub(crate) economy: EconomyCatalog,
+    pub(crate) settlements: SettlementCatalog,
+    pub(crate) experience: ExperienceCatalog,
+    pub(crate) strategy: StrategyCatalog,
+    pub(crate) diplomacy: DiplomacyCatalog,
+    pub(crate) vassalage: VassalageCatalog,
+    pub(crate) religion: ReligionCatalog,
+}
+
+impl ContentRuleset {
+    pub(crate) fn load_from_directory(content_dir: &std::path::Path) -> Result<Self, String> {
+        let read = |name: &str| {
+            std::fs::read_to_string(content_dir.join(name))
+                .map_err(|error| format!("failed to read {name}: {error}"))
+        };
+        let technologies = parse_technologies(&read("technologies.toml")?)?;
+        let units: UnitCatalog =
+            toml::from_str(&read("units.toml")?).map_err(|error| error.to_string())?;
+        validate_ids(units.units.iter().map(|u| u.id.as_str()), "unit");
+        let civilizations: CivilizationCatalog =
+            toml::from_str(&read("civilizations.toml")?).map_err(|error| error.to_string())?;
+        validate_ids(
+            civilizations.civilizations.iter().map(|c| c.id.as_str()),
+            "civilization",
+        );
+        let buildings: BuildingCatalog =
+            toml::from_str(&read("buildings.toml")?).map_err(|error| error.to_string())?;
+        let governments = parse_governments(&read("governments.toml")?)?;
+        let economy: EconomyCatalog =
+            toml::from_str(&read("economy.toml")?).map_err(|error| error.to_string())?;
+        let settlements: SettlementCatalog =
+            toml::from_str(&read("settlements.toml")?).map_err(|error| error.to_string())?;
+        settlements.villages.validate().map_err(str::to_owned)?;
+        let experience: ExperienceCatalog =
+            toml::from_str(&read("experience_levels.toml")?).map_err(|error| error.to_string())?;
+        let strategy = super::policies::parse_strategy(&read("strategy.toml")?)?;
+        let diplomacy = super::policies::parse_diplomacy(&read("diplomacy.toml")?, &technologies)?;
+        let vassalage = super::policies::parse_vassalage(&read("vassalage.toml")?, &technologies)?;
+        let religion = super::policies::parse_religion(&read("religion.toml")?, &technologies)?;
+        Ok(Self {
+            units,
+            civilizations,
+            buildings,
+            technologies,
+            governments,
+            economy,
+            settlements,
+            experience,
+            strategy,
+            diplomacy,
+            vassalage,
+            religion,
+        })
+    }
 }
 
 fn parse_governments(source: &str) -> Result<GovernmentCatalog, String> {
@@ -908,5 +1033,29 @@ mod tests {
         assert!(units().units.iter().all(|unit| {
             !unit.id.is_empty() && !unit.art_folder.is_empty() && !unit.art_root.is_empty()
         }));
+    }
+
+    #[test]
+    fn unified_content_ruleset_loads_all_campaign_toml_files_from_directory() {
+        let dir =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/rulesets/civcraft/content");
+        let loaded = ContentRuleset::load_from_directory(&dir)
+            .expect("all 12 campaign content TOML files must load and validate");
+        assert_eq!(loaded.units.units.len(), units().units.len());
+        assert_eq!(loaded.buildings.rules.len(), buildings().rules.len());
+        assert_eq!(
+            loaded.technologies.technologies.len(),
+            technologies().technologies.len()
+        );
+        assert_eq!(loaded.religion.faiths.len(), religion().faiths.len());
+        assert_eq!(loaded.strategy.traits.len(), strategy().traits.len());
+        assert_eq!(
+            loaded.diplomacy.interests.len(),
+            diplomacy().interests.len()
+        );
+        assert_eq!(
+            loaded.vassalage.required_technology,
+            vassalage().required_technology
+        );
     }
 }

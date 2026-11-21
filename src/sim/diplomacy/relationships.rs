@@ -1,54 +1,11 @@
 //! Bounded directional history of actual diplomatic cooperation and breaches.
 use super::*;
+use crate::rules::native::RelationshipPolicy;
 use serde::{Deserialize, Serialize};
 
 const MAX_SCORE: i32 = 100;
 
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-pub(super) struct Policy {
-    trade_gain: i32,
-    support_gain: i32,
-    breach_grievance: i32,
-    rebuild_gain: i32,
-    trade_cooldown_turns: i32,
-    support_cooldown_turns: i32,
-    decay_turns: i32,
-    positive_decay: i32,
-    grievance_decay: i32,
-    caution_threshold: i32,
-    attitude_divisor: i32,
-    trade_score_divisor: i32,
-    maximum_trade_adjustment_percent: i32,
-    war_threshold_per_score: i32,
-}
-impl Policy {
-    pub(super) fn validate(&self) {
-        for value in [
-            self.trade_gain,
-            self.support_gain,
-            self.breach_grievance,
-            self.rebuild_gain,
-            self.positive_decay,
-            self.grievance_decay,
-            self.caution_threshold,
-        ] {
-            assert!((1..=MAX_SCORE).contains(&value));
-        }
-        for value in [
-            self.trade_cooldown_turns,
-            self.support_cooldown_turns,
-            self.decay_turns,
-            self.attitude_divisor,
-            self.trade_score_divisor,
-        ] {
-            assert!((1..=1000).contains(&value));
-        }
-        assert!((0..=20).contains(&self.maximum_trade_adjustment_percent));
-        assert!((0..=100).contains(&self.war_threshold_per_score));
-    }
-}
-fn policy() -> &'static Policy {
+fn policy() -> &'static RelationshipPolicy {
     super::trade_policy::relationship_policy()
 }
 

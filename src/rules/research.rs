@@ -341,7 +341,9 @@ fn build_civ3_tech_catalog() -> Civ3TechCatalog {
                 let prerequisite = native_catalog
                     .technologies
                     .iter()
-                    .find(|candidate| candidate.name.eq_ignore_ascii_case(name))
+                    .find(|candidate| {
+                        candidate.id == *name || candidate.name.eq_ignore_ascii_case(name)
+                    })
                     .unwrap_or_else(|| {
                         panic!(
                             "unmapped native campaign prerequisite {name:?} for {:?}",

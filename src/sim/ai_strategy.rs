@@ -1,66 +1,10 @@
 //! Shared, read-only AI policy. Advisor legality and emergency rules still apply.
 use super::*;
-use serde::{Deserialize, Serialize};
-use std::{collections::BTreeMap, sync::OnceLock};
+use crate::rules::native::StrategyCatalog;
+use serde::Serialize;
 
-#[derive(Default, Deserialize)]
-#[serde(default, deny_unknown_fields)]
-struct TraitWeights {
-    economy: i32,
-    science: i32,
-    military: i32,
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct Policy {
-    schema_version: u32,
-    crisis_economy_bonus: i32,
-    war_military_bonus: i32,
-    preparation_military_bonus: i32,
-    space_science_bonus: i32,
-    space_max_missing_techs: usize,
-    space_min_city_shields: i32,
-    space_research_want: i32,
-    deficit_reserve_turns: i32,
-    upkeep_buffer_turns: i32,
-    reserve_refill_turns: i32,
-    research_interest_want: i32,
-    traits: BTreeMap<String, TraitWeights>,
-}
-
-fn policy() -> &'static Policy {
-    static POLICY: OnceLock<Policy> = OnceLock::new();
-    POLICY.get_or_init(|| {
-        let policy: Policy = toml::from_str(include_str!(
-            "../../data/rulesets/civcraft/content/strategy.toml"
-        ))
-        .expect("valid shared AI strategy policy");
-        assert_eq!(policy.schema_version, 1);
-        for value in [
-            policy.crisis_economy_bonus,
-            policy.war_military_bonus,
-            policy.preparation_military_bonus,
-            policy.space_science_bonus,
-            policy.deficit_reserve_turns,
-            policy.upkeep_buffer_turns,
-            policy.reserve_refill_turns,
-            policy.research_interest_want,
-        ] {
-            assert!((0..=100).contains(&value));
-        }
-        assert!(policy.reserve_refill_turns > 0);
-        assert!(policy.space_max_missing_techs > 0);
-        assert!(policy.space_min_city_shields > 0 && policy.space_research_want > 0);
-        assert_eq!(policy.traits.len(), 8);
-        for (name, weights) in &policy.traits {
-            assert!(ai_traits::TRAITS.contains(&name.as_str()));
-            for weight in [weights.economy, weights.science, weights.military] {
-                assert!((0..=100).contains(&weight));
-            }
-        }
-        policy
-    })
+fn policy() -> &'static StrategyCatalog {
+    crate::rules::native::strategy()
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]

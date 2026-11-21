@@ -2,57 +2,6 @@
 use super::super::ai_strategy::StrategicPriorities;
 use super::*;
 
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-pub(super) struct AiRules {
-    culture_goal_points: i64,
-    culture_goal_bonus: i32,
-    religious_culture_bonus: i32,
-    recovery_gold_bonus: i32,
-    content_growth_value: i32,
-    content_unrest_value: i32,
-    adoption_city_value: i32,
-    switching_city_cost: i32,
-    diplomacy_value: i32,
-    ally_weight: i32,
-    friend_weight: i32,
-    local_defense_percent: i32,
-    spread_percent: i32,
-    foreign_spread_value: i32,
-    research_cap_per_city: i32,
-    research_native_priority_per_city: i32,
-    research_max_steps: usize,
-    research_cost_scale: i32,
-    maximum_cities: usize,
-    maximum_spread_targets: usize,
-}
-impl AiRules {
-    pub(super) fn validate(&self) {
-        assert!((1..=20000).contains(&self.culture_goal_points));
-        for v in [
-            self.culture_goal_bonus,
-            self.religious_culture_bonus,
-            self.recovery_gold_bonus,
-            self.content_growth_value,
-            self.content_unrest_value,
-            self.adoption_city_value,
-            self.switching_city_cost,
-            self.diplomacy_value,
-            self.local_defense_percent,
-            self.spread_percent,
-            self.foreign_spread_value,
-            self.research_cap_per_city,
-            self.research_native_priority_per_city,
-        ] {
-            assert!((0..=200).contains(&v));
-        }
-        assert!((1..=5).contains(&self.ally_weight) && (1..=5).contains(&self.friend_weight));
-        assert!((1..=10).contains(&self.research_max_steps));
-        assert!((1..=1000).contains(&self.research_cost_scale));
-        assert!((1..=32).contains(&self.maximum_cities));
-        assert!((1..=128).contains(&self.maximum_spread_targets));
-    }
-}
 struct GoalContext {
     shared: StrategicPriorities,
     culture: i32,

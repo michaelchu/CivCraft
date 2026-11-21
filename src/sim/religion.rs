@@ -1,164 +1,18 @@
 //! Owner-authorized religion: bounded influence, automatic spread and public faith.
 use super::notifications::{NotificationCategory, NotificationPriority};
 use super::*;
+pub(crate) use crate::rules::native::FaithDefinition;
+use crate::rules::native::ReligionCatalog;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
-use std::sync::OnceLock;
 
 mod ai;
 mod spread;
 #[cfg(test)]
 mod tests;
 
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct Rules {
-    faiths: Vec<FaithDefinition>,
-    ai: ai::AiRules,
-    founding_influence: i32,
-    maximum_influence: i32,
-    unaligned_weight: i32,
-    presence_percent: i32,
-    conversion_percent: i32,
-    retention_percent: i32,
-    lead_percent: i32,
-    decay_divisor: i32,
-    holy_pressure: i32,
-    community_pressure: i32,
-    local_distance: i32,
-    local_pressure: i32,
-    trade_pressure: i32,
-    incoming_cap: i32,
-    cooldown_turns: i32,
-    tolerant_culture: i32,
-    devout_content: i32,
-    devout_pressure: i32,
-    missionary_pressure: i32,
-    shared_attitude: i32,
-    devout_difference: i32,
-    missionary_difference: i32,
-    ai_minimum_improvement: i32,
-}
-fn rules() -> &'static Rules {
-    static RULES: OnceLock<Rules> = OnceLock::new();
-    RULES.get_or_init(|| {
-        let r: Rules = toml::from_str(include_str!(
-            "../../data/rulesets/civcraft/content/religion.toml"
-        ))
-        .expect("religion rules");
-        assert!((1..=10000).contains(&r.maximum_influence));
-        assert!((1..=r.maximum_influence).contains(&r.founding_influence));
-        assert!((1..=1000).contains(&r.unaligned_weight));
-        assert!((1..=1000).contains(&r.decay_divisor));
-        assert!((1..=100).contains(&r.presence_percent));
-        assert!(
-            r.presence_percent <= r.retention_percent
-                && r.retention_percent < r.conversion_percent
-                && r.conversion_percent <= 100
-        );
-        assert!((1..=100).contains(&r.lead_percent));
-        for v in [
-            r.holy_pressure,
-            r.community_pressure,
-            r.local_pressure,
-            r.trade_pressure,
-            r.incoming_cap,
-            r.devout_pressure,
-            r.missionary_pressure,
-        ] {
-            assert!((0..=100).contains(&v));
-        }
-        assert!((1..=10).contains(&r.local_distance));
-        assert!((1..=100).contains(&r.cooldown_turns));
-        for v in [
-            r.tolerant_culture,
-            r.devout_content,
-            r.ai_minimum_improvement,
-        ] {
-            assert!((0..=10).contains(&v));
-        }
-        assert!((0..=20).contains(&r.shared_attitude));
-        assert!(
-            (-20..=0).contains(&r.devout_difference)
-                && (-20..=0).contains(&r.missionary_difference)
-        );
-        r.ai.validate();
-        let mut ids = BTreeSet::new();
-        let mut names = BTreeSet::new();
-        assert_eq!(r.faiths.len(), 7);
-        for f in &r.faiths {
-            assert!((1..=7).contains(&f.id) && ids.insert(f.id) && names.insert(f.name.clone()));
-            assert!(Tech::all().any(|t| t.is_civ3_advance() && t.name() == f.tech_name()));
-            for v in [
-                f.content,
-                f.culture,
-                f.gold,
-                f.science,
-                f.local_pressure,
-                f.outgoing_pressure,
-                f.trade_pressure,
-            ] {
-                assert!((0..=2).contains(&v));
-            }
-        }
-        r
-    })
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-pub(crate) struct FaithDefinition {
-    pub(crate) id: u32,
-    pub(crate) name: String,
-    tech: String,
-    #[serde(default)]
-    content: i32,
-    #[serde(default)]
-    culture: i32,
-    #[serde(default)]
-    gold: i32,
-    #[serde(default)]
-    science: i32,
-    #[serde(default)]
-    local_pressure: i32,
-    #[serde(default)]
-    outgoing_pressure: i32,
-    #[serde(default)]
-    trade_pressure: i32,
-}
-impl FaithDefinition {
-    fn tech(&self) -> Tech {
-        Tech::all()
-            .find(|t| {
-                t.name()
-                    == self
-                        .tech
-                        .strip_prefix("TECH_")
-                        .expect("religion tech ID")
-                        .replace('_', " ")
-            })
-            .expect("religion technology")
-    }
-    fn tech_name(&self) -> &'static str {
-        self.tech().name()
-    }
-    pub(crate) fn bonus_description(&self) -> String {
-        let mut parts = Vec::new();
-        for (v, label) in [
-            (self.content, "content citizen"),
-            (self.culture, "culture"),
-            (self.gold, "gold"),
-            (self.science, "science"),
-            (self.local_pressure, "local influence"),
-            (self.outgoing_pressure, "outgoing pressure"),
-            (self.trade_pressure, "trade spread pressure"),
-        ] {
-            if v > 0 {
-                parts.push(format!("+{v} {label}"));
-            }
-        }
-        parts.join(", ")
-    }
+fn rules() -> &'static ReligionCatalog {
+    crate::rules::native::religion()
 }
 fn definition(id: u32) -> Option<&'static FaithDefinition> {
     rules().faiths.iter().find(|f| f.id == id)
