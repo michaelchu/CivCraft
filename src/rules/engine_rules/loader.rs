@@ -41,7 +41,6 @@ campaign_files!(
     "governments.ruleset",
     "units.ruleset",
     "terrain.ruleset",
-    "styles.ruleset",
     "cities.ruleset",
     "nations.ruleset",
     "effects.ruleset",
