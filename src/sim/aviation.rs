@@ -113,19 +113,17 @@ fn city_object_bombard_defense(sim: &Simulation, city: &City, attacker: &Unit) -
     defense
 }
 
-fn selected_bombard_blocking_actions() -> Option<Vec<String>> {
-    let rules = crate::rules::engine_rules::RulesetData::campaign_default();
-    let mut parameters = rules.parameters.iter().filter(|parameter| {
-        parameter.file.eq_ignore_ascii_case("actions.ruleset")
-            && parameter.section.eq_ignore_ascii_case("actions")
-            && parameter.key.eq_ignore_ascii_case("bombard_blocked_by")
-    });
-    let parameter = parameters.next()?;
-    if parameters.next().is_some() {
-        return None;
-    }
-    let actions = parameter.string_list_value().ok()??;
-    (!actions.is_empty()).then_some(actions)
+fn selected_bombard_blocking_actions() -> Option<&'static [String]> {
+    static BLOCKED_BY: std::sync::OnceLock<Option<Vec<String>>> = std::sync::OnceLock::new();
+    BLOCKED_BY
+        .get_or_init(|| {
+            let parameter = crate::rules::engine_rules::RulesetData::campaign_default()
+                .optional_parameter("actions.ruleset", "actions", "bombard_blocked_by")
+                .ok()??;
+            let actions = parameter.string_list_value().ok()??;
+            (!actions.is_empty()).then_some(actions)
+        })
+        .as_deref()
 }
 
 impl Simulation {
@@ -316,7 +314,7 @@ impl Simulation {
         let Some(blocked_by) = selected_bombard_blocking_actions() else {
             return false;
         };
-        !self.bombard_blocked_by_action(unit, x, y, &blocked_by)
+        !self.bombard_blocked_by_action(unit, x, y, blocked_by)
             && self.bombard_action_available_at_tile(unit, x, y)
     }
 
@@ -508,9 +506,14 @@ impl Simulation {
         if !self.players.get(unit.owner).is_some_and(|player| player.ai)
             || unit.kind.fuel_capacity() > 0
             || !self.can_begin_bombard(unit)
+            || !(0..self.players.len())
+                .any(|other| other != unit.owner && self.at_war(unit.owner, other))
         {
             return false;
         }
+        let Some(blocked_by) = selected_bombard_blocking_actions() else {
+            return false;
+        };
         let range = Self::civ3_bombard_range(unit.kind);
         let mut target_tiles = std::collections::BTreeSet::new();
         for city in self.cities.iter().filter(|city| {
@@ -541,12 +544,59 @@ impl Simulation {
                 target_tiles.insert((x, y));
             }
         }
+        if target_tiles.is_empty() {
+            return false;
+        }
 
-        type ScoredFiringPosition = (f64, i32, (i32, i32));
+        // Pre-filter and score each target tile once: both target availability
+        // and tile value are independent of the firing position (px, py).
+        // Sorting by value descending enables exact branch-and-bound pruning.
+        let mut scored_targets = Vec::with_capacity(target_tiles.len());
+        for (tx, ty) in target_tiles {
+            if !self.bombard_action_available_at_tile(unit, tx, ty) {
+                continue;
+            }
+            let value = self.ai_bombard_tile_value(unit, tx, ty);
+            if value <= 0.0 {
+                continue;
+            }
+            let has_visible_units = self
+                .tile_units_ordered(tx, ty)
+                .any(|target| self.unit_visible_to(unit.owner, target));
+            scored_targets.push((value, (tx, ty), has_visible_units));
+        }
+        if scored_targets.is_empty() {
+            return false;
+        }
+        scored_targets.sort_by(|a, b| b.0.total_cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
+
+        // Tie-break exact (score, cost) matches identically to BTreeSet + civ3_radius order.
+        type ScoredFiringPosition = (f64, i32, (i32, i32), usize, (i32, i32));
         let mut best: Option<ScoredFiringPosition> = None;
         let mut maps = None;
-        for (tx, ty) in target_tiles {
-            for (px, py, distance) in self.map_wrap.civ3_radius(tx, ty, range) {
+        let move_rate = f64::from(self.unit_move_rate(unit));
+        let mut firing_unit = unit.clone();
+        for (value, (tx, ty), has_visible_units) in scored_targets {
+            if let Some((best_score, _, _, _, _)) = best
+                && value < best_score
+            {
+                break;
+            }
+            let max_cost = if let Some((best_score, _, _, _, _)) = best {
+                let bound = ((value / best_score - 1.0) * move_rate).ceil();
+                if bound < 0.0 {
+                    continue;
+                }
+                (bound as i32).saturating_add(1)
+            } else {
+                i32::MAX
+            };
+            for (radius_idx, (px, py, distance)) in self
+                .map_wrap
+                .civ3_radius(tx, ty, range)
+                .into_iter()
+                .enumerate()
+            {
                 if distance == 0
                     || (px, py) == (unit.x, unit.y)
                     || !self.tile(px, py).known_by[unit.owner]
@@ -559,20 +609,8 @@ impl Simulation {
                 {
                     continue;
                 }
-                let mut firing_unit = unit.clone();
-                (firing_unit.x, firing_unit.y) = (px, py);
-                if !self.can_bombard_tile(&firing_unit, tx, ty) {
-                    continue;
-                }
-                if self.ai_bombard_preempted_by_priority_action(&firing_unit, tx, ty) {
-                    continue;
-                }
-                let value = self.ai_bombard_tile_value(&firing_unit, tx, ty);
-                if value <= 0.0 {
-                    continue;
-                }
-                // Keep the known-map check and the task-specific route search
-                // for this unit until all firing positions have been ranked.
+                // Check reachability within the current branch-and-bound cost
+                // limit before running Freeciv action-enabler checks.
                 let (known, routes) = maps.get_or_insert_with(|| {
                     self.trace.count_operation("bombard.shared_map_pairs", 1);
                     (
@@ -582,21 +620,36 @@ impl Simulation {
                 });
                 self.trace
                     .count_operation("bombard.candidate_route_queries", 1);
+                let Some(cost) = routes.movement_cost_within(self, px, py, max_cost) else {
+                    continue;
+                };
+                let score = value / (1.0 + f64::from(cost) / move_rate);
+                if let Some((best_score, best_cost, best_target, best_radius_idx, _)) = best
+                    && (score < best_score
+                        || (score == best_score
+                            && (cost > best_cost
+                                || (cost == best_cost
+                                    && ((tx, ty) > best_target
+                                        || ((tx, ty) == best_target
+                                            && radius_idx >= best_radius_idx))))))
+                {
+                    continue;
+                }
                 if known.movement_cost(self, px, py).is_none() {
                     continue;
                 }
-                let Some(cost) = routes.movement_cost(self, px, py) else {
-                    continue;
-                };
-                let score = value / (1.0 + f64::from(cost) / f64::from(self.unit_move_rate(unit)));
-                if best.as_ref().is_none_or(|(best_score, best_cost, _)| {
-                    score > *best_score || (score == *best_score && cost < *best_cost)
-                }) {
-                    best = Some((score, cost, (px, py)));
+                if has_visible_units {
+                    (firing_unit.x, firing_unit.y) = (px, py);
+                    if self.bombard_blocked_by_action(&firing_unit, tx, ty, blocked_by)
+                        || self.ai_bombard_preempted_by_priority_action(&firing_unit, tx, ty)
+                    {
+                        continue;
+                    }
                 }
+                best = Some((score, cost, (tx, ty), radius_idx, (px, py)));
             }
         }
-        let (Some((_, _, (px, py))), Some((_, mut routes))) = (best, maps) else {
+        let (Some((_, _, _, _, (px, py))), Some((_, mut routes))) = (best, maps) else {
             return false;
         };
         routes
@@ -653,20 +706,7 @@ impl Simulation {
             .city_at(x, y)
             .filter(|city| city.owner != attacker.owner && self.at_war(attacker.owner, city.owner));
         let city_unit_weight = if hostile_city.is_some() { 0.5 } else { 1.0 };
-        let attack = self.attack_power_against_with_base_for_action(
-            attacker,
-            x,
-            y,
-            attacker.kind.bombard_strength(),
-            "Bombard",
-        );
-        let rate = if crate::sim::combat_rules::selected().damage_reduces_bombard_rate
-            && attacker.kind.bombard_rate() > 0
-        {
-            (attacker.kind.bombard_rate() * attacker.hp / attacker.max_hit_points()).max(1)
-        } else {
-            attacker.kind.bombard_rate()
-        };
+        let mut attack_and_rate = None;
         let mut value = 0.0;
         for target in self.tile_units_ordered(x, y).filter(|target| {
             target.owner != attacker.owner
@@ -675,6 +715,23 @@ impl Simulation {
                 && self.unit_visible_to(attacker.owner, target)
                 && self.combat_target_reachable(attacker.kind, target.kind, x, y)
         }) {
+            let (attack, rate) = *attack_and_rate.get_or_insert_with(|| {
+                let attack = self.attack_power_against_with_base_for_action(
+                    attacker,
+                    x,
+                    y,
+                    attacker.kind.bombard_strength(),
+                    "Bombard",
+                );
+                let rate = if crate::sim::combat_rules::selected().damage_reduces_bombard_rate
+                    && attacker.kind.bombard_rate() > 0
+                {
+                    (attacker.kind.bombard_rate() * attacker.hp / attacker.max_hit_points()).max(1)
+                } else {
+                    attacker.kind.bombard_rate()
+                };
+                (attack, rate)
+            });
             let defense = self.defense_power_against(target, x, y, attacker.kind);
             let firepower = self.combat_firepower(attacker, target).0;
             if attack + defense <= 0 {

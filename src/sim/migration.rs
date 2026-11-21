@@ -12,7 +12,7 @@
 
 use super::*;
 use crate::rules::Genus;
-use crate::rules::engine_rules::{RuleParameter, RulesetData};
+use crate::rules::engine_rules::RulesetData;
 use std::collections::HashMap;
 
 /// Freeciv server settings that control the city migration pass.
@@ -515,54 +515,22 @@ fn add_one_citizen_nationality(city: &mut City, nationality: usize) {
 }
 
 fn selected_migration_pml() -> i32 {
-    selected_integer_parameter("game.ruleset", "culture", "migration_pml")
-}
-
-pub(crate) fn selected_integer_parameter(file: &str, section: &str, key: &str) -> i32 {
-    let rules = RulesetData::campaign_default();
-    let parameter = selected_parameter(rules, file, section, key)
-        .unwrap_or_else(|| panic!("selected C2C3 ruleset is missing {file} [{section}].{key}"));
-    let value = parameter
-        .integer_value()
-        .unwrap_or_else(|error| panic!("invalid C2C3 parameter {}: {error}", parameter.key))
-        .unwrap_or_else(|| panic!("C2C3 parameter {} has no value", parameter.key));
-    i32::try_from(value)
-        .unwrap_or_else(|_| panic!("C2C3 parameter {} does not fit in i32", parameter.key))
+    static MIGRATION_PML: std::sync::OnceLock<i32> = std::sync::OnceLock::new();
+    *MIGRATION_PML.get_or_init(|| {
+        RulesetData::campaign_default()
+            .required_i32_parameter("game.ruleset", "culture", "migration_pml")
+            .unwrap_or_else(|error| panic!("{error}"))
+    })
 }
 
 pub(crate) fn selected_citizen_nationality() -> bool {
-    selected_parameter(
-        RulesetData::campaign_default(),
-        "cities.ruleset",
-        "citizen",
-        "nationality",
-    )
-    .map(|parameter| {
-        parameter
-            .boolean_value()
-            .expect("selected [citizen].nationality is a boolean")
-            .expect("selected [citizen].nationality is present")
+    static NATIONALITY: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *NATIONALITY.get_or_init(|| {
+        RulesetData::campaign_default()
+            .optional_boolean_parameter("cities.ruleset", "citizen", "nationality")
+            .unwrap_or_else(|error| panic!("{error}"))
+            .unwrap_or(false)
     })
-    .unwrap_or(false)
-}
-
-fn selected_parameter<'a>(
-    rules: &'a RulesetData,
-    file: &str,
-    section: &str,
-    key: &str,
-) -> Option<&'a RuleParameter> {
-    let mut matching = rules.parameters.iter().filter(|parameter| {
-        parameter.file.eq_ignore_ascii_case(file)
-            && parameter.section.eq_ignore_ascii_case(section)
-            && parameter.key.eq_ignore_ascii_case(key)
-    });
-    let found = matching.next();
-    assert!(
-        matching.next().is_none(),
-        "selected C2C3 ruleset repeats {file} [{section}].{key}"
-    );
-    found
 }
 
 #[cfg(test)]

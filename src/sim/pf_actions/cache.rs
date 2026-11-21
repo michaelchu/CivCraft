@@ -39,7 +39,7 @@ impl MovementCache {
         self.native.borrow_mut()[index] = i8::from(native);
         native
     }
-    pub(super) fn step_cost(
+    pub(in crate::sim) fn step_cost(
         &self,
         source_movement: MovementTile,
         destination_movement: MovementTile,

@@ -205,6 +205,21 @@ impl NormalPaths {
         Some(self.nodes[goal].cost / self.rate)
     }
 
+    pub(super) fn position_turn_within(
+        &mut self,
+        sim: &Simulation,
+        x: i32,
+        y: i32,
+        max_turn: i32,
+    ) -> Option<i32> {
+        let max_raw_cost = max_turn
+            .saturating_add(1)
+            .saturating_mul(self.rate)
+            .saturating_sub(1);
+        let goal = self.reach_within_raw_cost(sim, x, y, max_raw_cost)?;
+        Some(self.nodes[goal].cost / self.rate)
+    }
+
     /// Point-to-point variant for production candidate routing. On the
     /// selected C2C3 map every represented normal-movement edge costs at
     /// least one move fragment, so Civ III's exact neighbor-graph distance is
@@ -682,8 +697,56 @@ impl NormalPaths {
         }
         Some(goal)
     }
+
+    fn reach_within_raw_cost(
+        &mut self,
+        sim: &Simulation,
+        x: i32,
+        y: i32,
+        max_raw_cost: i32,
+    ) -> Option<usize> {
+        let goal = self.map_wrap.index(x, y);
+        if goal == self.start {
+            return (self.nodes[goal].cost <= max_raw_cost).then_some(goal);
+        }
+        if self.nodes[goal].status == Status::Processed {
+            return (self.nodes[goal].cost <= max_raw_cost).then_some(goal);
+        }
+        if !self.initialize(sim, goal, 0) {
+            return None;
+        }
+        while self.nodes[goal].status != Status::Processed {
+            if self.nodes[self.current].cost > max_raw_cost {
+                return None;
+            }
+            if !self.iterate(sim) {
+                return None;
+            }
+        }
+        (self.nodes[goal].cost <= max_raw_cost).then_some(goal)
+    }
+
     pub(super) fn movement_cost(&mut self, sim: &Simulation, x: i32, y: i32) -> Option<i32> {
         let goal = self.reach(sim, x, y)?;
+        Some(
+            self.nodes[goal]
+                .cost
+                .wrapping_sub(self.rate)
+                .wrapping_add(self.actor.moves_left),
+        )
+    }
+
+    pub(super) fn movement_cost_within(
+        &mut self,
+        sim: &Simulation,
+        x: i32,
+        y: i32,
+        max_cost: i32,
+    ) -> Option<i32> {
+        let max_raw_cost = max_cost
+            .saturating_add(self.rate)
+            .saturating_sub(self.actor.moves_left);
+        let goal = self.reach_within_raw_cost(sim, x, y, max_raw_cost)?;
         Some(
             self.nodes[goal]
                 .cost

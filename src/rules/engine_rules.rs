@@ -978,6 +978,134 @@ impl RulesetData {
         })
     }
 
+    pub(crate) fn optional_parameter(
+        &self,
+        file: &str,
+        section: &str,
+        key: &str,
+    ) -> Result<Option<&RuleParameter>, LoadError> {
+        let mut matches = self.parameters.iter().filter(|parameter| {
+            parameter.file.eq_ignore_ascii_case(file)
+                && parameter.section.eq_ignore_ascii_case(section)
+                && parameter.key.eq_ignore_ascii_case(key)
+        });
+        let parameter = matches.next();
+        if matches.next().is_some() {
+            return Err(LoadError::new(format!(
+                "selected ruleset repeats {file} [{section}].{key}"
+            )));
+        }
+        Ok(parameter)
+    }
+
+    pub(crate) fn optional_parameter_in_file(
+        &self,
+        file: &str,
+        key: &str,
+    ) -> Result<Option<&RuleParameter>, LoadError> {
+        let mut matches = self.parameters.iter().filter(|parameter| {
+            parameter.file.eq_ignore_ascii_case(file) && parameter.key.eq_ignore_ascii_case(key)
+        });
+        let parameter = matches.next();
+        if matches.next().is_some() {
+            return Err(LoadError::new(format!(
+                "selected ruleset repeats {file} {key}"
+            )));
+        }
+        Ok(parameter)
+    }
+
+    pub(crate) fn required_parameter(
+        &self,
+        file: &str,
+        section: &str,
+        key: &str,
+    ) -> Result<&RuleParameter, LoadError> {
+        self.optional_parameter(file, section, key)?.ok_or_else(|| {
+            LoadError::new(format!(
+                "selected ruleset is missing {file} [{section}].{key}"
+            ))
+        })
+    }
+
+    pub(crate) fn required_integer_parameter(
+        &self,
+        file: &str,
+        section: &str,
+        key: &str,
+    ) -> Result<i64, LoadError> {
+        let parameter = self.required_parameter(file, section, key)?;
+        parameter
+            .integer_value()
+            .map_err(|error| LoadError::new(format!("invalid {file} [{section}].{key}: {error}")))?
+            .ok_or_else(|| LoadError::new(format!("{file} [{section}].{key} has no integer value")))
+    }
+
+    pub(crate) fn required_i32_parameter(
+        &self,
+        file: &str,
+        section: &str,
+        key: &str,
+    ) -> Result<i32, LoadError> {
+        let value = self.required_integer_parameter(file, section, key)?;
+        i32::try_from(value).map_err(|_| {
+            LoadError::new(format!(
+                "{file} [{section}].{key} is outside the supported integer range"
+            ))
+        })
+    }
+
+    pub(crate) fn optional_i32_parameter(
+        &self,
+        file: &str,
+        section: &str,
+        key: &str,
+    ) -> Result<Option<i32>, LoadError> {
+        let Some(parameter) = self.optional_parameter(file, section, key)? else {
+            return Ok(None);
+        };
+        let value = parameter
+            .integer_value()
+            .map_err(|error| LoadError::new(format!("invalid {file} [{section}].{key}: {error}")))?
+            .ok_or_else(|| {
+                LoadError::new(format!("{file} [{section}].{key} has no integer value"))
+            })?;
+        i32::try_from(value).map(Some).map_err(|_| {
+            LoadError::new(format!(
+                "{file} [{section}].{key} is outside the supported integer range"
+            ))
+        })
+    }
+
+    pub(crate) fn required_boolean_parameter(
+        &self,
+        file: &str,
+        section: &str,
+        key: &str,
+    ) -> Result<bool, LoadError> {
+        let parameter = self.required_parameter(file, section, key)?;
+        parameter
+            .boolean_value()
+            .map_err(|error| LoadError::new(format!("invalid {file} [{section}].{key}: {error}")))?
+            .ok_or_else(|| LoadError::new(format!("{file} [{section}].{key} has no boolean value")))
+    }
+
+    pub(crate) fn optional_boolean_parameter(
+        &self,
+        file: &str,
+        section: &str,
+        key: &str,
+    ) -> Result<Option<bool>, LoadError> {
+        let Some(parameter) = self.optional_parameter(file, section, key)? else {
+            return Ok(None);
+        };
+        parameter
+            .boolean_value()
+            .map_err(|error| LoadError::new(format!("invalid {file} [{section}].{key}: {error}")))?
+            .map(Some)
+            .ok_or_else(|| LoadError::new(format!("{file} [{section}].{key} has no boolean value")))
+    }
+
     /// Resolve the selected C2C3 research and revolution inputs. This method
     /// intentionally rejects styles other than the ones used by the pinned
     /// campaign ruleset rather than substituting a built-in fallback.
@@ -1725,22 +1853,7 @@ fn required_parameter<'a>(
     section: &str,
     key: &str,
 ) -> Result<&'a RuleParameter, LoadError> {
-    let mut matches = rules.parameters.iter().filter(|parameter| {
-        parameter.file.eq_ignore_ascii_case(file)
-            && parameter.section.eq_ignore_ascii_case(section)
-            && parameter.key.eq_ignore_ascii_case(key)
-    });
-    let parameter = matches.next().ok_or_else(|| {
-        LoadError::new(format!(
-            "selected ruleset is missing {file} [{section}].{key}"
-        ))
-    })?;
-    if matches.next().is_some() {
-        return Err(LoadError::new(format!(
-            "selected ruleset repeats {file} [{section}].{key}"
-        )));
-    }
-    Ok(parameter)
+    rules.required_parameter(file, section, key)
 }
 
 fn optional_parameter<'a>(
@@ -1749,18 +1862,7 @@ fn optional_parameter<'a>(
     section: &str,
     key: &str,
 ) -> Result<Option<&'a RuleParameter>, LoadError> {
-    let mut matches = rules.parameters.iter().filter(|parameter| {
-        parameter.file.eq_ignore_ascii_case(file)
-            && parameter.section.eq_ignore_ascii_case(section)
-            && parameter.key.eq_ignore_ascii_case(key)
-    });
-    let parameter = matches.next();
-    if matches.next().is_some() {
-        return Err(LoadError::new(format!(
-            "selected ruleset repeats {file} [{section}].{key}"
-        )));
-    }
-    Ok(parameter)
+    rules.optional_parameter(file, section, key)
 }
 
 fn required_setting<'a>(

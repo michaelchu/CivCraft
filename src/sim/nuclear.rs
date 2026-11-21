@@ -5,36 +5,27 @@ use super::*;
 use crate::rules::engine_rules::{RulesetData, requirements_met};
 use std::collections::HashSet;
 
-fn required_action_parameter(key: &str) -> &'static crate::rules::engine_rules::RuleParameter {
-    let mut matching = RulesetData::campaign_default()
-        .parameters
-        .iter()
-        .filter(|parameter| {
-            parameter.file.eq_ignore_ascii_case("actions.ruleset")
-                && parameter.section.eq_ignore_ascii_case("actions")
-                && parameter.key.eq_ignore_ascii_case(key)
-        });
-    let parameter = matching
-        .next()
-        .unwrap_or_else(|| panic!("selected C2C3 actions.ruleset is missing {key}"));
-    assert!(
-        matching.next().is_none(),
-        "selected C2C3 actions.ruleset repeats {key}"
-    );
-    parameter
-}
-
 fn nuclear_action_consumes_weapon(action: &str) -> bool {
-    let prefix = match action {
-        "Explode Nuclear" => "explode_nuclear",
-        "Nuke City" => "nuke_city",
-        "Nuke Units" => "nuke_units",
+    static CONSUMES: std::sync::OnceLock<[bool; 3]> = std::sync::OnceLock::new();
+    let cached = CONSUMES.get_or_init(|| {
+        let rules = RulesetData::campaign_default();
+        let read = |key: &str| {
+            rules
+                .required_boolean_parameter("actions.ruleset", "actions", key)
+                .unwrap_or_else(|error| panic!("{error}"))
+        };
+        [
+            read("explode_nuclear_consuming_always"),
+            read("nuke_city_consuming_always"),
+            read("nuke_units_consuming_always"),
+        ]
+    });
+    match action {
+        "Explode Nuclear" => cached[0],
+        "Nuke City" => cached[1],
+        "Nuke Units" => cached[2],
         _ => panic!("unsupported nuclear action {action:?}"),
-    };
-    required_action_parameter(&format!("{prefix}_consuming_always"))
-        .boolean_value()
-        .expect("selected C2C3 nuclear consuming setting is boolean")
-        .expect("selected C2C3 nuclear consuming setting is not empty")
+    }
 }
 
 fn freeciv_map_offsets_within_radius(radius: i32) -> Vec<(i32, i32, i32)> {

@@ -460,47 +460,18 @@ impl Generator {
             })
     }
 
-    fn within(&self, tile: usize, radius: i32) -> impl Iterator<Item = usize> {
-        let mut visited = vec![false; self.wrap.tile_count()];
-        let mut frontier = vec![tile];
-        let mut found = vec![tile];
-        visited[tile] = true;
-        for _ in 0..radius {
-            let mut next_frontier = Vec::new();
-            for current in frontier {
-                for next in self.civ3_neighbors(current) {
-                    if !visited[next] {
-                        visited[next] = true;
-                        next_frontier.push(next);
-                        found.push(next);
-                    }
-                }
-            }
-            frontier = next_frontier;
-            if frontier.is_empty() {
-                break;
-            }
-        }
-        found.into_iter()
+    fn within(&self, tile: usize, radius: i32) -> impl Iterator<Item = usize> + use<> {
+        let wrap = self.wrap;
+        let (x, y) = wrap.position(tile);
+        wrap.civ3_radius(x, y, radius)
+            .into_iter()
+            .map(move |(nx, ny, _)| wrap.index(nx, ny))
     }
 
     fn distance(&self, a: usize, b: usize) -> i32 {
         let (ax, ay) = self.wrap.position(a);
         let (bx, by) = self.wrap.position(b);
-        let grid_ax = 2 * ax + ay.rem_euclid(2);
-        let grid_bx = 2 * bx + by.rem_euclid(2);
-        let raw_dx = grid_bx - grid_ax;
-        let raw_dy = by - ay;
-        (-1..=1)
-            .map(|horizontal_wrap| {
-                let dx = raw_dx + horizontal_wrap * 2 * self.wrap.width();
-                let dy = raw_dy;
-                let diagonal_a = (dx + dy) / 2;
-                let diagonal_b = (dx - dy) / 2;
-                diagonal_a.abs().max(diagonal_b.abs())
-            })
-            .min()
-            .unwrap_or(i32::MAX)
+        self.wrap.civ3_distance(ax, ay, bx, by)
     }
 }
 

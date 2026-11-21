@@ -13,64 +13,43 @@ fn selected_paratroopers_range(kind: UnitKind) -> Option<i32> {
 }
 
 fn selected_airlift_max_range() -> Option<SelectedActionRange> {
-    let rules = crate::rules::engine_rules::RulesetData::campaign_default();
-    let mut parameters = rules.parameters.iter().filter(|parameter| {
-        parameter.file.eq_ignore_ascii_case("actions.ruleset")
-            && parameter.section.eq_ignore_ascii_case("actions")
-            && parameter.key.eq_ignore_ascii_case("airlift_max_range")
-    });
-    let parameter = parameters.next()?;
-    if parameters.next().is_some() {
-        return None;
-    }
-    if let Ok(Some(value)) = parameter.string_value() {
-        return if value.eq_ignore_ascii_case("unlimited") {
-            Some(SelectedActionRange::Unlimited)
-        } else {
-            let range = value.parse::<i32>().ok()?;
-            (range >= 0).then_some(SelectedActionRange::Limited(range))
-        };
-    }
-    let range = i32::try_from(parameter.integer_value().ok()??).ok()?;
-    (range >= 0).then_some(SelectedActionRange::Limited(range))
+    static MAX_RANGE: std::sync::OnceLock<Option<SelectedActionRange>> = std::sync::OnceLock::new();
+    *MAX_RANGE.get_or_init(|| {
+        let parameter = crate::rules::engine_rules::RulesetData::campaign_default()
+            .optional_parameter("actions.ruleset", "actions", "airlift_max_range")
+            .ok()??;
+        if let Ok(Some(value)) = parameter.string_value() {
+            return if value.eq_ignore_ascii_case("unlimited") {
+                Some(SelectedActionRange::Unlimited)
+            } else {
+                let range = value.parse::<i32>().ok()?;
+                (range >= 0).then_some(SelectedActionRange::Limited(range))
+            };
+        }
+        let range = i32::try_from(parameter.integer_value().ok()??).ok()?;
+        (range >= 0).then_some(SelectedActionRange::Limited(range))
+    })
 }
 
 fn selected_airlift_capacity_always_enabled(source: bool) -> Option<bool> {
-    let key = if source {
-        "airlift_from_always_enabled"
+    static FROM: std::sync::OnceLock<Option<bool>> = std::sync::OnceLock::new();
+    static TO: std::sync::OnceLock<Option<bool>> = std::sync::OnceLock::new();
+    let (cache, key) = if source {
+        (&FROM, "airlift_from_always_enabled")
     } else {
-        "airlift_to_always_enabled"
+        (&TO, "airlift_to_always_enabled")
     };
-    let rules = crate::rules::engine_rules::RulesetData::campaign_default();
-    let mut parameters = rules.parameters.iter().filter(|parameter| {
-        parameter.file.eq_ignore_ascii_case("game.ruleset")
-            && parameter.key.eq_ignore_ascii_case(key)
-    });
-    let parameter = parameters.next()?;
-    if parameters.next().is_some() {
-        return None;
-    }
-    parameter.boolean_value().ok()?
+    *cache.get_or_init(|| {
+        let parameter = crate::rules::engine_rules::RulesetData::campaign_default()
+            .optional_parameter_in_file("game.ruleset", key)
+            .ok()??;
+        parameter.boolean_value().ok()?
+    })
 }
 
 impl Simulation {
     fn paradrop_tile_is_native(&self, kind: UnitKind, tile: &Tile) -> bool {
-        let rules = crate::sim::movement_rules::MovementRules::campaign();
-        let class = rules
-            .unit_class_for_kind(kind)
-            .expect("campaign C2C3 unit class binding");
-        match rules.tile_native_to_class(
-            tile.terrain,
-            tile.road,
-            tile.railroad,
-            tile.river,
-            tile.base,
-            class,
-        ) {
-            Ok(native) => native,
-            Err(crate::sim::movement_rules::MovementRulesError::UnsupportedTerrain(_)) => false,
-            Err(error) => panic!("campaign C2C3 native-tile data is invalid: {error:?}"),
-        }
+        self.pf_native_tile_data(kind, tile)
     }
 
     fn selected_paradrop_action(

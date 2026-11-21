@@ -765,6 +765,18 @@ pub(super) struct MovementTile {
     pub(super) base: Option<Base>,
 }
 
+impl From<&super::Tile> for MovementTile {
+    fn from(tile: &super::Tile) -> Self {
+        Self::new(
+            tile.terrain,
+            tile.road,
+            tile.railroad,
+            tile.river,
+            tile.base,
+        )
+    }
+}
+
 impl MovementTile {
     pub(super) const CACHE_BITS: u32 = 11;
 

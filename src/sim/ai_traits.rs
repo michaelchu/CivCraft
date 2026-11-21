@@ -23,22 +23,9 @@ fn read_default(trait_name: &str) -> i32 {
     let rules = RulesetData::campaign_default();
     let read = |suffix: &str| -> Option<i32> {
         let key = format!("{trait_name}_{suffix}");
-        let mut matches = rules.parameters.iter().filter(|parameter| {
-            parameter.file.eq_ignore_ascii_case("nations.ruleset")
-                && parameter.section.eq_ignore_ascii_case("default_traits")
-                && parameter.key.eq_ignore_ascii_case(&key)
-        });
-        let parameter = matches.next()?;
-        assert!(matches.next().is_none(), "duplicate default AI trait {key}");
-        Some(
-            i32::try_from(
-                parameter
-                    .integer_value()
-                    .unwrap_or_else(|error| panic!("invalid C2C3 AI trait {key}: {error}"))
-                    .unwrap_or_else(|| panic!("C2C3 AI trait {key} has no value")),
-            )
-            .unwrap_or_else(|_| panic!("C2C3 AI trait {key} exceeds i32")),
-        )
+        rules
+            .optional_i32_parameter("nations.ruleset", "default_traits", &key)
+            .unwrap_or_else(|error| panic!("{error}"))
     };
 
     let value = read("default").unwrap_or_else(|| {

@@ -21,14 +21,12 @@ struct BorderRules {
 
 impl BorderRules {
     fn selected() -> Self {
-        let rules = RulesetData::campaign_default();
-        Self {
-            initial_city_radius_sq: ruleset_integer_parameter(
-                rules,
-                "civstyle",
-                "init_city_radius_sq",
-            ),
-        }
+        static RULES: std::sync::OnceLock<BorderRules> = std::sync::OnceLock::new();
+        *RULES.get_or_init(|| Self {
+            initial_city_radius_sq: RulesetData::campaign_default()
+                .required_integer_parameter("game.ruleset", "civstyle", "init_city_radius_sq")
+                .unwrap_or_else(|error| panic!("{error}")),
+        })
     }
 
     fn city_work_radius_sq(self, simulation: &Simulation, city: &City) -> i64 {
@@ -37,21 +35,6 @@ impl BorderRules {
         let bonus = context.effect(EffectKind::CityRadiusSq);
         (self.initial_city_radius_sq + bonus).clamp(CITY_MAP_MIN_RADIUS_SQ, CITY_MAP_MAX_RADIUS_SQ)
     }
-}
-
-fn ruleset_integer_parameter(rules: &RulesetData, section: &str, key: &str) -> i64 {
-    rules
-        .parameters
-        .iter()
-        .find(|parameter| {
-            parameter.file.eq_ignore_ascii_case("game.ruleset")
-                && parameter.section.eq_ignore_ascii_case(section)
-                && parameter.key.eq_ignore_ascii_case(key)
-        })
-        .unwrap_or_else(|| panic!("selected C2C3 ruleset is missing [{section}].{key}"))
-        .integer_value()
-        .unwrap_or_else(|error| panic!("invalid selected C2C3 [{section}].{key}: {error}"))
-        .unwrap_or_else(|| panic!("selected C2C3 [{section}].{key} has no integer value"))
 }
 
 #[derive(Clone, Debug)]

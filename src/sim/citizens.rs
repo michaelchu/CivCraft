@@ -57,6 +57,24 @@ impl City {
     }
 }
 
+fn selected_citizen_convert_speed() -> i32 {
+    static SPEED: std::sync::OnceLock<i32> = std::sync::OnceLock::new();
+    *SPEED.get_or_init(|| {
+        crate::rules::engine_rules::RulesetData::campaign_default()
+            .required_i32_parameter("cities.ruleset", "citizen", "convert_speed")
+            .unwrap_or_else(|error| panic!("{error}"))
+    })
+}
+
+fn selected_conquest_convert_pct() -> i32 {
+    static PERCENT: std::sync::OnceLock<i32> = std::sync::OnceLock::new();
+    *PERCENT.get_or_init(|| {
+        crate::rules::engine_rules::RulesetData::campaign_default()
+            .required_i32_parameter("cities.ruleset", "citizen", "conquest_convert_pct")
+            .unwrap_or_else(|error| panic!("{error}"))
+    })
+}
+
 impl Simulation {
     /// Freeciv's cityturn phase rolls once for every city before city activity,
     /// then converts one randomly selected foreign resident on success.
@@ -64,11 +82,7 @@ impl Simulation {
         if !crate::sim::migration::selected_citizen_nationality() {
             return;
         }
-        let speed = crate::sim::migration::selected_integer_parameter(
-            "cities.ruleset",
-            "citizen",
-            "convert_speed",
-        );
+        let speed = selected_citizen_convert_speed();
         if self.rand_below(1000) + 1 > speed {
             return;
         }
@@ -100,11 +114,7 @@ impl Simulation {
         if !crate::sim::migration::selected_citizen_nationality() {
             return;
         }
-        let percent = crate::sim::migration::selected_integer_parameter(
-            "cities.ruleset",
-            "citizen",
-            "conquest_convert_pct",
-        );
+        let percent = selected_conquest_convert_pct();
         self.cities[city_index].convert_foreign_citizens_to_owner(percent);
     }
 
@@ -170,14 +180,7 @@ mod tests {
 
     #[test]
     fn conquest_conversion_uses_selected_c2c3_percent_and_is_zero_by_default() {
-        assert_eq!(
-            crate::sim::migration::selected_integer_parameter(
-                "cities.ruleset",
-                "citizen",
-                "conquest_convert_pct"
-            ),
-            0
-        );
+        assert_eq!(selected_conquest_convert_pct(), 0);
 
         let mut game = Simulation::new(crate::mapgen::generate(42));
         game.create_city(1, 10, 20);
@@ -195,14 +198,7 @@ mod tests {
 
     #[test]
     fn city_turn_conversion_uses_c2c3_probability_and_foreign_nationality_order() {
-        assert_eq!(
-            crate::sim::migration::selected_integer_parameter(
-                "cities.ruleset",
-                "citizen",
-                "convert_speed"
-            ),
-            50
-        );
+        assert_eq!(selected_citizen_convert_speed(), 50);
         let mut game = Simulation::new(crate::mapgen::generate(42));
         game.cities.clear();
         game.create_city(HUMAN, 10, 20);

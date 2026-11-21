@@ -311,10 +311,6 @@ impl super::Generator {
         ocean_coverage: i32,
         rng: &mut MapRng,
     ) -> (Vec<Terrain>, Vec<TerrainBase>, Vec<i32>) {
-        let mut dummy_temperature: Vec<_> = (0..self.wrap.tile_count())
-            .map(|tile| self.colatitude(tile))
-            .collect();
-        rank_field(&mut dummy_temperature, 1000);
         let sea_level = find_sea_level(water_heights, ocean_coverage);
         let medium_water_level = find_sea_level(water_heights, ocean_coverage * 9 / 10);
         let deep_water_level = find_sea_level(water_heights, ocean_coverage * 7 / 10);

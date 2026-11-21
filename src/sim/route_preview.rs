@@ -29,6 +29,7 @@ impl Simulation {
             .find(|unit| unit.id == unit_id && unit.owner == HUMAN)?;
         let (path, _) = self.search_civ3_route(unit, tx, ty, true, i32::MAX)?;
         let allowance = self.unit_move_rate(unit).max(1);
+        let profile = self.step_movement_profile(unit.kind);
         let mut actor = unit.clone();
         let mut turn = 0;
         let mut remaining = unit.moves_left.max(0);
@@ -51,13 +52,13 @@ impl Simulation {
             // Match search_route's sole non-native destination exception:
             // boarding a visible allied transport on the final tile.
             let cost = self
-                .observed_move_cost(&actor, x, y, remembered)
+                .observed_move_cost_with_profile(&actor, x, y, remembered, &profile)
                 .or_else(|| {
                     ((x, y) == (tx.rem_euclid(self.map_wrap.width()), ty)
                         && self.tile(x, y).visible
                         && self.tile(x, y).terrain.is_water()
                         && self.boarding_target(unit, x, y).is_some())
-                    .then(|| self.raw_move_cost_for(&actor, x, y))
+                    .then(|| self.raw_move_cost_with_profile(&actor, x, y, &profile))
                 })?;
             remaining -= cost.min(remaining);
             (actor.x, actor.y) = (x, y);

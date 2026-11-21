@@ -2142,7 +2142,7 @@ mod stealth_tests {
             &aircraft,
             target.0,
             target.1,
-            &selected_bombard_blocking_actions().unwrap(),
+            selected_bombard_blocking_actions().unwrap(),
         ));
         assert_eq!(
             game.try_bombard(&aircraft, target.0, target.1),

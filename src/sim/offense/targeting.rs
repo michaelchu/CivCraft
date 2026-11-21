@@ -11,31 +11,59 @@ impl super::Simulation {
         x: i32,
         y: i32,
     ) -> Option<(i32, i32, (i32, i32))> {
+        self.offensive_beachhead_within(map, cargo, owner, x, y, None)
+    }
+
+    fn offensive_beachhead_within(
+        &self,
+        map: &mut NormalPaths,
+        cargo: UnitKind,
+        owner: usize,
+        x: i32,
+        y: i32,
+        max_cost: Option<i32>,
+    ) -> Option<(i32, i32, (i32, i32))> {
         let mut best = None;
-        let mut best_cost = i32::MAX;
+        let mut best_cost = max_cost.unwrap_or(i32::MAX);
         if cargo.has_marine_attack() {
             let beach = (x, y);
-            for (x, y) in self.map_wrap.civ3_neighbors(x, y) {
-                if let Some(cost) = map.movement_cost(self, x, y)
+            for (nx, ny) in self.map_wrap.civ3_neighbors(x, y) {
+                let cost = if best_cost < i32::MAX {
+                    map.movement_cost_within(self, nx, ny, best_cost.saturating_sub(1))
+                } else {
+                    map.movement_cost(self, nx, ny)
+                };
+                if let Some(cost) = cost
                     && cost < best_cost
                 {
                     best_cost = cost;
-                    best = Some((x, y, beach));
+                    best = Some((nx, ny, beach));
                 }
             }
         } else {
-            let mut checked = std::collections::HashSet::from([(x, y)]);
+            let mut checked = [(x, y); 32];
+            let mut checked_len = 1_usize;
             for (bx, by) in self.map_wrap.civ3_neighbors(x, y) {
                 if !self.pf_native_tile(cargo, bx, by) {
                     continue;
                 }
                 for (sx, sy) in self.map_wrap.civ3_neighbors(bx, by) {
-                    if !checked.insert((sx, sy))
-                        || self.any_unit_at(sx, sy, |unit| !self.allied(owner, unit.owner))
-                    {
+                    if checked[..checked_len].contains(&(sx, sy)) {
                         continue;
                     }
-                    if let Some(cost) = map.movement_cost(self, sx, sy)
+                    if checked_len < checked.len() {
+                        checked[checked_len] = (sx, sy);
+                        checked_len += 1;
+                    }
+                    if self.any_unit_at(sx, sy, |unit| !self.allied(owner, unit.owner)) {
+                        continue;
+                    }
+                    let cost = if best_cost < i32::MAX {
+                        map.movement_cost_within(self, sx, sy, best_cost.saturating_sub(1))
+                    } else {
+                        map.movement_cost(self, sx, sy)
+                    };
+                    if let Some(cost) = cost
                         && cost < best_cost
                     {
                         best_cost = cost;
@@ -48,6 +76,16 @@ impl super::Simulation {
     }
 
     pub(super) fn offensive_find_ferry(&self, passenger: &Unit) -> Option<Unit> {
+        // Fast-exit when the owner has no eligible transport with free capacity.
+        if !self.units.iter().any(|boat| {
+            boat.owner == passenger.owner
+                && self.ferry_can_take_unit(boat, passenger)
+                && self.cargo_count(boat.id) < boat.kind.transport_capacity()
+                && boat.kind.fuel_capacity() == 0
+                && boat.kind.hp_loss_percent() == 0
+        }) {
+            return None;
+        }
         // aiferry_find_boat's combined PF and sea_move EC. The source
         // intentionally cannot cross sea back onto a second continent.
         let mut map = NormalPaths::ferry_search_map(self, passenger);
@@ -167,18 +205,35 @@ impl super::Simulation {
         let mut ferry_initialized = seed.kind.is_naval();
         let mut ferry = None;
         let mut ferry_map = None;
-        for owner in 0..self.players.len() {
-            if !hostile(owner) {
-                continue;
+        let mut deferred_over_horizon: Vec<&City> = Vec::new();
+        for pass in 0..2 {
+            if pass == 1
+                && (!virtual_unit
+                    || best.as_ref().is_some_and(|target| target.want > 0.0)
+                    || deferred_over_horizon.is_empty())
+            {
+                break;
             }
-            for enemy in self.player_cities_ordered(owner) {
-                if !self.tile(enemy.x, enemy.y).known_by[seed.owner]
-                    || !self.offensive_can_attack(seed.kind, enemy.x, enemy.y)
-                {
-                    continue;
-                }
+            let bounded = pass == 0;
+            let pass_cities: Vec<&City> = if bounded {
+                (0..self.players.len())
+                    .filter(|&owner| hostile(owner))
+                    .flat_map(|owner| self.player_cities_ordered(owner))
+                    .filter(|enemy| {
+                        self.tile(enemy.x, enemy.y).known_by[seed.owner]
+                            && self.offensive_can_attack(seed.kind, enemy.x, enemy.y)
+                    })
+                    .collect()
+            } else {
+                std::mem::take(&mut deferred_over_horizon)
+            };
+            for enemy in pass_cities {
                 let mut by_boat = false;
-                let direct = map.position_turn(self, enemy.x, enemy.y);
+                let mut direct = if bounded {
+                    map.position_turn_within(self, enemy.x, enemy.y, 10)
+                } else {
+                    map.position_turn(self, enemy.x, enemy.y)
+                };
                 if direct.is_none() && !ferry_initialized {
                     ferry = if virtual_unit {
                         self.offensive_ferry_candidate(seed)
@@ -190,12 +245,31 @@ impl super::Simulation {
                         .map(|boat| NormalPaths::overlap_map(self, boat));
                     ferry_initialized = true;
                 }
+                if direct.is_none() && bounded && ferry_map.is_some() {
+                    // Only use a ferry when the enemy city is truly unreachable
+                    // by land, not merely farther than 10 turns on the same landmass.
+                    direct = map.position_turn(self, enemy.x, enemy.y);
+                }
                 let turns = if let Some(turns) = direct {
                     turns
                 } else if let Some(fmap) = ferry_map.as_mut() {
-                    let Some((x, y, beach)) =
-                        self.offensive_beachhead(fmap, seed.kind, seed.owner, enemy.x, enemy.y)
-                    else {
+                    let ferry_max_cost = bounded.then(|| {
+                        let boat_rate = ferry
+                            .as_ref()
+                            .map_or(campaign_move_fragments(), |boat| self.unit_move_rate(boat));
+                        11_i32.saturating_mul(boat_rate)
+                    });
+                    let Some((x, y, beach)) = self.offensive_beachhead_within(
+                        fmap,
+                        seed.kind,
+                        seed.owner,
+                        enemy.x,
+                        enemy.y,
+                        ferry_max_cost,
+                    ) else {
+                        if bounded && virtual_unit {
+                            deferred_over_horizon.push(enemy);
+                        }
                         continue;
                     };
                     by_boat = true;
@@ -205,21 +279,36 @@ impl super::Simulation {
                         && boat.id != 0
                         && (boat.x, boat.y) != (seed.x, seed.y)
                     {
-                        let Some(walk) = map.position_turn(self, boat.x, boat.y) else {
+                        let walk = if bounded {
+                            map.position_turn_within(self, boat.x, boat.y, (10 - turns).max(0))
+                        } else {
+                            map.position_turn(self, boat.x, boat.y)
+                        };
+                        let Some(walk) = walk else {
+                            if bounded && virtual_unit {
+                                deferred_over_horizon.push(enemy);
+                            }
                             continue;
                         };
                         turns += walk;
                     }
                     turns
                 } else {
+                    if bounded && virtual_unit {
+                        deferred_over_horizon.push(enemy);
+                    }
                     continue;
                 };
                 // Beyond the attack horizon a city can only serve as the
                 // production advisor's fallback until it finds a positive target.
-                if turns > 10
-                    && (!virtual_unit || best.as_ref().is_some_and(|target| target.want > 0.0))
-                {
-                    continue;
+                if turns > 10 {
+                    if bounded && virtual_unit {
+                        deferred_over_horizon.push(enemy);
+                        continue;
+                    }
+                    if !virtual_unit || best.as_ref().is_some_and(|target| target.want > 0.0) {
+                        continue;
+                    }
                 }
                 let defender = self.anticipated_city_defender(enemy, seed, turns, virtual_unit);
                 let vulnerability = defender.as_ref().map_or(0, |d| {
@@ -294,52 +383,60 @@ impl super::Simulation {
                     });
                 }
             }
-            for enemy in self.player_units_ordered(owner) {
-                if !self.tile(enemy.x, enemy.y).known_by[seed.owner]
-                    || self.any_city_at_cached(enemy.x, enemy.y)
-                    || virtual_unit && !enemy.kind.has_hostile_action()
-                    || !self.offensive_can_attack(seed.kind, enemy.x, enemy.y)
-                    || self.best_defender_id(seed, enemy.x, enemy.y) != Some(enemy.id)
-                {
-                    continue;
-                }
-                let Some(turns) = map.position_turn(self, enemy.x, enemy.y) else {
-                    continue;
-                };
-                if turns > 10 {
-                    continue;
-                }
-                let vulnerability = self.offensive_defense_squared(
-                    enemy,
-                    seed.kind,
-                    enemy.x,
-                    enemy.y,
-                    virtual_unit,
-                );
-                let want = kill_desire(
-                    enemy.kind.stats().cost as f32,
-                    rating * rating,
-                    seed.kind.stats().cost,
-                    vulnerability,
-                    1,
-                ) - (turns * 17) as f32;
-                let want = Self::amortize_attack(
-                    want,
-                    turns.max(1),
-                    Self::offensive_balanced_cost(seed.kind),
-                    output,
-                );
-                if want > best.as_ref().map_or(0.0, |old| old.want) {
-                    best = Some(OffensiveTarget {
-                        path: Vec::new(),
-                        x: enemy.x,
-                        y: enemy.y,
-                        city: None,
-                        turns,
-                        want,
-                        ferry: None,
-                        new_ferry: false,
-                    });
+            if bounded {
+                for owner in 0..self.players.len() {
+                    if !hostile(owner) {
+                        continue;
+                    }
+                    for enemy in self.player_units_ordered(owner) {
+                        if !self.tile(enemy.x, enemy.y).known_by[seed.owner]
+                            || self.any_city_at_cached(enemy.x, enemy.y)
+                            || virtual_unit && !enemy.kind.has_hostile_action()
+                            || !self.offensive_can_attack(seed.kind, enemy.x, enemy.y)
+                            || self.best_defender_id(seed, enemy.x, enemy.y) != Some(enemy.id)
+                        {
+                            continue;
+                        }
+                        let Some(turns) = map.position_turn_within(self, enemy.x, enemy.y, 10)
+                        else {
+                            continue;
+                        };
+                        if turns > 10 {
+                            continue;
+                        }
+                        let vulnerability = self.offensive_defense_squared(
+                            enemy,
+                            seed.kind,
+                            enemy.x,
+                            enemy.y,
+                            virtual_unit,
+                        );
+                        let want = kill_desire(
+                            enemy.kind.stats().cost as f32,
+                            rating * rating,
+                            seed.kind.stats().cost,
+                            vulnerability,
+                            1,
+                        ) - (turns * 17) as f32;
+                        let want = Self::amortize_attack(
+                            want,
+                            turns.max(1),
+                            Self::offensive_balanced_cost(seed.kind),
+                            output,
+                        );
+                        if want > best.as_ref().map_or(0.0, |old| old.want) {
+                            best = Some(OffensiveTarget {
+                                path: Vec::new(),
+                                x: enemy.x,
+                                y: enemy.y,
+                                city: None,
+                                turns,
+                                want,
+                                ferry: None,
+                                new_ferry: false,
+                            });
+                        }
+                    }
                 }
             }
         }

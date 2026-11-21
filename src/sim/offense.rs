@@ -398,6 +398,21 @@ impl Simulation {
                 production: Production::Unit(seed_kind),
                 want: f64::from(target.want),
             };
+            // Deduplicate candidate route searches across unit kinds that share
+            // the exact same movement & target-attack profile from this city.
+            type CandidateRouteKey = (
+                super::unit_catalog::UnitClass,
+                i32,
+                bool,
+                bool,
+                bool,
+                bool,
+                bool,
+                bool,
+                bool,
+                bool,
+            );
+            let mut route_memo: Vec<(CandidateRouteKey, Option<i32>)> = Vec::new();
             for kind in UnitKind::simple_military() {
                 self.trace.count_operation("offense.candidate_units", 1);
                 if kind.stats().attack <= 0
@@ -478,9 +493,33 @@ impl Simulation {
                         .count_operation("offensive.candidate_route.pruned_by_upper_bound", 1);
                     continue;
                 }
-                let Some(turns) =
-                    self.offensive_candidate_turns(&candidate, &target, ferry_path.as_mut())
-                else {
+                let route_key: CandidateRouteKey = (
+                    crate::sim::movement_rules::MovementRules::campaign_unit_class(kind),
+                    self.unit_move_rate(&candidate),
+                    super::action_rules::freeciv_unit_type_flag(kind, "IgTer")
+                        .expect("campaign C2C3 unit-type IgTer binding"),
+                    Simulation::unit_ignores_zoc(kind),
+                    super::action_rules::freeciv_unit_type_flag(kind, "CoastStrict")
+                        .expect("campaign C2C3 CoastStrict unit flag"),
+                    kind.has_marine_attack(),
+                    kind.is_naval(),
+                    kind.has_flag(UnitFlag::OneAttack),
+                    kind.is_naval()
+                        && !matches!(kind, UnitKind::Galley | UnitKind::Submarine)
+                        && kind.attack_strength() > 0,
+                    kind.can_attack_aircraft(),
+                );
+                let turns = if let Some(&(_, cached_turns)) =
+                    route_memo.iter().find(|(key, _)| *key == route_key)
+                {
+                    cached_turns
+                } else {
+                    let computed =
+                        self.offensive_candidate_turns(&candidate, &target, ferry_path.as_mut());
+                    route_memo.push((route_key, computed));
+                    computed
+                };
+                let Some(turns) = turns else {
                     continue;
                 };
                 let desire = desire_before_route - (turns * 17) as f32;

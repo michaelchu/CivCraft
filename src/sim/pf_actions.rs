@@ -60,20 +60,8 @@ impl Simulation {
             .into_iter()
             .flatten()
             .any(|owner| self.at_war(unit.owner, owner));
-        let source_movement = MovementTile::new(
-            source.terrain,
-            source.road,
-            source.railroad,
-            source.river,
-            source.base,
-        );
-        let destination_movement = MovementTile::new(
-            dest.terrain,
-            dest.road,
-            dest.railroad,
-            dest.river,
-            dest.base,
-        );
+        let source_movement = MovementTile::from(source);
+        let destination_movement = MovementTile::from(dest);
         let cardinal = self.pf_move_is_cardinal((unit.x, unit.y), (x, y));
         self.caches.movement().step_cost(
             source_movement,
@@ -84,8 +72,12 @@ impl Simulation {
             ignores,
         )
     }
+
     pub(super) fn pf_native_tile(&self, kind: UnitKind, x: i32, y: i32) -> bool {
-        let tile = self.tile(x, y);
+        self.pf_native_tile_data(kind, self.tile(x, y))
+    }
+
+    pub(super) fn pf_native_tile_data(&self, kind: UnitKind, tile: &Tile) -> bool {
         let rules = MovementRules::campaign();
         let class = MovementRules::campaign_unit_class(kind);
         match rules.tile_native_to_class(

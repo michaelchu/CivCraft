@@ -176,6 +176,7 @@ impl Simulation {
         let mut sequence = 0;
         let mut step_unit = unit.clone();
         let allowance = self.unit_move_rate(unit).max(1);
+        let profile = self.step_movement_profile(unit.kind);
         best[start] = (0, 0);
         let mut expanded = 0_u64;
         while let Some(Reverse((spent, steps, _, current))) = queue.pop() {
@@ -209,17 +210,19 @@ impl Simulation {
                 let source = self.tile(cx, cy);
                 let remembered = observed.then(|| self.observed_route_tile(nx, ny)).flatten();
                 let cost = if observed {
-                    self.observed_move_cost(&step_unit, nx, ny, remembered)
+                    self.observed_move_cost_with_profile(&step_unit, nx, ny, remembered, &profile)
                 } else {
-                    self.movement_cost_for(&step_unit, nx, ny)
+                    self.movement_cost_with_profile(&step_unit, nx, ny, &profile)
                 };
                 let terminal_fallback = cost.is_none()
                     && goal_tiles[ni]
                     && (!observed || dest.visible)
                     && dest.terrain.is_water()
                     && self.boarding_target(unit, nx, ny).is_some();
-                let cost = cost
-                    .or_else(|| terminal_fallback.then(|| self.raw_move_cost_for(unit, nx, ny)));
+                let cost = cost.or_else(|| {
+                    terminal_fallback
+                        .then(|| self.raw_move_cost_with_profile(unit, nx, ny, &profile))
+                });
                 let Some(cost) = cost else {
                     continue;
                 };

@@ -218,24 +218,19 @@ impl Simulation {
         Some(route)
     }
 
-    pub(super) fn observed_move_cost(
+    pub(super) fn observed_move_cost_with_profile(
         &self,
         unit: &Unit,
         x: i32,
         y: i32,
         dest: Option<RouteTile>,
+        profile: &StepMovementProfile,
     ) -> Option<i32> {
         let kind = unit.kind;
-        let rules = MovementRules::campaign();
-        let class = rules
-            .unit_class_for_kind(kind)
-            .expect("campaign C2C3 unit class binding");
-        let fragments = rules
-            .move_fragments()
-            .expect("campaign C2C3 movement fragment setting");
         if kind.is_aircraft() {
-            return Some(fragments);
+            return Some(campaign_move_fragments());
         }
+        let class = profile.class;
         let destination_known = dest.is_some();
         let destination = dest.unwrap_or(RouteTile {
             terrain: if kind.is_naval() {
@@ -263,22 +258,10 @@ impl Simulation {
             |tile| to_movement_tile(tile, unit.x, unit.y, true),
         );
         let to = to_movement_tile(destination, x, y, destination_known);
-        let destination_native = rules
-            .movement_tile_native_to_class(
-                destination.terrain,
-                destination.road,
-                destination.railroad,
-                destination.river,
-                destination_known
-                    .then(|| self.render_tile(x, y).base)
-                    .flatten(),
-                class,
-            )
-            .expect("campaign C2C3 movement native_to data");
+        let destination_native = self.cached_movement_native_to_class(to, class);
         if destination_known
             && destination.city_owner.is_none()
-            && super::action_rules::freeciv_unit_type_flag(kind, "CoastStrict")
-                .expect("campaign C2C3 unit-type CoastStrict binding")
+            && profile.coast_strict
             && !self.safe_ocean_at(x, y, Some(HUMAN))
         {
             return None;
@@ -290,16 +273,16 @@ impl Simulation {
                 .is_some_and(|owner| self.military_access(owner, unit.owner))
                 && self.map_wrap.civ3_neighbors(x, y).any(|(nx, ny)| {
                     self.observed_route_tile(nx, ny).is_none_or(|tile| {
-                        rules
-                            .movement_tile_native_to_class(
+                        self.cached_movement_native_to_class(
+                            MovementTile::new(
                                 tile.terrain,
                                 tile.road,
                                 tile.railroad,
                                 tile.river,
                                 self.render_tile(nx, ny).base,
-                                class,
-                            )
-                            .expect("campaign C2C3 movement native_to data")
+                            ),
+                            class,
+                        )
                     })
                 });
             if !native && !port {
@@ -308,18 +291,12 @@ impl Simulation {
         } else if destination_known {
             let city_access = destination.city_owner.is_some_and(|owner| {
                 self.military_access(owner, unit.owner)
-                    || self.at_war(owner, unit.owner)
-                        && rules
-                            .unit_class_movement_data_for_kind(kind)
-                            .expect("campaign C2C3 unit class data")
-                            .can_occupy_city
+                    || self.at_war(owner, unit.owner) && profile.can_occupy_city
             });
             if !destination_native && !city_access {
                 return None;
             }
         }
-        let ignores_terrain = super::action_rules::freeciv_unit_type_flag(kind, "IgTer")
-            .expect("campaign C2C3 unit-type IgTer binding");
         let restricted = [(unit.x, unit.y), (x, y)].into_iter().any(|(tx, ty)| {
             self.observed_route_tile(tx, ty).is_some()
                 && self
@@ -327,18 +304,14 @@ impl Simulation {
                     .owner
                     .is_some_and(|owner| self.at_war(unit.owner, owner))
         });
-        Some(
-            rules
-                .step_cost(
-                    from,
-                    to,
-                    class,
-                    self.movement_is_cardinal((unit.x, unit.y), (x, y)),
-                    restricted,
-                    ignores_terrain,
-                )
-                .expect("campaign C2C3 step movement data"),
-        )
+        Some(self.caches.movement().step_cost(
+            from,
+            to,
+            class,
+            self.movement_is_cardinal((unit.x, unit.y), (x, y)),
+            restricted,
+            profile.ignores_terrain,
+        ))
     }
 
     pub(super) fn movement_cost_for(&self, unit: &Unit, nx: i32, ny: i32) -> Option<i32> {
@@ -358,6 +331,16 @@ impl Simulation {
         profile: &StepMovementProfile,
     ) -> Option<i32> {
         self.movement_cost_for_with_city_cache(unit, nx, ny, None, Some(profile))
+    }
+
+    pub(super) fn raw_move_cost_with_profile(
+        &self,
+        unit: &Unit,
+        nx: i32,
+        ny: i32,
+        profile: &StepMovementProfile,
+    ) -> i32 {
+        self.raw_move_cost_for_class(unit, nx, ny, profile.class, profile.ignores_terrain)
     }
 
     pub(super) fn movement_cost_for_worker_route(
@@ -414,14 +397,8 @@ impl Simulation {
             |profile| profile.coast_strict,
         );
         let dest = self.tile(nx, ny);
-        let destination_movement = MovementTile::new(
-            dest.terrain,
-            dest.road,
-            dest.railroad,
-            dest.river,
-            dest.base,
-        );
-        let destination_native = self.cached_movement_native_to_class(destination_movement, class);
+        let destination_native =
+            self.cached_movement_native_to_class(MovementTile::from(dest), class);
         if destination_native && !coast_strict {
             return true;
         }
