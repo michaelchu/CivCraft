@@ -166,6 +166,21 @@ impl Simulation {
         self.advisor_city_output_exact(city, granted) as i32
     }
 
+    pub(in crate::sim) fn cached_advisor_city_output(&self, city: &City) -> i32 {
+        if self.advisor_cache.active()
+            && let Some(output) = self.advisor_cache.memos().advisor_city_output(city.id)
+        {
+            return output;
+        }
+        let output = self.advisor_city_output(city, None);
+        if self.advisor_cache.active() {
+            self.advisor_cache
+                .memos()
+                .remember_advisor_city_output(city.id, output);
+        }
+        output
+    }
+
     pub(in crate::sim) fn advisor_city_output_exact(
         &self,
         city: &City,

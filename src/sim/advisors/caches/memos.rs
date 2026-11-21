@@ -3,7 +3,7 @@
 use crate::{
     rules::Tech,
     sim::{
-        Government,
+        Government, Unit,
         advisors::{AiBuildChoice, GuardCityAssessment},
         ai::SharedInvasionSupport,
         normal_paths::NormalPaths,
@@ -23,6 +23,8 @@ pub(in crate::sim) type ActionKey = (usize, usize, usize, bool, bool, bool);
 pub(in crate::sim) type OverlapMapKey = (usize, usize, i32, i32, i32, i32, usize);
 pub(in crate::sim) type SightRevision = (u64, usize, usize);
 pub(in crate::sim) type SightLayers = (Arc<[bool]>, Arc<[bool]>);
+pub(in crate::sim) type AnticipatedDefenderKey = (u32, usize, usize, usize, bool, bool);
+pub(in crate::sim) type AnticipatedDefenderEntry = (Option<Unit>, i32);
 type VirtualCityTileYields = (Government, Vec<Option<(i32, i32, i32)>>);
 type RouteZones = [Vec<Option<bool>>; 2];
 
@@ -34,6 +36,8 @@ struct MemoData {
     unit_class_totals: BTreeMap<usize, Arc<UnitClassTotals>>,
     average_production: BTreeMap<usize, i32>,
     offensive_outputs: BTreeMap<u32, i32>,
+    advisor_city_outputs: BTreeMap<u32, i32>,
+    anticipated_defenders: HashMap<AnticipatedDefenderKey, AnticipatedDefenderEntry>,
     offensive_advice: BTreeMap<u32, CachedOffensiveAdvice>,
     invasion_support: BTreeMap<usize, SharedInvasionSupport>,
     guard_assessments: BTreeMap<u32, GuardCityAssessment>,
@@ -85,6 +89,25 @@ impl AdvisorMemos {
     }
     pub(in crate::sim) fn remember_offensive_output(&self, key: u32, value: i32) {
         self.0.borrow_mut().offensive_outputs.insert(key, value);
+    }
+    pub(in crate::sim) fn advisor_city_output(&self, key: u32) -> Option<i32> {
+        self.0.borrow().advisor_city_outputs.get(&key).copied()
+    }
+    pub(in crate::sim) fn remember_advisor_city_output(&self, key: u32, value: i32) {
+        self.0.borrow_mut().advisor_city_outputs.insert(key, value);
+    }
+    pub(in crate::sim) fn anticipated_defender(
+        &self,
+        key: AnticipatedDefenderKey,
+    ) -> Option<AnticipatedDefenderEntry> {
+        self.0.borrow().anticipated_defenders.get(&key).cloned()
+    }
+    pub(in crate::sim) fn remember_anticipated_defender(
+        &self,
+        key: AnticipatedDefenderKey,
+        value: AnticipatedDefenderEntry,
+    ) {
+        self.0.borrow_mut().anticipated_defenders.insert(key, value);
     }
     pub(in crate::sim) fn offensive_advice(&self, key: u32) -> Option<CachedOffensiveAdvice> {
         self.0.borrow().offensive_advice.get(&key).cloned()

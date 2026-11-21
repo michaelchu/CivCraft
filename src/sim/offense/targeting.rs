@@ -76,14 +76,35 @@ impl super::Simulation {
     }
 
     pub(super) fn offensive_find_ferry(&self, passenger: &Unit) -> Option<Unit> {
-        // Fast-exit when the owner has no eligible transport with free capacity.
-        if !self.units.iter().any(|boat| {
-            boat.owner == passenger.owner
+        // Pre-mark only tiles from which an eligible transport with free capacity
+        // can actually be inspected, avoiding millions of empty-tile Vec scans.
+        let mut watch = Vec::new();
+        let mut remaining_watch = 0_usize;
+        for boat in &self.units {
+            if boat.owner == passenger.owner
                 && self.ferry_can_take_unit(boat, passenger)
                 && self.cargo_count(boat.id) < boat.kind.transport_capacity()
                 && boat.kind.fuel_capacity() == 0
                 && boat.kind.hp_loss_percent() == 0
-        }) {
+            {
+                if watch.is_empty() {
+                    watch = vec![false; self.tiles.len()];
+                }
+                let bi = self.map_wrap.index(boat.x, boat.y);
+                if !watch[bi] {
+                    watch[bi] = true;
+                    remaining_watch += 1;
+                }
+                for (nx, ny) in self.map_wrap.civ3_neighbors(boat.x, boat.y) {
+                    let ni = self.map_wrap.index(nx, ny);
+                    if self.tiles[ni].terrain.is_water() && !watch[ni] {
+                        watch[ni] = true;
+                        remaining_watch += 1;
+                    }
+                }
+            }
+        }
+        if remaining_watch == 0 {
             return None;
         }
         // aiferry_find_boat's combined PF and sea_move EC. The source
@@ -95,15 +116,20 @@ impl super::Simulation {
             if turn + (extra / 65536) as i32 > best_turns {
                 break;
             }
-            let tiles: Vec<_> = if self.tile(x, y).terrain.is_water() {
-                std::iter::once((x, y))
-                    .chain(self.map_wrap.civ3_neighbors(x, y))
-                    .collect()
-            } else {
-                vec![(x, y)]
-            };
-            for (x, y) in tiles {
-                for boat in self.tile_units_ordered(x, y) {
+            let idx = self.map_wrap.index(x, y);
+            if !watch[idx] {
+                continue;
+            }
+            let mut tiles = [(x, y); 9];
+            let mut tile_len = 1_usize;
+            if self.tiles[idx].terrain.is_water() {
+                for neighbor in self.map_wrap.civ3_neighbors(x, y) {
+                    tiles[tile_len] = neighbor;
+                    tile_len += 1;
+                }
+            }
+            for &(tx, ty) in &tiles[..tile_len] {
+                for boat in self.tile_units_ordered(tx, ty) {
                     if !self.ferry_can_take_unit(boat, passenger)
                         || self.cargo_count(boat.id) >= boat.kind.transport_capacity()
                         || boat.kind.fuel_capacity() > 0
@@ -119,6 +145,10 @@ impl super::Simulation {
                         best = Some(boat.clone());
                     }
                 }
+            }
+            remaining_watch -= 1;
+            if remaining_watch == 0 {
+                break;
             }
         }
         best
@@ -237,14 +267,18 @@ impl super::Simulation {
                     (enemy.x, enemy.y),
                     false,
                 );
-                let mut direct = if !direct_possible {
-                    None
-                } else if bounded {
-                    map.position_turn_within(self, enemy.x, enemy.y, 10)
-                } else {
-                    map.position_turn(self, enemy.x, enemy.y)
+                let mut direct = {
+                    let _direct_profile = profiler.scope("offense.target_search.direct");
+                    if !direct_possible {
+                        None
+                    } else if bounded {
+                        map.position_turn_within(self, enemy.x, enemy.y, 10)
+                    } else {
+                        map.position_turn(self, enemy.x, enemy.y)
+                    }
                 };
                 if direct.is_none() && !ferry_initialized {
+                    let _ferry_profile = profiler.scope("offense.target_search.ferry_init");
                     ferry = if virtual_unit {
                         self.offensive_ferry_candidate(seed)
                     } else {
@@ -271,6 +305,7 @@ impl super::Simulation {
                     ferry_initialized = true;
                 }
                 if direct.is_none() && direct_possible && bounded && ferry_map.is_some() {
+                    let _direct_profile = profiler.scope("offense.target_search.direct");
                     // Only use a ferry when the enemy city is truly unreachable
                     // by land, not merely farther than 10 turns on the same landmass.
                     direct = map.position_turn(self, enemy.x, enemy.y);
@@ -278,6 +313,7 @@ impl super::Simulation {
                 let turns = if let Some(turns) = direct {
                     turns
                 } else if let Some(fmap) = ferry_map.as_mut() {
+                    let _ferry_profile = profiler.scope("offense.target_search.ferry_beachhead");
                     let ferry_max_cost = bounded.then(|| {
                         let boat_rate = ferry
                             .as_ref()
@@ -335,10 +371,43 @@ impl super::Simulation {
                         continue;
                     }
                 }
-                let defender = self.anticipated_city_defender(enemy, seed, turns, virtual_unit);
-                let vulnerability = defender.as_ref().map_or(0, |d| {
-                    self.offensive_defense_squared(d, seed.kind, enemy.x, enemy.y, virtual_unit)
-                });
+                let _score_profile = profiler.scope("offense.target_search.city_scoring");
+                let (defender, vulnerability) = if virtual_unit && self.advisor_cache.active() {
+                    let key = (
+                        enemy.id,
+                        seed.owner,
+                        seed.kind as usize,
+                        seed.veteran,
+                        turns <= 1,
+                        virtual_unit,
+                    );
+                    if let Some(cached) = self.advisor_cache.memos().anticipated_defender(key) {
+                        cached
+                    } else {
+                        let defender =
+                            self.anticipated_city_defender(enemy, seed, turns, virtual_unit);
+                        let vulnerability = defender.as_ref().map_or(0, |d| {
+                            self.offensive_defense_squared(
+                                d,
+                                seed.kind,
+                                enemy.x,
+                                enemy.y,
+                                virtual_unit,
+                            )
+                        });
+                        let entry = (defender, vulnerability);
+                        self.advisor_cache
+                            .memos()
+                            .remember_anticipated_defender(key, entry.clone());
+                        entry
+                    }
+                } else {
+                    let defender = self.anticipated_city_defender(enemy, seed, turns, virtual_unit);
+                    let vulnerability = defender.as_ref().map_or(0, |d| {
+                        self.offensive_defense_squared(d, seed.kind, enemy.x, enemy.y, virtual_unit)
+                    });
+                    (defender, vulnerability)
+                };
                 let mut benefit = defender
                     .as_ref()
                     .map_or(0.0, |d| d.kind.stats().cost as f32);
@@ -355,7 +424,7 @@ impl super::Simulation {
                         seed.kind.stats().moves * campaign_move_fragments()
                     };
                 if reserves > 0 && (seed.kind.can_occupy_city() || occupiers > 0) {
-                    benefit += (self.advisor_city_output(enemy, None) * reserves / 5) as f32;
+                    benefit += (self.cached_advisor_city_output(enemy) * reserves / 5) as f32;
                 }
                 let power = (rating + helper).pow(2);
                 let mut want = if !seed.kind.can_occupy_city() && defender.is_none() || turns > 10 {
@@ -409,6 +478,7 @@ impl super::Simulation {
                 }
             }
             if bounded {
+                let _unit_profile = profiler.scope("offense.target_search.unit_scan");
                 for owner in 0..self.players.len() {
                     if !hostile(owner) {
                         continue;

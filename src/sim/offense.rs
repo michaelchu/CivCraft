@@ -209,7 +209,7 @@ impl Simulation {
     }
 
     fn offensive_city_worth(&self, city: &City) -> f64 {
-        0.9 * f64::from(self.advisor_city_output(city, None)) + (f64::from(city.size) - 0.5) * 10.0
+        0.9 * f64::from(self.cached_advisor_city_output(city)) + (f64::from(city.size) - 0.5) * 10.0
     }
 
     fn offensive_finishing_factor(&self, city: &City) -> f32 {
