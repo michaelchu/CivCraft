@@ -148,8 +148,14 @@ impl Simulation {
         let mut best_desire = -1.0_f32;
         let mut best_cost = 1;
         let limit = city.shields + 40;
+        let enemy_air_exists = self.units.iter().any(|u| {
+            u.owner != city.owner && u.kind.is_aircraft() && !self.allied(city.owner, u.owner)
+        });
         for kind in Self::production_defender_types() {
-            if kind.is_naval() || !self.unit_buildable(city, kind) {
+            if kind.is_naval()
+                || (!enemy_air_exists && matches!(kind, UnitKind::Flak | UnitKind::MobileSAM))
+                || !self.unit_buildable(city, kind)
+            {
                 continue;
             }
             let mut desire = Self::production_defender_desire(kind, danger);

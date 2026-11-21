@@ -199,7 +199,12 @@ impl Simulation {
         } else {
             0
         };
-        ((fiscal + military) * i64::from(strategy.economy + strategy.science)
+        let multi_front = if strategy.wars >= 2 {
+            (strategy.wars - 1) as i64 * 80
+        } else {
+            0
+        };
+        ((fiscal + military + multi_front) * i64::from(strategy.economy + strategy.science)
             / i64::from(2 * strategy.military).max(1))
         .min(policy().maximum_peace_value)
     }

@@ -63,18 +63,34 @@ impl Simulation {
             return 0.0;
         };
         let stats = plane.kind.stats();
-        let (firepower, retaliation) = self.combat_firepower(plane, defender);
-        let win = (100.0
-            * combat_win_chance(
-                Self::attack_power(plane),
-                plane.hp,
-                firepower,
-                self.defense_power_against(defender, x, y, plane.kind),
-                defender.hp,
-                retaliation,
-            ))
-        .floor()
-            / 100.0;
+        let (win, risk) = if stats.attack == 0 && plane.kind.bombard_strength() > 0 {
+            let bombard = f64::from(plane.kind.bombard_strength()) * 10.0;
+            let defense = f64::from(
+                self.defense_power_against(defender, x, y, plane.kind)
+                    .max(1),
+            );
+            let hit_chance = bombard / (bombard + defense);
+            // Bombardment deals non-lethal damage without direct ground retaliation.
+            let expected_fraction = (hit_chance * f64::from(plane.kind.bombard_rate().max(1))
+                / f64::from(defender.hp.max(1)))
+            .min(0.75);
+            (expected_fraction, 0.0)
+        } else {
+            let (firepower, retaliation) = self.combat_firepower(plane, defender);
+            let win = (100.0
+                * combat_win_chance(
+                    Self::attack_power(plane),
+                    plane.hp,
+                    firepower,
+                    self.defense_power_against(defender, x, y, plane.kind),
+                    defender.hp,
+                    retaliation,
+                ))
+            .floor()
+                / 100.0;
+            let risk = f64::from(stats.cost * stats.hp) / f64::from(plane.hp.max(1));
+            (win, risk)
+        };
         let mut benefit: i32 = self
             .combat_stack_losses(defender, plane)
             .map(|u| u.kind.stats().cost)
@@ -85,12 +101,12 @@ impl Simulation {
         if plane.kind.is_missile() {
             benefit -= stats.cost;
         }
-        let risk = f64::from(stats.cost * stats.hp) / f64::from(plane.hp.max(1));
         let profit = 17.0 * (f64::from(benefit) * win - risk * (1.0 - win)) - 17.0 + 36.0;
         if profit <= 0.0 {
             return 0.0;
         }
-        let balanced = 2 * stats.cost * stats.attack / (stats.attack + stats.defense).max(1);
+        let eff_attack = stats.attack.max(plane.kind.bombard_strength());
+        let balanced = 2 * stats.cost * eff_attack / (eff_attack + stats.defense).max(1);
         profit * (23.0_f64 / 24.0).powi(1 + balanced / max_output)
     }
 
@@ -112,10 +128,9 @@ impl Simulation {
             .into_iter()
             .filter(|kind| kind.fuel_capacity() > 0)
         {
-            // daiair.c rejects unit_type_is_losing_hp even for fuelled Air.
-            // This ruleset supplies no global Unit_Recover effect; Medicine
-            // is Health_Pct, so the Air/Helicopter class loss remains active.
-            if !self.unit_buildable(city, kind) || kind.hp_loss_percent() > 0 {
+            // Fuelled aircraft refuel at cities/airbases every turn, so do not
+            // reject them for the Air class's field hp_loss_percent.
+            if !self.unit_buildable(city, kind) {
                 continue;
             }
             let mut plane = self.make_unit(0, city.owner, kind, city.x, city.y);

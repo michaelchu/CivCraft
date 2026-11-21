@@ -31,14 +31,16 @@ impl Simulation {
                     .then_some((city, shields))
             })
             .collect();
-        // A ship already in progress can fall back to slower sites after an
-        // industrial loss. New programs still require productive cities.
-        if ship.built == [0; 3]
+        // A ship already in progress (or after Apollo is completed) can fall
+        // back to slower sites if no city reaches the ideal shield threshold.
+        if (!self.apollo_completed && ship.built == [0; 3])
             || sites
                 .iter()
                 .any(|&(_, shields)| shields >= ai_strategy::space_min_city_shields())
         {
             sites.retain(|&(_, shields)| shields >= ai_strategy::space_min_city_shields());
+        } else {
+            sites.retain(|&(_, shields)| shields >= 4);
         }
         sites.sort_by_key(|&(city, shields)| (std::cmp::Reverse(shields), city.id));
         let mut plan = BTreeMap::new();
@@ -69,13 +71,29 @@ impl Simulation {
                 .1
                 .saturating_sub(ship.built[part])
         });
+        let needs_space_tech = !self.apollo_completed
+            || spaceship::SPACE_PART_PROJECTS
+                .iter()
+                .enumerate()
+                .any(|(part, &(building, _))| {
+                    remaining[part] > 0
+                        && !sites.iter().any(|&(city, _)| {
+                            self.can_change_production(city, Production::Building(building))
+                        })
+                });
+        let required_infra: &[Building] = if needs_space_tech {
+            &PART_INFRASTRUCTURE
+        } else {
+            &[Building::FACTORY]
+        };
         let mut available = Vec::new();
         for (city, _) in sites {
             if plan.contains_key(&city.id) {
                 continue;
             }
-            if let Some(building) = PART_INFRASTRUCTURE
-                .into_iter()
+            if let Some(building) = required_infra
+                .iter()
+                .copied()
                 .find(|&required| !city.has_building(required))
             {
                 if !strategy.economic_crisis

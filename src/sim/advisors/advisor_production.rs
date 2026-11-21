@@ -894,6 +894,26 @@ impl Simulation {
                 want: DOMESTIC_WANT_MAX,
             });
         }
+        if let Some(AiBuildChoice {
+            production: Production::Unit(kind),
+            ..
+        }) = military
+            && Self::is_ai_ferry(kind)
+        {
+            let city_count = self.player_cities_ordered(city.owner).count();
+            let ferry_count = self
+                .units_owned_by(city.owner)
+                .filter(|unit| Self::is_ai_ferry(unit.kind))
+                .count();
+            let ferry_cap = if upkeep_constrained {
+                (city_count / 2).max(2)
+            } else {
+                city_count.max(4)
+            };
+            if ferry_count >= ferry_cap {
+                military = None;
+            }
+        }
         if upkeep_constrained
             && matches!(
                 military,

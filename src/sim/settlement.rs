@@ -387,6 +387,25 @@ impl Simulation {
         let start = self.map_wrap.index(founder.x, founder.y);
         let (_, _, blocked_land, hostile_military) =
             self.settlement_route_blocked_tiles(founder.owner);
+        // Reject founding sites inside active war zones (within 3 tiles of an
+        // at-war enemy combat unit) to stop unescorted Settlers from repeatedly
+        // founding pop-1 cities that get immediately razed.
+        let mut war_zone = vec![false; self.tiles.len()];
+        for u in &self.units {
+            if self.at_war(founder.owner, u.owner) && u.kind.stats().attack > 0 {
+                let ux = u.x;
+                let uy = u.y;
+                for dy in -3..=3 {
+                    for dx in -6..=6 {
+                        if let Some((tx, ty)) = self.map_wrap.civ3_offset(ux, uy, dx, dy)
+                            && self.map_wrap.civ3_distance(ux, uy, tx, ty) <= 3
+                        {
+                            war_zone[self.map_wrap.index(tx, ty)] = true;
+                        }
+                    }
+                }
+            }
+        }
         let context = CitySiteSearchContext {
             government,
             reservations: &reservations,
@@ -413,8 +432,9 @@ impl Simulation {
             expanded += 1;
             let (x, y) = self.map_wrap.position(index);
             let turns = cost / allowance;
-            if let Some(site) =
-                self.advisor_city_site_result_with_threat_map(founder, x, y, &context)
+            if !war_zone[index]
+                && let Some(site) =
+                    self.advisor_city_site_result_with_threat_map(founder, x, y, &context)
             {
                 let mut total_radius = 0_usize;
                 let mut unshared = 0_usize;

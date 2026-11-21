@@ -304,6 +304,9 @@ fn compatibility_name(tech: Tech) -> &'static str {
 struct RawCiv3Advance {
     tech: Tech,
     prerequisites: Vec<Tech>,
+    era: TechEra,
+    required_for_era: bool,
+    era_gate: Option<TechEra>,
 }
 
 fn civ3_tech_catalog() -> &'static Civ3TechCatalog {
@@ -351,6 +354,9 @@ fn build_civ3_tech_catalog() -> Civ3TechCatalog {
         raw_advances.push(RawCiv3Advance {
             tech,
             prerequisites,
+            era: parse_tech_era(native.era),
+            required_for_era: native.required_for_era,
+            era_gate: native.era_gate.map(parse_tech_era),
         });
     }
     assert_eq!(
@@ -414,6 +420,14 @@ fn civ3_linear_requirement_count(tech: Tech, graph: &[RawCiv3Advance]) -> i32 {
             .find(|advance| advance.tech == current)
             .expect("Civ III prerequisite belongs to the native graph");
         pending.extend(advance.prerequisites.iter().copied());
+        if let Some(gate_era) = advance.era_gate {
+            pending.extend(
+                graph
+                    .iter()
+                    .filter(|candidate| candidate.era == gate_era && candidate.required_for_era)
+                    .map(|candidate| candidate.tech),
+            );
+        }
     }
     seen.into_iter().filter(|included| *included).count() as i32
 }
@@ -475,8 +489,16 @@ mod sentinel_tests {
         );
         assert_eq!(
             Tech::ADVANCED_FLIGHT.civ3_requirement_count(),
-            Some(16),
-            "the shared Combustion prerequisite is only counted once"
+            Some(47),
+            "includes transitive era-gate prerequisites and counts shared prerequisites once"
+        );
+        assert!(
+            Tech::ENGINEERING.civ3_requirement_count().unwrap() > 10,
+            "Middle Ages era-root advance includes Ancient era-gate prerequisites"
+        );
+        assert!(
+            Tech::ROCKETRY.civ3_requirement_count().unwrap() > 45,
+            "Modern era-root advance includes all prior era-gate prerequisites"
         );
         assert_eq!(
             Tech::ADVANCED_FLIGHT.civ3_prerequisites(),

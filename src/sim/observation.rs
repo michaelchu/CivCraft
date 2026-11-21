@@ -293,7 +293,10 @@ impl Simulation {
             .collect()
     }
     pub(crate) fn observe_civilizations(&self) -> Vec<CivilizationSnapshot> {
-        (0..self.civilization_count)
+        (0..self.players().len())
+            .filter(|&owner| {
+                owner < self.civilization_count || (owner != BARBARIANS && self.player_alive(owner))
+            })
             .map(|owner| {
                 let player = &self.players()[owner];
                 CivilizationSnapshot {

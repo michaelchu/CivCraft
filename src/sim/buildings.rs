@@ -119,7 +119,7 @@ impl Simulation {
     }
 
     pub(crate) fn production_successor(&self, city: &City, kind: UnitKind) -> Option<UnitKind> {
-        self.available_unit_successor(city.owner, kind)
+        self.buildable_unit_successor(city, kind)
     }
 
     // Native obsolescence walks the entire chain using player requirements,
@@ -140,10 +140,27 @@ impl Simulation {
         best
     }
 
+    /// Obsolescence for city production: a unit is only obsoleted in `city`
+    /// if a successor in its upgrade chain is both unlocked for the player
+    /// and has its required strategic resources connected to `city`.
+    fn buildable_unit_successor(&self, city: &City, kind: UnitKind) -> Option<UnitKind> {
+        let mut next = kind.obsolete_by();
+        let mut best = None;
+        while let Some(candidate) = next {
+            if self.unit_available(city.owner, candidate)
+                && self.unit_resources_available(city, candidate)
+            {
+                best = Some(candidate);
+            }
+            next = candidate.obsolete_by();
+        }
+        best
+    }
+
     pub(super) fn unit_buildable(&self, city: &City, kind: UnitKind) -> bool {
         self.unit_available(city.owner, kind)
             && self.unit_resources_available(city, kind)
-            && self.available_unit_successor(city.owner, kind).is_none()
+            && self.buildable_unit_successor(city, kind).is_none()
             && (kind.unit_class().build_anywhere()
                 || kind.is_aircraft()
                 || self.naval_city_access(city, kind))
@@ -166,21 +183,57 @@ impl Simulation {
         }
         let mut reached = vec![false; self.tiles.len()];
         let mut queue = std::collections::VecDeque::new();
-        for (x, y) in self.map_wrap.civ3_neighbors(city.x, city.y) {
-            let index = self.map_wrap.index(x, y);
-            let tile = self.tile(x, y);
-            if tile.owner == Some(city.owner) && tile.road && !reached[index] {
-                reached[index] = true;
-                queue.push_back((x, y));
-            }
-        }
+        let start_index = self.map_wrap.index(city.x, city.y);
+        reached[start_index] = true;
+        queue.push_back((city.x, city.y));
+
+        let mut sea_network_expanded = false;
+        let mut air_network_expanded = false;
+        let has_sea_port = |candidate: &City| {
+            candidate.has_building(Building::HARBOR)
+                || candidate.has_building(Building::PORT_FACILITY)
+        };
+
         while let Some((x, y)) = queue.pop_front() {
             let tile = self.tile(x, y);
+            let hub = self.cities.iter().find(|candidate| {
+                candidate.owner == city.owner && (candidate.x, candidate.y) == (x, y)
+            });
             if tile.owner == Some(city.owner)
-                && tile.road
+                && (tile.road || hub.is_some())
                 && tile.active_resource() == Some(resource)
             {
                 return true;
+            }
+            if (!sea_network_expanded || !air_network_expanded)
+                && let Some(hub) = hub
+            {
+                if !sea_network_expanded && has_sea_port(hub) {
+                    sea_network_expanded = true;
+                    for peer in self
+                        .cities
+                        .iter()
+                        .filter(|peer| peer.owner == city.owner && has_sea_port(peer))
+                    {
+                        let idx = self.map_wrap.index(peer.x, peer.y);
+                        if !reached[idx] {
+                            reached[idx] = true;
+                            queue.push_back((peer.x, peer.y));
+                        }
+                    }
+                }
+                if !air_network_expanded && hub.has_building(Building::AIRPORT) {
+                    air_network_expanded = true;
+                    for peer in self.cities.iter().filter(|peer| {
+                        peer.owner == city.owner && peer.has_building(Building::AIRPORT)
+                    }) {
+                        let idx = self.map_wrap.index(peer.x, peer.y);
+                        if !reached[idx] {
+                            reached[idx] = true;
+                            queue.push_back((peer.x, peer.y));
+                        }
+                    }
+                }
             }
             for (nx, ny) in self.map_wrap.civ3_neighbors(x, y) {
                 let index = self.map_wrap.index(nx, ny);
@@ -714,5 +767,65 @@ mod transaction_tests {
         assert!(!game.apply(Command::SellBuilding(id, Building::GRANARY)));
         game.process_cities();
         assert!(game.apply(Command::SellBuilding(id, Building::GRANARY)));
+    }
+
+    #[test]
+    fn unit_obsolescence_requires_successor_resources() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        game.tile_mut(10, 20).terrain = Terrain::Grassland;
+        game.create_city(HUMAN, 10, 20);
+        game.players[HUMAN].known.extend([
+            Tech::MOTORIZED_TRANSPORTATION,
+            Tech::SYNTHETIC_FIBERS,
+            Tech::REFINING,
+            Tech::REPLACEABLE_PARTS,
+            Tech::ROCKETRY,
+        ]);
+        let neighbors: Vec<_> = game.map_wrap.civ3_neighbors(10, 20).collect();
+        for &(x, y) in &neighbors[..3] {
+            let tile = game.tile_mut(x, y);
+            tile.owner = Some(HUMAN);
+            tile.road = true;
+        }
+        game.tile_mut(neighbors[0].0, neighbors[0].1).terrain = Terrain::Desert;
+        game.tile_mut(neighbors[0].0, neighbors[0].1).resource = Some(Resource::Oil);
+        game.tile_mut(neighbors[1].0, neighbors[1].1).terrain = Terrain::Jungle;
+        game.tile_mut(neighbors[1].0, neighbors[1].1).resource = Some(Resource::Rubber);
+
+        // Without Aluminum, Modern Armor is unbuildable so Tank must remain buildable.
+        assert!(game.unit_buildable(&game.cities[0], UnitKind::Tank));
+        assert!(!game.unit_buildable(&game.cities[0], UnitKind::ModernArmor));
+
+        // Connecting Aluminum unlocks Modern Armor and obsoletes Tank.
+        game.tile_mut(neighbors[2].0, neighbors[2].1).terrain = Terrain::Hills;
+        game.tile_mut(neighbors[2].0, neighbors[2].1).resource = Some(Resource::Aluminum);
+        assert!(game.unit_buildable(&game.cities[0], UnitKind::ModernArmor));
+        assert!(!game.unit_buildable(&game.cities[0], UnitKind::Tank));
+    }
+
+    #[test]
+    fn harbor_and_airport_share_strategic_resources_across_water() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        game.tile_mut(10, 20).terrain = Terrain::Grassland;
+        game.tile_mut(30, 20).terrain = Terrain::Desert;
+        game.create_city(HUMAN, 10, 20);
+        game.create_city(HUMAN, 30, 20);
+        game.players[HUMAN].known.push(Tech::REFINING);
+        game.tile_mut(30, 20).resource = Some(Resource::Oil);
+
+        // Separate landmasses with no port or airport cannot share Oil.
+        assert!(!game.resource_connected_to_city(&game.cities[0], Resource::Oil));
+
+        // Connecting both cities with Harbors shares Oil across water.
+        game.cities[0].buildings.push(Building::HARBOR);
+        game.cities[1].buildings.push(Building::PORT_FACILITY);
+        assert!(game.resource_connected_to_city(&game.cities[0], Resource::Oil));
+
+        // Replacing ports with Airports also shares Oil.
+        game.cities[0].buildings.clear();
+        game.cities[1].buildings.clear();
+        game.cities[0].buildings.push(Building::AIRPORT);
+        game.cities[1].buildings.push(Building::AIRPORT);
+        assert!(game.resource_connected_to_city(&game.cities[0], Resource::Oil));
     }
 }

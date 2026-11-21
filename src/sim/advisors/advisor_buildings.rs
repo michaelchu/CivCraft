@@ -325,7 +325,17 @@ impl Simulation {
             ))
             + self.building_happiness_want_with_luxury(city, building, forecast.luxury)
             + self.building_health_want_with_shields(city, building, forecast.shields)
-            + self.defensive_building_effect_want(city, building);
+            + if building == Building::SAM_BATTERY
+                && !self.units.iter().any(|u| {
+                    u.owner != city.owner
+                        && u.kind.is_aircraft()
+                        && !self.allied(city.owner, u.owner)
+                })
+            {
+                0.0
+            } else {
+                self.defensive_building_effect_want(city, building)
+            };
         // daieffects.c values veteran construction as (3*c + affected)
         // and full healing as (5*c + affected), once per class effect.
         want += f64::from(match building {

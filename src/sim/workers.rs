@@ -72,10 +72,12 @@ impl Simulation {
             return true;
         }
         !self.units.iter().any(|u| {
+            let moves = u.kind.stats().moves;
+            let threat_range = if moves >= 2 { (moves + 1).min(4) } else { 2 };
             self.at_war(owner, u.owner)
                 && (self.players[owner].ai || self.unit_visible_to(owner, u))
                 && u.kind.stats().attack > 0
-                && self.map_wrap.civ3_distance(x, y, u.x, u.y) <= 2
+                && self.map_wrap.civ3_distance(x, y, u.x, u.y) <= threat_range
                 && (self.worker_enemy_native(u.kind, x, y)
                     || (u.kind.is_naval()
                         && u.kind != UnitKind::Submarine

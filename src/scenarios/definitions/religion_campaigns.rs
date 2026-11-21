@@ -181,7 +181,7 @@ impl ScenarioRun for Research {
         let progress = if matches!(self.case, ResearchCase::Recovery) {
             0
         } else {
-            g.target_cost(1, chosen) - 1
+            g.target_cost(1, chosen) + g.technology_upkeep(1) - 1
         };
         WorldBuilder::new(g).research_project(1, chosen, progress);
     }
