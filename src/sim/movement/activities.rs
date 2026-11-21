@@ -64,14 +64,6 @@ impl Simulation {
             _ => 0,
         };
         if turns <= 0 {
-            if unit.owner == HUMAN {
-                self.add_event(format!(
-                    "{} cannot build {} on {}.",
-                    unit.kind.name(),
-                    kind.name(),
-                    tile.terrain.name()
-                ));
-            }
             return false;
         }
         let worker = &mut self.units[index];
@@ -79,14 +71,6 @@ impl Simulation {
         worker.work_left = turns * ACTIVITY_FACTOR;
         worker.work_done = 0;
         worker.state = UnitState::Idle;
-        let turns = self.project_turns_left(&self.units[index]);
-        if unit.owner == HUMAN {
-            self.add_event(format!(
-                "{} began {} ({turns} turns).",
-                unit.kind.name(),
-                kind.name()
-            ));
-        }
         self.publish_visual_event(VisualEvent::WorkStarted {
             unit: self.units[index].clone(),
             kind,
@@ -103,7 +87,6 @@ impl Simulation {
         {
             return false;
         }
-        let (owner, name) = (unit.owner, unit.kind.name());
         if let Some(candidate) = self
             .units
             .iter_mut()
@@ -114,9 +97,6 @@ impl Simulation {
             return false;
         }
         let unit = self.unit_by_id(unit_id).unwrap().clone();
-        if owner == HUMAN {
-            self.add_event(format!("{name} will be fortified next turn."));
-        }
         self.publish_visual_event(VisualEvent::Fortify { unit });
         true
     }
@@ -261,15 +241,7 @@ impl Simulation {
             let Some((target, _)) = self.terrain_work(&unit, kind) else {
                 return false;
             };
-            let source = self.tile(x, y).terrain;
             self.alter_terrain(x, y, target);
-            if owner == HUMAN {
-                self.add_event(format!(
-                    "Your workers changed {} to {}.",
-                    source.name(),
-                    target.name()
-                ));
-            }
             return true;
         }
         if let WorkKind::BuildBase(base) = kind {
@@ -278,9 +250,6 @@ impl Simulation {
             }
             if !super::super::action_rules::apply_freeciv_work_extra(self.tile_mut(x, y), kind) {
                 return false;
-            }
-            if owner == HUMAN {
-                self.add_event(format!("Your unit completed a {}.", base.name()));
             }
             return true;
         }
@@ -311,13 +280,6 @@ impl Simulation {
             WorkKind::Clean(Contamination::Craters) => tile.craters = false,
             _ if super::super::action_rules::apply_freeciv_work_extra(tile, kind) => {}
             _ => return false,
-        }
-        if owner == HUMAN {
-            self.add_event(if matches!(kind, WorkKind::Clean(_)) {
-                format!("Your workers cleaned {}.", kind.name())
-            } else {
-                format!("Your workers completed {}.", kind.name())
-            });
         }
         true
     }

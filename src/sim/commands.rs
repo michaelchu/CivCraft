@@ -226,13 +226,6 @@ impl Simulation {
                     unit.clear_work();
                     unit.state = UnitState::Idle;
                 }
-                let name = unit.kind.name();
-                let state = if unit.automated {
-                    "enabled"
-                } else {
-                    "disabled"
-                };
-                self.add_event(format!("{name} automation {state}."));
                 true
             }
             EditWorklist { city_id, edit } => self.edit_worklist(city_id, edit),
