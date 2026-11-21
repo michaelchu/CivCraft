@@ -434,9 +434,10 @@ pub(super) const BUILDING_FLAG_NAMES: &[&str] = &[
     "Infra",
     "DisasterProof",
     "Indestructible",
+    "Barracks",
 ];
 
-pub(super) const GOV_FLAG_NAMES: &[&str] = &[];
+pub(super) const GOV_FLAG_NAMES: &[&str] = &["ShieldToGold"];
 
 pub(super) const TERRAIN_CLASS_NAMES: &[&str] = &["Land", "Oceanic"];
 

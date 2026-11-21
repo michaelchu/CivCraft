@@ -1980,6 +1980,8 @@ mod tests {
         for (name, source) in overrides {
             if let Some(index) = files.iter().position(|file| file.name == *name) {
                 files[index] = parsed_file(name, source);
+            } else {
+                files.push(parsed_file(name, source));
             }
         }
         files
@@ -2505,7 +2507,8 @@ mod tests {
                 .iter()
                 .filter(|record| record.kind == ContentKind::Building)
                 .count(),
-            73
+            0,
+            "the mechanics ruleset no longer embeds building records"
         );
         assert_eq!(
             rules
@@ -2513,7 +2516,8 @@ mod tests {
                 .iter()
                 .filter(|record| record.kind == ContentKind::Technology)
                 .count(),
-            87
+            0,
+            "the mechanics ruleset no longer embeds technology records"
         );
         assert_eq!(
             rules
@@ -2551,7 +2555,7 @@ mod tests {
                 .iter()
                 .filter(|r| r.kind == ContentKind::Building)
                 .count(),
-            73
+            0
         );
         assert_eq!(
             rules
@@ -2559,7 +2563,7 @@ mod tests {
                 .iter()
                 .filter(|r| r.kind == ContentKind::Technology)
                 .count(),
-            87
+            0
         );
         assert_eq!(crate::rules::native::units().units.len(), 92);
         assert_eq!(crate::rules::native::buildings().rules.len(), 91);
@@ -2676,29 +2680,25 @@ mod government_catalog_tests {
     #[test]
     fn government_catalog_ignores_selected_freeciv_government_records() {
         let mut rules = RulesetData::campaign_default().clone();
-        rules
-            .parameters
-            .iter_mut()
-            .find(|parameter| {
-                parameter.file == "governments.ruleset"
-                    && parameter.section == "governments"
-                    && parameter.key == "during_revolution"
-            })
-            .unwrap()
-            .value = super::Value::String("MissingGovernment".to_owned());
-        let government = rules
-            .content
-            .iter_mut()
-            .find(|record| {
-                record.kind == ContentKind::Government && record.rule_name == "Despotism"
-            })
-            .unwrap();
-        government
-            .fields
-            .iter_mut()
-            .find(|field| field.key == "ai_better")
-            .unwrap()
-            .value = super::Value::String("MissingGovernment".to_owned());
+        rules.parameters.push(super::RuleParameter {
+            file: "governments.ruleset".to_owned(),
+            section: "governments".to_owned(),
+            key: "during_revolution".to_owned(),
+            value: super::Value::String("MissingGovernment".to_owned()),
+        });
+        rules.content.push(super::ContentRecord {
+            kind: ContentKind::Government,
+            section: "government_despotism".to_owned(),
+            rule_name: "Despotism".to_owned(),
+            display_name: None,
+            requirements: Vec::new(),
+            obsolete_by: Vec::new(),
+            fields: vec![super::Entry {
+                key: "ai_better".to_owned(),
+                value: super::Value::String("MissingGovernment".to_owned()),
+                line: 1,
+            }],
+        });
 
         let catalog = rules.government_catalog().unwrap();
         assert_eq!(catalog.during_revolution_id, "anarchy");

@@ -33,9 +33,6 @@ macro_rules! campaign_files {
 campaign_files!(
     "game.ruleset",
     "actions.ruleset",
-    "techs.ruleset",
-    "buildings.ruleset",
-    "governments.ruleset",
     "units.ruleset",
     "terrain.ruleset",
     "effects.ruleset",
@@ -797,7 +794,10 @@ fn requirement_value_is_valid(requirement: &Requirement, rules: &RulesetData) ->
         RequirementKind::Activity => {
             super::identifiers::contains_case_insensitive(super::identifiers::ACTIVITY_NAMES, &name)
         }
-        RequirementKind::Tech => content_name_exists(rules, ContentKind::Technology, &name),
+        RequirementKind::Tech => {
+            content_name_exists(rules, ContentKind::Technology, &name)
+                || (rules.name == "civcraft" && bind_freeciv_technology(&name).is_ok())
+        }
         RequirementKind::Age => integer_value(&name).is_some_and(|value| value > 0),
         RequirementKind::Ai => {
             super::identifiers::contains_case_insensitive(super::identifiers::AI_LEVEL_NAMES, &name)
@@ -833,7 +833,10 @@ fn requirement_value_is_valid(requirement: &Requirement, rules: &RulesetData) ->
         RequirementKind::Gov => {
             content_name_exists(rules, ContentKind::Government, &name)
                 || (rules.name == "civcraft"
-                    && crate::rules::native::governments().get(&name).is_some())
+                    && (crate::rules::native::governments().get(&name).is_some()
+                        || ["Tribal", "Fundamentalism", "Federation"]
+                            .iter()
+                            .any(|gov| gov.eq_ignore_ascii_case(&name))))
         }
         RequirementKind::GovFlag => flag_name_exists(
             rules,
@@ -842,7 +845,7 @@ fn requirement_value_is_valid(requirement: &Requirement, rules: &RulesetData) ->
             "flags",
             super::identifiers::GOV_FLAG_NAMES,
         ),
-        RequirementKind::Building => content_name_exists(rules, ContentKind::Building, &name),
+        RequirementKind::Building => building_name_exists(rules, &name),
         RequirementKind::BuildingFlag => flag_name_exists(
             rules,
             &name,
@@ -907,7 +910,7 @@ fn requirement_value_is_valid(requirement: &Requirement, rules: &RulesetData) ->
             .settings
             .iter()
             .any(|setting| setting.name.eq_ignore_ascii_case(&name)),
-        RequirementKind::Site => content_name_exists(rules, ContentKind::Building, &name),
+        RequirementKind::Site => building_name_exists(rules, &name),
         RequirementKind::Specialist => {
             record_name_exists(rules, "specialist", &name)
                 || ["Elvis", "scientist", "taxman"]
@@ -990,6 +993,18 @@ fn content_name_exists(rules: &RulesetData, kind: ContentKind, name: &str) -> bo
         .content
         .iter()
         .any(|record| record.kind == kind && record.rule_name.eq_ignore_ascii_case(name))
+}
+
+fn building_name_exists(rules: &RulesetData, name: &str) -> bool {
+    content_name_exists(rules, ContentKind::Building, name)
+        || (rules.name == "civcraft"
+            && (crate::rules::native::buildings()
+                .rules
+                .iter()
+                .any(|building| building.name.eq_ignore_ascii_case(name))
+                || ["Harbour", "Shakespeare's Theatre"]
+                    .iter()
+                    .any(|alias| alias.eq_ignore_ascii_case(name))))
 }
 
 fn record_name_exists(rules: &RulesetData, namespace: &str, name: &str) -> bool {
