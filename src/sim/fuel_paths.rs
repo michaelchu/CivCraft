@@ -76,6 +76,8 @@ pub(super) struct FuelPaths {
     positions: Vec<Position>,
     queue: ExplorerQueue,
     waited_queue: ExplorerQueue,
+    is_base: Vec<bool>,
+    bases: Vec<(usize, i32, i32)>,
 }
 
 fn moves_field(value: i32) -> u16 {
@@ -111,6 +113,40 @@ impl FuelPaths {
             .moves_left
             .wrapping_add((i32::from(unit.fuel) - 1).wrapping_mul(rate));
         let start = sim.map_wrap.index(unit.x, unit.y);
+        let tile_count = sim.tiles.len();
+        let owner = unit.owner;
+        let mut is_base = vec![false; tile_count];
+        let mut bases = Vec::new();
+        let mut mark_base = |index: usize, pos: (i32, i32)| {
+            let known = sim.tiles[index].known_by[owner];
+            if !(omniscient || known) || is_base[index] {
+                return;
+            }
+            is_base[index] = true;
+            bases.push((index, pos.0, pos.1));
+        };
+        for city in &sim.cities {
+            if sim.allied(owner, city.owner) {
+                let idx = sim.map_wrap.index(city.x, city.y);
+                mark_base(idx, (city.x, city.y));
+            }
+        }
+        for (idx, tile) in sim.tiles.iter().enumerate() {
+            if matches!(tile.base, Some(Base::Airstrip | Base::Airbase)) {
+                mark_base(idx, sim.map_wrap.position(idx));
+            }
+        }
+        for carrier in &sim.units {
+            if sim.allied(owner, carrier.owner)
+                && carrier.kind != unit.kind
+                && carrier.kind.can_carry(unit.kind)
+                && !unit.kind.can_carry(carrier.kind)
+                && (omniscient || sim.pf_main_sight(owner, carrier.x, carrier.y))
+            {
+                let idx = sim.map_wrap.index(carrier.x, carrier.y);
+                mark_base(idx, (carrier.x, carrier.y));
+            }
+        }
         let mut map = Self {
             map_wrap: sim.map_wrap,
             actor: unit.clone(),
@@ -121,10 +157,12 @@ impl FuelPaths {
             city_attack,
             current: start,
             start,
-            nodes: vec![Node::default(); sim.tiles.len()],
+            nodes: vec![Node::default(); tile_count],
             positions: Vec::new(),
             queue: ExplorerQueue::default(),
             waited_queue: ExplorerQueue::default(),
+            is_base,
+            bases,
         };
         map.initialize(sim, start);
         let budget = moves_field(initial_bundle);
@@ -152,53 +190,27 @@ impl FuelPaths {
         sim.pf_main_sight(self.actor.owner, x, y)
     }
 
-    fn possible_base(&self, sim: &Simulation, x: i32, y: i32) -> bool {
-        let known = self.omniscient || sim.tile(x, y).known_by[self.actor.owner];
-        if !known {
-            return false;
-        }
-        if sim
-            .cities
-            .iter()
-            .any(|city| (city.x, city.y) == (x, y) && sim.allied(self.actor.owner, city.owner))
-        {
-            return true;
-        }
-        // Neither native PF nor actual refueling tests base ownership.
-        // PF remains optimistic about unseen bases and carrier capacity.
-        if matches!(sim.tile(x, y).base, Some(Base::Airstrip | Base::Airbase)) {
-            return true;
-        }
-        if !self.omniscient && !self.main_sight(sim, x, y) {
-            return false;
-        }
-        sim.tile_units_ordered(x, y).any(|carrier| {
-            (carrier.x, carrier.y) == (x, y)
-            && sim.allied(self.actor.owner, carrier.owner)
-            && carrier.kind != self.actor.kind && carrier.kind.can_carry(self.actor.kind)
-            // pf_transport_check does not test available cargo slots.
-            && !self.actor.kind.can_carry(carrier.kind)
-        })
+    #[cfg(test)]
+    fn possible_base(&self, _sim: &Simulation, x: i32, y: i32) -> bool {
+        self.is_base[self.map_wrap.index(x, y)]
     }
 
     fn required_moves(&self, sim: &Simulation, index: usize) -> i32 {
-        let (x, y) = self.map_wrap.position(index);
-        if self.possible_base(sim, x, y) {
+        if self.is_base[index] {
             return 0;
         }
+        let (x, y) = self.map_wrap.position(index);
         let maximum = self.initial_bundle.max(self.full_moves()) / campaign_move_fragments();
         // Deliberate pf_tools.c quirk: this test still applies when
         // omniscience is TRUE in the enclosing PF parameters.
-        sim.tiles
+        self.bases
             .iter()
-            .enumerate()
-            .filter_map(|(candidate, tile)| {
-                if !tile.known_by[self.actor.owner] {
+            .filter_map(|&(candidate, nx, ny)| {
+                if !sim.tiles[candidate].known_by[self.actor.owner] {
                     return None;
                 }
-                let (nx, ny) = self.map_wrap.position(candidate);
                 let distance = self.map_wrap.civ3_distance(x, y, nx, ny);
-                (distance <= maximum && self.possible_base(sim, nx, ny)).then_some(distance)
+                (distance <= maximum).then_some(distance)
             })
             .min()
             .map_or(-1, |distance| distance * campaign_move_fragments())

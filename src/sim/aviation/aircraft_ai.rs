@@ -6,24 +6,52 @@ type AircraftAttackPath = (Vec<(i32, i32)>, (i32, i32), f64);
 type AircraftBaseRoute = (Vec<(i32, i32)>, (i32, i32));
 
 impl Simulation {
+    fn aircraft_production_denominator(&self, plane: &Unit) -> i32 {
+        let mut total = 0;
+        let mut count = 0;
+        for city in &self.cities {
+            if city.owner == plane.owner {
+                total += self.city_forecast(city).shield_surplus();
+                count += 1;
+            }
+        }
+        let average = total / count.max(1);
+        let home = plane
+            .home_city
+            .and_then(|id| self.city_by_id(id))
+            .map(|c| self.city_forecast(c).shield_surplus())
+            .unwrap_or(1);
+        home.max(average).max(1)
+    }
+
     pub(in crate::sim) fn aircraft_target_value(&self, plane: &Unit, x: i32, y: i32) -> f64 {
+        let max_output = self.aircraft_production_denominator(plane);
+        self.aircraft_target_value_with_output(plane, x, y, max_output)
+    }
+
+    fn aircraft_target_value_with_output(
+        &self,
+        plane: &Unit,
+        x: i32,
+        y: i32,
+        max_output: i32,
+    ) -> f64 {
+        let (_, war_mask, _) = self.pact_masks(plane.owner);
+        let at_war_owner = |other: usize| {
+            (other < 64 && ((war_mask >> other) & 1) != 0)
+                || (other >= 64 && self.at_war(plane.owner, other))
+        };
         if !self.players[plane.owner].ai && !self.tile(x, y).known_by[plane.owner]
+            || self.any_unit_at(x, y, |u| !at_war_owner(u.owner))
             || self
-                .units
-                .iter()
-                .any(|u| (u.x, u.y) == (x, y) && !self.at_war(plane.owner, u.owner))
-            || self
-                .cities
-                .iter()
-                .any(|c| (c.x, c.y) == (x, y) && !self.at_war(plane.owner, c.owner))
+                .city_at_cached(x, y)
+                .is_some_and(|c| !at_war_owner(c.owner))
         {
             return 0.0;
         }
         if plane.id != 0
             && self
-                .cities
-                .iter()
-                .find(|c| (c.x, c.y) == (x, y))
+                .city_at_cached(x, y)
                 .is_some_and(|city| self.invasion_support(plane.owner, city, plane.id).1 == 0)
         {
             return 0.0;
@@ -59,29 +87,27 @@ impl Simulation {
         }
         let risk = f64::from(stats.cost * stats.hp) / f64::from(plane.hp.max(1));
         let profit = 17.0 * (f64::from(benefit) * win - risk * (1.0 - win)) - 17.0 + 36.0;
-        let outputs: Vec<_> = self
-            .cities
-            .iter()
-            .filter(|c| c.owner == plane.owner)
-            .map(|c| self.city_forecast(c).shield_surplus())
-            .collect();
-        let average = outputs.iter().sum::<i32>() / outputs.len().max(1) as i32;
-        let home = self
-            .cities
-            .iter()
-            .find(|c| Some(c.id) == plane.home_city)
-            .map(|c| self.city_forecast(c).shield_surplus())
-            .unwrap_or(1);
+        if profit <= 0.0 {
+            return 0.0;
+        }
         let balanced = 2 * stats.cost * stats.attack / (stats.attack + stats.defense).max(1);
-        profit.max(0.0) * (23.0_f64 / 24.0).powi(1 + balanced / home.max(average).max(1))
+        profit * (23.0_f64 / 24.0).powi(1 + balanced / max_output)
     }
 
     pub(in crate::sim) fn aircraft_production_choice(
         &self,
         city: &City,
     ) -> Option<(UnitKind, f64)> {
+        let (_, war_mask, _) = self.pact_masks(city.owner);
+        if war_mask == 0
+            && !(0..self.players.len())
+                .any(|other| other != city.owner && self.at_war(city.owner, other))
+        {
+            return None;
+        }
         let mut best = None;
         let mut best_value = 0.0;
+        let mut max_output: Option<i32> = None;
         for kind in UnitKind::ALL_NATIVE
             .into_iter()
             .filter(|kind| kind.fuel_capacity() > 0)
@@ -96,7 +122,9 @@ impl Simulation {
             plane.home_city = Some(city.id);
             plane.veteran = self.trained_rank(city, kind);
             plane.hp = plane.max_hit_points();
-            if let Some((_, _, value)) = self.aircraft_best_target(&plane)
+            let output =
+                *max_output.get_or_insert_with(|| self.aircraft_production_denominator(&plane));
+            if let Some((_, _, value)) = self.aircraft_attack_path_with_output(&plane, output)
                 && value > best_value
             {
                 best_value = value;
@@ -107,14 +135,27 @@ impl Simulation {
     }
 
     pub(super) fn aircraft_attack_path(&self, plane: &Unit) -> Option<AircraftAttackPath> {
+        let max_output = self.aircraft_production_denominator(plane);
+        self.aircraft_attack_path_with_output(plane, max_output)
+    }
+
+    fn aircraft_attack_path_with_output(
+        &self,
+        plane: &Unit,
+        max_output: i32,
+    ) -> Option<AircraftAttackPath> {
         let mut map = super::fuel_paths::FuelPaths::new(self, plane, true)?;
+        let (_, war_mask, _) = self.pact_masks(plane.owner);
         let mut best = None;
         let mut best_value = 0.0;
         for (x, y, _) in map.reachable_within(self, plane.moves_left, true, false) {
-            if !self.any_unit_at(x, y, |unit| self.at_war(plane.owner, unit.owner)) {
+            if !self.any_unit_at(x, y, |unit| {
+                (unit.owner < 64 && ((war_mask >> unit.owner) & 1) != 0)
+                    || (unit.owner >= 64 && self.at_war(plane.owner, unit.owner))
+            }) {
                 continue;
             }
-            let value = self.aircraft_target_value(plane, x, y);
+            let value = self.aircraft_target_value_with_output(plane, x, y, max_output);
             if value > best_value {
                 best_value = value;
                 best = Some((x, y));
