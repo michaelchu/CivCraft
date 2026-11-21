@@ -12,8 +12,7 @@ impl Simulation {
             .get(&city.id)
             .copied()
             .unwrap_or_default();
-        let units = UnitKind::ALL_NATIVE
-            .into_iter()
+        let units = UnitKind::all()
             .map(|kind| {
                 let production = Production::Unit(kind);
                 UnitProductionView {

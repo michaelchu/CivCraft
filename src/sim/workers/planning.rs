@@ -446,7 +446,7 @@ impl Simulation {
         };
         let tile = self.map_wrap.index(actor.x, actor.y);
         let slots = projections
-            .entry((actor.owner, actor.kind as usize, tile))
+            .entry((actor.owner, actor.kind.index(), tile))
             .or_insert_with(|| std::array::from_fn(|_| None));
         let slot = &mut slots[activity_index];
         if let Some(result) = slot {
@@ -502,7 +502,7 @@ impl Simulation {
     ) -> Option<(Tile, i32)> {
         let key = (
             actor.owner,
-            actor.kind as usize,
+            actor.kind.index(),
             self.map_wrap.index(actor.x, actor.y),
         );
         if let Some(result) = projections.get(&key) {

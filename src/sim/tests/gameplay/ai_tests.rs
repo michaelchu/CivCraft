@@ -207,7 +207,7 @@ impl Simulation {
         }
         let mut rejected = true;
         // Derive the excluded set from imported prototype movement/fuel data.
-        for kind in UnitKind::ALL_NATIVE
+        for kind in UnitKind::all_slice()
             .iter()
             .copied()
             .filter(|kind| kind.fuel_capacity() > 0 || *kind == UnitKind::Helicopter)

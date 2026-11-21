@@ -156,16 +156,14 @@ impl super::Simulation {
 
     fn offensive_ferry_candidate(&self, seed: &Unit) -> Option<Unit> {
         self.offensive_find_ferry(seed).or_else(|| {
-            UnitKind::ALL_NATIVE
-                .into_iter()
+            UnitKind::all()
                 .rev()
                 .find(|kind| {
                     kind.has_ai_strategy(UnitAiStrategy::NavalTransport)
                         && self.unit_available(seed.owner, *kind)
                 })
                 .or_else(|| {
-                    UnitKind::ALL_NATIVE
-                        .into_iter()
+                    UnitKind::all()
                         .find(|kind| kind.has_ai_strategy(UnitAiStrategy::NavalTransport))
                 })
                 .filter(|_| {
@@ -287,7 +285,7 @@ impl super::Simulation {
                     ferry_map = ferry.as_ref().map(|boat| {
                         let key = (
                             boat.owner,
-                            boat.kind as usize,
+                            boat.kind.index(),
                             boat.x,
                             boat.y,
                             boat.moves_left,
@@ -376,7 +374,7 @@ impl super::Simulation {
                     let key = (
                         enemy.id,
                         seed.owner,
-                        seed.kind as usize,
+                        seed.kind.index(),
                         seed.veteran,
                         turns <= 1,
                         virtual_unit,
@@ -561,7 +559,7 @@ impl super::Simulation {
         {
             let key = (
                 boat.owner,
-                boat.kind as usize,
+                boat.kind.index(),
                 boat.x,
                 boat.y,
                 boat.moves_left,

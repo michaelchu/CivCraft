@@ -87,9 +87,9 @@ mod tests {
     #[test]
     fn active_catalog_is_the_source_order_and_upgrades_use_conquests_links() {
         let rules = crate::sim::civ3_unit_rules::all();
-        assert_eq!(UnitKind::ALL_NATIVE.len(), 92);
-        assert_eq!(rules.len(), UnitKind::ALL_NATIVE.len());
-        for (kind, rule) in UnitKind::ALL_NATIVE.iter().zip(rules) {
+        assert_eq!(UnitKind::count(), 92);
+        assert_eq!(rules.len(), UnitKind::count());
+        for (kind, rule) in UnitKind::all().zip(rules) {
             assert_eq!(kind.conquests_id(), Some(rule.id));
             assert_eq!(kind.name(), rule.name);
             assert_eq!(kind.stats().cost, rule.cost);
@@ -107,7 +107,7 @@ mod tests {
 
     #[test]
     fn source_technology_and_resource_requirements_resolve_for_the_full_roster() {
-        for kind in UnitKind::ALL_NATIVE {
+        for kind in UnitKind::all() {
             let rule = crate::sim::civ3_unit_rules::get(kind.conquests_id().unwrap()).unwrap();
             assert_eq!(kind.required_resources(), rule.resources(), "{kind:?}");
             assert_eq!(kind.required_tech(), rule.required_tech(), "{kind:?}");
@@ -132,26 +132,28 @@ mod tests {
 
     #[test]
     fn appended_civ3_units_keep_their_technology_and_resource_gates() {
-        use UnitKind::*;
-        assert_eq!(UnitKind::ALL_NATIVE.len(), 92);
+        assert_eq!(UnitKind::count(), 92);
         for (kind, name) in [
-            (Longbowman, "Invention"),
-            (Infantry, "Replaceable Parts"),
-            (ModernArmor, "Synthetic Fibers"),
-            (Privateer, "Magnetism"),
-            (JetFighter, "Rocketry"),
-            (NuclearSubmarine, "Fission"),
-            (ICBM, "Satellites"),
-            (TacticalNuke, "Space Flight"),
+            (UnitKind::Longbowman, "Invention"),
+            (UnitKind::Infantry, "Replaceable Parts"),
+            (UnitKind::ModernArmor, "Synthetic Fibers"),
+            (UnitKind::Privateer, "Magnetism"),
+            (UnitKind::JetFighter, "Rocketry"),
+            (UnitKind::NuclearSubmarine, "Fission"),
+            (UnitKind::ICBM, "Satellites"),
+            (UnitKind::TacticalNuke, "Space Flight"),
         ] {
             assert_eq!(kind.required_tech().unwrap().name(), name, "{kind:?}");
         }
-        assert!(Scout.required_tech().is_none());
-        assert_eq!(Privateer.required_resources().len(), 2);
-        assert_eq!(Infantry.required_resources(), vec![Resource::Rubber]);
-        assert_eq!(ModernArmor.required_resources().len(), 3);
+        assert!(UnitKind::Scout.required_tech().is_none());
+        assert_eq!(UnitKind::Privateer.required_resources().len(), 2);
         assert_eq!(
-            NuclearSubmarine.required_resources(),
+            UnitKind::Infantry.required_resources(),
+            vec![Resource::Rubber]
+        );
+        assert_eq!(UnitKind::ModernArmor.required_resources().len(), 3);
+        assert_eq!(
+            UnitKind::NuclearSubmarine.required_resources(),
             vec![Resource::Uranium]
         );
     }

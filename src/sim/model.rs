@@ -57,10 +57,10 @@ mod native_type_order_tests {
         assert!(!candidates.contains(&UnitKind::CruiseMissile));
         assert!(!candidates.contains(&UnitKind::Fighter));
         assert!(candidates.windows(2).all(|pair| {
-            UnitKind::ALL_NATIVE
+            UnitKind::all_slice()
                 .iter()
                 .position(|kind| *kind == pair[0])
-                < UnitKind::ALL_NATIVE
+                < UnitKind::all_slice()
                     .iter()
                     .position(|kind| *kind == pair[1])
         }));
@@ -107,11 +107,11 @@ mod native_type_order_tests {
         assert_eq!(UnitKind::Guerilla.stats().hp, UnitKind::Marine.stats().hp);
         assert_eq!(UnitKind::Marine.stats().cost, 120);
         assert_eq!(UnitKind::Guerilla.stats().cost, 90);
-        let marine_order = UnitKind::ALL_NATIVE
+        let marine_order = UnitKind::all_slice()
             .iter()
             .position(|kind| *kind == UnitKind::Marine)
             .unwrap();
-        let guerilla_order = UnitKind::ALL_NATIVE
+        let guerilla_order = UnitKind::all_slice()
             .iter()
             .position(|kind| *kind == UnitKind::Guerilla)
             .unwrap();

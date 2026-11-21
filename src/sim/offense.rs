@@ -259,8 +259,7 @@ impl Simulation {
         let mut build = None;
         let mut best_cost = i32::MAX;
         let mut best_tech = None;
-        for kind in UnitKind::ALL_NATIVE
-            .into_iter()
+        for kind in UnitKind::all()
             .rev()
             .filter(|kind| kind.has_ai_strategy(UnitAiStrategy::NavalTransport))
         {
@@ -547,7 +546,7 @@ impl Simulation {
             {
                 let key = (
                     boat.owner,
-                    boat.kind as usize,
+                    boat.kind.index(),
                     boat.x,
                     boat.y,
                     boat.moves_left,

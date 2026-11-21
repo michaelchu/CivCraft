@@ -470,7 +470,7 @@ impl Simulation {
                 let route_key = (
                     unit.x,
                     unit.y,
-                    unit.kind as usize,
+                    unit.kind.index(),
                     unit.moves_left,
                     move_rate,
                 );
@@ -503,7 +503,7 @@ impl Simulation {
                     continue;
                 };
                 let numerator = *gain_numerators
-                    .entry((unit.kind as usize, unit.hp, unit.veteran))
+                    .entry((unit.kind.index(), unit.hp, unit.veteran))
                     .or_insert_with(|| {
                         let mut stationed = unit.clone();
                         (stationed.x, stationed.y) = target;

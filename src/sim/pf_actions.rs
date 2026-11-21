@@ -211,7 +211,7 @@ impl Simulation {
             return PfAction::None;
         }
         let key = (
-            kind as usize,
+            kind.index(),
             owner,
             self.map_wrap.index(x, y),
             known,

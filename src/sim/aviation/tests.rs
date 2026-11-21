@@ -1219,7 +1219,7 @@ fn bombard_orders_use_each_campaign_units_full_range() {
     game.create_city(HUMAN, 0, 20);
     game.sign_pact(HUMAN, 1, Pact::War);
     let width = game.map_wrap.width();
-    for kind in UnitKind::ALL_NATIVE {
+    for kind in UnitKind::all() {
         let range = if kind.bombard_range() == 0 && kind.is_aircraft() {
             kind.operational_range()
         } else {

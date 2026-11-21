@@ -51,8 +51,7 @@ impl Simulation {
         // daisettler.c and daidomestic.c use the ruleset's Ferryboat role for
         // ordinary settlement trips. BarbarianBoat is a separate creation
         // role and must not qualify a unit for this production choice.
-        UnitKind::ALL_NATIVE
-            .into_iter()
+        UnitKind::all()
             .filter(|&kind| super::action_rules::freeciv_unit_has_role(kind, SETTLEMENT_FERRY_ROLE))
     }
 

@@ -3,322 +3,148 @@
 use crate::rules::Tech;
 use crate::sim::unit_catalog;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub(crate) enum UnitKind {
-    // Conquests campaign identities in source roster order.
-    Settler,
-    Worker,
-    Scout,
-    Explorer,
-    Marine,
-    ModernParatrooper,
-    Warrior,
-    Archer,
-    Spearman,
-    Swordsman,
-    Chariot,
-    Horseman,
-    Pikeman,
-    Longbowman,
-    Musketman,
-    Knight,
-    Rifleman,
-    Cavalry,
-    Infantry,
-    Tank,
-    MechInfantry,
-    ModernArmor,
-    Catapult,
-    Cannon,
-    Artillery,
-    RadarArtillery,
-    CruiseMissile,
-    TacticalNuke,
-    #[expect(
-        clippy::upper_case_acronyms,
-        reason = "Preserve the existing unit identity in saved games and diagnostic output."
-    )]
-    ICBM,
-    Galley,
-    Caravel,
-    Frigate,
-    Galleon,
-    Ironclad,
-    Transport,
-    Carrier,
-    Submarine,
-    Destroyer,
-    Battleship,
-    AegisCruiser,
-    NuclearSubmarine,
-    Fighter,
-    Bomber,
-    Helicopter,
-    JetFighter,
-    StealthFighter,
-    StealthBomber,
-    Leader,
-    Army,
-    JaguarWarrior,
-    Bowman,
-    Hoplite,
-    Impi,
-    Legionary,
-    Immortals,
-    WarChariot,
-    Rider,
-    MountedWarrior,
-    Musketeer,
-    Samurai,
-    WarElephant,
-    Cossack,
-    Panzer,
-    ManOWar,
-    F15,
-    Privateer,
-    Keshik,
-    Conquistador,
-    Berserk,
-    Sipahi,
-    GallicSwordsman,
-    AnsarWarrior,
-    NumidianMercenary,
-    Hwacha,
-    MedievalInfantry,
-    Guerilla,
-    EnkiduWarrior,
-    ThreeManChariot,
-    Carrack,
-    SwissMercenary,
-    Trebuchet,
-    ChasquiScout,
-    JavelinThrower,
-    Dromon,
-    Cruiser,
-    Crusader,
-    AncientCavalry,
-    Curragh,
-    Paratrooper,
-    TOWInfantry,
-    Flak,
-    MobileSAM,
-}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+pub(crate) struct UnitKind(pub(crate) usize);
 
+#[allow(dead_code, non_upper_case_globals)]
 impl UnitKind {
-    /// Matching source identity for units shared with the Conquests roster.
-    /// Legacy-only identities intentionally have no match and are not granted
-    /// campaign availability by the source rules table.
+    // Conquests campaign identities in `content/units.toml` order.
+    pub(crate) const Settler: Self = Self(0);
+    pub(crate) const Worker: Self = Self(1);
+    pub(crate) const Scout: Self = Self(2);
+    pub(crate) const Explorer: Self = Self(3);
+    pub(crate) const Marine: Self = Self(4);
+    pub(crate) const ModernParatrooper: Self = Self(5);
+    pub(crate) const Warrior: Self = Self(6);
+    pub(crate) const Archer: Self = Self(7);
+    pub(crate) const Spearman: Self = Self(8);
+    pub(crate) const Swordsman: Self = Self(9);
+    pub(crate) const Chariot: Self = Self(10);
+    pub(crate) const Horseman: Self = Self(11);
+    pub(crate) const Pikeman: Self = Self(12);
+    pub(crate) const Longbowman: Self = Self(13);
+    pub(crate) const Musketman: Self = Self(14);
+    pub(crate) const Knight: Self = Self(15);
+    pub(crate) const Rifleman: Self = Self(16);
+    pub(crate) const Cavalry: Self = Self(17);
+    pub(crate) const Infantry: Self = Self(18);
+    pub(crate) const Tank: Self = Self(19);
+    pub(crate) const MechInfantry: Self = Self(20);
+    pub(crate) const ModernArmor: Self = Self(21);
+    pub(crate) const Catapult: Self = Self(22);
+    pub(crate) const Cannon: Self = Self(23);
+    pub(crate) const Artillery: Self = Self(24);
+    pub(crate) const RadarArtillery: Self = Self(25);
+    pub(crate) const CruiseMissile: Self = Self(26);
+    pub(crate) const TacticalNuke: Self = Self(27);
+    pub(crate) const ICBM: Self = Self(28);
+    pub(crate) const Galley: Self = Self(29);
+    pub(crate) const Caravel: Self = Self(30);
+    pub(crate) const Frigate: Self = Self(31);
+    pub(crate) const Galleon: Self = Self(32);
+    pub(crate) const Ironclad: Self = Self(33);
+    pub(crate) const Transport: Self = Self(34);
+    pub(crate) const Carrier: Self = Self(35);
+    pub(crate) const Submarine: Self = Self(36);
+    pub(crate) const Destroyer: Self = Self(37);
+    pub(crate) const Battleship: Self = Self(38);
+    pub(crate) const AegisCruiser: Self = Self(39);
+    pub(crate) const NuclearSubmarine: Self = Self(40);
+    pub(crate) const Fighter: Self = Self(41);
+    pub(crate) const Bomber: Self = Self(42);
+    pub(crate) const Helicopter: Self = Self(43);
+    pub(crate) const JetFighter: Self = Self(44);
+    pub(crate) const StealthFighter: Self = Self(45);
+    pub(crate) const StealthBomber: Self = Self(46);
+    pub(crate) const Leader: Self = Self(47);
+    pub(crate) const Army: Self = Self(48);
+    pub(crate) const JaguarWarrior: Self = Self(49);
+    pub(crate) const Bowman: Self = Self(50);
+    pub(crate) const Hoplite: Self = Self(51);
+    pub(crate) const Impi: Self = Self(52);
+    pub(crate) const Legionary: Self = Self(53);
+    pub(crate) const Immortals: Self = Self(54);
+    pub(crate) const WarChariot: Self = Self(55);
+    pub(crate) const Rider: Self = Self(56);
+    pub(crate) const MountedWarrior: Self = Self(57);
+    pub(crate) const Musketeer: Self = Self(58);
+    pub(crate) const Samurai: Self = Self(59);
+    pub(crate) const WarElephant: Self = Self(60);
+    pub(crate) const Cossack: Self = Self(61);
+    pub(crate) const Panzer: Self = Self(62);
+    pub(crate) const ManOWar: Self = Self(63);
+    pub(crate) const F15: Self = Self(64);
+    pub(crate) const Privateer: Self = Self(65);
+    pub(crate) const Keshik: Self = Self(66);
+    pub(crate) const Conquistador: Self = Self(67);
+    pub(crate) const Berserk: Self = Self(68);
+    pub(crate) const Sipahi: Self = Self(69);
+    pub(crate) const GallicSwordsman: Self = Self(70);
+    pub(crate) const AnsarWarrior: Self = Self(71);
+    pub(crate) const NumidianMercenary: Self = Self(72);
+    pub(crate) const Hwacha: Self = Self(73);
+    pub(crate) const MedievalInfantry: Self = Self(74);
+    pub(crate) const Guerilla: Self = Self(75);
+    pub(crate) const EnkiduWarrior: Self = Self(76);
+    pub(crate) const ThreeManChariot: Self = Self(77);
+    pub(crate) const Carrack: Self = Self(78);
+    pub(crate) const SwissMercenary: Self = Self(79);
+    pub(crate) const Trebuchet: Self = Self(80);
+    pub(crate) const ChasquiScout: Self = Self(81);
+    pub(crate) const JavelinThrower: Self = Self(82);
+    pub(crate) const Dromon: Self = Self(83);
+    pub(crate) const Cruiser: Self = Self(84);
+    pub(crate) const Crusader: Self = Self(85);
+    pub(crate) const AncientCavalry: Self = Self(86);
+    pub(crate) const Curragh: Self = Self(87);
+    pub(crate) const Paratrooper: Self = Self(88);
+    pub(crate) const TOWInfantry: Self = Self(89);
+    pub(crate) const Flak: Self = Self(90);
+    pub(crate) const MobileSAM: Self = Self(91);
+
+    pub(crate) const fn index(self) -> usize {
+        self.0
+    }
+
+    pub(crate) fn count() -> usize {
+        crate::rules::native::units().units.len()
+    }
+
+    pub(crate) fn all() -> impl DoubleEndedIterator<Item = Self> + ExactSizeIterator {
+        (0..Self::count()).map(Self)
+    }
+
+    pub(crate) fn all_slice() -> &'static [Self] {
+        static ALL: std::sync::OnceLock<Vec<UnitKind>> = std::sync::OnceLock::new();
+        ALL.get_or_init(|| Self::all().collect())
+    }
+
+    /// Matching source identity in `content/units.toml`.
     pub(crate) fn conquests_id(self) -> Option<&'static str> {
-        Some(match self {
-            Self::Settler => "settler",
-            Self::Worker => "worker",
-            Self::Explorer => "explorer",
-            Self::Warrior => "warrior",
-            Self::Archer => "archer",
-            Self::Horseman => "horseman",
-            Self::Chariot => "chariot",
-            Self::Catapult => "catapult",
-            Self::Musketman => "musketman",
-            Self::Marine => "marine",
-            Self::Knight => "knight",
-            Self::Cannon => "cannon",
-            Self::Bomber => "bomber",
-            Self::Fighter => "fighter",
-            Self::StealthFighter => "stealth_fighter",
-            Self::StealthBomber => "stealth_bomber",
-            Self::Helicopter => "helicopter",
-            Self::Galley => "galley",
-            Self::Caravel => "caravel",
-            Self::Galleon => "galleon",
-            Self::Transport => "transport",
-            Self::Carrier => "carrier",
-            Self::Frigate => "frigate",
-            Self::Ironclad => "ironclad",
-            Self::Destroyer => "destroyer",
-            Self::Cruiser => "cruiser",
-            Self::Battleship => "battleship",
-            Self::Submarine => "submarine",
-            Self::AegisCruiser => "aegis_cruiser",
-            Self::CruiseMissile => "cruise_missile",
-            Self::Paratrooper => "paratrooper",
-            Self::Pikeman => "pikeman",
-            Self::Rifleman => "rifleman",
-            Self::Cavalry => "cavalry",
-            Self::Tank => "tank",
-            Self::Artillery => "artillery",
-            Self::MechInfantry => "mech_infantry",
-            Self::Longbowman => "longbowman",
-            Self::Infantry => "infantry",
-            Self::ModernArmor => "modern_armor",
-            Self::Privateer => "privateer",
-            Self::JetFighter => "jet_fighter",
-            Self::NuclearSubmarine => "nuclear_submarine",
-            Self::ICBM => "icbm",
-            Self::TacticalNuke => "tactical_nuke",
-            Self::Crusader => "crusader",
-            Self::Leader => "leader",
-            Self::Scout => "scout",
-            Self::Guerilla => "guerilla",
-            Self::WarElephant => "war_elephant",
-            Self::ModernParatrooper => "modern_paratrooper",
-            Self::Spearman => "spearman",
-            Self::Swordsman => "swordsman",
-            Self::RadarArtillery => "radar_artillery",
-            Self::Army => "army",
-            Self::JaguarWarrior => "jaguar_warrior",
-            Self::Bowman => "bowman",
-            Self::Hoplite => "hoplite",
-            Self::Impi => "impi",
-            Self::Legionary => "legionary",
-            Self::Immortals => "immortals",
-            Self::WarChariot => "war_chariot",
-            Self::Rider => "rider",
-            Self::MountedWarrior => "mounted_warrior",
-            Self::Musketeer => "musketeer",
-            Self::Samurai => "samurai",
-            Self::Cossack => "cossack",
-            Self::Panzer => "panzer",
-            Self::ManOWar => "man_o_war",
-            Self::F15 => "f_15",
-            Self::Keshik => "keshik",
-            Self::Conquistador => "conquistador",
-            Self::Berserk => "berserk",
-            Self::Sipahi => "sipahi",
-            Self::GallicSwordsman => "gallic_swordsman",
-            Self::AnsarWarrior => "ansar_warrior",
-            Self::NumidianMercenary => "numidian_mercenary",
-            Self::Hwacha => "hwach_a",
-            Self::MedievalInfantry => "medieval_infantry",
-            Self::EnkiduWarrior => "enkidu_warrior",
-            Self::ThreeManChariot => "three_man_chariot",
-            Self::Carrack => "carrack",
-            Self::SwissMercenary => "swiss_mercenary",
-            Self::Trebuchet => "trebuchet",
-            Self::ChasquiScout => "chasqui_scout",
-            Self::JavelinThrower => "javelin_thrower",
-            Self::Dromon => "dromon",
-            Self::AncientCavalry => "ancient_cavalry",
-            Self::Curragh => "curragh",
-            Self::TOWInfantry => "tow_infantry",
-            Self::Flak => "flak",
-            Self::MobileSAM => "mobile_sam",
-        })
+        crate::rules::native::units()
+            .units
+            .get(self.0)
+            .map(|unit| unit.id.as_str())
     }
 
     pub(crate) fn from_civ3_name(name: &str) -> Option<Self> {
-        Some(match name {
-            "Settler" => Self::Settler,
-            "Worker" => Self::Worker,
-            "Scout" => Self::Scout,
-            "Chasqui Scout" => Self::ChasquiScout,
-            _ => return None,
-        })
+        crate::rules::native::units()
+            .units
+            .iter()
+            .position(|unit| unit.name == name)
+            .map(Self)
     }
 
     pub(crate) fn from_conquests_id(id: &str) -> Option<Self> {
-        Self::ALL_NATIVE
-            .into_iter()
-            .find(|kind| kind.conquests_id() == Some(id))
+        crate::rules::native::units()
+            .units
+            .iter()
+            .position(|unit| unit.id == id)
+            .map(Self)
     }
 
-    // Conquests campaign iteration follows source roster order.
-    pub(crate) const ALL_NATIVE: [Self; 92] = [
-        Self::Settler,
-        Self::Worker,
-        Self::Scout,
-        Self::Explorer,
-        Self::Marine,
-        Self::ModernParatrooper,
-        Self::Warrior,
-        Self::Archer,
-        Self::Spearman,
-        Self::Swordsman,
-        Self::Chariot,
-        Self::Horseman,
-        Self::Pikeman,
-        Self::Longbowman,
-        Self::Musketman,
-        Self::Knight,
-        Self::Rifleman,
-        Self::Cavalry,
-        Self::Infantry,
-        Self::Tank,
-        Self::MechInfantry,
-        Self::ModernArmor,
-        Self::Catapult,
-        Self::Cannon,
-        Self::Artillery,
-        Self::RadarArtillery,
-        Self::CruiseMissile,
-        Self::TacticalNuke,
-        Self::ICBM,
-        Self::Galley,
-        Self::Caravel,
-        Self::Frigate,
-        Self::Galleon,
-        Self::Ironclad,
-        Self::Transport,
-        Self::Carrier,
-        Self::Submarine,
-        Self::Destroyer,
-        Self::Battleship,
-        Self::AegisCruiser,
-        Self::NuclearSubmarine,
-        Self::Fighter,
-        Self::Bomber,
-        Self::Helicopter,
-        Self::JetFighter,
-        Self::StealthFighter,
-        Self::StealthBomber,
-        Self::Leader,
-        Self::Army,
-        Self::JaguarWarrior,
-        Self::Bowman,
-        Self::Hoplite,
-        Self::Impi,
-        Self::Legionary,
-        Self::Immortals,
-        Self::WarChariot,
-        Self::Rider,
-        Self::MountedWarrior,
-        Self::Musketeer,
-        Self::Samurai,
-        Self::WarElephant,
-        Self::Cossack,
-        Self::Panzer,
-        Self::ManOWar,
-        Self::F15,
-        Self::Privateer,
-        Self::Keshik,
-        Self::Conquistador,
-        Self::Berserk,
-        Self::Sipahi,
-        Self::GallicSwordsman,
-        Self::AnsarWarrior,
-        Self::NumidianMercenary,
-        Self::Hwacha,
-        Self::MedievalInfantry,
-        Self::Guerilla,
-        Self::EnkiduWarrior,
-        Self::ThreeManChariot,
-        Self::Carrack,
-        Self::SwissMercenary,
-        Self::Trebuchet,
-        Self::ChasquiScout,
-        Self::JavelinThrower,
-        Self::Dromon,
-        Self::Cruiser,
-        Self::Crusader,
-        Self::AncientCavalry,
-        Self::Curragh,
-        Self::Paratrooper,
-        Self::TOWInfantry,
-        Self::Flak,
-        Self::MobileSAM,
-    ];
     pub(in crate::sim) fn simple_military() -> Vec<Self> {
-        Self::ALL_NATIVE
-            .into_iter()
+        Self::all()
             .filter(|kind| {
                 let class = kind.unit_class();
                 *kind != Self::Army
@@ -393,15 +219,15 @@ impl UnitKind {
     }
 
     pub(in crate::sim) fn is_missile(self) -> bool {
-        matches!(self, Self::CruiseMissile | Self::ICBM | Self::TacticalNuke)
+        self.unit_class() == unit_catalog::UnitClass::Missile
     }
 
     pub(crate) fn is_nuclear_weapon(self) -> bool {
-        matches!(self, Self::ICBM | Self::TacticalNuke)
+        self.has_flag(unit_catalog::UnitFlag::Nuclear)
     }
 
     pub(crate) fn is_aircraft(self) -> bool {
-        self.fuel_capacity() > 0 || self == Self::Helicopter
+        self.fuel_capacity() > 0 || self.unit_class() == unit_catalog::UnitClass::Helicopter
     }
 
     pub(in crate::sim) fn can_attack_aircraft(self) -> bool {

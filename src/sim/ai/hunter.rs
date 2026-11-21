@@ -181,9 +181,7 @@ impl Simulation {
         // The installed standard Conquests roster has no GameLoss-flagged
         // prototype. A Leader is not a king and must not get the scenario-only
         // GameLoss value. Retain ordinary hostile-unit valuation here.
-        let gameloss = UnitKind::ALL_NATIVE
-            .into_iter()
-            .all(|kind| !kind.has_flag(UnitFlag::GameLoss))
+        let gameloss = UnitKind::all().all(|kind| !kind.has_flag(UnitFlag::GameLoss))
             && !target.kind.has_flag(UnitFlag::GameLoss)
             && cost == stats.cost
             && threat

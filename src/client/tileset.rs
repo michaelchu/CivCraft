@@ -558,10 +558,12 @@ fn load_campaign_unit_ini_paths_with_resolver(
                 .or_insert_with(|| ini.to_string_lossy().into_owned());
         }
     }
-    if identities != 92 {
-        return Err(
-            format!("expected 92 campaign units when loading art, got {identities}").into(),
-        );
+    let expected_units = crate::rules::native::units().units.len();
+    if identities != expected_units {
+        return Err(format!(
+            "expected {expected_units} campaign units when loading art, got {identities}"
+        )
+        .into());
     }
     Ok(())
 }

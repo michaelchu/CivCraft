@@ -124,10 +124,7 @@ impl Simulation {
         let mut best = None;
         let mut best_value = 0.0;
         let mut max_output: Option<i32> = None;
-        for kind in UnitKind::ALL_NATIVE
-            .into_iter()
-            .filter(|kind| kind.fuel_capacity() > 0)
-        {
+        for kind in UnitKind::all().filter(|kind| kind.fuel_capacity() > 0) {
             // Fuelled aircraft refuel at cities/airbases every turn, so do not
             // reject them for the Air class's field hp_loss_percent.
             if !self.unit_buildable(city, kind) {

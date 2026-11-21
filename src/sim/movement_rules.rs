@@ -53,9 +53,9 @@ impl<'a> MovementRules<'a> {
         kind: UnitKind,
     ) -> &'static (UnitClass, UnitClassMovementData) {
         type UnitMovement = (UnitClass, UnitClassMovementData);
-        static UNITS: [OnceLock<UnitMovement>; UnitKind::ALL_NATIVE.len()] =
-            [const { OnceLock::new() }; UnitKind::ALL_NATIVE.len()];
-        UNITS[kind as usize].get_or_init(|| {
+        static UNITS: OnceLock<Vec<OnceLock<UnitMovement>>> = OnceLock::new();
+        let slots = UNITS.get_or_init(|| (0..UnitKind::count()).map(|_| OnceLock::new()).collect());
+        slots[kind.index()].get_or_init(|| {
             let class = Self::campaign()
                 .unit_class_for_kind(kind)
                 .expect("campaign C2C3 unit class binding");
@@ -1737,7 +1737,7 @@ mod tests {
         let adapter = MovementRules::new(rules);
         let fragments = adapter.move_fragments().unwrap();
         let igter_cost = adapter.igter_cost().unwrap();
-        for kind in UnitKind::ALL_NATIVE {
+        for kind in UnitKind::all() {
             let class = adapter.unit_class_for_kind(kind).unwrap();
             let class_name = class.rule_name();
             let class_record = rules
@@ -1796,7 +1796,7 @@ mod tests {
     #[test]
     fn unit_classes_come_directly_from_native_prto() {
         let rules = MovementRules::campaign();
-        for kind in UnitKind::ALL_NATIVE {
+        for kind in UnitKind::all() {
             assert_eq!(rules.unit_class_for_kind(kind).unwrap(), kind.unit_class());
         }
     }
@@ -1997,7 +1997,7 @@ mod tests {
     #[test]
     fn unit_igzoc_comes_from_selected_c2c3_unit_type_flags() {
         let adapter = MovementRules::campaign();
-        for kind in UnitKind::ALL_NATIVE {
+        for kind in UnitKind::all() {
             let adapted = adapter.unit_movement_data(kind).unwrap();
             assert_eq!(
                 adapted.class,

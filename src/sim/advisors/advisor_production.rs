@@ -231,8 +231,7 @@ impl Simulation {
         // role units backwards and returns the first buildable type. CivCraft
         // maps the source worker flag from the Civ III catalog and uses its
         // source roster order for that walk, which selects the dedicated Worker.
-        let kind = UnitKind::ALL_NATIVE
-            .into_iter()
+        let kind = UnitKind::all()
             .rev()
             .find(|&kind| kind.is_worker() && self.unit_buildable(city, kind))?;
         if kind.stats().pop_cost >= city.size {
@@ -773,8 +772,7 @@ impl Simulation {
                 }
             {
                 let kind = if self.war_muster_has_garrison(city) {
-                    UnitKind::ALL_NATIVE
-                        .into_iter()
+                    UnitKind::all()
                         .filter(|&kind| {
                             Self::can_join_ground_offensive(kind) && self.unit_buildable(city, kind)
                         })

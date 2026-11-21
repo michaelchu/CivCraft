@@ -436,7 +436,7 @@ mod tests {
         game.units.clear();
         game.cities.clear();
         game.players[HUMAN].government = Government::DEMOCRACY;
-        for kind in UnitKind::ALL_NATIVE {
+        for kind in UnitKind::all() {
             game.spawn_unit(HUMAN, kind, 10, 10);
         }
         let paid = game.national_unit_gold_upkeep(HUMAN).paid;

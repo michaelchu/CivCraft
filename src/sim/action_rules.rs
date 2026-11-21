@@ -2267,7 +2267,7 @@ mod tests {
 
     #[test]
     fn unit_valuation_uses_conquests_production_costs() {
-        for unit in UnitKind::ALL_NATIVE {
+        for unit in UnitKind::all() {
             let source = crate::rules::native::units()
                 .units
                 .iter()
@@ -3114,7 +3114,7 @@ mod tests {
 
     #[test]
     fn native_capabilities_cover_every_source_identity() {
-        for kind in UnitKind::ALL_NATIVE {
+        for kind in UnitKind::all() {
             let native = native_unit_capabilities(kind).unwrap();
             assert_eq!(Some(native.id), kind.conquests_id());
             assert!(native.class_flags.iter().all(|flag| !flag.is_empty()));
@@ -3215,7 +3215,7 @@ mod tests {
     #[test]
     fn transport_capacity_and_restrictions_come_from_native_prto() {
         let game = flat_game();
-        for kind in UnitKind::ALL_NATIVE {
+        for kind in UnitKind::all() {
             assert_eq!(
                 game.ruleset_transport_capacity(kind).unwrap(),
                 kind.transport_capacity()

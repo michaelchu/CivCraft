@@ -43,8 +43,8 @@ mod unit_art_role_tests {
 
     #[test]
     fn all_active_conquests_identities_have_their_source_art_roles() {
-        assert_eq!(UnitKind::ALL_NATIVE.len(), 92);
-        for kind in UnitKind::ALL_NATIVE {
+        assert_eq!(UnitKind::count(), 92);
+        for kind in UnitKind::all() {
             let id = kind.conquests_id().expect("active unit needs a source id");
             assert_eq!(
                 unit_art_role(kind),

@@ -34,8 +34,7 @@ fn lost_worker_assignment_is_replaced_using_production_yields() {
 }
 
 fn kill_citizen_unit_kind() -> UnitKind {
-    UnitKind::ALL_NATIVE
-        .into_iter()
+    UnitKind::all()
         .find(|&kind| {
             crate::sim::movement_rules::MovementRules::campaign()
                 .unit_class_movement_data_for_kind(kind)

@@ -7,8 +7,7 @@ use std::sync::OnceLock;
 fn selected_veteran_systems() -> &'static [(UnitKind, VeteranSystem)] {
     static SYSTEMS: OnceLock<Vec<(UnitKind, VeteranSystem)>> = OnceLock::new();
     SYSTEMS.get_or_init(|| {
-        UnitKind::ALL_NATIVE
-            .into_iter()
+        UnitKind::all()
             .map(|kind| {
                 let levels = crate::rules::native::experience()
                     .levels

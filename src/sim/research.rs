@@ -20,8 +20,7 @@ pub(super) fn campaign_research_settings() -> &'static ResearchRulesetSettings {
 
 impl Simulation {
     pub(crate) fn research_unit_unlocks(tech: Tech) -> Vec<&'static str> {
-        UnitKind::ALL_NATIVE
-            .into_iter()
+        UnitKind::all()
             .filter(|kind| !kind.has_no_build() && kind.required_tech() == Some(tech))
             .map(UnitKind::name)
             .collect()

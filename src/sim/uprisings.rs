@@ -31,8 +31,7 @@ impl Simulation {
     /// does not duplicate the same barbarian choice. The native TOML is the
     /// only source for barbarian archetypes.
     fn barbarian_role_units(&self, role: &str) -> Vec<BarbarianRoleUnit> {
-        UnitKind::ALL_NATIVE
-            .into_iter()
+        UnitKind::all()
             .filter(|&kind| super::native_unit_rules::has_role(kind, role))
             .map(|runtime_kind| BarbarianRoleUnit { runtime_kind })
             .collect()

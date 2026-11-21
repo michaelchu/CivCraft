@@ -106,7 +106,7 @@ impl Simulation {
     }
 
     fn military_technology(&self, tech: Tech) -> bool {
-        UnitKind::ALL_NATIVE.iter().any(|&kind| {
+        UnitKind::all_slice().iter().any(|&kind| {
             kind.required_tech() == Some(tech)
                 && (kind.stats().attack >= policy().military_minimum_power
                     || kind.stats().defense >= policy().military_minimum_power

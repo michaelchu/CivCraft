@@ -922,8 +922,8 @@ mod tests {
                     continue;
                 }
                 sim.create_city(n % players, x, y);
-                sim.spawn_unit(n % players, UnitKind::ALL_NATIVE[n % 20], x, y);
-                sim.spawn_unit(n % players, UnitKind::ALL_NATIVE[(n + 7) % 20], x + 1, y);
+                sim.spawn_unit(n % players, UnitKind::all_slice()[n % 20], x, y);
+                sim.spawn_unit(n % players, UnitKind::all_slice()[(n + 7) % 20], x + 1, y);
                 n += 1;
             }
         }

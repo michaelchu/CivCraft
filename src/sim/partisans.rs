@@ -51,8 +51,7 @@ fn city_has_partisan_local_support(
 fn selected_partisan_unit() -> UnitKind {
     static UNIT: std::sync::OnceLock<UnitKind> = std::sync::OnceLock::new();
     *UNIT.get_or_init(|| {
-        let candidates = UnitKind::ALL_NATIVE
-            .into_iter()
+        let candidates = UnitKind::all()
             .filter(|&kind| super::native_unit_rules::has_role(kind, "Partisan"))
             .collect::<Vec<_>>();
         assert_eq!(

@@ -5,7 +5,7 @@ use super::*;
 impl Simulation {
     pub(crate) fn native_unit_catalog_test(&self) -> (bool, bool, bool) {
         let rules = crate::sim::civ3_unit_rules::all();
-        let roster = UnitKind::ALL_NATIVE;
+        let roster = UnitKind::all_slice();
         let source_matches = roster.iter().zip(rules).all(|(kind, rule)| {
             kind.conquests_id() == Some(rule.id) && kind.name() == rule.name && {
                 let stats = kind.stats();

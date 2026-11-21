@@ -116,22 +116,22 @@ struct RuntimeUnit {
 
 impl UnitKind {
     fn runtime_unit(self) -> &'static RuntimeUnit {
-        static UNITS: OnceLock<[RuntimeUnit; UnitKind::ALL_NATIVE.len()]> = OnceLock::new();
+        static UNITS: OnceLock<Vec<RuntimeUnit>> = OnceLock::new();
         &UNITS.get_or_init(|| {
-            std::array::from_fn(|index| {
-                let kind = UnitKind::ALL_NATIVE[index];
-                assert_eq!(kind as usize, index, "campaign unit IDs are out of order");
-                let rule = super::civ3_unit_rules::get(
-                    kind.conquests_id()
-                        .expect("campaign unit must have a Conquests identity"),
-                )
-                .expect("campaign unit must have an editable Conquests rule");
-                RuntimeUnit {
-                    rule,
-                    metadata: rule.metadata(),
-                }
-            })
-        })[self as usize]
+            UnitKind::all()
+                .map(|kind| {
+                    let rule = super::civ3_unit_rules::get(
+                        kind.conquests_id()
+                            .expect("campaign unit must have a Conquests identity"),
+                    )
+                    .expect("campaign unit must have an editable Conquests rule");
+                    RuntimeUnit {
+                        rule,
+                        metadata: rule.metadata(),
+                    }
+                })
+                .collect()
+        })[self.index()]
     }
 
     pub(super) fn conquests_rule(self) -> &'static super::civ3_unit_rules::UnitRule {

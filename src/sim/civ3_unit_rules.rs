@@ -351,10 +351,9 @@ fn rules() -> &'static [UnitRule] {
                 replaces,
             });
         }
-        assert_eq!(
-            parsed.len(),
-            92,
-            "Conquests campaign roster coverage changed"
+        assert!(
+            !parsed.is_empty(),
+            "Conquests campaign roster must not be empty"
         );
         parsed
     })

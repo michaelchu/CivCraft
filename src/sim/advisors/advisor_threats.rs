@@ -171,7 +171,7 @@ impl Simulation {
             let goal = self.map_wrap.index(city.x, city.y);
             let key = DangerRouteKey {
                 owner: unit.owner,
-                kind: unit.kind as usize,
+                kind: unit.kind.index(),
                 start: self.map_wrap.index(unit.x, unit.y),
                 allowance,
             };
@@ -577,7 +577,7 @@ impl Simulation {
             let turns = if unit.transport.is_none() && !self.advisor_cache.threats().enabled() {
                 let profile = (
                     unit.owner,
-                    unit.kind as usize,
+                    unit.kind.index(),
                     unit.x,
                     unit.y,
                     self.unit_move_rate(unit),

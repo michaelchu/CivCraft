@@ -15,12 +15,7 @@ pub(super) struct UnitCapabilities {
 pub(super) fn get(kind: UnitKind) -> &'static UnitCapabilities {
     static RULES: OnceLock<Vec<(UnitKind, UnitCapabilities)>> = OnceLock::new();
     &RULES
-        .get_or_init(|| {
-            UnitKind::ALL_NATIVE
-                .into_iter()
-                .map(|kind| (kind, derive(kind)))
-                .collect()
-        })
+        .get_or_init(|| UnitKind::all().map(|kind| (kind, derive(kind))).collect())
         .iter()
         .find(|(candidate, _)| *candidate == kind)
         .expect("native unit capabilities")

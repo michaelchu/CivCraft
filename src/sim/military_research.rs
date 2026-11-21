@@ -49,7 +49,7 @@ impl Simulation {
         attacker: UnitKind,
         want: i32,
     ) -> Option<(Tech, i32)> {
-        let cache_key = (city.id, attacker as usize);
+        let cache_key = (city.id, attacker.index());
         self.trace.count_operation("counter_defender.calls", 1);
         let cache_enabled = self.advisor_cache.active();
         if cache_enabled && let Some(goal) = self.advisor_cache.memos().counter_defender(cache_key)
@@ -63,8 +63,7 @@ impl Simulation {
         // The native function queries Defend_Bonus using ATTACKER type as
         // the primary type context, deliberately not a virtual defender.
         let bonus = 100 + self.advisor_city_defend_bonus(city, attacker);
-        let candidates: Vec<_> = UnitKind::ALL_NATIVE
-            .into_iter()
+        let candidates: Vec<_> = UnitKind::all()
             .map(|kind| {
                 // These are ALL combat-bonus rows in the bundled ruleset. There
                 // are no ScramblesPct/DefenseDivider rows, so their coefficients

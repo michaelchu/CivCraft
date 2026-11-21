@@ -367,7 +367,7 @@ fn observed_map_round_trips_and_rejects_corrupt_owners() {
 #[test]
 fn unit_sight_comes_from_native_radar_flags() {
     let ruleset = RulesetData::campaign_default();
-    for kind in UnitKind::ALL_NATIVE {
+    for kind in UnitKind::all() {
         let radar = kind.conquests_rule().has_capability("Radar");
         assert_eq!(
             ruleset_unit_vision_radius_sq(ruleset, kind),

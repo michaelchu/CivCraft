@@ -1249,7 +1249,7 @@ mod tests {
 
     #[test]
     fn selected_c2c3_roster_has_no_never_protects_exception_units() {
-        assert!(UnitKind::ALL_NATIVE.into_iter().all(|kind| {
+        assert!(UnitKind::all().all(|kind| {
             crate::sim::action_rules::freeciv_unit_type_flag(kind, "NeverProtects") == Some(false)
         }));
     }

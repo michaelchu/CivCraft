@@ -171,7 +171,7 @@ impl UnitAnimationPacing {
                     ));
                 }
             }
-            if !UnitKind::ALL_NATIVE.iter().any(|kind| {
+            if !UnitKind::all_slice().iter().any(|kind| {
                 kind.conquests_id()
                     .is_some_and(|id| id.eq_ignore_ascii_case(unit))
             }) {
