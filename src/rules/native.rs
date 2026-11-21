@@ -130,11 +130,7 @@ pub(crate) struct TechnologyCatalog {
     pub(crate) technologies: Vec<NativeTechnology>,
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub(crate) struct GovernmentCatalog {
-    pub(crate) schema_version: u32,
-    pub(crate) source: String,
     pub(crate) governments: Vec<NativeGovernment>,
 }
 
@@ -146,18 +142,12 @@ impl GovernmentCatalog {
     }
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub(crate) struct NativeGovernment {
     pub(crate) government: String,
     pub(crate) name: String,
-    #[serde(default)]
     pub(crate) required_technology: String,
-    #[serde(skip)]
     pub(crate) technology: Option<super::Tech>,
-    #[serde(default)]
     pub(crate) preferred_government: Option<String>,
-    #[serde(default)]
     pub(crate) flags: Vec<String>,
     pub(crate) town_free_units: i32,
     pub(crate) city_free_units: i32,
@@ -631,13 +621,7 @@ pub(crate) fn strategy() -> &'static StrategyCatalog {
 
 pub(crate) fn diplomacy() -> &'static DiplomacyCatalog {
     static CATALOG: OnceLock<DiplomacyCatalog> = OnceLock::new();
-    CATALOG.get_or_init(|| {
-        super::policies::parse_diplomacy(
-            include_str!("../../data/rulesets/civcraft/content/diplomacy.toml"),
-            technologies(),
-        )
-        .unwrap_or_else(|error| panic!("invalid native diplomacy policy: {error}"))
-    })
+    CATALOG.get_or_init(super::policies::default_diplomacy)
 }
 
 pub(crate) fn vassalage() -> &'static VassalageCatalog {
@@ -668,12 +652,10 @@ pub(crate) struct ContentRuleset {
     pub(crate) civilizations: CivilizationCatalog,
     pub(crate) buildings: BuildingCatalog,
     pub(crate) technologies: TechnologyCatalog,
-    pub(crate) governments: GovernmentCatalog,
     pub(crate) economy: EconomyCatalog,
     pub(crate) settlements: SettlementCatalog,
     pub(crate) experience: ExperienceCatalog,
     pub(crate) strategy: StrategyCatalog,
-    pub(crate) diplomacy: DiplomacyCatalog,
     pub(crate) vassalage: VassalageCatalog,
     pub(crate) religion: ReligionCatalog,
 }
@@ -688,14 +670,12 @@ impl ContentRuleset {
         let units = parse_units(&read("units.toml")?, &technologies)?;
         let civilizations = parse_civilizations(&read("civilizations.toml")?)?;
         let buildings = parse_buildings(&read("buildings.toml")?, &technologies)?;
-        let governments = parse_governments(&read("governments.toml")?, &technologies)?;
         let economy: EconomyCatalog =
             toml::from_str(&read("economy.toml")?).map_err(|error| error.to_string())?;
         let settlements = parse_settlements(&read("settlements.toml")?, &units)?;
         let experience: ExperienceCatalog =
             toml::from_str(&read("experience_levels.toml")?).map_err(|error| error.to_string())?;
         let strategy = super::policies::parse_strategy(&read("strategy.toml")?)?;
-        let diplomacy = super::policies::parse_diplomacy(&read("diplomacy.toml")?, &technologies)?;
         let vassalage = super::policies::parse_vassalage(&read("vassalage.toml")?, &technologies)?;
         let religion = super::policies::parse_religion(&read("religion.toml")?, &technologies)?;
         Ok(Self {
@@ -703,54 +683,112 @@ impl ContentRuleset {
             civilizations,
             buildings,
             technologies,
-            governments,
             economy,
             settlements,
             experience,
             strategy,
-            diplomacy,
             vassalage,
             religion,
         })
     }
 }
 
-fn parse_governments(
-    source: &str,
-    technologies: &TechnologyCatalog,
-) -> Result<GovernmentCatalog, String> {
-    let mut catalog: GovernmentCatalog =
-        toml::from_str(source).map_err(|error| error.to_string())?;
-    validate_ids(
-        catalog.governments.iter().map(|g| g.government.as_str()),
-        "government",
-    )?;
-    for government in &mut catalog.governments {
-        if !government.required_technology.is_empty() {
-            let index = super::technologies::runtime_index_in(
-                technologies,
-                &government.required_technology,
-            )
-            .ok_or_else(|| {
-                format!(
-                    "government {:?} requires unknown technology ID {:?}",
-                    government.government, government.required_technology
-                )
-            })?;
-            government.technology = Some(super::Tech(index));
-        }
-    }
-    Ok(catalog)
-}
-
 pub(crate) fn governments() -> &'static GovernmentCatalog {
     static CATALOG: OnceLock<GovernmentCatalog> = OnceLock::new();
     CATALOG.get_or_init(|| {
-        parse_governments(
-            include_str!("../../data/rulesets/civcraft/content/governments.toml"),
-            technologies(),
-        )
-        .unwrap_or_else(|error| panic!("invalid native government catalog: {error}"))
+        let gov = |government: &str,
+                   name: &str,
+                   required_technology: &str,
+                   technology: Option<super::Tech>,
+                   preferred_government: Option<&str>,
+                   flags: &[&str],
+                   (
+            town_free_units,
+            city_free_units,
+            metropolis_free_units,
+            cost_per_excess_unit_gold,
+        )| {
+            NativeGovernment {
+                government: government.to_owned(),
+                name: name.to_owned(),
+                required_technology: required_technology.to_owned(),
+                technology,
+                preferred_government: preferred_government.map(str::to_owned),
+                flags: flags.iter().map(|flag| (*flag).to_owned()).collect(),
+                town_free_units,
+                city_free_units,
+                metropolis_free_units,
+                cost_per_excess_unit_gold,
+            }
+        };
+        GovernmentCatalog {
+            governments: vec![
+                gov("anarchy", "Anarchy", "", None, None, &[], (0, 0, 0, 1)),
+                gov(
+                    "despotism",
+                    "Despotism",
+                    "",
+                    None,
+                    Some("monarchy"),
+                    &["ShieldToGold"],
+                    (4, 4, 4, 1),
+                ),
+                gov(
+                    "monarchy",
+                    "Monarchy",
+                    "TECH_Monarchy",
+                    Some(super::Tech::MONARCHY),
+                    None,
+                    &["ShieldToGold"],
+                    (2, 4, 8, 1),
+                ),
+                gov(
+                    "communism",
+                    "Communism",
+                    "TECH_Communism",
+                    Some(super::Tech::COMMUNISM),
+                    None,
+                    &[],
+                    (6, 6, 6, 1),
+                ),
+                gov(
+                    "republic",
+                    "Republic",
+                    "TECH_The_Republic",
+                    Some(super::Tech::THE_REPUBLIC),
+                    None,
+                    &[],
+                    (1, 3, 4, 2),
+                ),
+                gov(
+                    "democracy",
+                    "Democracy",
+                    "TECH_Democracy",
+                    Some(super::Tech::DEMOCRACY),
+                    None,
+                    &["ShieldToGold"],
+                    (0, 0, 0, 1),
+                ),
+                gov(
+                    "fascism",
+                    "Fascism",
+                    "TECH_Fascism",
+                    Some(super::Tech::FASCISM),
+                    None,
+                    &[],
+                    (4, 7, 10, 1),
+                ),
+                gov(
+                    "feudalism",
+                    "Feudalism",
+                    "TECH_Feudalism",
+                    Some(super::Tech::FEUDALISM),
+                    None,
+                    &[],
+                    (5, 2, 1, 3),
+                ),
+            ],
+        }
     })
 }
 
@@ -808,14 +846,6 @@ pub(crate) fn experience() -> &'static ExperienceCatalog {
 
 #[cfg(test)]
 mod tests {
-    #[test]
-    fn government_catalog_rejects_unknown_technology_ids() {
-        let source = include_str!("../../data/rulesets/civcraft/content/governments.toml");
-        let bad = source.replace("TECH_The_Republic", "TECH_The_Republiqq");
-        let error = super::parse_governments(&bad, super::technologies()).unwrap_err();
-        assert!(error.contains("republic") && error.contains("TECH_The_Republiqq"));
-    }
-
     #[test]
     fn parse_buildings_and_units_reject_unknown_technology_ids() {
         let buildings_src = include_str!("../../data/rulesets/civcraft/content/buildings.toml");
@@ -894,7 +924,6 @@ mod tests {
         assert_eq!(technologies().schema_version, 1);
         assert_eq!(technologies().source, "Civilization III: Conquests");
         assert_eq!(technologies().technologies.len(), 85);
-        assert_eq!(governments().schema_version, 1);
         assert_eq!(governments().governments.len(), 8);
         assert!(governments().governments.iter().all(|government| {
             !government.government.is_empty() && !government.name.is_empty()
@@ -1017,7 +1046,7 @@ mod tests {
         let dir =
             std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/rulesets/civcraft/content");
         let loaded = ContentRuleset::load_from_directory(&dir)
-            .expect("all 12 campaign content TOML files must load and validate");
+            .expect("all 10 campaign content TOML files must load and validate");
         assert_eq!(loaded.units.units.len(), units().units.len());
         assert_eq!(loaded.buildings.rules.len(), buildings().rules.len());
         assert_eq!(
@@ -1026,10 +1055,6 @@ mod tests {
         );
         assert_eq!(loaded.religion.faiths.len(), religion().faiths.len());
         assert_eq!(loaded.strategy.traits.len(), strategy().traits.len());
-        assert_eq!(
-            loaded.diplomacy.interests.len(),
-            diplomacy().interests.len()
-        );
         assert_eq!(
             loaded.vassalage.required_technology,
             vassalage().required_technology

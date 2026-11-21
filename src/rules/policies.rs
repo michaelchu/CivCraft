@@ -47,8 +47,6 @@ pub(crate) struct StrategyCatalog {
     pub(crate) traits: BTreeMap<String, TraitWeights>,
 }
 
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
 pub(crate) struct RelationshipPolicy {
     pub(crate) trade_gain: i32,
     pub(crate) support_gain: i32,
@@ -66,8 +64,6 @@ pub(crate) struct RelationshipPolicy {
     pub(crate) war_threshold_per_score: i32,
 }
 
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
 pub(crate) struct NegotiationPolicy {
     pub(crate) aid_minimum_trust: i32,
     pub(crate) aid_surplus_percent: i32,
@@ -84,10 +80,7 @@ pub(crate) struct NegotiationPolicy {
     pub(crate) maximum_peace_value: i64,
 }
 
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
 pub(crate) struct DiplomacyCatalog {
-    pub(crate) schema_version: u32,
     pub(crate) cadence_turns: i32,
     pub(crate) technologies_per_side: usize,
     pub(crate) seller_percent: i64,
@@ -285,117 +278,116 @@ pub(crate) fn parse_strategy(source: &str) -> Result<StrategyCatalog, String> {
     Ok(policy)
 }
 
-impl RelationshipPolicy {
-    fn validate(&self) -> Result<(), String> {
-        for value in [
-            self.trade_gain,
-            self.support_gain,
-            self.breach_grievance,
-            self.rebuild_gain,
-            self.positive_decay,
-            self.grievance_decay,
-            self.caution_threshold,
-        ] {
-            if !(1..=100).contains(&value) {
-                return Err(format!("relationship score value {value} out of 1..=100"));
-            }
-        }
-        for value in [
-            self.trade_cooldown_turns,
-            self.support_cooldown_turns,
-            self.decay_turns,
-            self.attitude_divisor,
-            self.trade_score_divisor,
-        ] {
-            if !(1..=1000).contains(&value) {
-                return Err(format!("relationship turn/divisor {value} out of 1..=1000"));
-            }
-        }
-        if !(0..=20).contains(&self.maximum_trade_adjustment_percent) {
-            return Err("maximum_trade_adjustment_percent out of 0..=20".into());
-        }
-        if !(0..=100).contains(&self.war_threshold_per_score) {
-            return Err("war_threshold_per_score out of 0..=100".into());
-        }
-        Ok(())
+pub(crate) fn default_diplomacy() -> DiplomacyCatalog {
+    let list = |names: &[&str]| names.iter().map(|s| (*s).to_owned()).collect::<Vec<_>>();
+    let interests = BTreeMap::from([
+        (
+            "agricultural".to_owned(),
+            list(&["Pottery", "Construction", "Sanitation", "Refrigeration"]),
+        ),
+        (
+            "commercial".to_owned(),
+            list(&["Currency", "Banking", "Economics", "The Corporation"]),
+        ),
+        (
+            "expansionist".to_owned(),
+            list(&["Map Making", "Navigation", "Magnetism", "Steam Power"]),
+        ),
+        (
+            "industrious".to_owned(),
+            list(&[
+                "Masonry",
+                "Construction",
+                "Engineering",
+                "Steam Power",
+                "Industrialization",
+                "Replaceable Parts",
+            ]),
+        ),
+        (
+            "militaristic".to_owned(),
+            list(&[
+                "Iron Working",
+                "Feudalism",
+                "Chivalry",
+                "Military Tradition",
+                "Nationalism",
+                "Motorized Transportation",
+                "Rocketry",
+            ]),
+        ),
+        (
+            "religious".to_owned(),
+            list(&[
+                "Ceremonial Burial",
+                "Mysticism",
+                "Polytheism",
+                "Monarchy",
+                "Theology",
+            ]),
+        ),
+        (
+            "scientific".to_owned(),
+            list(&[
+                "Writing",
+                "Literature",
+                "Education",
+                "Theory of Gravity",
+                "Scientific Method",
+                "Computers",
+            ]),
+        ),
+        (
+            "seafaring".to_owned(),
+            list(&["Map Making", "Navigation", "Magnetism", "Combustion"]),
+        ),
+    ]);
+    DiplomacyCatalog {
+        cadence_turns: 6,
+        technologies_per_side: 8,
+        seller_percent: 75,
+        commercial_margin_percent: 10,
+        liquidity_discount_percent: 10,
+        scientific_bonus_percent: 10,
+        trait_bonus_percent: 20,
+        research_goal_bonus_percent: 35,
+        military_need_bonus_percent: 25,
+        military_minimum_trust: 1000,
+        military_minimum_power: 3,
+        victory_technologies: list(&["Space Flight", "Satellites", "Superconductor"]),
+        interests,
+        relationships: RelationshipPolicy {
+            trade_gain: 8,
+            support_gain: 20,
+            breach_grievance: 50,
+            rebuild_gain: 4,
+            trade_cooldown_turns: 6,
+            support_cooldown_turns: 12,
+            decay_turns: 12,
+            positive_decay: 10,
+            grievance_decay: 5,
+            caution_threshold: 40,
+            attitude_divisor: 5,
+            trade_score_divisor: 10,
+            maximum_trade_adjustment_percent: 10,
+            war_threshold_per_score: 20,
+        },
+        negotiations: NegotiationPolicy {
+            aid_minimum_trust: 5000,
+            aid_surplus_percent: 25,
+            maximum_aid: 200,
+            map_minimum_trust: 1000,
+            map_minimum_tiles: 8,
+            map_tiles_per_gold: 2,
+            map_seller_percent: 65,
+            map_trait_bonus_percent: 25,
+            maximum_map_value: 300,
+            peace_income_horizon: 6,
+            peace_visible_force_ratio: 2,
+            peace_force_value: 10,
+            maximum_peace_value: 500,
+        },
     }
-}
-
-impl NegotiationPolicy {
-    fn validate(&self) -> Result<(), String> {
-        if !(0..=10000).contains(&self.aid_minimum_trust)
-            || !(0..=10000).contains(&self.map_minimum_trust)
-        {
-            return Err("negotiation trust threshold out of 0..=10000".into());
-        }
-        if !(1..=50).contains(&self.aid_surplus_percent)
-            || !(1..=10000).contains(&self.maximum_aid)
-            || !(1..=10000).contains(&self.map_minimum_tiles)
-        {
-            return Err("negotiation aid/map threshold out of range".into());
-        }
-        for value in [
-            self.map_tiles_per_gold,
-            self.map_seller_percent,
-            self.map_trait_bonus_percent,
-            self.maximum_map_value,
-            i64::from(self.peace_income_horizon),
-            self.peace_visible_force_ratio,
-            self.peace_force_value,
-            self.maximum_peace_value,
-        ] {
-            if !(1..=1000).contains(&value) {
-                return Err(format!("negotiation parameter {value} out of 1..=1000"));
-            }
-        }
-        if self.map_seller_percent >= 100 {
-            return Err("map_seller_percent must be < 100".into());
-        }
-        Ok(())
-    }
-}
-
-pub(crate) fn parse_diplomacy(
-    source: &str,
-    technologies: &TechnologyCatalog,
-) -> Result<DiplomacyCatalog, String> {
-    let policy: DiplomacyCatalog = toml::from_str(source).map_err(|err| err.to_string())?;
-    if policy.schema_version != 1 {
-        return Err(format!(
-            "unsupported diplomacy schema_version {}",
-            policy.schema_version
-        ));
-    }
-    policy.relationships.validate()?;
-    policy.negotiations.validate()?;
-    if policy.cadence_turns <= 0 || !(1..=16).contains(&policy.technologies_per_side) {
-        return Err("diplomacy cadence_turns or technologies_per_side out of range".into());
-    }
-    if !(1..=100).contains(&policy.seller_percent) {
-        return Err("diplomacy seller_percent out of 1..=100".into());
-    }
-    if policy.interests.len() != TRAIT_NAMES.len() {
-        return Err("all Conquests traits need trade interests".into());
-    }
-    if policy.military_minimum_power <= 0 {
-        return Err("diplomacy military_minimum_power must be positive".into());
-    }
-    for (name, tech_names) in &policy.interests {
-        if !TRAIT_NAMES.contains(&name.as_str()) {
-            return Err(format!("unknown diplomacy interest trait {name:?}"));
-        }
-        for technology in tech_names {
-            if !technology_name_exists(technologies, technology) {
-                return Err(format!("unknown diplomacy policy technology {technology}"));
-            }
-        }
-    }
-    for technology in &policy.victory_technologies {
-        if !technology_name_exists(technologies, technology) {
-            return Err(format!("unknown diplomacy victory technology {technology}"));
-        }
-    }
-    Ok(policy)
 }
 
 pub(crate) fn parse_vassalage(

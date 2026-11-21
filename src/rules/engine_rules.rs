@@ -1423,9 +1423,7 @@ impl RulesetData {
                         survives: false,
                         quiet: false,
                         source: RuleSourceLocation {
-                            file: PathBuf::from(
-                                "data/rulesets/civcraft/content/governments.toml",
-                            ),
+                            file: PathBuf::from("builtin:governments"),
                             section: format!("government_{id}"),
                             key: "required_technology".to_owned(),
                             line: 0,

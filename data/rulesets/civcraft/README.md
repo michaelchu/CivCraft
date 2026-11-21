@@ -21,14 +21,13 @@ Current catalogs:
   and `selected_obsolescence` policy flags.
 - `content/technologies.toml`: 85 native technology identities, costs,
   prerequisites, eras, and research metadata.
-- `content/governments.toml`: the eight Conquests governments, names, prerequisites,
-  AI preferences, flags, and support/assimilation/
-  resistance/military-law tables.
 - `content/economy.toml`: city growth, output, upkeep, and founding parameters.
 - `content/settlements.toml`: settlement AI, citizen nationality/partisan rules, and
   village outcome parameters.
-- `content/strategy.toml`, `content/diplomacy.toml`, `content/vassalage.toml`,
-  `content/religion.toml`: AI strategy, diplomacy, vassalage, and religion rules.
+- `content/strategy.toml`, `content/vassalage.toml`, `content/religion.toml`:
+  AI strategy, vassalage, and religion rules. Diplomacy policy and the eight
+  campaign governments live directly in Rust (`src/rules/policies.rs` and
+  `src/rules/native.rs`).
 
 The campaign embeds its engine ruleset and native catalogs when built. The
 effect graph, including government rate caps, empire size and civil-war chance, comes from

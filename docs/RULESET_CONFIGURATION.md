@@ -11,7 +11,7 @@ are outside this migration.
 
 | Owner | Contents |
 | --- | --- |
-| `data/rulesets/civcraft/content/` | Gameplay values, unit/building/technology definitions, economy, governments, AI priorities, diplomacy/strategy/vassalage/religion policies, and village reward weights |
+| `data/rulesets/civcraft/content/` | Gameplay values, unit/building/technology definitions, economy, AI strategy, vassalage/religion policies, and village reward weights |
 | `data/rulesets/civcraft/engine/` | Generic effects, action enablers, unit classes, extras/resources, and remaining engine settings, using the engine's existing ruleset format |
 | Rust simulation modules | Formulas, rule interpretation, state execution, validation, and turn processing |
 | `data/presentation/` | Animation pacing, independent of gameplay rules |
@@ -80,11 +80,10 @@ extras, resources, and worker activity parameters. Civ III terrain/resource
 identities and artwork mappings stay in their existing Rust adapters. `content/economy.toml`
 retains campaign resource yield overrides and city foodbox/economy rules.
 
-Government definitions and unit-support rules live in `content/governments.toml`,
-backed by data-driven `Government` handles and validated against technology IDs.
-An empty prerequisite allows availability without research; an unknown ID fails
-catalog loading. `engine/effects.ruleset` supplies the rate cap, empire size,
-and civil-war chance for every campaign government.
+Government definitions, prerequisites, and unit-support rules live directly in Rust
+(`src/rules/native.rs` and `src/sim/government.rs`), while `engine/effects.ruleset`
+supplies the rate cap, empire size, and civil-war chance for every campaign
+government. Diplomacy policy parameters live directly in `src/rules/policies.rs`.
 
 ## Supported states
 
