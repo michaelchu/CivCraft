@@ -30,13 +30,15 @@ impl super::Simulation {
 mod tests {
     use super::*;
 
+    /// Mirrors the civ2civ3 ruleset behavior.
     #[test]
-    fn fixed_default_ai_aggression_comes_from_selected_c2c3_nations_ruleset() {
+    fn fixed_default_ai_aggression_comes_from_selected_ruleset_nations_ruleset() {
         assert_eq!(fixed_default("aggressive"), 50);
     }
 
+    /// Mirrors Freeciv and the civ2civ3 ruleset behavior.
     #[test]
-    fn c2c3_builder_default_uses_freeciv_integer_want_scale() {
+    fn ruleset_builder_default_uses_reference_integer_want_scale() {
         assert_eq!(fixed_default("builder"), 50);
         assert_eq!(builder_building_want_factor(), 0.5);
     }

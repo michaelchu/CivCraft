@@ -383,12 +383,12 @@ impl<'a> SimulationRequirementContext<'a> {
             RequirementRange::Adjacent => Ok(self
                 .simulation
                 .map_wrap
-                .civ3_neighbors(tile.0, tile.1)
+                .eight_way_neighbors(tile.0, tile.1)
                 .collect()),
             // Freeciv's CAdjacent range uses map_distance <= 1, so it includes
             // the target tile as well as its topology-adjacent neighbors.
             RequirementRange::CAdjacent => Ok(std::iter::once(tile)
-                .chain(self.simulation.map_wrap.civ3_neighbors(tile.0, tile.1))
+                .chain(self.simulation.map_wrap.eight_way_neighbors(tile.0, tile.1))
                 .collect()),
             _ => Err(Self::unsupported(requirement)),
         }
@@ -441,7 +441,7 @@ impl<'a> SimulationRequirementContext<'a> {
                         .map_err(|_| Self::unsupported(requirement))?
                     {
                         crate::rules::content_adapter::EngineTechBinding::Bound(tech) => tech,
-                        crate::rules::content_adapter::EngineTechBinding::MissingFromCiv3Catalog => {
+                        crate::rules::content_adapter::EngineTechBinding::MissingFromCatalog => {
                             if self.unbound_content_is_absent {
                                 return Ok(false);
                             }
@@ -1211,7 +1211,8 @@ impl EffectContext for SimulationRequirementContext<'_> {
     }
 }
 
-fn c2c3_building_name_aliases(runtime_name: &str) -> &'static [&'static str] {
+/// Maps civ2civ3 building names to Civ III buildings.
+fn building_name_aliases(runtime_name: &str) -> &'static [&'static str] {
     match runtime_name {
         "Harbor" => &["Harbour"],
         "Shakespeare's Theater" => &["Shakespeare's Theatre"],
@@ -1222,7 +1223,7 @@ fn c2c3_building_name_aliases(runtime_name: &str) -> &'static [&'static str] {
 fn runtime_building_for_name(name: &str) -> Option<Building> {
     Building::all().find(|building| {
         building.data().name.eq_ignore_ascii_case(name)
-            || c2c3_building_name_aliases(building.data().name)
+            || building_name_aliases(building.data().name)
                 .iter()
                 .any(|alias| alias.eq_ignore_ascii_case(name))
     })
@@ -1870,12 +1871,10 @@ impl Simulation {
         }
         if let WorkKind::Pillage(target) = kind {
             return super::movement_rules::MovementRules::campaign()
-                .terrain_pillage_time(terrain, freeciv_pillage_extra(target))
+                .terrain_pillage_time(terrain, pillage_extra(target))
                 .map_err(|_| {
                     SimulationRequirementContext::unsupported(
-                        &SimulationRequirementContext::extra_requirement(freeciv_pillage_extra(
-                            target,
-                        )),
+                        &SimulationRequirementContext::extra_requirement(pillage_extra(target)),
                     )
                     .into()
                 });
@@ -2051,7 +2050,8 @@ fn set_work_tile_extra(tile: &mut Tile, kind: WorkKind) -> bool {
     true
 }
 
-fn freeciv_pillage_extra(target: PillageTarget) -> &'static str {
+/// Follows Freeciv's pillage target selection.
+fn pillage_extra(target: PillageTarget) -> &'static str {
     target.name()
 }
 
@@ -2078,7 +2078,9 @@ pub(crate) fn unit_class_rule_name(unit: UnitKind) -> Option<String> {
 }
 
 /// Civ III PRTO supplies no per-target Freeciv combat-bonus table.
-pub(crate) fn freeciv_unit_combat_bonuses(
+///
+/// Reads Freeciv-style unit combat bonuses.
+pub(crate) fn unit_combat_bonuses(
     _unit: UnitKind,
 ) -> Option<Vec<crate::rules::engine_rules::UnitCombatBonus>> {
     Some(Vec::new())
@@ -2086,19 +2088,23 @@ pub(crate) fn freeciv_unit_combat_bonuses(
 
 /// The retained flight planner uses a one-turn mission budget for aircraft.
 /// This is engine state, not a second unit statistic or operational range.
-pub(crate) fn freeciv_unit_type_fuel_capacity(unit: UnitKind) -> Option<u8> {
+///
+/// Reads the Freeciv unit fuel value.
+pub(crate) fn unit_type_fuel_capacity(unit: UnitKind) -> Option<u8> {
     Some(u8::from(
         unit.conquests_rule().unit_type == 2 || unit.is_missile(),
     ))
 }
 
-pub(crate) fn freeciv_unit_transport_defense(
+/// Reads Freeciv-style transport defense rules.
+pub(crate) fn unit_transport_defense(
     _unit: UnitKind,
 ) -> Option<crate::rules::engine_rules::TransportDefense> {
     Some(crate::rules::engine_rules::TransportDefense::Alight)
 }
 
-pub(crate) fn freeciv_unit_paratroopers_range(unit: UnitKind) -> Option<i32> {
+/// Reads the Freeciv paratroopers range.
+pub(crate) fn unit_paratroopers_range(unit: UnitKind) -> Option<i32> {
     let rule = unit.conquests_rule();
     rule.has_capability("Paradrop")
         .then_some(rule.operational_range)
@@ -2106,7 +2112,9 @@ pub(crate) fn freeciv_unit_paratroopers_range(unit: UnitKind) -> Option<i32> {
 
 /// The retained suicide-action engine consumes the native missile's bombard
 /// strength. This does not claim that its combat algorithm matches Civ III bombardment.
-pub(crate) fn freeciv_missile_attack_strength(unit: UnitKind) -> Option<i32> {
+///
+/// Follows Freeciv's missile attack strength.
+pub(crate) fn missile_attack_strength(unit: UnitKind) -> Option<i32> {
     (unit == UnitKind::CruiseMissile).then_some(unit.conquests_rule().bombard_strength)
 }
 
@@ -2255,7 +2263,10 @@ mod tests {
     fn extra_requirements_support_adjacent_and_center_adjacent_ranges() {
         let mut game = flat_game();
         let center = (10, 20);
-        let adjacent = game.map_wrap.civ3_neighbor(center.0, center.1, 0).unwrap();
+        let adjacent = game
+            .map_wrap
+            .eight_way_neighbor(center.0, center.1, 0)
+            .unwrap();
         game.tile_mut(adjacent.0, adjacent.1).river = true;
         let requirement = |range| Requirement {
             kind: RequirementKind::Extra,
@@ -2341,7 +2352,7 @@ mod tests {
         game.players[crate::sim::HUMAN]
             .known
             .retain(|tech| *tech != Tech::ELECTRICITY);
-        let water = game.map_wrap.civ3_neighbor(x, y, 0).unwrap();
+        let water = game.map_wrap.eight_way_neighbor(x, y, 0).unwrap();
         game.tile_mut(water.0, water.1).terrain = Terrain::Sea;
         assert!(
             game.action_available(worker, "Build Irrigation", (x, y))
@@ -2523,8 +2534,9 @@ mod tests {
         assert!(!projected.mine);
     }
 
+    /// Mirrors Civ III behavior.
     #[test]
-    fn oil_platform_uses_ruleset_enabler_without_a_civ3_resource_gate() {
+    fn oil_platform_uses_ruleset_enabler_without_a_native_resource_gate() {
         let mut game = flat_game();
         let (x, y) = (10, 20);
         game.tile_mut(x, y).terrain = Terrain::Ocean;
@@ -2609,8 +2621,9 @@ mod tests {
         );
     }
 
+    /// Mirrors the civ2civ3 ruleset and Civ III behavior.
     #[test]
-    fn c2c3_machine_tools_requirement_uses_the_civ3_robotics_advance() {
+    fn ruleset_machine_tools_requirement_uses_the_native_robotics_advance() {
         let mut game = flat_game();
         let requirement = Requirement {
             kind: RequirementKind::Tech,
@@ -2631,17 +2644,17 @@ mod tests {
         game.players[crate::sim::HUMAN]
             .known
             .push(Tech::MACHINE_TOOLS);
-        let stale_freeciv_alias =
+        let stale_alias =
             SimulationRequirementContext::for_player_at(&game, crate::sim::HUMAN, None);
-        assert!(!stale_freeciv_alias.is_present(&requirement).unwrap());
+        assert!(!stale_alias.is_present(&requirement).unwrap());
 
         game.players[crate::sim::HUMAN]
             .known
             .retain(|tech| *tech != Tech::MACHINE_TOOLS);
         game.players[crate::sim::HUMAN].known.push(Tech::ROBOTICS);
-        let civ3_context =
+        let native_context =
             SimulationRequirementContext::for_player_at(&game, crate::sim::HUMAN, None);
-        assert!(civ3_context.is_present(&requirement).unwrap());
+        assert!(native_context.is_present(&requirement).unwrap());
     }
 
     #[test]
@@ -2821,7 +2834,7 @@ mod tests {
     fn borrowed_target_action_context_uses_specific_enemy_on_an_unowned_tile() {
         let mut game = flat_game();
         let (x, y) = (10, 20);
-        let target_xy = game.map_wrap.civ3_offset(x, y, 2, 0).unwrap();
+        let target_xy = game.map_wrap.eight_way_offset(x, y, 2, 0).unwrap();
         game.sign_pact(crate::sim::HUMAN, 1, Pact::War);
         game.tile_mut(target_xy.0, target_xy.1).owner = None;
         let actor_id = game.spawn_unit(crate::sim::HUMAN, UnitKind::Bomber, x, y);
@@ -2857,7 +2870,7 @@ mod tests {
     fn borrowed_city_action_context_uses_city_owner_when_tile_owner_is_unset() {
         let mut game = flat_game();
         let (x, y) = (10, 20);
-        let target_xy = game.map_wrap.civ3_offset(x, y, 2, 0).unwrap();
+        let target_xy = game.map_wrap.eight_way_offset(x, y, 2, 0).unwrap();
         game.sign_pact(crate::sim::HUMAN, 1, Pact::War);
         let actor_id = game.spawn_unit(crate::sim::HUMAN, UnitKind::ICBM, x, y);
         game.create_city(1, target_xy.0, target_xy.1);
@@ -2996,8 +3009,9 @@ mod tests {
         assert_eq!(unit_type_flag(UnitKind::Leader, "GameLoss"), Some(false));
     }
 
+    /// Mirrors Civ III behavior.
     #[test]
-    fn selected_military_roles_use_explicit_civ3_archetype_bindings() {
+    fn selected_military_roles_use_explicit_native_archetype_bindings() {
         assert!(unit_has_role(UnitKind::Warrior, "DefendOk"));
         assert!(unit_has_role(UnitKind::Spearman, "DefendGood"));
         assert!(unit_has_role(UnitKind::Musketman, "DefendGood"));
@@ -3008,8 +3022,9 @@ mod tests {
         assert!(!unit_has_role(UnitKind::Army, "DefendGood"));
     }
 
+    /// Mirrors the civ2civ3 ruleset behavior.
     #[test]
-    fn combat_target_classes_follow_selected_c2c3_rules() {
+    fn combat_target_classes_follow_selected_ruleset_rules() {
         assert_eq!(
             unit_can_target_class(UnitKind::Warrior, UnitKind::Worker),
             Some(true)
@@ -3157,8 +3172,9 @@ mod tests {
         assert!(!game.transport_would_create_cycle(carrier, passenger));
     }
 
+    /// Mirrors the civ2civ3 ruleset behavior.
     #[test]
-    fn clean_and_pillage_durations_use_selected_c2c3_terrain_data() {
+    fn clean_and_pillage_durations_use_selected_ruleset_terrain_data() {
         let game = flat_game();
         assert_eq!(
             game.work_activity_time(WorkKind::Clean(Contamination::Pollution), Terrain::Desert)
@@ -3178,8 +3194,9 @@ mod tests {
         ));
     }
 
+    /// Mirrors the civ2civ3 ruleset and Civ III behavior.
     #[test]
-    fn civ_three_crater_cleaning_is_unavailable_without_a_c2c3_extra() {
+    fn native_crater_cleaning_is_unavailable_without_a_ruleset_extra() {
         let mut game = flat_game();
         let worker = game.spawn_unit(crate::sim::HUMAN, UnitKind::Worker, 10, 20);
         game.tile_mut(10, 20).craters = true;
@@ -3191,8 +3208,9 @@ mod tests {
         ));
     }
 
+    /// Mirrors Civ III behavior.
     #[test]
-    fn civ_three_terrain_crosswalk_keeps_shallow_and_deep_water_distinct() {
+    fn native_terrain_crosswalk_keeps_shallow_and_deep_water_distinct() {
         let rules = super::super::movement_rules::MovementRules::campaign();
         assert_eq!(
             rules.terrain_data(Terrain::Coast).unwrap().rule_name,

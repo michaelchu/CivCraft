@@ -92,7 +92,7 @@ impl Simulation {
     pub(crate) fn can_disband(&self, unit: &Unit, city: Option<&City>) -> bool {
         city.is_none_or(|city| {
             self.allied(unit.owner, city.owner)
-                && self.map_wrap.civ3_distance(unit.x, unit.y, city.x, city.y) <= 1
+                && self.map_wrap.step_distance(unit.x, unit.y, city.x, city.y) <= 1
         })
     }
 

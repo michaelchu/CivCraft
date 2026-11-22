@@ -1,6 +1,6 @@
 //! Key-based audio lookup and shared decoding. Playback volume belongs to players.
 use super::asset_error::{AssetError, AssetResult};
-use super::media::Civ3MediaResolver;
+use super::media::MediaResolver;
 use macroquad::audio::{Sound, load_sound_from_bytes};
 use serde::Deserialize;
 use std::sync::Arc;
@@ -118,12 +118,12 @@ struct Catalog {
 }
 #[derive(Clone)]
 pub(super) struct AudioLibrary {
-    pub media: Arc<Civ3MediaResolver>,
+    pub media: Arc<MediaResolver>,
     cues: HashMap<String, AudioCue>,
     defaults: HashMap<String, String>,
 }
 impl AudioLibrary {
-    pub fn new(media: Arc<Civ3MediaResolver>) -> AssetResult<Self> {
+    pub fn new(media: Arc<MediaResolver>) -> AssetResult<Self> {
         let mut cues = default_cues();
         let paths = cues
             .iter()
@@ -132,9 +132,7 @@ impl AudioLibrary {
         // Lowest precedence first so the first configured root wins by key.
         let roots: Vec<_> = media.catalog_roots().collect();
         for root in roots.into_iter().rev() {
-            if let Some(file) =
-                Civ3MediaResolver::new(vec![root.to_owned()]).lookup("audio.toml")?
-            {
+            if let Some(file) = MediaResolver::new(vec![root.to_owned()]).lookup("audio.toml")? {
                 let catalog: Catalog = toml::from_str(
                     &fs::read_to_string(&file.path)
                         .map_err(|e| AssetError::io("read audio catalog", &file.path, e))?,
@@ -283,7 +281,7 @@ required=true
         )
         .unwrap();
         fs::write(scenario.join("scenario.ogg"), "fixture").unwrap();
-        let library = AudioLibrary::new(Arc::new(Civ3MediaResolver::from_config(&AssetRoots {
+        let library = AudioLibrary::new(Arc::new(MediaResolver::from_config(&AssetRoots {
             scenarios: vec![scenario.clone()],
             packaged: vec![package],
             ..Default::default()

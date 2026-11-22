@@ -29,8 +29,8 @@ impl Game {
         self.draw_city_sprite(
             assets,
             city.size,
-            city.civ3_style,
-            city.civ3_era,
+            city.art_style,
+            city.art_era,
             city.civilization_id.as_deref(),
             city.occupied,
             city.disorder,
@@ -63,7 +63,7 @@ impl Game {
             _ => 2,
         };
         let row = i32::from(era.min(3));
-        let texture = assets.civ3.city_texture_at(style, civilization_id);
+        let texture = assets.art_tileset.city_texture_at(style, civilization_id);
         let source = Rect::new(col as f32 * 167.0, row as f32 * 95.0, 167.0, 95.0);
         // Draw the source frame at native size, scaled only by world zoom.
         let (city_w, city_h) = (167.0 * zoom, 95.0 * zoom);
@@ -278,7 +278,7 @@ impl Game {
         unit: &RenderedUnitView,
         center: Vec2,
         stack_count: usize,
-        action: super::super::tileset::Civ3UnitAction,
+        action: super::super::tileset::UnitArtAction,
         animation_progress: f32,
         playback_duration_seconds: Option<f32>,
         zoom: f32,
@@ -289,7 +289,7 @@ impl Game {
         let is_selected = self.selected_unit == Some(unit.id);
         let is_group_selected = self.selected_units.contains(&unit.id);
         if is_selected {
-            assets.civ3.draw_unit_cursor(center, zoom);
+            assets.art_tileset.draw_unit_cursor(center, zoom);
         } else if is_group_selected {
             draw_ellipse_lines(
                 center.x,
@@ -303,15 +303,15 @@ impl Game {
         }
         let facing = if matches!(
             action,
-            super::super::tileset::Civ3UnitAction::Fortify
-                | super::super::tileset::Civ3UnitAction::FortifyHold
+            super::super::tileset::UnitArtAction::Fortify
+                | super::super::tileset::UnitArtAction::FortifyHold
         ) {
             FORTIFY_FACING
         } else {
             unit.facing
         };
         let palette_index = self.sim.player_team_palette_view(unit.owner);
-        let native_unit_drawn = assets.civ3.draw_unit(
+        let native_unit_drawn = assets.art_tileset.draw_unit(
             unit.kind,
             unit.owner,
             palette_index,

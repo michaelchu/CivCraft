@@ -86,7 +86,7 @@ mod tests {
 
     #[test]
     fn active_catalog_is_the_source_order_and_upgrades_use_conquests_links() {
-        let rules = crate::sim::civ3_unit_rules::all();
+        let rules = crate::sim::unit_rules::all();
         assert_eq!(UnitKind::count(), 92);
         assert_eq!(rules.len(), UnitKind::count());
         for (kind, rule) in UnitKind::all().zip(rules) {
@@ -108,7 +108,7 @@ mod tests {
     #[test]
     fn source_technology_and_resource_requirements_resolve_for_the_full_roster() {
         for kind in UnitKind::all() {
-            let rule = crate::sim::civ3_unit_rules::get(kind.conquests_id().unwrap()).unwrap();
+            let rule = crate::sim::unit_rules::get(kind.conquests_id().unwrap()).unwrap();
             assert_eq!(kind.required_resources(), rule.resources(), "{kind:?}");
             assert_eq!(kind.required_tech(), rule.required_tech(), "{kind:?}");
         }
@@ -130,8 +130,9 @@ mod tests {
         assert_eq!(UnitKind::CruiseMissile.bombard_rate(), 3);
     }
 
+    /// Mirrors Civ III behavior.
     #[test]
-    fn appended_civ3_units_keep_their_technology_and_resource_gates() {
+    fn appended_native_units_keep_their_technology_and_resource_gates() {
         assert_eq!(UnitKind::count(), 92);
         for (kind, name) in [
             (UnitKind::Longbowman, "Invention"),

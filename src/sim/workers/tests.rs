@@ -225,13 +225,14 @@ fn unworked_candidates_compare_future_total_until_worked_tiles_compete() {
     assert!(!best.as_ref().unwrap().worked);
 }
 
+/// Mirrors Civ III behavior.
 #[test]
-fn worker_safety_uses_hostile_actions_native_terrain_and_civ3_radius() {
+fn worker_safety_uses_hostile_actions_native_terrain_and_native_radius() {
     let mut game = game();
     game.sign_pact(HUMAN, 1, Pact::War);
     let position = (10, 20);
     let wrap = game.map_wrap;
-    let step = |from: (i32, i32)| wrap.civ3_offset(from.0, from.1, 2, 0).unwrap();
+    let step = |from: (i32, i32)| wrap.eight_way_offset(from.0, from.1, 2, 0).unwrap();
     let far = step(step(step(position)));
     let enemy = game.spawn_unit(HUMAN, UnitKind::Warrior, far.0, far.1);
     assert!(

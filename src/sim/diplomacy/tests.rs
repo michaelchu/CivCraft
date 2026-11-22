@@ -202,8 +202,9 @@ fn embassy_clauses_are_directional_permanent_and_reject_stale_duplicates() {
     assert!(game.has_real_embassy(1, HUMAN));
 }
 
+/// Mirrors the civ2civ3 ruleset behavior.
 #[test]
-fn accepted_treaty_technology_uses_the_c2c3_transfer_path() {
+fn accepted_treaty_technology_uses_the_ruleset_transfer_path() {
     let mut game = war_planning_game();
     game.players[HUMAN].gold = 20_000;
     game.players[HUMAN].known.clear();
@@ -768,8 +769,9 @@ fn treaty_city_listing_excludes_capitals_hidden_cities_and_other_owners() {
     assert!(game.treaty_trade_cities(1, 1).is_empty());
 }
 
+/// Mirrors the civ2civ3 ruleset behavior.
 #[test]
-fn c2c3_ai_rejects_city_clauses_at_war_and_keeps_two_cities() {
+fn ruleset_ai_rejects_city_clauses_at_war_and_keeps_two_cities() {
     let mut game = war_planning_game();
     for (x, y) in [(14, 24), (16, 24), (18, 24)] {
         game.tile_mut(x, y).terrain = Terrain::Grassland;

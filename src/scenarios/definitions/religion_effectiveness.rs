@@ -34,7 +34,7 @@ fn setup(map: GeneratedMap, saturated: bool) -> (Simulation, Box<dyn ScenarioRun
     w.known_technologies(
         1,
         &Tech::all()
-            .filter(|t| t.is_civ3_advance())
+            .filter(|t| t.is_researchable_advance())
             .collect::<Vec<_>>(),
     );
     w.government(1, Government::DEMOCRACY);
@@ -64,7 +64,7 @@ fn setup(map: GeneratedMap, saturated: bool) -> (Simulation, Box<dyn ScenarioRun
             let source = g.city_by_id(source).unwrap();
             assert!(
                 g.map_wrap
-                    .civ3_distance(source.x, source.y, target.x, target.y)
+                    .step_distance(source.x, source.y, target.x, target.y)
                     <= 4,
                 "every saturated target must receive all three sources"
             );

@@ -213,8 +213,8 @@ impl Simulation {
             y: city.y,
             size: city.size,
             civilization_id: self.players[city.owner].civilization_id.clone(),
-            civ3_style: observed.civ3_style,
-            civ3_era: observed.civ3_era,
+            art_style: observed.art_style,
+            art_era: observed.art_era,
             occupied: observed.occupied,
             disorder: observed.disorder,
             capital: city.buildings.contains(&Building::PALACE)

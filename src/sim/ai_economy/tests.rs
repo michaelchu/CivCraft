@@ -113,8 +113,9 @@ fn actual_city_tax_manager_covers_reserve_war_future_and_anarchy() {
     assert!(game.ai_tax_manager_test());
 }
 
+/// Mirrors the civ2civ3 ruleset and Civ III behavior.
 #[test]
-fn civ2civ3_celebrating_history_does_not_enable_absent_rapture_growth_tax_policy() {
+fn ruleset_celebrating_history_does_not_enable_absent_rapture_growth_tax_policy() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     assert!(game.ai_tax_manager_test());
     game.players[1].government = Government::DESPOTISM;

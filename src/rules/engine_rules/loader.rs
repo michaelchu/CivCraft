@@ -66,7 +66,7 @@ pub(super) fn resolve_requirements(requirements: &mut [Requirement]) {
 fn resolve_tech(name: &str) -> Option<Tech> {
     match bind_engine_technology(name).ok()? {
         EngineTechBinding::Bound(tech) => Some(tech),
-        EngineTechBinding::MissingFromCiv3Catalog => None,
+        EngineTechBinding::MissingFromCatalog => None,
     }
 }
 
@@ -378,7 +378,7 @@ mod bundle_tests {
         );
         assert_eq!(
             bind_engine_technology("Plastics"),
-            Ok(EngineTechBinding::MissingFromCiv3Catalog)
+            Ok(EngineTechBinding::MissingFromCatalog)
         );
         assert!(bind_engine_technology("Unknown modification").is_err());
     }

@@ -28,7 +28,7 @@ pub(crate) struct ResearchTree {
 impl ResearchTree {
     pub(crate) fn new() -> Self {
         let advances: Vec<_> = Tech::all()
-            .filter(|tech| tech.is_civ3_advance())
+            .filter(|tech| tech.is_researchable_advance())
             .chain([Tech::FUTURE])
             .collect();
         let index = |tech| advances.iter().position(|&entry| entry == tech).unwrap();
@@ -38,7 +38,7 @@ impl ResearchTree {
         }
         // Future Tech requires the whole catalog. Connecting the terminal
         // advances expresses that requirement without duplicating their links.
-        for tech in Tech::all().filter(|tech| tech.is_civ3_advance()) {
+        for tech in Tech::all().filter(|tech| tech.is_researchable_advance()) {
             if !links.iter().any(|&(from, _)| from == tech) {
                 links.push((tech, Tech::FUTURE));
             }
@@ -211,7 +211,7 @@ impl ResearchTree {
             let node = found[cursor];
             for era in TechEra::ALL.into_iter().filter(|era| *era < node.era()) {
                 for required in
-                    Tech::all().filter(|tech| tech.era() == era && tech.required_for_civ3_era())
+                    Tech::all().filter(|tech| tech.era() == era && tech.is_required_for_era())
                 {
                     if !found.contains(&required) {
                         found.push(required);

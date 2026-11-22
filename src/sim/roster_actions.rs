@@ -40,7 +40,7 @@ mod tests {
                 .unwrap()
                 .transport = Some(boat);
             game.spawn_unit(1, UnitKind::Warrior, target.0, target.1);
-            let result = game.try_move_unit_civ3_by_offset(actor, 1, 0);
+            let result = game.try_move_unit_by_offset(actor, 1, 0);
             assert_eq!(
                 result,
                 if kind.has_marine_attack() {
@@ -53,8 +53,9 @@ mod tests {
         }
     }
 
+    /// Mirrors the civ2civ3 ruleset behavior.
     #[test]
-    fn caravel_upkeep_uses_the_selected_c2c3_record_and_government_effects() {
+    fn caravel_upkeep_uses_the_selected_ruleset_record_and_government_effects() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         game.units.clear();
         game.cities.clear();

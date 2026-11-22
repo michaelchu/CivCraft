@@ -4,7 +4,7 @@ use super::*;
 
 #[cfg(test)]
 pub(super) fn neighbors(x: i32, y: i32) -> impl Iterator<Item = (i32, i32)> {
-    FREECIV_ISOHEX_DIRS
+    ISOHEX_DIRS
         .into_iter()
         .map(move |(dx, dy)| offset_native_by_map(x, y, dx, dy))
 }
@@ -45,7 +45,7 @@ impl Simulation {
         if target.is_water() == old.is_water() {
             return true;
         }
-        let adjacent: Vec<_> = self.map_wrap.civ3_neighbors(x, y).collect();
+        let adjacent: Vec<_> = self.map_wrap.eight_way_neighbors(x, y).collect();
         let water = adjacent
             .iter()
             .filter(|&&(nx, ny)| self.tile(nx, ny).terrain.is_water())
@@ -112,7 +112,7 @@ impl Simulation {
             let Some(unit) = self.unit_by_id(id) else {
                 continue;
             };
-            let destination = self.map_wrap.civ3_neighbors(x, y).find(|&(nx, ny)| {
+            let destination = self.map_wrap.eight_way_neighbors(x, y).find(|&(nx, ny)| {
                 self.movement_cost_for(unit, nx, ny).is_some()
                     && !self.treaty_blocks_move(unit, nx, ny)
                     && self.best_defender_id(unit, nx, ny).is_none()
@@ -151,8 +151,9 @@ impl Simulation {
 mod tests {
     use super::*;
 
+    /// Mirrors the civ2civ3 ruleset behavior.
     #[test]
-    fn terrain_changes_follow_selected_c2c3_results_and_times() {
+    fn terrain_changes_follow_selected_ruleset_results_and_times() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         let (x, y) = (10, 20);
         let worker = game.spawn_unit(HUMAN, UnitKind::Worker, x, y);

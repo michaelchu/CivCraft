@@ -227,7 +227,7 @@ impl Game {
             None
         };
         if let (Some(id), Some(direction)) = (self.selected_unit, direction)
-            && self.move_selected(Command::MoveCiv3(id, direction), id)
+            && self.move_selected(Command::MoveByDirection(id, direction), id)
         {
             self.select_next_if_exhausted(id);
         }
@@ -329,7 +329,7 @@ impl Game {
     }
 
     pub(super) fn screen_to_world(&self, point: Vec2) -> Option<(i32, i32)> {
-        civ3_projection::screen_to_world(
+        diamond_projection::screen_to_world(
             point,
             Self::viewport_rect(),
             self.camera,
@@ -339,7 +339,7 @@ impl Game {
     }
 
     pub(super) fn world_screen_position(&self, x: i32, y: i32) -> Vec2 {
-        civ3_projection::world_screen_position(
+        diamond_projection::world_screen_position(
             self.sim.map_wrap(),
             Self::viewport_rect(),
             self.camera_overview_position(),

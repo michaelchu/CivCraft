@@ -36,7 +36,7 @@ fn set_moves(game: &mut Simulation, id: u32) {
 
 fn add_danger(game: &mut Simulation, x: i32, y: i32) {
     game.sign_pact(1, HUMAN, Pact::War);
-    let (enemy_x, enemy_y) = game.map_wrap.civ3_offset(x, y, 2, 0).unwrap();
+    let (enemy_x, enemy_y) = game.map_wrap.eight_way_offset(x, y, 2, 0).unwrap();
     let enemy = game.spawn_unit(HUMAN, UnitKind::Warrior, enemy_x, enemy_y);
     set_moves(game, enemy);
 }

@@ -72,7 +72,7 @@ impl Simulation {
         let mut points = vec![(x, y)];
         for _ in 0..8 {
             let previous = *points.last().unwrap();
-            points.push(wrap.civ3_offset(previous.0, previous.1, 1, 1).unwrap());
+            points.push(wrap.eight_way_offset(previous.0, previous.1, 1, 1).unwrap());
         }
         let point = |step: usize| points[step];
         let (rx, ry) = point(4);
@@ -111,7 +111,7 @@ impl Simulation {
             path.push(
                 size_growth
                     .map_wrap
-                    .civ3_neighbor(previous.0, previous.1, 2)
+                    .eight_way_neighbor(previous.0, previous.1, 2)
                     .expect("city border path stays on the map"),
             );
         }
@@ -144,8 +144,9 @@ mod tests {
         assert_eq!(game.fogged_border_test(), (true, true));
     }
 
+    /// Mirrors Civ III behavior.
     #[test]
-    fn city_border_test_uses_civ3_culture_contest_and_radius() {
+    fn city_border_test_uses_native_culture_contest_and_radius() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         assert_eq!(game.city_borders_test(), (true, true, true));
     }

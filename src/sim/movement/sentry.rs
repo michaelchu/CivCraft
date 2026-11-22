@@ -108,11 +108,11 @@ mod tests {
         let sentry = place_sentry(&mut game, sentry_at);
         let arrival = game
             .map_wrap
-            .civ3_neighbor(sentry_at.0, sentry_at.1, 0)
+            .eight_way_neighbor(sentry_at.0, sentry_at.1, 0)
             .unwrap();
         let start = game
             .map_wrap
-            .civ3_neighbors(arrival.0, arrival.1)
+            .eight_way_neighbors(arrival.0, arrival.1)
             .find(|&(x, y)| {
                 game.map_distance(sentry_at.0, sentry_at.1, x, y) > 1
                     && game.map_distance(sentry_at.0, sentry_at.1, x, y) <= 3
@@ -122,14 +122,11 @@ mod tests {
         assert_eq!(game.unit_by_id(sentry).unwrap().state, UnitState::Sentry);
         let direction = game
             .map_wrap
-            .civ3_neighbors(start.0, start.1)
+            .eight_way_neighbors(start.0, start.1)
             .position(|position| position == arrival)
             .unwrap();
 
-        assert_ne!(
-            game.try_move_unit_civ3(mover, direction),
-            MoveResult::Blocked
-        );
+        assert_ne!(game.try_move_unit(mover, direction), MoveResult::Blocked);
         assert_eq!(game.unit_by_id(sentry).unwrap().state, UnitState::Idle);
     }
 
@@ -160,7 +157,7 @@ mod tests {
         game.sign_pact(HUMAN, 1, Pact::Alliance);
         let adjacent = game
             .map_wrap
-            .civ3_neighbor(sentry_at.0, sentry_at.1, 0)
+            .eight_way_neighbor(sentry_at.0, sentry_at.1, 0)
             .unwrap();
 
         game.spawn_unit(HUMAN, UnitKind::Warrior, adjacent.0, adjacent.1);

@@ -114,7 +114,7 @@ impl Simulation {
             // Craters are a Civ III-only state, with no corresponding C2C3
             // extra or `place_pollution` cause. Preserve the existing local
             // adapter if a Civ III caller uses it.
-            return self.place_civ3_craters(city);
+            return self.place_craters(city);
         }
 
         // Freeciv samples the full city-map index space on every attempt. A
@@ -157,7 +157,8 @@ impl Simulation {
         false
     }
 
-    fn place_civ3_craters(&mut self, city: &City) -> bool {
+    /// Civ III nuclear/crater pollution placement.
+    fn place_craters(&mut self, city: &City) -> bool {
         let candidates: Vec<_> = self
             .map_city_radius(city)
             .map(|(_, _, x, y)| (x, y))
@@ -179,8 +180,9 @@ impl Simulation {
 mod tests {
     use super::*;
 
+    /// Mirrors the civ2civ3 ruleset behavior.
     #[test]
-    fn c2c3_city_map_draw_slots_match_isohex_radius_five_order() {
+    fn ruleset_city_map_draw_slots_match_isohex_radius_five_order() {
         fn isohex_distance(dx: i32, dy: i32) -> i32 {
             if (dx < 0 && dy > 0) || (dx > 0 && dy < 0) {
                 dx.abs() + dy.abs()
@@ -248,8 +250,9 @@ mod tests {
         assert_eq!(game.rand_below(1_000_000), expected_next);
     }
 
+    /// Mirrors the civ2civ3 ruleset behavior.
     #[test]
-    fn pollution_placement_uses_c2c3_terrain_flags_and_allows_ocean() {
+    fn pollution_placement_uses_ruleset_terrain_flags_and_allows_ocean() {
         let mut game = Simulation::new(crate::mapgen::generate(43));
         game.tile_mut(12, 20).terrain = Terrain::Grassland;
         game.create_city(HUMAN, 12, 20);
@@ -311,8 +314,9 @@ mod tests {
         assert_eq!(game.tile(x, y).contamination_output(8), 4);
     }
 
+    /// Mirrors the civ2civ3 ruleset behavior.
     #[test]
-    fn craters_reduce_each_tile_yield_but_are_not_a_c2c3_clean_target() {
+    fn craters_reduce_each_tile_yield_but_are_not_a_ruleset_clean_target() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         let (x, y) = (10, 20);
         let tile = game.tile_mut(x, y);

@@ -215,9 +215,9 @@ fn conquest_steals_an_available_technology_using_selected_effect_and_transfer_se
     }
     let tech = Tech::all()
         .find(|&tech| {
-            tech.is_civ3_advance()
+            tech.is_researchable_advance()
                 && tech
-                    .civ3_prerequisites()
+                    .catalog_prerequisites()
                     .is_some_and(|prerequisites| prerequisites.is_empty())
         })
         .expect("the C2C3 tree has a root technology");
@@ -244,12 +244,12 @@ fn conquest_fixture() -> (Simulation, u32, u32, (i32, i32)) {
     let center = (20, 24);
     let mut bounce_area = game
         .map_wrap
-        .freeciv_square_radius(center.0, center.1, 2)
+        .square_radius_in_source_order(center.0, center.1, 2)
         .into_iter()
         .collect::<std::collections::BTreeSet<_>>();
     bounce_area.extend(
         game.map_wrap
-            .civ3_radius(center.0, center.1, 2)
+            .tiles_within_steps(center.0, center.1, 2)
             .into_iter()
             .map(|(x, y, _)| (x, y)),
     );
@@ -391,12 +391,12 @@ fn conquest_transfer_bounces_units_from_other_nonallied_cities() {
     let foreign_city = (10, 24);
     let mut bounce_area = game
         .map_wrap
-        .freeciv_square_radius(foreign_city.0, foreign_city.1, 2)
+        .square_radius_in_source_order(foreign_city.0, foreign_city.1, 2)
         .into_iter()
         .collect::<std::collections::BTreeSet<_>>();
     bounce_area.extend(
         game.map_wrap
-            .civ3_radius(foreign_city.0, foreign_city.1, 2)
+            .tiles_within_steps(foreign_city.0, foreign_city.1, 2)
             .into_iter()
             .map(|(x, y, _)| (x, y)),
     );
@@ -431,12 +431,12 @@ fn conquest_transfer_unloads_unallied_cargo_before_bouncing_illegal_city_occupan
     let foreign_city = (10, 24);
     let mut bounce_area = game
         .map_wrap
-        .freeciv_square_radius(foreign_city.0, foreign_city.1, 2)
+        .square_radius_in_source_order(foreign_city.0, foreign_city.1, 2)
         .into_iter()
         .collect::<std::collections::BTreeSet<_>>();
     bounce_area.extend(
         game.map_wrap
-            .civ3_radius(foreign_city.0, foreign_city.1, 2)
+            .tiles_within_steps(foreign_city.0, foreign_city.1, 2)
             .into_iter()
             .map(|(x, y, _)| (x, y)),
     );
@@ -498,8 +498,9 @@ fn conquest_transfer_bounces_both_players_from_newly_hostile_mixed_stacks() {
     );
 }
 
+/// Mirrors Freeciv behavior.
 #[test]
-fn conquest_city_transfer_bounce_uses_freeciv_order_and_preserves_unit_id() {
+fn conquest_city_transfer_bounce_uses_reference_order_and_preserves_unit_id() {
     let (mut game, city_id, _attacker, center) = conquest_fixture();
     let bounced_id = game.spawn_unit(2, UnitKind::Worker, center.0, center.1);
     let bounced = game.unit_by_id(bounced_id).unwrap().clone();
@@ -512,47 +513,47 @@ fn conquest_city_transfer_bounce_uses_freeciv_order_and_preserves_unit_id() {
                 (other.x, other.y) != (x, y) || simulation.allied(bounced.owner, other.owner)
             })
         };
-    let freeciv_destinations = game
+    let ordered_destinations = game
         .map_wrap
-        .freeciv_square_radius(center.0, center.1, 2)
+        .square_radius_in_source_order(center.0, center.1, 2)
         .into_iter()
         .filter(|&(x, y)| (x, y) != center)
         .filter(|&(x, y)| game.unit_can_survive_at_tile(&bounced, x, y))
         .filter(|&(x, y)| allied_destination(&game, x, y))
         .collect::<Vec<_>>();
-    let old_civ3_destinations = game
+    let old_order_destinations = game
         .map_wrap
-        .civ3_radius(center.0, center.1, 2)
+        .tiles_within_steps(center.0, center.1, 2)
         .into_iter()
         .filter(|&(_, _, distance)| distance != 0)
         .filter(|&(x, y, _)| game.movement_cost_for(&bounced, x, y).is_some())
         .filter(|&(x, y, _)| allied_destination(&game, x, y))
         .map(|(x, y, _)| (x, y))
         .collect::<Vec<_>>();
-    assert!(!freeciv_destinations.is_empty());
-    assert!(!old_civ3_destinations.is_empty());
+    assert!(!ordered_destinations.is_empty());
+    assert!(!old_order_destinations.is_empty());
 
     // Choose a stable seed that distinguishes Freeciv's survivability and
     // square-iteration results from the former Civ III radius/movement-cost
     // candidates, so this catches routing back through the old helper.
     let (seed, expected_destination) = (1..=1024)
         .find_map(|seed| {
-            let mut freeciv_rng = game.clone();
-            freeciv_rng.set_random_seed(seed);
-            let freeciv_destination = freeciv_destinations
-                [freeciv_rng.rand_below(freeciv_destinations.len() as i32) as usize];
+            let mut ordered_rng = game.clone();
+            ordered_rng.set_random_seed(seed);
+            let ordered_destination = ordered_destinations
+                [ordered_rng.rand_below(ordered_destinations.len() as i32) as usize];
 
             let mut old_rng = game.clone();
             old_rng.set_random_seed(seed);
-            let old_destination = old_civ3_destinations
-                [old_rng.rand_below(old_civ3_destinations.len() as i32) as usize];
-            (freeciv_destination != old_destination).then_some((seed, freeciv_destination))
+            let old_destination = old_order_destinations
+                [old_rng.rand_below(old_order_destinations.len() as i32) as usize];
+            (ordered_destination != old_destination).then_some((seed, ordered_destination))
         })
         .expect("some seed distinguishes Freeciv and Civ III bounce iteration order");
 
     game.set_random_seed(seed);
     let mut expected_rng = game.clone();
-    expected_rng.rand_below(freeciv_destinations.len() as i32);
+    expected_rng.rand_below(ordered_destinations.len() as i32);
     let expected_random = expected_rng.random_snapshot();
 
     game.transfer_conquered_city_units(city_id, 1, HUMAN, center);
@@ -822,8 +823,9 @@ fn sewer_system_allows_growth_past_size_sixteen() {
     assert_eq!(game.cities[0].size, 17);
 }
 
+/// Mirrors the civ2civ3 ruleset behavior.
 #[test]
-fn c2c3_city_growth_limits_come_from_size_effects() {
+fn ruleset_city_growth_limits_come_from_size_effects() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     game.cities.clear();
     game.create_city(HUMAN, 10, 20);

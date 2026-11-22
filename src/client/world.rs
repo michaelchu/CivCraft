@@ -1,11 +1,13 @@
 //! World-map rendering and projection from simulation tiles to screen geometry.
 
-use super::civ3_geometry::{CELL_H as CIV3_CELL_H, CELL_W as CIV3_CELL_W, Civ3Geometry};
+use super::diamond_geometry::{
+    CELL_H as DIAMOND_CELL_H, CELL_W as DIAMOND_CELL_W, DiamondGeometry,
+};
 use super::*;
 #[cfg(test)]
 use crate::sim::Simulation;
-mod civ3;
-pub(super) use civ3::{Civ3WorldPainter, WorldMapView};
+mod painter;
+pub(super) use painter::{WorldMapView, WorldPainter};
 mod entities;
 mod map;
 
@@ -58,7 +60,9 @@ mod infrastructure_tests {
 /// Civ III staggered-diamond tile centers relative to the viewport center.
 /// The existing rectangular tile storage is adapted to occupied staggered
 /// coordinates here; simulation adjacency is migrated separately.
-pub(super) fn civ3_world_screen_position(
+///
+/// Uses Civ III's diamond map projection.
+pub(super) fn projected_screen_position(
     wrap: MapWrap,
     viewport: Rect,
     camera: Vec2,
@@ -66,15 +70,15 @@ pub(super) fn civ3_world_screen_position(
     x: i32,
     y: i32,
 ) -> Vec2 {
-    let geometry = Civ3Geometry::new(wrap.width() * 2, wrap.height(), true)
+    let geometry = DiamondGeometry::new(wrap.width() * 2, wrap.height(), true)
         .expect("valid Civ III world geometry");
     let (grid_x, grid_y) = geometry
         .storage_to_grid(x, y)
         .unwrap_or((2 * x + y.rem_euclid(2), y));
     let (tile_px, tile_py) = geometry.tile_center_virtual(grid_x, grid_y);
-    let camera_px = (camera.x + 1.0) * CIV3_CELL_W;
-    let camera_py = (camera.y + 1.0) * CIV3_CELL_H;
-    let width_px = wrap.width() as f32 * 2.0 * CIV3_CELL_W;
+    let camera_px = (camera.x + 1.0) * DIAMOND_CELL_W;
+    let camera_py = (camera.y + 1.0) * DIAMOND_CELL_H;
+    let width_px = wrap.width() as f32 * 2.0 * DIAMOND_CELL_W;
     let dx = (tile_px - camera_px + width_px * 0.5).rem_euclid(width_px) - width_px * 0.5;
     let dy = tile_py - camera_py;
     vec2(
@@ -100,8 +104,9 @@ fn visible_world_tiles(
     let mut tiles = Vec::with_capacity(((last - first + 1).max(0) * wrap.width()) as usize);
     for y in first..=last {
         for x in 0..wrap.width() {
-            let center =
-                super::civ3_projection::world_screen_position(wrap, viewport, camera, zoom, x, y);
+            let center = super::diamond_projection::world_screen_position(
+                wrap, viewport, camera, zoom, x, y,
+            );
             if center.x < viewport.x - TILE_W * zoom
                 || center.x > viewport.right() + TILE_W * zoom
                 || center.y < viewport.y - 80.0
@@ -136,14 +141,7 @@ mod visibility_tests {
                             (
                                 x,
                                 y,
-                                civ3_world_screen_position(
-                                    MapWrap::X,
-                                    viewport,
-                                    camera,
-                                    zoom,
-                                    x,
-                                    y,
-                                ),
+                                projected_screen_position(MapWrap::X, viewport, camera, zoom, x, y),
                             )
                         })
                         .collect();

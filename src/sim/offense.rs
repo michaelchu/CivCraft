@@ -189,7 +189,7 @@ impl Simulation {
         // Freeciv's reinforcements_cost_and_value checks the local radius
         // around a target. Query those tiles directly instead of scanning the
         // entire unit roster for every target city.
-        for (x, y, _) in self.map_wrap.civ3_radius(city.x, city.y, 1) {
+        for (x, y, _) in self.map_wrap.tiles_within_steps(city.x, city.y, 1) {
             for helper in self.tile_units_ordered(x, y) {
                 if helper.id == unit.id && unit.id != 0
                     || !self.allied(unit.owner, helper.owner)
@@ -236,7 +236,7 @@ impl Simulation {
         self.pf_native_tile(kind, x, y)
             || self
                 .map_wrap
-                .civ3_neighbors(x, y)
+                .eight_way_neighbors(x, y)
                 .any(|(x, y)| self.pf_native_tile(kind, x, y))
     }
 

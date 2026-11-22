@@ -53,7 +53,7 @@ fn execute(game: &mut Simulation, checks: &mut Checks) {
 
         let x = 5 + case_index as i32 * 4;
         let y = 20;
-        let (tx, ty) = game.map_wrap.civ3_neighbors(x, y).next().unwrap();
+        let (tx, ty) = game.map_wrap.eight_way_neighbors(x, y).next().unwrap();
         WorldBuilder::new(game).terrain((tx, ty), terrain);
         game.sign_pact(HUMAN, 1, Pact::War);
         if city {
@@ -77,10 +77,10 @@ fn execute(game: &mut Simulation, checks: &mut Checks) {
 
         let direction = game
             .map_wrap
-            .civ3_neighbors(x, y)
+            .eight_way_neighbors(x, y)
             .position(|position| position == (tx, ty))
             .unwrap();
-        let result = game.try_move_unit_civ3(attacker_id, direction);
+        let result = game.try_move_unit(attacker_id, direction);
         let attacker = game.unit_by_id(attacker_id);
         let defender = game.unit_by_id(defender_id);
         let attacker_hp = attacker.map_or(0, |unit| unit.hp);

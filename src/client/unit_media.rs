@@ -1,14 +1,14 @@
 //! Civ III unit catalog and owning-INI search policies, above filesystem lookup.
 use super::{
     asset_error::AssetResult,
-    media::{Civ3MediaResolver, MediaClass, ResolvedMedia},
+    media::{MediaClass, MediaResolver, ResolvedMedia},
 };
 use std::path::{Path, PathBuf};
 pub(super) struct UnitMedia<'a> {
-    media: &'a Civ3MediaResolver,
+    media: &'a MediaResolver,
 }
 impl<'a> UnitMedia<'a> {
-    pub fn new(media: &'a Civ3MediaResolver) -> Self {
+    pub fn new(media: &'a MediaResolver) -> Self {
         Self { media }
     }
     pub fn catalog_ini(&self, edition: &str, folder: &str) -> AssetResult<PathBuf> {
@@ -27,7 +27,7 @@ impl<'a> UnitMedia<'a> {
             ])
             .resolve(&format!("Art/Units/{folder}/{folder}.ini"))
     }
-    fn resolver(&self, owner: &Path) -> AssetResult<Civ3MediaResolver> {
+    fn resolver(&self, owner: &Path) -> AssetResult<MediaResolver> {
         let parent = owner.parent().ok_or("Media owner has no parent")?;
         let mut roots = vec![parent.to_owned()];
         if let Some(folder) = parent.file_name() {
@@ -52,15 +52,15 @@ impl<'a> UnitMedia<'a> {
 use std::{collections::HashMap, fs};
 #[cfg(feature = "desktop-audio")]
 pub(super) fn build_unit_audio_index(
-    media: &Civ3MediaResolver,
+    media: &MediaResolver,
 ) -> AssetResult<HashMap<String, PathBuf>> {
     fn visit(
         directory: &Path,
         files: &mut HashMap<String, PathBuf>,
         visited: &mut std::collections::HashSet<PathBuf>,
-        media: &Civ3MediaResolver,
+        media: &MediaResolver,
     ) -> AssetResult<()> {
-        let directory = match Civ3MediaResolver::new(vec![directory.to_owned()]).lookup(".")? {
+        let directory = match MediaResolver::new(vec![directory.to_owned()]).lookup(".")? {
             Some(found) => found.path,
             None => return Ok(()),
         };
@@ -127,7 +127,7 @@ mod tests {
         let shared = root.join("Art/Units/Archer/run.flc");
         fs::create_dir_all(shared.parent().unwrap()).unwrap();
         fs::write(&shared, "run").unwrap();
-        let resolver = Civ3MediaResolver::installation(&root);
+        let resolver = MediaResolver::installation(&root);
         assert_eq!(
             UnitMedia::new(&resolver)
                 .resolve(&owner, "RUN.FLC")

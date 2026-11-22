@@ -3,9 +3,10 @@
 use super::*;
 
 impl super::Simulation {
-    fn civ3_east(&self, point: (i32, i32), tiles: usize) -> (i32, i32) {
+    /// Steps east on Civ III's eight-direction grid.
+    fn east_by(&self, point: (i32, i32), tiles: usize) -> (i32, i32) {
         (0..tiles).fold(point, |(x, y), _| {
-            self.map_wrap.civ3_neighbor(x, y, 2).unwrap()
+            self.map_wrap.eight_way_neighbor(x, y, 2).unwrap()
         })
     }
 
@@ -18,7 +19,7 @@ impl super::Simulation {
             tile.hut = false;
         }
         let carrier = self.spawn_unit(HUMAN, UnitKind::Carrier, 10, 20);
-        let blocker = self.civ3_east((10, 20), 1);
+        let blocker = self.east_by((10, 20), 1);
         self.spawn_unit(BARBARIANS, UnitKind::Caravel, blocker.0, blocker.1);
         let unit = self.unit_by_id(carrier).unwrap().clone();
         let endpoint = self

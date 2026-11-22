@@ -485,7 +485,7 @@ impl Game {
                 cell_w,
                 row_h,
             );
-            assets.civ3.draw_resource(
+            assets.art_tileset.draw_resource(
                 resource,
                 cell.center(),
                 vec2((cell.w.min(cell.h) - 4.0).clamp(12.0, 30.0) / 0.44, 40.0),
@@ -789,7 +789,7 @@ impl Game {
                     },
                 );
                 let cost = unit_view.cost;
-                assets.civ3.draw_unit_icon(
+                assets.art_tileset.draw_unit_icon(
                     kind,
                     city.owner,
                     self.sim.player_team_palette_view(city.owner),

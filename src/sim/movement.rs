@@ -274,7 +274,7 @@ impl Simulation {
             let port = destination
                 .city_owner
                 .is_some_and(|owner| self.military_access(owner, unit.owner))
-                && self.map_wrap.civ3_neighbors(x, y).any(|(nx, ny)| {
+                && self.map_wrap.eight_way_neighbors(x, y).any(|(nx, ny)| {
                     self.observed_route_tile(nx, ny).is_none_or(|tile| {
                         self.cached_movement_native_to_class(
                             MovementTile::new(
@@ -448,12 +448,12 @@ impl Simulation {
     }
 
     pub(super) fn movement_is_cardinal(&self, from: (i32, i32), to: (i32, i32)) -> bool {
-        super::topology::CIV3_DIRS
+        super::topology::EIGHT_WAY_DIRS
             .iter()
             .enumerate()
             .any(|(direction, _)| {
                 !matches!(direction, 2 | 6)
-                    && self.map_wrap.civ3_neighbor(from.0, from.1, direction) == Some(to)
+                    && self.map_wrap.eight_way_neighbor(from.0, from.1, direction) == Some(to)
             })
     }
 
@@ -463,7 +463,7 @@ impl Simulation {
     pub(super) fn safe_ocean_at(&self, x: i32, y: i32, observer: Option<usize>) -> bool {
         let rules = MovementRules::campaign();
         self.map_wrap
-            .civ3_neighbors(x, y)
+            .eight_way_neighbors(x, y)
             .filter(|&(nx, ny)| self.movement_is_cardinal((x, y), (nx, ny)))
             .any(|(nx, ny)| {
                 let tile = match observer {
@@ -543,7 +543,7 @@ impl Simulation {
         observed: bool,
     ) -> bool {
         std::iter::once((x, y))
-            .chain(self.map_wrap.civ3_neighbors(x, y))
+            .chain(self.map_wrap.eight_way_neighbors(x, y))
             .any(|(tx, ty)| {
                 let tile = if observed {
                     self.observed_route_tile(tx, ty)
@@ -861,7 +861,10 @@ impl Simulation {
             return;
         };
         let mut destinations = Vec::new();
-        for (x, y) in self.map_wrap.freeciv_square_radius(unit.x, unit.y, 2) {
+        for (x, y) in self
+            .map_wrap
+            .square_radius_in_source_order(unit.x, unit.y, 2)
+        {
             if (x, y) == (unit.x, unit.y) {
                 continue;
             }
@@ -922,7 +925,7 @@ impl Simulation {
     }
 
     fn can_capture_units_at(&self, actor: &Unit, x: i32, y: i32) -> bool {
-        if self.map_wrap.civ3_distance(actor.x, actor.y, x, y) != 1 {
+        if self.map_wrap.step_distance(actor.x, actor.y, x, y) != 1 {
             return false;
         }
         let targets = self
@@ -946,7 +949,8 @@ impl Simulation {
             })
     }
 
-    pub(crate) fn civ3_direction_for_unit_offset(
+    /// Civ III eight-direction grid.
+    pub(crate) fn direction_for_unit_offset(
         &self,
         unit_id: u32,
         dx: i32,
@@ -954,36 +958,29 @@ impl Simulation {
     ) -> Option<usize> {
         let unit = self.unit_by_id(unit_id)?;
         let destination = self.map_wrap.offset(unit.x, unit.y, dx, dy)?;
-        (0..super::topology::CIV3_DIRS.len()).find(|&direction| {
-            self.map_wrap.civ3_neighbor(unit.x, unit.y, direction) == Some(destination)
+        (0..super::topology::EIGHT_WAY_DIRS.len()).find(|&direction| {
+            self.map_wrap.eight_way_neighbor(unit.x, unit.y, direction) == Some(destination)
         })
     }
 
+    /// Moves along Civ III's eight-direction grid.
     #[cfg(test)]
-    pub(crate) fn try_move_unit_civ3_by_offset(
-        &mut self,
-        unit_id: u32,
-        dx: i32,
-        dy: i32,
-    ) -> MoveResult {
-        let Some(direction) = self.civ3_direction_for_unit_offset(unit_id, dx, dy) else {
+    pub(crate) fn try_move_unit_by_offset(&mut self, unit_id: u32, dx: i32, dy: i32) -> MoveResult {
+        let Some(direction) = self.direction_for_unit_offset(unit_id, dx, dy) else {
             return MoveResult::Blocked;
         };
-        self.try_move_unit_civ3(unit_id, direction)
+        self.try_move_unit(unit_id, direction)
     }
 
-    pub(in crate::sim) fn try_move_unit_civ3(
-        &mut self,
-        unit_id: u32,
-        direction: usize,
-    ) -> MoveResult {
+    /// Moves along Civ III's eight-direction grid.
+    pub(in crate::sim) fn try_move_unit(&mut self, unit_id: u32, direction: usize) -> MoveResult {
         let Some(unit) = self.unit_by_id(unit_id).cloned() else {
             return MoveResult::Blocked;
         };
-        let Some((nx, ny)) = self.map_wrap.civ3_neighbor(unit.x, unit.y, direction) else {
+        let Some((nx, ny)) = self.map_wrap.eight_way_neighbor(unit.x, unit.y, direction) else {
             return MoveResult::Blocked;
         };
-        let Some(facing) = self.map_wrap.civ3_flic_direction_index(direction) else {
+        let Some(facing) = self.map_wrap.flic_direction_index(direction) else {
             return MoveResult::Blocked;
         };
         self.try_move_unit_to(unit_id, nx, ny, Some(facing))
@@ -1377,7 +1374,7 @@ impl Simulation {
             return true;
         }
         self.unit_goto_tiles.insert(id, destination);
-        let moved = self.follow_civ3_path(id, path);
+        let moved = self.follow_grid_path(id, path);
         if self
             .unit_by_id(id)
             .is_some_and(|unit| (unit.x, unit.y) == destination)
@@ -1578,11 +1575,12 @@ impl Simulation {
                         continue;
                     }
                     for (dx, dy) in path {
-                        let Some(direction) = CIV3_DIRS.iter().position(|&step| step == (dx, dy))
+                        let Some(direction) =
+                            EIGHT_WAY_DIRS.iter().position(|&step| step == (dx, dy))
                         else {
                             break;
                         };
-                        if self.try_move_unit_civ3(id, direction) == MoveResult::Blocked {
+                        if self.try_move_unit(id, direction) == MoveResult::Blocked {
                             break;
                         }
                         let Some(unit) = self.unit_by_id(id) else {
@@ -1637,7 +1635,7 @@ impl Simulation {
                 if let Some(unit) = self.unit_by_id(id) {
                     let path = self.plan_route(unit, x, y, true);
                     if !path.is_empty() {
-                        self.follow_civ3_path(id, path);
+                        self.follow_grid_path(id, path);
                     }
                 }
                 if let Some(index) = self.unit_index_by_id(id) {
@@ -1669,7 +1667,8 @@ impl Simulation {
         self.continue_unit_orders();
     }
 
-    pub(super) fn follow_civ3_path(
+    /// Follows a path over Civ III's eight-direction grid.
+    pub(super) fn follow_grid_path(
         &mut self,
         unit_id: u32,
         path: impl IntoIterator<Item = (i32, i32)>,
@@ -1680,10 +1679,10 @@ impl Simulation {
         let visibility_batch = self.visibility_refresh.begin_batch(defer_visibility);
         let mut moved = false;
         for (dx, dy) in path {
-            let Some(direction) = CIV3_DIRS.iter().position(|&step| step == (dx, dy)) else {
+            let Some(direction) = EIGHT_WAY_DIRS.iter().position(|&step| step == (dx, dy)) else {
                 break;
             };
-            let result = self.try_move_unit_civ3(unit_id, direction);
+            let result = self.try_move_unit(unit_id, direction);
             if result == MoveResult::Blocked {
                 break;
             }

@@ -120,7 +120,7 @@ pub(crate) struct Unit {
 impl Unit {
     pub(in crate::sim) fn new(id: u32, owner: usize, kind: UnitKind, x: i32, y: i32) -> Self {
         let veteran = if kind.conquests_id().is_some() {
-            crate::sim::civ3_unit_rules::default_experience_rank()
+            crate::sim::unit_rules::default_experience_rank()
         } else {
             0
         };

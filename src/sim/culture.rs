@@ -28,7 +28,7 @@ pub(super) enum BorderRefresh {
 /// Return the city's border radius from its cumulative culture. Culture is the
 /// only source of border growth: a new city claims the 3×3 square (radius 1),
 /// and each threshold extends every side one tile outward as a "fat X" (see
-/// `MapWrap::civ3_border_shape_contains`).
+/// `MapWrap::border_shape_contains`).
 pub(crate) fn city_culture_border_radius(culture: i64) -> i32 {
     let tiers = CULTURE_BORDER_THRESHOLDS
         .iter()
@@ -179,7 +179,7 @@ impl Simulation {
             if other.owner == city.owner
                 || self
                     .map_wrap
-                    .civ3_distance(city.x, city.y, other.x, other.y)
+                    .step_distance(city.x, city.y, other.x, other.y)
                     > radius + city_culture_border_radius(other_score)
             {
                 return false;
@@ -350,8 +350,9 @@ mod tests {
         );
     }
 
+    /// Mirrors Freeciv behavior.
     #[test]
-    fn culture_percent_uses_freeciv_integer_truncation() {
+    fn culture_percent_uses_reference_integer_truncation() {
         assert_eq!(apply_culture_percent(5, 50), 7);
         assert_eq!(apply_culture_percent(5, -50), 2);
         assert_eq!(apply_culture_percent(0, 100), 0);

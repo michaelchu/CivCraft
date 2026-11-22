@@ -79,10 +79,11 @@ fn neighbor_knowledge(
     target_tile: Option<(i32, i32)>,
     at: &impl Fn(i32, i32) -> Knowledge,
 ) -> Knowledge {
-    wrap.civ3_neighbor(tile.0, tile.1, direction).map_or_else(
-        || fog_status(tile, target_tile, at),
-        |coord| fog_status(coord, target_tile, at),
-    )
+    wrap.eight_way_neighbor(tile.0, tile.1, direction)
+        .map_or_else(
+            || fog_status(tile, target_tile, at),
+            |coord| fog_status(coord, target_tile, at),
+        )
 }
 
 fn fog_status(

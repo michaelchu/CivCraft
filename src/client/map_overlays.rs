@@ -94,7 +94,7 @@ impl Game {
         }
 
         if unit.owner == HUMAN {
-            assets.civ3.draw_unit_movement_indicator(
+            assets.art_tileset.draw_unit_movement_indicator(
                 vec2(x, y),
                 unit.moves_left,
                 unit.movement_rate,

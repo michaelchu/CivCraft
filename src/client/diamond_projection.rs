@@ -1,6 +1,6 @@
 //! Civ III screen/world projection and tile picking.
 
-use super::civ3_geometry::Civ3Geometry;
+use super::diamond_geometry::DiamondGeometry;
 use crate::world::topology::{MAP_W, MapWrap};
 use macroquad::prelude::*;
 
@@ -15,7 +15,7 @@ pub(super) fn screen_to_world(
         (camera.x - camera.y + MAP_W as f32).rem_euclid(2.0 * wrap.width() as f32),
         camera.x + camera.y - MAP_W as f32,
     );
-    let geometry = Civ3Geometry::new(wrap.width() * 2, wrap.height(), true).ok()?;
+    let geometry = DiamondGeometry::new(wrap.width() * 2, wrap.height(), true).ok()?;
     let (x, y) = geometry.screen_to_storage(
         point.x - (viewport.x + viewport.w * 0.5),
         point.y - (viewport.y + viewport.h * 0.5),
@@ -35,15 +35,16 @@ pub(super) fn world_screen_position(
     x: i32,
     y: i32,
 ) -> Vec2 {
-    super::world::civ3_world_screen_position(wrap, viewport, camera, zoom, x, y)
+    super::world::projected_screen_position(wrap, viewport, camera, zoom, x, y)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    /// Mirrors Civ III behavior.
     #[test]
-    fn civ3_diamond_projection_and_picking_round_trip_tile_centers() {
+    fn native_diamond_projection_and_picking_round_trip_tile_centers() {
         let viewport = Rect::new(0.0, 46.0, 900.0, 600.0);
         let camera = vec2(31.0, 24.0);
         let view_camera = vec2(

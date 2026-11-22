@@ -168,8 +168,9 @@ mod tests {
         );
     }
 
+    /// Mirrors the civ2civ3 ruleset behavior.
     #[test]
-    fn conquest_conversion_uses_selected_c2c3_percent_and_is_zero_by_default() {
+    fn conquest_conversion_uses_selected_ruleset_percent_and_is_zero_by_default() {
         assert_eq!(selected_conquest_convert_pct(), 0);
 
         let mut game = Simulation::new(crate::mapgen::generate(42));
@@ -186,8 +187,9 @@ mod tests {
         assert_eq!(game.cities[0].domestic_citizens(), 3);
     }
 
+    /// Mirrors the civ2civ3 ruleset behavior.
     #[test]
-    fn city_turn_conversion_uses_c2c3_probability_and_foreign_nationality_order() {
+    fn city_turn_conversion_uses_ruleset_probability_and_foreign_nationality_order() {
         assert_eq!(selected_citizen_convert_speed(), 50);
         let mut game = Simulation::new(crate::mapgen::generate(42));
         game.cities.clear();

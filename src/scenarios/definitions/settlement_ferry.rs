@@ -189,7 +189,7 @@ impl ScenarioRun for Voyage {
                         if self.founder_consumed == Some((x, y))
                             && game
                                 .map_wrap
-                                .civ3_distance(x, y, self.island.0, self.island.1)
+                                .step_distance(x, y, self.island.0, self.island.1)
                                 <= 2
                         {
                             self.colony

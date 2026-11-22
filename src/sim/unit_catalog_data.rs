@@ -107,7 +107,7 @@ impl UnitClass {
     }
 }
 struct RuntimeUnit {
-    rule: &'static super::civ3_unit_rules::UnitRule,
+    rule: &'static super::unit_rules::UnitRule,
     metadata: UnitMetadata,
 }
 
@@ -117,7 +117,7 @@ impl UnitKind {
         &UNITS.get_or_init(|| {
             UnitKind::all()
                 .map(|kind| {
-                    let rule = super::civ3_unit_rules::get(
+                    let rule = super::unit_rules::get(
                         kind.conquests_id()
                             .expect("campaign unit must have a Conquests identity"),
                     )
@@ -131,7 +131,7 @@ impl UnitKind {
         })[self.index()]
     }
 
-    pub(super) fn conquests_rule(self) -> &'static super::civ3_unit_rules::UnitRule {
+    pub(super) fn conquests_rule(self) -> &'static super::unit_rules::UnitRule {
         self.runtime_unit().rule
     }
 

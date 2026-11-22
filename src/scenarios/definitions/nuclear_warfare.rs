@@ -274,7 +274,7 @@ mod tests {
             "rome tactical cannot launch at (20,22): moves={} dist={}",
             rome_tact.moves_left,
             game.map_wrap
-                .civ3_distance(rome_tact.x, rome_tact.y, 20, 22),
+                .step_distance(rome_tact.x, rome_tact.y, 20, 22),
         );
         assert!(
             game.can_launch_nuclear_strike_at(ger_icbm, 10, 18),

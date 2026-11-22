@@ -19,15 +19,16 @@ pub(crate) const DIRECTIONS: [(i32, i32); 8] = [
     (-1, -1), // northwest
 ];
 
+/// Civ III's diamond tile geometry.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct Civ3Geometry {
+pub(crate) struct DiamondGeometry {
     width: i32,
     height: i32,
     wrap_x: bool,
     wrap_y: bool,
 }
 
-impl Civ3Geometry {
+impl DiamondGeometry {
     pub(crate) fn new(width: i32, height: i32, wrap_x: bool) -> Result<Self, &'static str> {
         Self::new_wrapped(width, height, wrap_x, false)
     }
@@ -170,7 +171,7 @@ mod tests {
 
     #[test]
     fn staggered_coordinates_round_trip_through_flat_storage() {
-        let map = Civ3Geometry::new(8, 6, false).unwrap();
+        let map = DiamondGeometry::new(8, 6, false).unwrap();
         assert_eq!(map.tile_count(), 24);
         for index in 0..map.tile_count() {
             let (x, y) = map.coordinates(index).unwrap();
@@ -183,7 +184,7 @@ mod tests {
 
     #[test]
     fn eight_neighbors_are_reciprocal_and_preserve_stagger() {
-        let map = Civ3Geometry::new(10, 8, false).unwrap();
+        let map = DiamondGeometry::new(10, 8, false).unwrap();
         let (x, y) = (4, 4);
         for direction in 0..DIRECTIONS.len() {
             let (nx, ny) = map.neighbor(x, y, direction).unwrap();
@@ -197,7 +198,7 @@ mod tests {
 
     #[test]
     fn horizontal_wrap_preserves_parity_and_reciprocity() {
-        let map = Civ3Geometry::new(8, 6, true).unwrap();
+        let map = DiamondGeometry::new(8, 6, true).unwrap();
         assert_eq!(map.neighbor(6, 2, 2), Some((0, 2)));
         assert_eq!(map.neighbor(0, 2, 6), Some((6, 2)));
         assert_eq!(map.tile_center(-2, 0), map.tile_center(6, 0));
@@ -205,18 +206,18 @@ mod tests {
 
     #[test]
     fn projected_tile_centers_pick_the_same_coordinate() {
-        let map = Civ3Geometry::new(12, 8, true).unwrap();
+        let map = DiamondGeometry::new(12, 8, true).unwrap();
         for index in 0..map.tile_count() {
             let (x, y) = map.coordinates(index).unwrap();
             let (px, py) = map.tile_center(x, y).unwrap();
-            let picked = Civ3Geometry::tile_at_cell_point(px / CELL_W, py / CELL_H);
+            let picked = DiamondGeometry::tile_at_cell_point(px / CELL_W, py / CELL_H);
             assert_eq!(picked, (x, y));
         }
     }
 
     #[test]
     fn storage_adapter_matches_staggered_array_indices() {
-        let map = Civ3Geometry::new(16, 8, true).unwrap();
+        let map = DiamondGeometry::new(16, 8, true).unwrap();
         for y in 0..map.height {
             for x in 0..map.width / 2 {
                 let (grid_x, grid_y) = map.storage_to_grid(x, y).unwrap();
@@ -231,7 +232,7 @@ mod tests {
 
     #[test]
     fn screen_picking_round_trips_tile_centers_across_rows_and_seam() {
-        let map = Civ3Geometry::new(16, 8, true).unwrap();
+        let map = DiamondGeometry::new(16, 8, true).unwrap();
         let zoom = 1.17;
         let art_scale = 0.75;
         let camera = map.storage_to_grid(7, 3).unwrap();
@@ -257,8 +258,8 @@ mod tests {
 
     #[test]
     fn rejects_invalid_dimensions() {
-        assert!(Civ3Geometry::new(0, 4, false).is_err());
-        assert!(Civ3Geometry::new(7, 4, false).is_err());
-        assert!(Civ3Geometry::new(8, 0, false).is_err());
+        assert!(DiamondGeometry::new(0, 4, false).is_err());
+        assert!(DiamondGeometry::new(7, 4, false).is_err());
+        assert!(DiamondGeometry::new(8, 0, false).is_err());
     }
 }

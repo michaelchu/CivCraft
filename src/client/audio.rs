@@ -370,7 +370,7 @@ fn resolve_music_file(root: &Path, relative: &Path) -> Option<PathBuf> {
     } else {
         vec![root.to_owned()]
     };
-    super::media::Civ3MediaResolver::new(roots)
+    super::media::MediaResolver::new(roots)
         .resolve(relative.to_str()?)
         .ok()
         .filter(|p| p.is_file())
@@ -533,8 +533,9 @@ mod tests {
         fs::remove_dir_all(install).unwrap();
     }
 
+    /// Mirrors Civ III behavior.
     #[test]
-    fn culture_groups_map_to_the_civ3_music_codes() {
+    fn culture_groups_map_to_the_native_music_codes() {
         assert_eq!(group_code(0), Some("NA"));
         assert_eq!(group_code(1), Some("EC"));
         assert_eq!(group_code(2), Some("GR"));

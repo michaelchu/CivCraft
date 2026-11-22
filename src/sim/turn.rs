@@ -118,7 +118,7 @@ impl Simulation {
         self.trace.phase(trace::Phase::WorldEvents);
         let _profile = profiler.scope("turn.world.events_and_visibility");
         self.summon_barbarians();
-        self.check_city_migrations(crate::sim::migration::MigrationSettings::c2c3_default());
+        self.check_city_migrations(crate::sim::migration::MigrationSettings::ruleset_default());
         self.check_disasters();
         // srv_main.c::end_phase calls do_reveal_effects before end_turn.
         // Refresh here so effects such as Apollo's Reveal_Map are reflected
@@ -251,7 +251,7 @@ impl RequirementContext for CalendarContext<'_> {
                             .map_err(|_| unsupported())?
                         {
                             crate::rules::content_adapter::EngineTechBinding::Bound(tech) => tech,
-                            crate::rules::content_adapter::EngineTechBinding::MissingFromCiv3Catalog => {
+                            crate::rules::content_adapter::EngineTechBinding::MissingFromCatalog => {
                                 return Ok(false);
                             }
                         }
@@ -371,8 +371,9 @@ mod tests {
         next_calendar_state(year, false, global_advances, ruleset()).unwrap()
     }
 
+    /// Mirrors the civ2civ3 ruleset and Civ III behavior.
     #[test]
-    fn calendar_uses_civ2civ3_year_threshold_effects() {
+    fn calendar_uses_ruleset_year_threshold_effects() {
         for (year, expected) in [
             (-1001, -951),
             (-1000, -975),
@@ -403,8 +404,9 @@ mod tests {
         );
     }
 
+    /// Mirrors Freeciv behavior.
     #[test]
-    fn calendar_skip_year_zero_carries_freeciv_hack_state() {
+    fn calendar_skip_year_zero_carries_reference_hack_state() {
         let (year, year_0_hack) = next_calendar_state(-25, false, &[], ruleset()).unwrap();
         assert_eq!((year, year_0_hack), (1, true));
         assert_eq!(
@@ -455,7 +457,7 @@ mod tests {
         game.cities[0].size = 2;
         let approach = game
             .map_wrap
-            .civ3_neighbor(city_position.0, city_position.1, 1)
+            .eight_way_neighbor(city_position.0, city_position.1, 1)
             .expect("the test city has a northeast neighbor");
         game.spawn_unit(BARBARIANS, UnitKind::ModernArmor, approach.0, approach.1);
 

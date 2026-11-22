@@ -70,7 +70,7 @@ impl Simulation {
     fn climate_target(&self, x: i32, y: i32, warming: bool) -> Option<Terrain> {
         let tile = self.tile(x, y);
         let wet = tile.river
-            || self.map_wrap.civ3_neighbors(x, y).any(|(nx, ny)| {
+            || self.map_wrap.eight_way_neighbors(x, y).any(|(nx, ny)| {
                 let adjacent = self.tile(nx, ny);
                 adjacent.terrain.is_water() || adjacent.river
             });
@@ -85,11 +85,11 @@ impl Simulation {
         // As in climate_change(), a missing preferred terrain result means
         // this terrain is not changed for its current moisture class; only a
         // present result rejected by local geometry permits trying fallback.
-        let preferred = preferred_result.and_then(Self::c2c3_climate_terrain)?;
+        let preferred = preferred_result.and_then(Self::climate_terrain)?;
         if self.climate_change_allowed(x, y, preferred) {
             return Some(preferred);
         }
-        let fallback = fallback_result.and_then(Self::c2c3_climate_terrain)?;
+        let fallback = fallback_result.and_then(Self::climate_terrain)?;
         self.climate_change_allowed(x, y, fallback)
             .then_some(fallback)
     }
@@ -109,10 +109,10 @@ impl Simulation {
             return false;
         }
 
-        let adjacent: Vec<_> = self.map_wrap.civ3_neighbors(x, y).collect();
+        let adjacent: Vec<_> = self.map_wrap.eight_way_neighbors(x, y).collect();
         // CivCraft uses eight directional slots. can_reclaim_ocean() counts
         // absent/off-map slots as non-ocean, so the denominator includes bounded-Y slots too.
-        const DIRECTION_SLOTS: i32 = super::topology::CIV3_DIRS.len() as i32;
+        const DIRECTION_SLOTS: i32 = super::topology::EIGHT_WAY_DIRS.len() as i32;
         let adjacent_ocean = adjacent
             .iter()
             .filter(|&&(nx, ny)| {
@@ -168,7 +168,8 @@ impl Simulation {
             .unwrap_or_else(|| panic!("missing campaign terrain {rule_name:?}"))
     }
 
-    fn c2c3_climate_terrain(name: &str) -> Option<Terrain> {
+    /// Follows the civ2civ3 climate terrain selection.
+    fn climate_terrain(name: &str) -> Option<Terrain> {
         Some(match name.to_ascii_lowercase().as_str() {
             "no" => return None,
             "lake" => Terrain::Lake,
@@ -254,7 +255,7 @@ mod tests {
     fn climate_obeys_moisture_and_checks_the_fallback_only_when_blocked() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         let (x, y) = (10, 20);
-        for (nx, ny) in game.map_wrap.civ3_neighbors(x, y) {
+        for (nx, ny) in game.map_wrap.eight_way_neighbors(x, y) {
             let tile = game.tile_mut(nx, ny);
             tile.terrain = Terrain::Plains;
             tile.river = false;
@@ -266,7 +267,7 @@ mod tests {
         game.tile_mut(x, y).river = true;
         assert_eq!(game.climate_target(x, y, false), Some(Terrain::Marsh));
         game.tile_mut(x, y).river = false;
-        let (diagonal_x, diagonal_y) = game.map_wrap.civ3_neighbor(x, y, 1).unwrap();
+        let (diagonal_x, diagonal_y) = game.map_wrap.eight_way_neighbor(x, y, 1).unwrap();
         game.tile_mut(diagonal_x, diagonal_y).terrain = Terrain::Coast;
         assert_eq!(game.climate_target(x, y, false), Some(Terrain::Marsh));
         game.tile_mut(diagonal_x, diagonal_y).terrain = Terrain::Plains;
@@ -281,12 +282,12 @@ mod tests {
     fn climate_uses_selected_terrain_results_for_civ_iii_sea_and_ocean() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         let (x, y) = (10, 20);
-        for (nx, ny) in game.map_wrap.civ3_neighbors(x, y) {
+        for (nx, ny) in game.map_wrap.eight_way_neighbors(x, y) {
             let tile = game.tile_mut(nx, ny);
             tile.terrain = Terrain::Plains;
             tile.river = false;
         }
-        let water_neighbor = game.map_wrap.civ3_neighbor(x, y, 0).unwrap();
+        let water_neighbor = game.map_wrap.eight_way_neighbor(x, y, 0).unwrap();
         game.tile_mut(water_neighbor.0, water_neighbor.1).terrain = Terrain::Coast;
         game.tile_mut(x, y).terrain = Terrain::Sea;
         assert_eq!(game.climate_target(x, y, false), Some(Terrain::Glacier));
@@ -297,16 +298,17 @@ mod tests {
         assert_eq!(game.climate_target(x, y, false), None);
     }
 
+    /// Mirrors the civ2civ3 ruleset behavior.
     #[test]
-    fn climate_uses_c2c3_land_channel_requirement_instead_of_worker_thresholds() {
+    fn climate_uses_ruleset_land_channel_requirement_instead_of_worker_thresholds() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         let (x, y) = (10, 20);
-        for (nx, ny) in game.map_wrap.civ3_neighbors(x, y) {
+        for (nx, ny) in game.map_wrap.eight_way_neighbors(x, y) {
             let tile = game.tile_mut(nx, ny);
             tile.terrain = Terrain::Plains;
             tile.river = false;
         }
-        let wet_neighbor = game.map_wrap.civ3_neighbor(x, y, 0).unwrap();
+        let wet_neighbor = game.map_wrap.eight_way_neighbor(x, y, 0).unwrap();
         game.tile_mut(wet_neighbor.0, wet_neighbor.1).terrain = Terrain::Coast;
         game.tile_mut(x, y).terrain = Terrain::Glacier;
 
@@ -321,7 +323,7 @@ mod tests {
     fn ocean_reclaim_counts_polar_slots_as_land_with_civ_iii_denominator() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         let (x, y) = (12, 0);
-        let adjacent: Vec<_> = game.map_wrap.civ3_neighbors(x, y).collect();
+        let adjacent: Vec<_> = game.map_wrap.eight_way_neighbors(x, y).collect();
         assert_eq!(adjacent.len(), 5, "three bounded-Y directions are absent");
         for (nx, ny) in adjacent {
             game.tile_mut(nx, ny).terrain = Terrain::Sea;

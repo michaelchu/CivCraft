@@ -475,7 +475,7 @@ mod tests {
 mod integration_tests {
     use super::*;
     use crate::{
-        random::FreecivRng,
+        random::GameRng,
         sim::Simulation,
         world::{GeneratedMap, GeneratedTile, Terrain, TerrainBase, topology::MapWrap},
     };
@@ -509,7 +509,7 @@ mod integration_tests {
             seed: 42,
             map_seed: 42,
             map_wrap,
-            game_random: FreecivRng::new(42),
+            game_random: GameRng::new(42),
             tiles: vec![
                 GeneratedTile {
                     terrain: Terrain::Grassland,

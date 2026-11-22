@@ -4,7 +4,7 @@ mod worker;
 
 use super::amb::read_amb_cues;
 use super::audio_assets::AudioAssetLoader;
-use super::media::Civ3MediaResolver;
+use super::media::MediaResolver;
 use super::*;
 use macroquad::audio::{PlaySoundParams, play_sound};
 use std::{
@@ -247,7 +247,7 @@ impl UnitSoundPlayer {
 }
 
 fn resolve_amb_component(
-    media: &Civ3MediaResolver,
+    media: &MediaResolver,
     amb_path: &Path,
     reference: &str,
     index: &mut Option<HashMap<String, PathBuf>>,
@@ -315,7 +315,7 @@ mod tests {
             fs::create_dir_all(path.parent().unwrap()).unwrap();
             fs::write(path, "wav").unwrap();
         }
-        let media = Civ3MediaResolver::installation(&root);
+        let media = MediaResolver::installation(&root);
         let mut index = None;
         let found = resolve_amb_component(&media, &owner, "shared.wav", &mut index)
             .unwrap()

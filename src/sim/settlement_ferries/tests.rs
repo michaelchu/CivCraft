@@ -62,14 +62,15 @@ fn ocean_game() -> Simulation {
     game
 }
 
+/// Mirrors Civ III behavior.
 #[test]
-fn coastal_ports_and_embarkation_use_all_civ3_directions() {
-    for direction in 0..CIV3_DIRS.len() {
+fn coastal_ports_and_embarkation_use_all_native_directions() {
+    for direction in 0..EIGHT_WAY_DIRS.len() {
         let mut game = ocean_game();
         let shore = (10, 24);
         let water = game
             .map_wrap
-            .civ3_neighbor(shore.0, shore.1, direction)
+            .eight_way_neighbor(shore.0, shore.1, direction)
             .unwrap();
         game.tile_mut(shore.0, shore.1).terrain = Terrain::Grassland;
         game.create_city(1, shore.0, shore.1);

@@ -556,8 +556,9 @@ mod tests {
         bytes
     }
 
+    /// Mirrors Civ III behavior.
     #[test]
-    fn decodes_civ3_animation_frames_palette_and_delta_pixels() {
+    fn decodes_native_animation_frames_palette_and_delta_pixels() {
         let flic = decode_flic(&fixture()).unwrap();
         assert_eq!((flic.width, flic.height), (4, 1));
         assert_eq!((flic.original_width, flic.original_height), (240, 240));
@@ -568,8 +569,9 @@ mod tests {
         assert_eq!(flic.animations[0][1], [1, 3, 4, 1]);
     }
 
+    /// Mirrors Civ III behavior.
     #[test]
-    fn rejects_truncated_and_non_civ3_flic_data() {
+    fn rejects_truncated_and_non_native_flic_data() {
         assert!(decode_flic(&[0; 20]).unwrap_err().contains("truncated"));
         let mut bytes = fixture();
         bytes[4..6].copy_from_slice(&0xaf11_u16.to_le_bytes());

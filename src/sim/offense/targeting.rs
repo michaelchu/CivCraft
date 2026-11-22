@@ -27,7 +27,7 @@ impl super::Simulation {
         let mut best_cost = max_cost.unwrap_or(i32::MAX);
         if cargo.has_marine_attack() {
             let beach = (x, y);
-            for (nx, ny) in self.map_wrap.civ3_neighbors(x, y) {
+            for (nx, ny) in self.map_wrap.eight_way_neighbors(x, y) {
                 let cost = if best_cost < i32::MAX {
                     map.movement_cost_within(self, nx, ny, best_cost.saturating_sub(1))
                 } else {
@@ -43,11 +43,11 @@ impl super::Simulation {
         } else {
             let mut checked = [(x, y); 32];
             let mut checked_len = 1_usize;
-            for (bx, by) in self.map_wrap.civ3_neighbors(x, y) {
+            for (bx, by) in self.map_wrap.eight_way_neighbors(x, y) {
                 if !self.pf_native_tile(cargo, bx, by) {
                     continue;
                 }
-                for (sx, sy) in self.map_wrap.civ3_neighbors(bx, by) {
+                for (sx, sy) in self.map_wrap.eight_way_neighbors(bx, by) {
                     if checked[..checked_len].contains(&(sx, sy)) {
                         continue;
                     }
@@ -95,7 +95,7 @@ impl super::Simulation {
                     watch[bi] = true;
                     remaining_watch += 1;
                 }
-                for (nx, ny) in self.map_wrap.civ3_neighbors(boat.x, boat.y) {
+                for (nx, ny) in self.map_wrap.eight_way_neighbors(boat.x, boat.y) {
                     let ni = self.map_wrap.index(nx, ny);
                     if self.tiles[ni].terrain.is_water() && !watch[ni] {
                         watch[ni] = true;
@@ -123,7 +123,7 @@ impl super::Simulation {
             let mut tiles = [(x, y); 9];
             let mut tile_len = 1_usize;
             if self.tiles[idx].terrain.is_water() {
-                for neighbor in self.map_wrap.civ3_neighbors(x, y) {
+                for neighbor in self.map_wrap.eight_way_neighbors(x, y) {
                     tiles[tile_len] = neighbor;
                     tile_len += 1;
                 }
@@ -168,7 +168,7 @@ impl super::Simulation {
                 })
                 .filter(|_| {
                     self.map_wrap
-                        .civ3_neighbors(seed.x, seed.y)
+                        .eight_way_neighbors(seed.x, seed.y)
                         .any(|(x, y)| self.tile(x, y).terrain.is_water())
                 })
                 .map(|kind| self.make_unit(0, seed.owner, kind, seed.x, seed.y))

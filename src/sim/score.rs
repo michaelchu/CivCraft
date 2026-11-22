@@ -157,8 +157,9 @@ impl Simulation {
 mod tests {
     use super::*;
 
+    /// Mirrors Freeciv behavior.
     #[test]
-    fn score_counts_history_and_freeciv_integer_weights() {
+    fn score_counts_history_and_reference_integer_weights() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         game.create_city(HUMAN, 10, 20);
         let city = &mut game.cities[0];

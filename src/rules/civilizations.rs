@@ -14,7 +14,7 @@ pub(crate) struct Civilization {
     pub(crate) adjective: String,
     pub(crate) leader: String,
     pub(crate) cities: Vec<String>,
-    pub(crate) civ3_city_style: u8,
+    pub(crate) city_art_style: u8,
     pub(crate) starting_techs: [Tech; 2],
     pub(crate) primary_color_index: u8,
     pub(crate) secondary_color_index: u8,
@@ -44,7 +44,7 @@ fn parse_catalog() -> Vec<Civilization> {
             leader: native.leader.clone(),
             primary_color_index: native.primary_color_index,
             secondary_color_index: native.secondary_color_index,
-            civ3_city_style: native.city_style,
+            city_art_style: native.city_style,
             starting_techs: [
                 parse_tech(&native.starting_techs[0], index + 1),
                 parse_tech(&native.starting_techs[1], index + 1),
@@ -133,7 +133,7 @@ mod tests {
         for civilization in all() {
             assert!((0..=4).contains(&civilization.culture_group_index));
             assert!(!civilization.leader.is_empty());
-            assert!(civilization.civ3_city_style < 5);
+            assert!(civilization.city_art_style < 5);
             assert!((civilization.primary_color_index as usize) < 32);
             assert!((civilization.secondary_color_index as usize) < 32);
             assert_eq!(
@@ -174,7 +174,7 @@ mod tests {
             assert_eq!(migrated.leader, source.leader);
             assert_eq!(migrated.primary_color_index, source.primary_color_index);
             assert_eq!(migrated.secondary_color_index, source.secondary_color_index);
-            assert_eq!(migrated.city_style, source.civ3_city_style);
+            assert_eq!(migrated.city_style, source.city_art_style);
             assert_eq!(migrated.culture_group_index, source.culture_group_index);
             assert_eq!(migrated.cities, source.cities);
             assert_eq!(

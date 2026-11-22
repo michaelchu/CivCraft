@@ -5,7 +5,8 @@ use crate::rules::Tech;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum EngineTechBinding {
     Bound(Tech),
-    MissingFromCiv3Catalog,
+    /// Absent from the Civ III technology catalog.
+    MissingFromCatalog,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -22,11 +23,11 @@ impl std::error::Error for ContentBindingError {}
 /// Resolve a Freeciv technology universal to a native campaign identity.
 /// Plastics has no counterpart. Radio maps to Flight for the C2C3 airfield rules.
 pub(crate) fn bind_engine_technology(
-    freeciv_name: &str,
+    source_name: &str,
 ) -> Result<EngineTechBinding, ContentBindingError> {
-    let display_name = freeciv_name;
+    let display_name = source_name;
     if display_name.eq_ignore_ascii_case("Plastics") {
-        return Ok(EngineTechBinding::MissingFromCiv3Catalog);
+        return Ok(EngineTechBinding::MissingFromCatalog);
     }
     if display_name.eq_ignore_ascii_case("Radio") {
         // C2C3's Radio advance unlocks airstrips and airbases, but Conquests
@@ -43,9 +44,9 @@ pub(crate) fn bind_engine_technology(
     if let Some(compatibility_tech) = Tech::all()
         .find(|tech| tech.name().eq_ignore_ascii_case(display_name))
         .and_then(|tech| {
-            tech.is_civ3_advance()
+            tech.is_researchable_advance()
                 .then_some(tech)
-                .or_else(|| tech.civ3_equivalent())
+                .or_else(|| tech.catalog_equivalent())
         })
     {
         return Ok(EngineTechBinding::Bound(compatibility_tech));
@@ -97,8 +98,9 @@ pub(crate) fn bind_engine_technology(
 mod tests {
     use super::*;
 
+    /// Mirrors Civ III behavior.
     #[test]
-    fn calendar_technology_effects_use_explicit_civ3_bindings() {
+    fn calendar_technology_effects_use_explicit_native_bindings() {
         assert_eq!(
             bind_engine_technology("Space Flight"),
             Ok(EngineTechBinding::Bound(Tech::SPACE_FLIGHT))
@@ -119,7 +121,7 @@ mod tests {
             bind_engine_technology("Radio"),
             Ok(EngineTechBinding::Bound(Tech::FLIGHT))
         );
-        assert!(!Tech::RADIO.is_civ3_advance());
+        assert!(!Tech::RADIO.is_researchable_advance());
         assert_eq!(
             bind_engine_technology("Environmentalism"),
             Ok(EngineTechBinding::Bound(Tech::ECOLOGY))
@@ -134,7 +136,7 @@ mod tests {
         );
         assert_eq!(
             bind_engine_technology("Plastics"),
-            Ok(EngineTechBinding::MissingFromCiv3Catalog)
+            Ok(EngineTechBinding::MissingFromCatalog)
         );
     }
 }

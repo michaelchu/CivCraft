@@ -253,7 +253,7 @@ impl Simulation {
         target: UnitKind,
         kind: crate::rules::engine_rules::CombatBonusKind,
     ) -> i32 {
-        let Some(bonuses) = crate::sim::action_rules::freeciv_unit_combat_bonuses(unit) else {
+        let Some(bonuses) = crate::sim::action_rules::unit_combat_bonuses(unit) else {
             return 0;
         };
         bonuses
@@ -554,7 +554,7 @@ impl Simulation {
                 || native_at(x, y)
                 || self
                     .map_wrap
-                    .civ3_neighbors(x, y)
+                    .eight_way_neighbors(x, y)
                     .any(|(tx, ty)| native_at(tx, ty));
         }
 
@@ -612,7 +612,7 @@ impl Simulation {
 
     fn safe_ocean_tile(&self, x: i32, y: i32) -> bool {
         let movement = MovementRules::campaign();
-        self.map_wrap.civ3_neighbors(x, y).any(|(tx, ty)| {
+        self.map_wrap.eight_way_neighbors(x, y).any(|(tx, ty)| {
             let terrain = self.tile(tx, ty).terrain;
             matches!(
                 movement.terrain_has_flag(
@@ -637,16 +637,15 @@ impl Simulation {
         let Some(carrier) = self.unit_by_id(carrier_id) else {
             return false;
         };
-        let transport_defense =
-            match crate::sim::action_rules::freeciv_unit_transport_defense(unit.kind) {
-                Some(policy) => policy,
-                None if crate::sim::action_rules::unit_class_rule_name(unit.kind).is_some() => {
-                    // Unmapped Civ III identities use Freeciv's selected engine
-                    // default from ruleload.c: TDT_ALIGHT.
-                    crate::rules::engine_rules::TransportDefense::Alight
-                }
-                None => return false,
-            };
+        let transport_defense = match crate::sim::action_rules::unit_transport_defense(unit.kind) {
+            Some(policy) => policy,
+            None if crate::sim::action_rules::unit_class_rule_name(unit.kind).is_some() => {
+                // Unmapped Civ III identities use Freeciv's selected engine
+                // default from ruleload.c: TDT_ALIGHT.
+                crate::rules::engine_rules::TransportDefense::Alight
+            }
+            None => return false,
+        };
         match transport_defense {
             crate::rules::engine_rules::TransportDefense::Blocked => false,
             crate::rules::engine_rules::TransportDefense::Always => true,
@@ -739,7 +738,7 @@ impl Simulation {
             return false;
         };
         let mut shooter = None;
-        for (sx, sy, _) in self.map_wrap.civ3_radius(x, y, 1) {
+        for (sx, sy, _) in self.map_wrap.tiles_within_steps(x, y, 1) {
             if (sx, sy) != (x, y) && self.tile(sx, sy).base != Some(Base::Fortress) {
                 continue;
             }
@@ -761,7 +760,7 @@ impl Simulation {
             let coastal_fortress = self.cities.iter().find(|city| {
                 self.at_war(city.owner, attacker.owner)
                     && city.has_building(crate::rules::Building::COASTAL_DEFENSE)
-                    && self.map_wrap.civ3_distance(city.x, city.y, x, y) == 1
+                    && self.map_wrap.step_distance(city.x, city.y, x, y) == 1
             });
             if coastal_fortress.is_some() {
                 // Civ III's Coastal Fortress has naval bombardment strength 8
@@ -1314,8 +1313,9 @@ mod tests {
         assert!(game.physical_attack_stack_allowed(&attacker, target.0, target.1));
     }
 
+    /// Mirrors the civ2civ3 ruleset behavior.
     #[test]
-    fn selected_c2c3_roster_has_no_never_protects_exception_units() {
+    fn selected_ruleset_roster_has_no_never_protects_exception_units() {
         assert!(UnitKind::all().all(|kind| {
             crate::sim::action_rules::unit_type_flag(kind, "NeverProtects") == Some(false)
         }));

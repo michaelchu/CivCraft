@@ -5,7 +5,7 @@
 //! here lets map generation and simulation depend on shared data without
 //! depending on each other's modules.
 
-use crate::random::FreecivRng;
+use crate::random::GameRng;
 
 mod terrain;
 pub(crate) mod topology;
@@ -26,7 +26,7 @@ pub(crate) struct GeneratedMap {
     /// Distinct value drawn from the initialized gameplay stream for map work.
     pub(crate) map_seed: u32,
     pub(crate) map_wrap: topology::MapWrap,
-    pub(crate) game_random: FreecivRng,
+    pub(crate) game_random: GameRng,
     pub(crate) tiles: Vec<GeneratedTile>,
     pub(crate) starts: Vec<(i32, i32)>,
     pub(crate) civilization_count: usize,

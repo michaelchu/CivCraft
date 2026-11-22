@@ -81,7 +81,7 @@ impl Simulation {
             .map(|unit| (unit.owner, unit.x, unit.y))
             .chain(self.cities.iter().map(|city| (city.owner, city.x, city.y)))
             .filter_map(|(other, tx, ty)| {
-                (other != owner && self.map_wrap.civ3_distance(x, y, tx, ty) <= 1).then_some(other)
+                (other != owner && self.map_wrap.step_distance(x, y, tx, ty) <= 1).then_some(other)
             })
             .collect();
         for other in contacts {

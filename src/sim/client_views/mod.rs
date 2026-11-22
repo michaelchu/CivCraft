@@ -437,8 +437,8 @@ pub(crate) struct RenderedCityView {
     pub(crate) y: i32,
     pub(crate) size: i32,
     pub(crate) civilization_id: Option<String>,
-    pub(crate) civ3_style: u8,
-    pub(crate) civ3_era: u8,
+    pub(crate) art_style: u8,
+    pub(crate) art_era: u8,
     pub(crate) occupied: bool,
     pub(crate) disorder: bool,
     pub(crate) capital: bool,
@@ -855,7 +855,10 @@ mod tests {
         let mut game = Simulation::new(crate::test_support::seeded_map());
         game.units.clear();
         let start = (10, 24);
-        let target = game.map_wrap.civ3_neighbor(start.0, start.1, 1).unwrap();
+        let target = game
+            .map_wrap
+            .eight_way_neighbor(start.0, start.1, 1)
+            .unwrap();
         for (x, y) in [start, target] {
             let tile = game.tile_mut(x, y);
             tile.terrain = Terrain::Grassland;

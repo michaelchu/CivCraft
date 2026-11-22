@@ -415,8 +415,9 @@ mod tests {
         assert_eq!(game.nation_scores[HUMAN].score_literacy, 100);
     }
 
+    /// Mirrors Freeciv behavior.
     #[test]
-    fn freeciv_culture_history_unlocks_culture_achievements() {
+    fn reference_culture_history_unlocks_culture_achievements() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         game.create_city(HUMAN, 10, 20);
         game.cities[0].history = 10_000;
@@ -442,7 +443,7 @@ mod tests {
         game.sign_pact(HUMAN, 1, Pact::War);
         game.create_city(HUMAN, 10, 20);
         let (attacker, target) = game.multicultural_fixture();
-        assert!(game.apply(Command::move_civ3_by_offset(&game, attacker, 1, 0)));
+        assert!(game.apply(Command::move_by_offset(&game, attacker, 1, 0)));
         assert!(game.cities.iter().any(|city| {
             city.id == target && city.owner == HUMAN && city.foreign_citizens == vec![(1, 2)]
         }));

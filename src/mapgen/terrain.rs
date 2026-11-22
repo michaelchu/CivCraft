@@ -6,11 +6,14 @@ use std::collections::VecDeque;
 
 // Values copied from the pinned Freeciv `mapgen_utils.c` implementation and
 // `common/terrain.h`; C2C3's terrain-specific depth values remain ruleset data.
-const FREECIV_OCEAN_DEPTH_MAXIMUM: i32 = 100;
-const FREECIV_OCEAN_DEPTH_STEP: i32 = 25;
-const FREECIV_OCEAN_DEPTH_RANDOM_RANGE: i32 = 15;
-const FREECIV_OCEAN_DISTANCE_MAX: usize =
-    (FREECIV_OCEAN_DEPTH_MAXIMUM / FREECIV_OCEAN_DEPTH_STEP) as usize;
+/// Freeciv's ocean depth maximum.
+const OCEAN_DEPTH_MAXIMUM: i32 = 100;
+/// Freeciv's ocean depth step.
+const OCEAN_DEPTH_STEP: i32 = 25;
+/// Freeciv's ocean depth random range.
+const OCEAN_DEPTH_RANDOM_RANGE: i32 = 15;
+/// Freeciv's ocean distance limit.
+const OCEAN_DISTANCE_MAX: usize = (OCEAN_DEPTH_MAXIMUM / OCEAN_DEPTH_STEP) as usize;
 
 #[derive(Clone, Copy)]
 enum TerrainMapgenProperty {
@@ -82,7 +85,9 @@ pub(super) enum C2c3MapLabelTerrain {
 /// differ: Swamp is rendered as Marsh, inland Lake basins as Coast, and the
 /// C2C3 Ocean/Deep Ocean depths as Civ III Sea/Ocean. Flood Plains retain the
 /// source Desert identity on river tiles.
-pub(super) fn c2c3_map_label_terrain_for_civ3(terrain: Terrain) -> Option<C2c3MapLabelTerrain> {
+///
+/// Maps civ2civ3 map-label terrain names to Civ III terrain.
+pub(super) fn map_label_terrain(terrain: Terrain) -> Option<C2c3MapLabelTerrain> {
     Some(match terrain {
         Terrain::Coast | Terrain::Lake => C2c3MapLabelTerrain::Lake,
         Terrain::Sea => C2c3MapLabelTerrain::Ocean,
@@ -102,7 +107,8 @@ pub(super) fn c2c3_map_label_terrain_for_civ3(terrain: Terrain) -> Option<C2c3Ma
     })
 }
 
-pub(super) fn validate_freeciv_terrain_mappings(
+/// Checks the Freeciv-to-Civ III terrain mapping.
+pub(super) fn validate_terrain_mappings(
     terrains: &[TerrainMapgenProperties],
 ) -> Result<(), String> {
     for terrain in terrains {
@@ -131,7 +137,8 @@ pub(super) fn validate_freeciv_terrain_mappings(
     Ok(())
 }
 
-pub(super) fn civ3_starter_terrains(terrains: &[TerrainMapgenProperties]) -> Vec<Terrain> {
+/// Selects Civ III terrains by civ2civ3 starter flags.
+pub(super) fn starter_terrains(terrains: &[TerrainMapgenProperties]) -> Vec<Terrain> {
     terrains
         .iter()
         .filter(|terrain| terrain.starter)
@@ -162,7 +169,9 @@ pub(super) fn start_scoring_properties(
 /// then translate the chosen identity into CivCraft's retained Civ III terrain
 /// catalog. Selection constraints are relaxed in the same order as
 /// `mapgen_utils.c::pick_terrain` when a ruleset has no eligible terrain.
-fn pick_freeciv_terrain(
+///
+/// Follows Freeciv's terrain property selection.
+fn pick_terrain_by_property(
     terrains: &[TerrainMapgenProperties],
     target: Option<TerrainMapgenProperty>,
     prefer: Option<TerrainMapgenProperty>,
@@ -182,13 +191,13 @@ fn pick_freeciv_terrain(
 
     if total_weight <= 0 {
         if prefer.is_some() {
-            return pick_freeciv_terrain(terrains, target, None, avoid, rng);
+            return pick_terrain_by_property(terrains, target, None, avoid, rng);
         }
         if avoid.is_some() {
-            return pick_freeciv_terrain(terrains, target, prefer, None, rng);
+            return pick_terrain_by_property(terrains, target, prefer, None, rng);
         }
         if target.is_some() {
-            return pick_freeciv_terrain(terrains, None, prefer, avoid, rng);
+            return pick_terrain_by_property(terrains, None, prefer, avoid, rng);
         }
         return None;
     }
@@ -204,13 +213,14 @@ fn pick_freeciv_terrain(
     None
 }
 
-pub(super) fn freeciv_terrain_percentages(
+/// Uses Freeciv's default terrain percentages.
+pub(super) fn terrain_percentages(
     settings: MapGenerationSettings,
     tile_count: usize,
 ) -> (i32, i32, i32, i32, i32, i32) {
     const MAX_COLATITUDE: i32 = 1000;
     let (frozen_level, _, tropical_level) =
-        super::temperature::freeciv_temperature_thresholds(settings.temperature, tile_count);
+        super::temperature::temperature_thresholds(settings.temperature, tile_count);
     let ice_base = frozen_level / 2;
 
     let polar = 2 * ice_base * settings.landmass_percent / MAX_COLATITUDE;
@@ -229,8 +239,9 @@ pub(super) fn freeciv_terrain_percentages(
     (mountain, forest, jungle, swamp, desert, river)
 }
 
-fn freeciv_ocean_depth_majority_threshold() -> usize {
-    (2 * CIV3_DIRS.len()).div_ceil(3)
+/// Follows Freeciv's ocean depth majority rule.
+fn ocean_depth_majority_threshold() -> usize {
+    (2 * EIGHT_WAY_DIRS.len()).div_ceil(3)
 }
 
 struct PatchGrowth<'a, Eligible> {
@@ -304,8 +315,8 @@ impl super::Generator {
         relief: &[i32],
         biome_field: &[i32],
         land_mask: Option<&[bool]>,
-        freeciv_temperature: Option<&TemperatureMap>,
-        freeciv_terrain_properties: Option<&[TerrainMapgenProperties]>,
+        zone_temperature: Option<&TemperatureMap>,
+        terrain_property_table: Option<&[TerrainMapgenProperties]>,
         ocean_coverage: i32,
         rng: &mut MapRng,
     ) -> (Vec<Terrain>, Vec<TerrainBase>, Vec<i32>) {
@@ -362,9 +373,9 @@ impl super::Generator {
             .collect();
         let mut available = vec![false; self.wrap.tile_count()];
         if let (Some(temperature_map), Some(terrain_properties)) =
-            (freeciv_temperature, freeciv_terrain_properties)
+            (zone_temperature, terrain_property_table)
         {
-            self.assign_freeciv_relief(
+            self.assign_relief(
                 &mut terrain,
                 &mut available,
                 heights,
@@ -443,13 +454,13 @@ impl super::Generator {
                     <= dry_water_limit
         };
         let source_percentages =
-            freeciv_temperature
-                .zip(freeciv_terrain_properties)
+            zone_temperature
+                .zip(terrain_property_table)
                 .map(|(temperature, _)| {
-                    freeciv_terrain_percentages(temperature.settings, self.wrap.tile_count())
+                    terrain_percentages(temperature.settings, self.wrap.tile_count())
                 });
         let source_lowland = source_percentages.map(|(_, _, _, swamp, _, _)| {
-            let shore = freeciv_temperature
+            let shore = zone_temperature
                 .expect("source percentage inputs include a temperature map")
                 .settings
                 .shore_level();
@@ -484,8 +495,8 @@ impl super::Generator {
                 }
                 let eligible = |tile: usize| {
                     let heat = temperature[tile];
-                    let source_zone = freeciv_temperature.map(|map| map.get(tile));
-                    let dry = freeciv_temperature
+                    let source_zone = zone_temperature.map(|map| map.get(tile));
+                    let dry = zone_temperature
                         .map(|map| map.is_dry(self, tile, &terrain_water))
                         .unwrap_or_else(|| opensimplex_dry(tile));
                     match pass {
@@ -523,7 +534,7 @@ impl super::Generator {
                         (Terrain::Desert, 80, 80),
                         (Terrain::Desert, 40, 40),
                     ][pass];
-                    let biome = if let Some(terrain_properties) = freeciv_terrain_properties {
+                    let biome = if let Some(terrain_properties) = terrain_property_table {
                         let (target, prefer, avoid) = match pass {
                             0 => (
                                 Some(TerrainMapgenProperty::Foliage),
@@ -554,7 +565,7 @@ impl super::Generator {
                         } else {
                             (target, prefer, avoid)
                         };
-                        pick_freeciv_terrain(terrain_properties, target, prefer, avoid, rng)
+                        pick_terrain_by_property(terrain_properties, target, prefer, avoid, rng)
                             .expect("C2C3 terrain properties must select a mapped land terrain")
                     } else {
                         rng.below(weight);
@@ -568,7 +579,7 @@ impl super::Generator {
                         heights,
                         eligible: &eligible,
                         rng,
-                        cardinal_growth: freeciv_temperature.is_some(),
+                        cardinal_growth: zone_temperature.is_some(),
                     }
                     .grow(seed, spread, biome);
                 } else {
@@ -584,7 +595,7 @@ impl super::Generator {
                 let tile = random_tile(self.wrap.tile_count(), rng, |tile| available[tile])
                     .expect("unplaced plains quota");
                 terrain[tile] = if let (Some(temperature), Some(properties)) =
-                    (freeciv_temperature, freeciv_terrain_properties)
+                    (zone_temperature, terrain_property_table)
                 {
                     let (target, prefer) = match temperature.get(tile) {
                         TemperatureType::Frozen => (TerrainMapgenProperty::Frozen, None),
@@ -594,7 +605,7 @@ impl super::Generator {
                             Some(TerrainMapgenProperty::Green),
                         ),
                     };
-                    pick_freeciv_terrain(
+                    pick_terrain_by_property(
                         properties,
                         Some(target),
                         prefer,
@@ -623,7 +634,7 @@ impl super::Generator {
                 } else {
                     Terrain::Plains
                 };
-                if freeciv_terrain_properties.is_some() {
+                if terrain_property_table.is_some() {
                     base_terrain[tile] = match terrain[tile] {
                         Terrain::Grassland => TerrainBase::Grassland,
                         Terrain::Plains => TerrainBase::Plains,
@@ -637,7 +648,7 @@ impl super::Generator {
                 plains -= 1;
             }
         }
-        if let Some(climate) = freeciv_temperature {
+        if let Some(climate) = zone_temperature {
             // Freeciv features have no underlying Civ III biome. Adapt only
             // their presentation base after placement, without random draws.
             // Cold/polar relief gets snow art; dry temperate forest gets the
@@ -670,7 +681,8 @@ impl super::Generator {
         (terrain, base_terrain, temperature)
     }
 
-    fn assign_freeciv_relief(
+    /// Follows Freeciv's relief assignment.
+    fn assign_relief(
         &self,
         terrain: &mut [Terrain],
         available: &mut [bool],
@@ -687,9 +699,8 @@ impl super::Generator {
                 continue;
             }
             let too_high = heights[tile] > mountain_level
-                && (rng.below(10) > 5
-                    || !self.freeciv_terrain_is_too_high(tile, mountain_level, heights));
-            let too_flat = self.freeciv_area_is_too_flat(tile, mountain_level, heights, shore);
+                && (rng.below(10) > 5 || !self.terrain_is_too_high(tile, mountain_level, heights));
+            let too_flat = self.area_is_too_flat(tile, mountain_level, heights, shore);
             if too_high || too_flat {
                 let (prefer, avoid) = if temperature.get(tile).is_hot() {
                     if rng.below(10) < 4 {
@@ -702,7 +713,7 @@ impl super::Generator {
                 } else {
                     (None, None)
                 };
-                terrain[tile] = pick_freeciv_terrain(
+                terrain[tile] = pick_terrain_by_property(
                     terrain_properties,
                     Some(TerrainMapgenProperty::Mountainous),
                     prefer,
@@ -717,18 +728,15 @@ impl super::Generator {
         }
     }
 
-    fn freeciv_terrain_is_too_high(
-        &self,
-        tile: usize,
-        mountain_level: i32,
-        heights: &[i32],
-    ) -> bool {
+    /// Follows Freeciv's terrain height test.
+    fn terrain_is_too_high(&self, tile: usize, mountain_level: i32, heights: &[i32]) -> bool {
         let allowance = (1000 - mountain_level) / 5;
         self.within(tile, 1)
             .all(|neighbor| heights[neighbor] + allowance >= mountain_level)
     }
 
-    fn freeciv_area_is_too_flat(
+    /// Follows Freeciv's flat-area test.
+    fn area_is_too_flat(
         &self,
         tile: usize,
         mountain_level: i32,
@@ -784,7 +792,9 @@ impl super::Generator {
     /// depth estimate and neighbor correction. C2C3 `Lake` has depth zero and
     /// is excluded by Freeciv's `pick_ocean` minimum of one; its mapped Civ III
     /// label is Coast and is applied to enclosed lakes by `finish_lakes`.
-    pub(super) fn assign_freeciv_water_depths(
+    ///
+    /// Follows Freeciv's ocean depth assignment.
+    pub(super) fn assign_water_depths(
         &self,
         terrain: &mut [Terrain],
         heights: &[i32],
@@ -814,15 +824,17 @@ impl super::Generator {
             }
             depth +=
                 30 * (ocean_neighbors - land_neighbors) / (ocean_neighbors + land_neighbors).max(1);
-            depth = depth.min(FREECIV_OCEAN_DEPTH_MAXIMUM);
-            terrain[tile] = depths.civ3_ocean_for_depth(depth);
+            depth = depth.min(OCEAN_DEPTH_MAXIMUM);
+            terrain[tile] = depths.ocean_for_depth(depth);
         }
     }
 
     /// Reproduce Freeciv's two `smooth_water_depth` passes on CivCraft's
     /// horizontal-wrap, bounded-Y topology. Distances use CivCraft's neighbor
     /// graph; the source uses its ISO-hex real-distance helper.
-    pub(super) fn finish_freeciv_water_depths(
+    ///
+    /// Follows Freeciv's ocean depth finishing pass.
+    pub(super) fn finish_water_depths(
         &self,
         terrain: &mut [Terrain],
         depths: OceanDepthSettings,
@@ -834,19 +846,19 @@ impl super::Generator {
                 continue;
             }
             let distance = distance_to_land[tile];
-            if distance <= FREECIV_OCEAN_DISTANCE_MAX {
+            if distance <= OCEAN_DISTANCE_MAX {
                 // Freeciv requests a terrain at `dist * 25 + fc_rand(15)`.
                 // MapRng draws the same zero-based range from the map stream.
-                let depth = distance as i32 * FREECIV_OCEAN_DEPTH_STEP
-                    + rng.below(FREECIV_OCEAN_DEPTH_RANDOM_RANGE);
-                terrain[tile] = depths.civ3_ocean_for_depth(depth);
+                let depth =
+                    distance as i32 * OCEAN_DEPTH_STEP + rng.below(OCEAN_DEPTH_RANDOM_RANGE);
+                terrain[tile] = depths.ocean_for_depth(depth);
             }
         }
 
         // Freeciv keeps an ocean class when at least two thirds of its valid
         // neighbors agree. Round up for CivCraft's eight directions, so a
         // discrete neighbor count cannot fall below the source proportion.
-        let majority = freeciv_ocean_depth_majority_threshold();
+        let majority = ocean_depth_majority_threshold();
         for tile in 0..terrain.len() {
             if !matches!(terrain[tile], Terrain::Sea | Terrain::Ocean) {
                 continue;
@@ -868,12 +880,14 @@ impl super::Generator {
 
     /// C2C3 `regenerate_lakes` uses lake_max_size=14. CivCraft has no separate
     /// Civ III lake terrain, so map those inland freshwater basins to Coast.
-    pub(super) fn finish_freeciv_lakes(&self, terrain: &mut [Terrain]) {
+    ///
+    /// Follows Freeciv's lake finishing pass.
+    pub(super) fn finish_lake_pass(&self, terrain: &mut [Terrain]) {
         self.finish_lakes(terrain);
     }
 
     fn distance_to_land(&self, terrain: &[Terrain]) -> Vec<usize> {
-        let unreachable = FREECIV_OCEAN_DISTANCE_MAX + 1;
+        let unreachable = OCEAN_DISTANCE_MAX + 1;
         let mut distances = vec![unreachable; terrain.len()];
         let mut queue = VecDeque::new();
         for (tile, &ground) in terrain.iter().enumerate() {
@@ -884,7 +898,7 @@ impl super::Generator {
         }
         while let Some(tile) = queue.pop_front() {
             let next_distance = distances[tile] + 1;
-            if next_distance > FREECIV_OCEAN_DISTANCE_MAX {
+            if next_distance > OCEAN_DISTANCE_MAX {
                 continue;
             }
             for neighbor in self.neighbors(tile) {
@@ -927,26 +941,28 @@ impl super::Generator {
 }
 
 #[cfg(test)]
-mod freeciv_terrain_tests {
+mod terrain_property_tests {
     use super::*;
 
     fn settings() -> MapGenerationSettings {
         super::super::defaults::default_map_generation_settings()
     }
 
+    /// Mirrors Freeciv and the civ2civ3 ruleset behavior.
     #[test]
-    fn c2c3_map_terrain_percentages_follow_freeciv_defaults() {
+    fn ruleset_map_terrain_percentages_follow_reference_defaults() {
         assert_eq!(
-            freeciv_terrain_percentages(settings(), 36 * 48),
+            terrain_percentages(settings(), 36 * 48),
             (20, 16, 4, 7, 8, 6)
         );
     }
 
+    /// Mirrors the civ2civ3 ruleset and Civ III behavior.
     #[test]
-    fn c2c3_starter_flags_drive_civ3_terrain_eligibility() {
+    fn ruleset_starter_flags_drive_native_terrain_eligibility() {
         let terrains = super::super::defaults::default_terrain_mapgen_properties();
         assert_eq!(
-            civ3_starter_terrains(&terrains),
+            starter_terrains(&terrains),
             [
                 Terrain::Forest,
                 Terrain::Grassland,
@@ -956,10 +972,11 @@ mod freeciv_terrain_tests {
         );
     }
 
+    /// Mirrors the civ2civ3 ruleset and Civ III behavior.
     #[test]
-    fn c2c3_property_selection_preserves_civ3_terrain_identity_mapping() {
+    fn ruleset_property_selection_preserves_native_terrain_identity_mapping() {
         let terrains = super::super::defaults::default_terrain_mapgen_properties();
-        let frozen = pick_freeciv_terrain(
+        let frozen = pick_terrain_by_property(
             &terrains,
             Some(TerrainMapgenProperty::Frozen),
             None,
@@ -978,11 +995,12 @@ mod freeciv_terrain_tests {
         );
     }
 
+    /// Mirrors the civ2civ3 ruleset behavior.
     #[test]
-    fn c2c3_label_adapter_preserves_source_terrain_names() {
+    fn ruleset_label_adapter_preserves_source_terrain_names() {
         use C2c3MapLabelTerrain as Source;
 
-        for (civ3, source) in [
+        for (art_tileset, source) in [
             (Terrain::Coast, Source::Lake),
             (Terrain::Sea, Source::Ocean),
             (Terrain::Ocean, Source::DeepOcean),
@@ -998,13 +1016,10 @@ mod freeciv_terrain_tests {
             (Terrain::Hills, Source::Hills),
             (Terrain::Mountains, Source::Mountains),
         ] {
-            assert_eq!(c2c3_map_label_terrain_for_civ3(civ3), Some(source));
+            assert_eq!(map_label_terrain(art_tileset), Some(source));
         }
-        assert_eq!(
-            c2c3_map_label_terrain_for_civ3(Terrain::GrasslandShield),
-            None
-        );
-        assert_eq!(c2c3_map_label_terrain_for_civ3(Terrain::Volcano), None);
+        assert_eq!(map_label_terrain(Terrain::GrasslandShield), None);
+        assert_eq!(map_label_terrain(Terrain::Volcano), None);
     }
 
     #[test]
@@ -1015,17 +1030,18 @@ mod freeciv_terrain_tests {
             .find(|terrain| terrain.rule_name == "Desert")
             .unwrap();
         desert.rule_name = "CivCraft Desert Variant".to_owned();
-        assert!(validate_freeciv_terrain_mappings(&terrains).is_err());
+        assert!(validate_terrain_mappings(&terrains).is_err());
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{find_sea_level, freeciv_ocean_depth_majority_threshold};
+    use super::{find_sea_level, ocean_depth_majority_threshold};
 
+    /// Mirrors Freeciv behavior.
     #[test]
-    fn freeciv_ocean_smoothing_requires_at_least_two_thirds_of_eight_neighbors() {
-        assert_eq!(freeciv_ocean_depth_majority_threshold(), 6);
+    fn reference_ocean_smoothing_requires_at_least_two_thirds_of_eight_neighbors() {
+        assert_eq!(ocean_depth_majority_threshold(), 6);
     }
 
     #[test]

@@ -11,28 +11,28 @@ use crate::world::Resource;
 /// the mapped terrain's Civ III base yield.
 fn start_tile_value(
     tile: &GeneratedTile,
-    freeciv_terrain_properties: Option<&[TerrainMapgenProperties]>,
+    terrain_property_table: Option<&[TerrainMapgenProperties]>,
     scoring_settings: Option<StartPositionScoringSettings>,
 ) -> i32 {
-    if let (Some(terrains), Some(scoring)) = (freeciv_terrain_properties, scoring_settings)
-        && let Some((freeciv_terrain, civ3_base_terrain)) =
+    if let (Some(terrains), Some(scoring)) = (terrain_property_table, scoring_settings)
+        && let Some((property_terrain, base_terrain_choice)) =
             super::terrain::start_scoring_properties(tile.terrain, terrains)
     {
         let current_yields = tile.yields();
-        let retained_civ3_delta = current_yields.0 + current_yields.1 + current_yields.2
-            - civ3_base_terrain.base_yields().0
-            - civ3_base_terrain.base_yields().1
-            - civ3_base_terrain.base_yields().2;
-        let base = freeciv_terrain.food
-            + freeciv_terrain.shield
-            + freeciv_terrain.trade
-            + retained_civ3_delta;
-        let road = if freeciv_terrain.road_time > 0 {
-            freeciv_terrain.road_trade_incr_pct * scoring.road_trade_increment / 100
+        let retained_native_delta = current_yields.0 + current_yields.1 + current_yields.2
+            - base_terrain_choice.base_yields().0
+            - base_terrain_choice.base_yields().1
+            - base_terrain_choice.base_yields().2;
+        let base = property_terrain.food
+            + property_terrain.shield
+            + property_terrain.trade
+            + retained_native_delta;
+        let road = if property_terrain.road_time > 0 {
+            property_terrain.road_trade_incr_pct * scoring.road_trade_increment / 100
         } else {
             0
         };
-        let desert_river_irrigation = if civ3_base_terrain == Terrain::Desert
+        let desert_river_irrigation = if base_terrain_choice == Terrain::Desert
             && tile.river
             && tile.resource != Some(Resource::Oasis)
         {
@@ -40,15 +40,15 @@ fn start_tile_value(
         } else {
             0
         };
-        let irrigation = if freeciv_terrain.irrigation_time > 0 {
-            freeciv_terrain.irrigation_food_incr
+        let irrigation = if property_terrain.irrigation_time > 0 {
+            property_terrain.irrigation_food_incr
                 * (scoring.irrigation_percent + desert_river_irrigation)
                 / 100
         } else {
             0
         };
-        let mining = if freeciv_terrain.mining_time > 0 {
-            freeciv_terrain.mining_shield_incr * scoring.mining_percent / 100
+        let mining = if property_terrain.mining_time > 0 {
+            property_terrain.mining_shield_incr * scoring.mining_percent / 100
         } else {
             0
         };
@@ -56,7 +56,7 @@ fn start_tile_value(
         // In Freeciv the virtual road is only used when comparing a buildable
         // irrigation/mine result against the original, unroaded tile.
         let improvement_delta =
-            if freeciv_terrain.irrigation_time > 0 || freeciv_terrain.mining_time > 0 {
+            if property_terrain.irrigation_time > 0 || property_terrain.mining_time > 0 {
                 road + best_improvement
             } else {
                 0
@@ -105,12 +105,13 @@ fn pick_equal_weight_resource<R: BoundedRandom>(
     pick_weighted_resource(resources.iter().copied().map(|resource| (resource, 1)), rng)
 }
 
-pub(super) fn civ3_terrain_is_unsafe_coast(
+/// Uses the civ2civ3 unsafe-coast rule applied to Civ III terrain identities.
+pub(super) fn terrain_is_unsafe_coast(
     terrain: Terrain,
     ocean_depths: OceanDepthSettings,
     terrain_properties: &[TerrainMapgenProperties],
 ) -> bool {
-    if let Some(unsafe_coast) = ocean_depths.unsafe_coast_for_civ3_terrain(terrain) {
+    if let Some(unsafe_coast) = ocean_depths.unsafe_coast_for_terrain(terrain) {
         return unsafe_coast;
     }
     super::terrain::start_scoring_properties(terrain, terrain_properties)
@@ -118,7 +119,8 @@ pub(super) fn civ3_terrain_is_unsafe_coast(
         .unwrap_or(false)
 }
 
-fn freeciv_hut_is_eligible(
+/// Follows Freeciv's hut placement eligibility.
+fn hut_is_eligible(
     generator: &Generator,
     tile: usize,
     terrain: Terrain,
@@ -138,7 +140,9 @@ fn freeciv_hut_is_eligible(
 /// falling back to VARIABLE when the best island fails either goodness test.
 /// This corresponds to mapgen.c dispatching C2C3 `startpos=DEFAULT` + FRACTAL
 /// to ALL before calling startpos.c.
-fn freeciv_start_island_allocations(
+///
+/// Follows Freeciv's start island allocation.
+fn start_island_allocations(
     goodness: &[i32],
     player_count: usize,
     map_tile_count: usize,
@@ -181,34 +185,36 @@ fn freeciv_start_island_allocations(
 /// C2C3 `script.lua::place_map_labels` visits the River extra before checking
 /// the source terrain name. The remaining indices follow its `selected_*`
 /// draw order exactly.
-fn c2c3_map_label_category(tile: &GeneratedTile) -> Option<usize> {
+///
+/// Follows the civ2civ3 map-label terrain categories.
+fn map_label_category(tile: &GeneratedTile) -> Option<usize> {
     if tile.river {
         return Some(0);
     }
-    Some(
-        match super::terrain::c2c3_map_label_terrain_for_civ3(tile.terrain)? {
-            super::terrain::C2c3MapLabelTerrain::DeepOcean => 1,
-            super::terrain::C2c3MapLabelTerrain::Ocean => 2,
-            super::terrain::C2c3MapLabelTerrain::Lake => 3,
-            super::terrain::C2c3MapLabelTerrain::Swamp => 4,
-            super::terrain::C2c3MapLabelTerrain::Glacier => 5,
-            super::terrain::C2c3MapLabelTerrain::Tundra => 6,
-            super::terrain::C2c3MapLabelTerrain::Desert => 7,
-            super::terrain::C2c3MapLabelTerrain::Plains => 8,
-            super::terrain::C2c3MapLabelTerrain::Grassland => 9,
-            super::terrain::C2c3MapLabelTerrain::Jungle => 10,
-            super::terrain::C2c3MapLabelTerrain::Forest => 11,
-            super::terrain::C2c3MapLabelTerrain::Hills => 12,
-            super::terrain::C2c3MapLabelTerrain::Mountains => 13,
-        },
-    )
+    Some(match super::terrain::map_label_terrain(tile.terrain)? {
+        super::terrain::C2c3MapLabelTerrain::DeepOcean => 1,
+        super::terrain::C2c3MapLabelTerrain::Ocean => 2,
+        super::terrain::C2c3MapLabelTerrain::Lake => 3,
+        super::terrain::C2c3MapLabelTerrain::Swamp => 4,
+        super::terrain::C2c3MapLabelTerrain::Glacier => 5,
+        super::terrain::C2c3MapLabelTerrain::Tundra => 6,
+        super::terrain::C2c3MapLabelTerrain::Desert => 7,
+        super::terrain::C2c3MapLabelTerrain::Plains => 8,
+        super::terrain::C2c3MapLabelTerrain::Grassland => 9,
+        super::terrain::C2c3MapLabelTerrain::Jungle => 10,
+        super::terrain::C2c3MapLabelTerrain::Forest => 11,
+        super::terrain::C2c3MapLabelTerrain::Hills => 12,
+        super::terrain::C2c3MapLabelTerrain::Mountains => 13,
+    })
 }
 
 impl super::Generator {
     /// Advances the game RNG through C2C3's `map_generated` label hook.
     /// Labels are intentionally not retained; the hook is reproduced only to
     /// preserve its conditional setup draws before player shuffling.
-    pub(super) fn advance_c2c3_map_label_randomness<R: BoundedRandom>(
+    ///
+    /// Consumes RNG draws in the same order as the civ2civ3 map-label hook.
+    pub(super) fn advance_map_label_randomness<R: BoundedRandom>(
         &self,
         tiles: &[GeneratedTile],
         rng: &mut R,
@@ -216,7 +222,7 @@ impl super::Generator {
         const CATEGORY_COUNT: usize = 14;
         let mut counts = [0_i32; CATEGORY_COUNT];
         for tile in tiles {
-            if let Some(category) = c2c3_map_label_category(tile) {
+            if let Some(category) = map_label_category(tile) {
                 counts[category] += 1;
             }
         }
@@ -234,7 +240,7 @@ impl super::Generator {
         // selected-category countdown and adjacency branches without creating
         // or storing any presentation label.
         for (tile_index, tile) in tiles.iter().enumerate() {
-            let Some(category) = c2c3_map_label_category(tile) else {
+            let Some(category) = map_label_category(tile) else {
                 continue;
             };
             if selected[category] == 0 {
@@ -245,7 +251,7 @@ impl super::Generator {
                 continue;
             }
 
-            let terrain = super::terrain::c2c3_map_label_terrain_for_civ3(tile.terrain);
+            let terrain = super::terrain::map_label_terrain(tile.terrain);
             match category {
                 0 => {
                     if !matches!(
@@ -424,8 +430,7 @@ impl super::Generator {
         terrain: super::terrain::C2c3MapLabelTerrain,
     ) -> bool {
         self.neighbors(tile).any(|neighbor| {
-            super::terrain::c2c3_map_label_terrain_for_civ3(tiles[neighbor].terrain)
-                == Some(terrain)
+            super::terrain::map_label_terrain(tiles[neighbor].terrain) == Some(terrain)
         })
     }
 
@@ -436,8 +441,7 @@ impl super::Generator {
         terrain: super::terrain::C2c3MapLabelTerrain,
     ) -> bool {
         self.neighbors(tile).all(|neighbor| {
-            super::terrain::c2c3_map_label_terrain_for_civ3(tiles[neighbor].terrain)
-                == Some(terrain)
+            super::terrain::map_label_terrain(tiles[neighbor].terrain) == Some(terrain)
         })
     }
 
@@ -445,20 +449,21 @@ impl super::Generator {
         &self,
         tiles: &mut [GeneratedTile],
         rng: &mut R,
-        freeciv_settings: Option<MapGenerationSettings>,
+        generation_rules: Option<MapGenerationSettings>,
         terrain_properties: Option<&[TerrainMapgenProperties]>,
     ) {
-        if let Some(settings) = freeciv_settings {
+        if let Some(settings) = generation_rules {
             let Some(properties) = terrain_properties else {
                 panic!("Freeciv resource generation requires parsed terrain properties");
             };
-            self.place_freeciv_resources(tiles, rng, settings, properties);
+            self.place_map_resources(tiles, rng, settings, properties);
         } else {
             self.place_opensimplex_resources(tiles, rng);
         }
     }
 
-    fn place_freeciv_resources<R: BoundedRandom>(
+    /// Follows Freeciv's resource placement.
+    fn place_map_resources<R: BoundedRandom>(
         &self,
         tiles: &mut [GeneratedTile],
         rng: &mut R,
@@ -481,7 +486,7 @@ impl super::Generator {
             // roll for unsafe ocean tiles before rejecting their resources.
             if tiles[tile].terrain.is_water()
                 && !settings.ocean_resources
-                && !self.freeciv_near_safe_coast(tiles, tile, settings, terrain_properties)
+                && !self.near_safe_coast(tiles, tile, settings, terrain_properties)
             {
                 continue;
             }
@@ -494,7 +499,8 @@ impl super::Generator {
         }
     }
 
-    fn freeciv_near_safe_coast(
+    /// Follows Freeciv's safe-coast adjacency test.
+    fn near_safe_coast(
         &self,
         tiles: &[GeneratedTile],
         tile: usize,
@@ -505,7 +511,7 @@ impl super::Generator {
         // neighbors. `within` adapts that local neighborhood to CivCraft's
         // X-wrapped, bounded-Y staggered grid.
         self.within(tile, 1).any(|neighbor| {
-            !civ3_terrain_is_unsafe_coast(
+            !terrain_is_unsafe_coast(
                 tiles[neighbor].terrain,
                 settings.ocean_depths,
                 terrain_properties,
@@ -586,20 +592,21 @@ impl super::Generator {
         &self,
         tiles: &mut [GeneratedTile],
         rng: &mut R,
-        freeciv_settings: Option<MapGenerationSettings>,
+        generation_rules: Option<MapGenerationSettings>,
         terrain_properties: Option<&[TerrainMapgenProperties]>,
     ) {
-        if let Some(settings) = freeciv_settings {
+        if let Some(settings) = generation_rules {
             let Some(_properties) = terrain_properties else {
                 panic!("Freeciv hut generation requires parsed terrain properties");
             };
-            self.place_freeciv_huts(tiles, rng, settings);
+            self.place_map_huts(tiles, rng, settings);
         } else {
             self.place_opensimplex_huts(tiles, rng);
         }
     }
 
-    fn place_freeciv_huts<R: BoundedRandom>(
+    /// Follows Freeciv's hut placement.
+    fn place_map_huts<R: BoundedRandom>(
         &self,
         tiles: &mut [GeneratedTile],
         rng: &mut R,
@@ -618,7 +625,7 @@ impl super::Generator {
             // Freeciv consumes one hut attempt even when no generated Hut
             // extra is eligible on the chosen tile, then reserves the region.
             remaining -= 1;
-            if freeciv_hut_is_eligible(self, pick, tiles[pick].terrain, settings.hut_placement) {
+            if hut_is_eligible(self, pick, tiles[pick].terrain, settings.hut_placement) {
                 // C2C3 has one generated Hut extra. `rand_extra_for_tile()`
                 // still calls `fc_rand(1)`, which returns zero without
                 // advancing the source RNG state.
@@ -657,15 +664,15 @@ impl super::Generator {
         terrain: &[Terrain],
         tiles: &[GeneratedTile],
         temperature: &[i32],
-        freeciv_temperature: Option<&TemperatureMap>,
-        freeciv_terrain_properties: Option<&[TerrainMapgenProperties]>,
+        zone_temperature: Option<&TemperatureMap>,
+        terrain_property_table: Option<&[TerrainMapgenProperties]>,
         scoring_settings: Option<StartPositionScoringSettings>,
         civilization_count: usize,
-        rng: &mut FreecivRng,
+        rng: &mut GameRng,
     ) -> Option<Vec<(i32, i32)>> {
         let yields: Vec<_> = tiles
             .iter()
-            .map(|tile| start_tile_value(tile, freeciv_terrain_properties, scoring_settings))
+            .map(|tile| start_tile_value(tile, terrain_property_table, scoring_settings))
             .collect();
         let peaks: Vec<_> = (0..self.wrap.tile_count())
             .map(|tile| {
@@ -708,8 +715,7 @@ impl super::Generator {
         };
         let horizontal = smooth(&peaks, true, [0.13, 0.19, 0.37, 0.19, 0.13]);
         let quality = smooth(&horizontal, false, [0.15, 0.21, 0.29, 0.21, 0.15]);
-        let ruleset_starters =
-            freeciv_terrain_properties.map(super::terrain::civ3_starter_terrains);
+        let ruleset_starters = terrain_property_table.map(super::terrain::starter_terrains);
         let starter = |tile: usize| match &ruleset_starters {
             Some(starters) => starters.contains(&terrain[tile]),
             None => matches!(
@@ -728,11 +734,8 @@ impl super::Generator {
                 }
             }
         }
-        let allocated = freeciv_start_island_allocations(
-            &goodness,
-            civilization_count,
-            self.wrap.tile_count(),
-        )?;
+        let allocated =
+            start_island_allocations(&goodness, civilization_count, self.wrap.tile_count())?;
         let candidates: Vec<_> = (0..self.wrap.tile_count())
             .filter(|&tile| starter(tile))
             .collect();
@@ -750,7 +753,7 @@ impl super::Generator {
             let eligible = |tile: usize| {
                 if score_by_tile[tile] < threshold
                     || tiles[tile].hut
-                    || freeciv_temperature
+                    || zone_temperature
                         .map(|map| map.get(tile).is_frozen_or_cold())
                         .unwrap_or(temperature[tile] < COLD)
                 {
@@ -769,8 +772,7 @@ impl super::Generator {
                                     > ((groups[id].len() / allocated[id]) as f64).sqrt())
                     })
             };
-            if let Some(tile) = freeciv_rand_map_pos_filtered(self.wrap.tile_count(), rng, eligible)
-            {
+            if let Some(tile) = filtered_rand_map_pos(self.wrap.tile_count(), rng, eligible) {
                 remaining[landmass[tile]] -= 1;
                 starts.push(tile);
                 if starts.len() == civilization_count {
@@ -835,7 +837,9 @@ mod tests {
     /// Oracle for the per-category source loop in the pinned C2C3 Lua hook:
     /// each 1..100 roll is immediately followed by the selected-index roll
     /// when the probability succeeds. A zero count has no index roll.
-    fn c2c3_label_selection_oracle(counts: [i32; 14]) -> Vec<i32> {
+    ///
+    /// Mirrors the civ2civ3 map-label selection draws.
+    fn label_selection_oracle(counts: [i32; 14]) -> Vec<i32> {
         let mut bounds = Vec::new();
         for count in counts {
             bounds.push(100);
@@ -846,7 +850,8 @@ mod tests {
         bounds
     }
 
-    fn freeciv_generator(
+    /// Uses Freeciv's fractal map generator.
+    fn fractal_generator(
         wrap: MapWrap,
     ) -> (
         Generator,
@@ -864,39 +869,41 @@ mod tests {
         )
     }
 
+    /// Mirrors the civ2civ3 ruleset behavior.
     #[test]
-    fn c2c3_label_hook_matches_source_draw_oracle_on_a_plain_map() {
+    fn ruleset_label_hook_matches_source_draw_oracle_on_a_plain_map() {
         let wrap = MapWrap::with_dimensions(16, 16).unwrap();
-        let (generator, _, _) = freeciv_generator(wrap);
+        let (generator, _, _) = fractal_generator(wrap);
         let tiles = vec![tile(Terrain::Plains, None, false); wrap.tile_count()];
         let mut recorded = ScriptedRng::default();
 
-        generator.advance_c2c3_map_label_randomness(&tiles, &mut recorded);
+        generator.advance_map_label_randomness(&tiles, &mut recorded);
 
         // Pinned data/civ2civ3/script.lua rolls a chance for each category,
         // immediately chooses one of 256 Plains, then rolls for non-coastal
         // Plains.
         let mut category_counts = [0; 14];
         category_counts[8] = wrap.tile_count() as i32;
-        let mut source_draw_bounds = c2c3_label_selection_oracle(category_counts);
+        let mut source_draw_bounds = label_selection_oracle(category_counts);
         source_draw_bounds.push(100);
         assert_eq!(recorded.limits, source_draw_bounds);
 
         // The same source trace advances the gameplay RNG by the same amount,
         // including Freeciv's non-advancing bound-1 draw behavior if present.
-        let mut actual = crate::random::FreecivRng::new(42);
-        let mut oracle = crate::random::FreecivRng::new(42);
-        generator.advance_c2c3_map_label_randomness(&tiles, &mut actual);
+        let mut actual = crate::random::GameRng::new(42);
+        let mut oracle = crate::random::GameRng::new(42);
+        generator.advance_map_label_randomness(&tiles, &mut actual);
         for bound in source_draw_bounds {
             oracle.draw(bound as u32);
         }
         assert_eq!(actual, oracle);
     }
 
+    /// Mirrors the civ2civ3 ruleset behavior.
     #[test]
-    fn c2c3_label_hook_uses_the_selected_hill_in_map_order() {
+    fn ruleset_label_hook_uses_the_selected_hill_in_map_order() {
         let wrap = MapWrap::with_dimensions(16, 16).unwrap();
-        let (generator, _, _) = freeciv_generator(wrap);
+        let (generator, _, _) = fractal_generator(wrap);
         let mut tiles = vec![tile(Terrain::Plains, None, false); wrap.tile_count()];
         let isolated_hill = wrap.index(0, 0);
         let paired_hill = wrap.index(8, 8);
@@ -923,23 +930,24 @@ mod tests {
             values: second_target_values,
             ..ScriptedRng::default()
         };
-        generator.advance_c2c3_map_label_randomness(&tiles, &mut first_target);
-        generator.advance_c2c3_map_label_randomness(&tiles, &mut second_target);
+        generator.advance_map_label_randomness(&tiles, &mut first_target);
+        generator.advance_map_label_randomness(&tiles, &mut second_target);
 
         let mut category_counts = [0; 14];
         category_counts[8] = wrap.tile_count() as i32 - 3;
         category_counts[12] = 3;
-        let mut common_source_draw_bounds = c2c3_label_selection_oracle(category_counts);
+        let mut common_source_draw_bounds = label_selection_oracle(category_counts);
         common_source_draw_bounds.push(100);
         assert_eq!(first_target.limits, common_source_draw_bounds);
         common_source_draw_bounds.push(100);
         assert_eq!(second_target.limits, common_source_draw_bounds);
     }
 
+    /// Mirrors the civ2civ3 ruleset behavior.
     #[test]
-    fn c2c3_label_hook_matches_source_conditional_branch_draws() {
+    fn ruleset_label_hook_matches_source_conditional_branch_draws() {
         let wrap = MapWrap::with_dimensions(16, 16).unwrap();
-        let (generator, _, _) = freeciv_generator(wrap);
+        let (generator, _, _) = fractal_generator(wrap);
         let mut tiles = vec![tile(Terrain::Plains, None, false); wrap.tile_count()];
 
         // The Lua hook counts River before terrain. This selected river tile
@@ -991,52 +999,51 @@ mod tests {
         tiles[mountains_neighbor].terrain = Terrain::Mountains;
 
         let mut rng = ScriptedRng::default();
-        generator.advance_c2c3_map_label_randomness(&tiles, &mut rng);
+        generator.advance_map_label_randomness(&tiles, &mut rng);
 
         // Oracle from the pinned Lua's 14 probability rolls, 14 category
         // target rolls in rule order, and six selected-label random branches:
         // River, Desert, Plains, Grassland, Hills, and Mountains.
         let category_counts = [1, 9, 1, 1, 1, 1, 1, 2, 232, 1, 1, 1, 2, 2];
-        let mut source_draw_bounds = c2c3_label_selection_oracle(category_counts);
+        let mut source_draw_bounds = label_selection_oracle(category_counts);
         source_draw_bounds.extend([100; 6]);
         assert_eq!(rng.limits, source_draw_bounds);
     }
 
+    /// Mirrors the civ2civ3 ruleset behavior.
     #[test]
-    fn c2c3_label_adjacency_wraps_x_and_keeps_y_bounded() {
+    fn ruleset_label_adjacency_wraps_x_and_keeps_y_bounded() {
         let wrap = MapWrap::with_dimensions(16, 16).unwrap();
-        let (generator, _, _) = freeciv_generator(wrap);
+        let (generator, _, _) = fractal_generator(wrap);
 
         // The first Plains tile sees source Ocean across the X seam, so the
         // label hook skips its otherwise-required conditional roll.
         let mut wrapped_tiles = vec![tile(Terrain::Plains, None, false); wrap.tile_count()];
         wrapped_tiles[wrap.index(wrap.width() - 1, 0)].terrain = Terrain::Sea;
         let mut wrapped_rng = ScriptedRng::default();
-        generator.advance_c2c3_map_label_randomness(&wrapped_tiles, &mut wrapped_rng);
+        generator.advance_map_label_randomness(&wrapped_tiles, &mut wrapped_rng);
         let mut wrapped_counts = [0; 14];
         wrapped_counts[2] = 1;
         wrapped_counts[8] = wrap.tile_count() as i32 - 1;
-        assert_eq!(
-            wrapped_rng.limits,
-            c2c3_label_selection_oracle(wrapped_counts)
-        );
+        assert_eq!(wrapped_rng.limits, label_selection_oracle(wrapped_counts));
 
         // A tile near the opposite pole does not become adjacent through Y.
         // The first Plains therefore keeps the source's random(1, 100) call.
         let mut bounded_tiles = vec![tile(Terrain::Plains, None, false); wrap.tile_count()];
         bounded_tiles[wrap.index(0, wrap.height() - 2)].terrain = Terrain::Sea;
         let mut bounded_rng = ScriptedRng::default();
-        generator.advance_c2c3_map_label_randomness(&bounded_tiles, &mut bounded_rng);
+        generator.advance_map_label_randomness(&bounded_tiles, &mut bounded_rng);
         let bounded_counts = wrapped_counts;
-        let mut bounded_draws = c2c3_label_selection_oracle(bounded_counts);
+        let mut bounded_draws = label_selection_oracle(bounded_counts);
         bounded_draws.push(100);
         assert_eq!(bounded_rng.limits, bounded_draws);
     }
 
+    /// Mirrors Freeciv behavior.
     #[test]
-    fn freeciv_resource_chance_draw_is_skipped_near_existing_resources() {
+    fn reference_resource_chance_draw_is_skipped_near_existing_resources() {
         let wrap = MapWrap::with_dimensions(16, 16).unwrap();
-        let (generator, mut settings, properties) = freeciv_generator(wrap);
+        let (generator, mut settings, properties) = fractal_generator(wrap);
         settings.specials_per_thousand = 0;
         let mut tiles = vec![tile(Terrain::Ocean, None, false); wrap.tile_count()];
         let resource_tile = wrap.index(8, 8);
@@ -1056,10 +1063,11 @@ mod tests {
         );
     }
 
+    /// Mirrors Freeciv behavior.
     #[test]
-    fn freeciv_ocean_resource_gate_runs_after_chance_and_respects_setting() {
+    fn reference_ocean_resource_gate_runs_after_chance_and_respects_setting() {
         let wrap = MapWrap::with_dimensions(16, 16).unwrap();
-        let (generator, mut settings, properties) = freeciv_generator(wrap);
+        let (generator, mut settings, properties) = fractal_generator(wrap);
         settings.specials_per_thousand = 1000;
         let mut tiles = vec![tile(Terrain::Ocean, None, false); wrap.tile_count()];
         let mut rng = ScriptedRng::default();
@@ -1078,8 +1086,9 @@ mod tests {
         assert_eq!(&rng.limits[..3], &[1000, 1, 2]);
     }
 
+    /// Mirrors Freeciv behavior.
     #[test]
-    fn freeciv_resource_picker_uses_sequential_weighted_replacement() {
+    fn reference_resource_picker_uses_sequential_weighted_replacement() {
         let mut rng = ScriptedRng {
             values: vec![1, 3],
             ..ScriptedRng::default()
@@ -1091,26 +1100,27 @@ mod tests {
         assert_eq!(rng.limits, [2, 5]);
     }
 
+    /// Mirrors Freeciv behavior.
     #[test]
-    fn freeciv_huts_consume_ineligible_attempts_and_reserve_radius_three() {
+    fn reference_huts_consume_ineligible_attempts_and_reserve_radius_three() {
         let wrap = MapWrap::with_dimensions(16, 16).unwrap();
-        let (generator, settings, properties) = freeciv_generator(wrap);
+        let (generator, settings, properties) = fractal_generator(wrap);
         let tiles = &mut vec![tile(Terrain::Plains, None, false); wrap.tile_count()];
         let mut rng = ScriptedRng::default();
 
-        assert!(!freeciv_hut_is_eligible(
+        assert!(!hut_is_eligible(
             &generator,
             wrap.index(0, 0),
             Terrain::Plains,
             settings.hut_placement,
         ));
-        assert!(freeciv_hut_is_eligible(
+        assert!(hut_is_eligible(
             &generator,
             wrap.index(0, 1),
             Terrain::Plains,
             settings.hut_placement,
         ));
-        assert!(!freeciv_hut_is_eligible(
+        assert!(!hut_is_eligible(
             &generator,
             wrap.index(0, 0),
             Terrain::Coast,
@@ -1137,8 +1147,9 @@ mod tests {
         assert!(!tiles[wrap.index(0, 0)].hut);
     }
 
+    /// Mirrors the civ2civ3 ruleset and Civ III behavior.
     #[test]
-    fn start_tile_value_uses_c2c3_outputs_and_retains_civ3_resources() {
+    fn start_tile_value_uses_ruleset_outputs_and_retains_native_resources() {
         let terrain_properties = super::super::defaults::default_terrain_mapgen_properties();
         let scoring = super::super::defaults::default_start_position_scoring_settings();
 
@@ -1226,39 +1237,42 @@ mod tests {
         assert!(polar_radius.iter().all(|&tile| wrap.position(tile).1 >= 0));
     }
 
+    /// Mirrors Freeciv behavior.
     #[test]
-    fn freeciv_default_fractal_uses_all_when_the_best_island_passes_both_tests() {
-        let allocations = freeciv_start_island_allocations(&[20_000, 500], 6, 36 * 48).unwrap();
+    fn reference_default_fractal_uses_all_when_the_best_island_passes_both_tests() {
+        let allocations = start_island_allocations(&[20_000, 500], 6, 36 * 48).unwrap();
         assert_eq!(allocations, [6, 0]);
     }
 
+    /// Mirrors Freeciv behavior.
     #[test]
-    fn freeciv_all_fallback_uses_variable_quotas_and_preserves_overshoot() {
+    fn reference_all_fallback_uses_variable_quotas_and_preserves_overshoot() {
         // For six players on this map, efactor is 1. The best island passes
         // the 1500-per-player test but fails the 65% total-goodies test, so
         // VARIABLE assigns 4 + 3 slots. The second island overshoots the
         // remaining two players; the later island receives no slot.
-        let allocations =
-            freeciv_start_island_allocations(&[10_000, 7_000, 1_000], 6, 36 * 48).unwrap();
+        let allocations = start_island_allocations(&[10_000, 7_000, 1_000], 6, 36 * 48).unwrap();
         assert_eq!(allocations, [4, 3, 0]);
     }
 
+    /// Mirrors Freeciv behavior.
     #[test]
-    fn freeciv_filtered_map_draw_returns_the_first_valid_index() {
-        let mut expected_rng = FreecivRng::new(42);
+    fn reference_filtered_map_draw_returns_the_first_valid_index() {
+        let mut expected_rng = GameRng::new(42);
         let expected = expected_rng.draw(32) as usize;
-        let mut actual_rng = FreecivRng::new(42);
+        let mut actual_rng = GameRng::new(42);
         assert_eq!(
-            freeciv_rand_map_pos_filtered(32, &mut actual_rng, |tile| tile == expected),
+            filtered_rand_map_pos(32, &mut actual_rng, |tile| tile == expected),
             Some(expected)
         );
         assert_eq!(actual_rng, expected_rng);
     }
 
+    /// Mirrors Freeciv behavior.
     #[test]
-    fn freeciv_filtered_map_fallback_draws_from_valid_map_order() {
+    fn reference_filtered_map_fallback_draws_from_valid_map_order() {
         let count = 30;
-        let mut expected_rng = FreecivRng::new(314);
+        let mut expected_rng = GameRng::new(314);
         let rejected: Vec<_> = (0..count / 10)
             .map(|_| expected_rng.draw(count as u32) as usize)
             .collect();
@@ -1268,9 +1282,9 @@ mod tests {
             .collect();
         let expected = candidates[expected_rng.draw(candidates.len() as u32) as usize];
 
-        let mut actual_rng = FreecivRng::new(314);
+        let mut actual_rng = GameRng::new(314);
         assert_eq!(
-            freeciv_rand_map_pos_filtered(count, &mut actual_rng, |tile| {
+            filtered_rand_map_pos(count, &mut actual_rng, |tile| {
                 candidates.contains(&tile)
             }),
             Some(expected)

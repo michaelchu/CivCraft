@@ -578,8 +578,9 @@ mod argument_tests {
         }
     }
 
+    /// Mirrors Civ III behavior.
     #[test]
-    fn map_size_argument_matches_civ3_presets_and_validates_custom_dimensions() {
+    fn map_size_argument_matches_native_presets_and_validates_custom_dimensions() {
         for (name, dimensions) in [
             ("tiny", (60, 60)),
             ("small", (80, 80)),

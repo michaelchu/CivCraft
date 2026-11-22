@@ -23,7 +23,7 @@ impl Simulation {
     pub(crate) fn has_tech(&self, owner: usize, tech: Tech) -> bool {
         self.players[owner].known.contains(&tech)
             || tech
-                .civ3_equivalent()
+                .catalog_equivalent()
                 .is_some_and(|equivalent| self.players[owner].known.contains(&equivalent))
     }
 
@@ -34,21 +34,21 @@ impl Simulation {
     }
 
     pub(crate) fn tech_available(&self, owner: usize, tech: Tech) -> bool {
-        if !tech.is_civ3_advance() && tech != Tech::FUTURE {
+        if !tech.is_researchable_advance() && tech != Tech::FUTURE {
             return false;
         }
         if tech == Tech::FUTURE {
             return Tech::all()
-                .filter(|advance| advance.is_civ3_advance())
+                .filter(|advance| advance.is_researchable_advance())
                 .all(|advance| self.has_tech(owner, advance));
         }
-        if !tech.is_civ3_advance() {
+        if !tech.is_researchable_advance() {
             return false;
         }
         !self.has_tech(owner, tech)
             && tech.era() <= self.research_era(owner)
             && tech
-                .civ3_prerequisites()
+                .catalog_prerequisites()
                 .unwrap_or(&[])
                 .iter()
                 .all(|&req| self.has_tech(owner, req))
@@ -70,7 +70,7 @@ impl Simulation {
         let mut current = TechEra::Ancient;
         for era in [TechEra::Ancient, TechEra::MiddleAges, TechEra::Industrial] {
             if Tech::all()
-                .filter(|tech| tech.era() == era && tech.required_for_civ3_era())
+                .filter(|tech| tech.era() == era && tech.is_required_for_era())
                 .all(|tech| self.has_tech(owner, tech))
             {
                 current = match era {
@@ -105,7 +105,7 @@ impl Simulation {
             return path;
         }
         self.trace.count_operation("research_path.cache_miss", 1);
-        if (goal.data().is_none() || !goal.is_civ3_advance()) && goal != Tech::FUTURE {
+        if (goal.data().is_none() || !goal.is_researchable_advance()) && goal != Tech::FUTURE {
             return Default::default();
         }
         fn visit(
@@ -125,12 +125,12 @@ impl Simulation {
                 .filter(|era| *era >= current_era && *era < tech.era())
             {
                 for required in Tech::all()
-                    .filter(|advance| advance.era() == era && advance.required_for_civ3_era())
+                    .filter(|advance| advance.era() == era && advance.is_required_for_era())
                 {
                     visit(game, owner, required, path, current_era, visited);
                 }
             }
-            for &req in tech.civ3_prerequisites().unwrap_or(&[]) {
+            for &req in tech.catalog_prerequisites().unwrap_or(&[]) {
                 visit(game, owner, req, path, current_era, visited);
             }
             path.push(tech);
@@ -148,7 +148,7 @@ impl Simulation {
                 + 1
         ];
         if goal == Tech::FUTURE {
-            for advance in Tech::all().filter(|advance| advance.is_civ3_advance()) {
+            for advance in Tech::all().filter(|advance| advance.is_researchable_advance()) {
                 visit(self, owner, advance, &mut path, era, &mut visited);
             }
         }
@@ -368,7 +368,7 @@ impl Simulation {
     }
 
     fn technology_cost(&self, owner: usize, tech: Tech, loss_value: bool) -> i32 {
-        if !tech.is_civ3_advance() && tech != Tech::FUTURE {
+        if !tech.is_researchable_advance() && tech != Tech::FUTURE {
             return 0;
         }
         let player = &self.players[owner];
@@ -384,14 +384,14 @@ impl Simulation {
                             player
                                 .known
                                 .iter()
-                                .filter(|known| known.is_civ3_advance())
+                                .filter(|known| known.is_researchable_advance())
                                 .count() as i32
                                 + player.future_techs
                                 + 1,
                         )
                 } else {
                     let requirement_count = tech
-                        .civ3_requirement_count()
+                        .linear_requirement_count()
                         .expect("researchable C3 technology has a Freeciv requirement count");
                     i64::from(settings.base_tech_cost)
                         .saturating_mul(i64::from(requirement_count))
@@ -475,10 +475,10 @@ impl Simulation {
         let known_cost: i64 = player
             .known
             .iter()
-            .filter(|tech| tech.is_civ3_advance())
+            .filter(|tech| tech.is_researchable_advance())
             .map(|tech| {
                 let count = tech
-                    .civ3_requirement_count()
+                    .linear_requirement_count()
                     .expect("known C3 advance has a Freeciv requirement count");
                 (i64::from(settings.base_tech_cost) * i64::from(count))
                     .max(i64::from(settings.min_tech_cost))
@@ -488,7 +488,7 @@ impl Simulation {
         let techs_researched = player
             .known
             .iter()
-            .filter(|tech| tech.is_civ3_advance())
+            .filter(|tech| tech.is_researchable_advance())
             .count() as i64
             + future
             + 1;
@@ -551,7 +551,7 @@ impl Simulation {
                     known.contains(tech)
                         && (settings.tech_loss_allow_holes
                             || known.iter().all(|other| {
-                                !other.civ3_prerequisites().unwrap_or(&[]).contains(tech)
+                                !other.catalog_prerequisites().unwrap_or(&[]).contains(tech)
                             }))
                 })
                 .collect();
@@ -649,7 +649,7 @@ impl Simulation {
         source: research_observation::TechnologySource,
         other_owner: Option<usize>,
     ) {
-        if !tech.is_civ3_advance() && tech != Tech::FUTURE {
+        if !tech.is_researchable_advance() && tech != Tech::FUTURE {
             return;
         }
         self.invalidate_stable_city_advice_for_owner(owner);
@@ -727,7 +727,7 @@ impl Simulation {
                     return tech;
                 }
                 let mut first = true;
-                for &req in tech.civ3_prerequisites().unwrap_or(&[]) {
+                for &req in tech.catalog_prerequisites().unwrap_or(&[]) {
                     if !done.contains(&req) {
                         done.push(req);
                         if first {

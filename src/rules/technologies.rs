@@ -273,8 +273,8 @@ mod religion_tech_tests {
             &[Tech::THEOLOGY, Tech::MONARCHY]
         );
         for t in [Tech::MEDITATION, Tech::DIVINE_RIGHT] {
-            assert!(t.is_civ3_advance());
-            assert!(t.optional_in_civ3());
+            assert!(t.is_researchable_advance());
+            assert!(t.optional_for_era());
             assert!(![Tech::FUTURE.0, Tech::UNSET.0].contains(&t.0));
             assert_eq!(
                 runtime_index(if t == Tech::MEDITATION {

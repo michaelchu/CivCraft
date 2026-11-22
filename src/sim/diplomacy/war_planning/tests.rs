@@ -2,8 +2,9 @@
 
 use super::*;
 
+/// Mirrors Freeciv behavior.
 #[test]
-fn expired_ceasefire_retains_zero_countdown_and_suppresses_offers_as_in_freeciv() {
+fn expired_ceasefire_retains_zero_countdown_and_suppresses_offers_as_in_reference() {
     let mut game = war_planning_game();
     game.players[HUMAN].ai = true;
     let relation = game.diplomacy.get_mut(&(HUMAN, 1)).unwrap();
@@ -29,8 +30,9 @@ fn expired_ceasefire_retains_zero_countdown_and_suppresses_offers_as_in_freeciv(
     assert_eq!(game.pact(1, HUMAN), Pact::Ceasefire);
 }
 
+/// Mirrors Freeciv behavior.
 #[test]
-fn recent_contact_can_cease_fire_on_the_declaration_turn_as_in_freeciv() {
+fn recent_contact_can_cease_fire_on_the_declaration_turn_as_in_reference() {
     let mut game = war_planning_game();
     game.players[HUMAN].ai = true;
     game.diplomacy.get_mut(&(HUMAN, 1)).unwrap().first_contact = Some(game.turn - 10);

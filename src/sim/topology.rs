@@ -46,11 +46,11 @@ mod campaign_boundary_tests {
             sim.refresh_visibility();
             let other = (10, wrap.height() - 1);
             assert!(!sim.tile(other.0, other.1).visible);
-            assert!(!sim.map_wrap.civ3_neighbors(10, 0).any(|p| p == other));
+            assert!(!sim.map_wrap.eight_way_neighbors(10, 0).any(|p| p == other));
             let actor = sim.units[0].clone();
             let path = sim.plan_route(&actor, other.0, other.1, true);
             assert!(path.len() > 20);
-            assert!(!sim.apply(Command::move_civ3_by_offset(&sim, id, 0, -1)));
+            assert!(!sim.apply(Command::move_by_offset(&sim, id, 0, -1)));
             let city = sim.create_city(HUMAN, 10, 0);
             let _ = city;
             let radius: Vec<_> = sim.map_city_radius(sim.cities.last().unwrap()).collect();

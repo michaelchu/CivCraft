@@ -14,7 +14,8 @@ use super::{
 use crate::rules::{Building, Tech};
 
 pub(crate) enum Command {
-    MoveCiv3(u32, usize),
+    /// Moves along Civ III's eight-direction grid.
+    MoveByDirection(u32, usize),
     CaptureUnits(u32, i32, i32),
     Bombard(u32, i32, i32),
     AutoBombard(u32, i32, i32),
@@ -111,16 +112,13 @@ pub(crate) enum Command {
 impl Command {
     /// Build a Civ III direction command for an adjacent map-space offset.
     /// This keeps coordinate-based fixtures on the eight-direction command path.
-    pub(crate) fn move_civ3_by_offset(
-        simulation: &Simulation,
-        unit_id: u32,
-        dx: i32,
-        dy: i32,
-    ) -> Self {
+    ///
+    /// Moves along Civ III's eight-direction grid.
+    pub(crate) fn move_by_offset(simulation: &Simulation, unit_id: u32, dx: i32, dy: i32) -> Self {
         let direction = simulation
-            .civ3_direction_for_unit_offset(unit_id, dx, dy)
+            .direction_for_unit_offset(unit_id, dx, dy)
             .unwrap_or(usize::MAX);
-        Self::MoveCiv3(unit_id, direction)
+        Self::MoveByDirection(unit_id, direction)
     }
 }
 
@@ -133,7 +131,7 @@ impl Simulation {
             return false;
         }
         let unit_id = match command {
-            MoveCiv3(id, _)
+            MoveByDirection(id, _)
             | CaptureUnits(id, ..)
             | Bombard(id, ..)
             | AutoBombard(id, ..)
@@ -176,8 +174,8 @@ impl Simulation {
             return false;
         }
         let applied = match command {
-            MoveCiv3(id, direction) => {
-                self.try_move_unit_civ3(id, direction) != MoveResult::Blocked
+            MoveByDirection(id, direction) => {
+                self.try_move_unit(id, direction) != MoveResult::Blocked
             }
             CaptureUnits(id, x, y) => self.try_capture_units_by_id(id, x, y),
             Bombard(id, x, y) => {
@@ -289,7 +287,8 @@ impl Simulation {
             } => self.upgrade_unit(unit_id, target, price),
             HomeCity(_) => self.change_home_city(unit_index.unwrap()),
             Research(goal) => {
-                if ((goal.data().is_none() || !goal.is_civ3_advance()) && goal != Tech::FUTURE)
+                if ((goal.data().is_none() || !goal.is_researchable_advance())
+                    && goal != Tech::FUTURE)
                     || self.has_tech(HUMAN, goal)
                 {
                     return false;

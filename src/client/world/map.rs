@@ -34,9 +34,14 @@ impl Game {
                 && neighbor.is_some_and(|(nx, ny)| {
                     hill_terrain(self.sim.render_tile_view(nx, ny).terrain)
                 });
-            assets
-                .civ3
-                .draw_territory_border(center, row, hilly, palette_index, owner, zoom);
+            assets.art_tileset.draw_territory_border(
+                center,
+                row,
+                hilly,
+                palette_index,
+                owner,
+                zoom,
+            );
         }
     }
 
@@ -53,7 +58,7 @@ impl Game {
         self.fog_knowledge(x, y)
     }
 
-    pub(super) fn draw_edge_water(&self, assets: &Assets, view: super::civ3::WorldMapView) {
+    pub(super) fn draw_edge_water(&self, assets: &Assets, view: super::painter::WorldMapView) {
         let viewport = view.viewport;
         let tile_w = TILE_W * view.zoom;
         let tile_h = TILE_H * view.zoom;
@@ -76,7 +81,7 @@ impl Game {
                     continue;
                 }
                 assets
-                    .civ3
+                    .art_tileset
                     .draw_base(self, x, y, center, vec2(tile_w, tile_h));
             }
         }
@@ -93,7 +98,7 @@ impl Game {
     ) {
         let tile = self.sim.render_tile_view(x, y);
         if tile.visible && matches!(tile.base, Some(Base::Fort | Base::Fortress)) {
-            assets.civ3.draw_terrain_building(
+            assets.art_tileset.draw_terrain_building(
                 super::super::tileset::TerrainBuilding::Fortress,
                 center,
                 vec2(w, h),

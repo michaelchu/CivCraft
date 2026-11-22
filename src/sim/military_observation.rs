@@ -471,7 +471,7 @@ mod tests {
         // Elite knight vs barbarian warrior: real kill, ineligible due to barbarian_loser.
         let elite = game.spawn_unit(HUMAN, UnitKind::ModernArmor, 10, 20);
         make_elite(&mut game, elite);
-        let target = game.map_wrap.civ3_neighbor(10, 20, 2).unwrap();
+        let target = game.map_wrap.eight_way_neighbor(10, 20, 2).unwrap();
         let barb = game.spawn_unit(BARBARIANS, UnitKind::Warrior, target.0, target.1);
         game.resolve_combat(elite, barb, target.0, target.1, None);
 
@@ -493,7 +493,7 @@ mod tests {
             game.unit_by_id(elite).unwrap().x,
             game.unit_by_id(elite).unwrap().y,
         );
-        let next = game.map_wrap.civ3_neighbor(pos.0, pos.1, 2).unwrap();
+        let next = game.map_wrap.eight_way_neighbor(pos.0, pos.1, 2).unwrap();
         let enemy = game.spawn_unit(1, UnitKind::Warrior, next.0, next.1);
         game.units.iter_mut().find(|u| u.id == elite).unwrap().hp = 10;
         game.resolve_combat(elite, enemy, next.0, next.1, None);
@@ -535,7 +535,7 @@ mod tests {
         let armor = game.spawn_unit(HUMAN, UnitKind::ModernArmor, 10, 20);
         assert!(game.board_specific_ship(armor, army));
 
-        let target = game.map_wrap.civ3_neighbor(10, 20, 2).unwrap();
+        let target = game.map_wrap.eight_way_neighbor(10, 20, 2).unwrap();
         let defender = game.spawn_unit(1, UnitKind::Warrior, target.0, target.1);
         game.resolve_combat(army, defender, target.0, target.1, None);
 
@@ -564,7 +564,7 @@ mod tests {
         let mut game = traced_game();
         game.sign_pact(HUMAN, 1, Pact::War);
         game.create_city(HUMAN, 10, 20);
-        let target = game.map_wrap.civ3_neighbor(10, 20, 2).unwrap();
+        let target = game.map_wrap.eight_way_neighbor(10, 20, 2).unwrap();
         game.spawn_unit(1, UnitKind::Warrior, target.0, target.1);
         let artillery = game.spawn_unit(HUMAN, UnitKind::Artillery, 10, 20);
         assert_eq!(
@@ -577,7 +577,7 @@ mod tests {
         game.spawn_unit(1, UnitKind::Warrior, icbm_target.0, icbm_target.1);
         let spotter_tile = game
             .map_wrap
-            .civ3_neighbor(icbm_target.0, icbm_target.1, 2)
+            .eight_way_neighbor(icbm_target.0, icbm_target.1, 2)
             .unwrap();
         game.spawn_unit(HUMAN, UnitKind::Warrior, spotter_tile.0, spotter_tile.1);
         game.refresh_visibility();

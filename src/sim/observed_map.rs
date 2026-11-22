@@ -29,8 +29,11 @@ impl UnitVisionLayer {
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub(crate) struct ObservedCity {
     pub(crate) city: City,
-    pub(crate) civ3_style: u8,
-    pub(crate) civ3_era: u8,
+    /// City art style; the alias reads campaigns saved under the old field name.
+    #[serde(alias = "civ3_style")]
+    pub(crate) art_style: u8,
+    #[serde(alias = "civ3_era")]
+    pub(crate) art_era: u8,
     pub(crate) occupied: bool,
     pub(crate) disorder: bool,
     pub(crate) remembered: bool,
@@ -129,7 +132,7 @@ impl Simulation {
             if radius_sq >= 0 {
                 let max_dist = (radius_sq as u32).isqrt() as i32;
                 let stealth_sq = radius_sq.clamp(0, 2);
-                for (nx, ny, dist) in self.map_wrap.civ3_radius(x, y, max_dist) {
+                for (nx, ny, dist) in self.map_wrap.tiles_within_steps(x, y, max_dist) {
                     let idx = self.map_wrap.index(nx, ny);
                     main[idx] = true;
                     if dist * dist <= stealth_sq {
@@ -344,7 +347,7 @@ impl Simulation {
         let _profile = profiler.scope("visibility.refresh.revealers");
         for (owner, x, y, radius_sq, stealth_sq) in revealers {
             let radius = radius_sq.max(0).isqrt();
-            for (visible_x, visible_y, distance) in self.map_wrap.civ3_radius(x, y, radius) {
+            for (visible_x, visible_y, distance) in self.map_wrap.tiles_within_steps(x, y, radius) {
                 if !self.within_vision_distance_sq(distance, radius_sq) {
                     continue;
                 }
@@ -409,7 +412,7 @@ impl Simulation {
         for (x, y) in [from, to] {
             let radius_sq = self.unit_vision_radius_sq_for(unit.owner, unit.kind, x, y);
             let radius = radius_sq.max(0).isqrt();
-            for (tx, ty, distance) in self.map_wrap.civ3_radius(x, y, radius) {
+            for (tx, ty, distance) in self.map_wrap.tiles_within_steps(x, y, radius) {
                 if self.within_vision_distance_sq(distance, radius_sq) {
                     let index = self.map_wrap.index(tx, ty);
                     self.visibility_refresh.mark_render_tile(index);
@@ -510,7 +513,7 @@ impl Simulation {
         let luxury = self.city_trade(city, trade)[2];
         drop(_profile);
         let _profile = profiler.scope("observed_city.era");
-        let civ3_era = Tech::all()
+        let art_era = Tech::all()
             .filter(|&tech| self.has_tech(city.owner, tech))
             .map(|tech| match tech.era() {
                 TechEra::Ancient => 0,
@@ -533,13 +536,13 @@ impl Simulation {
             city: observed_city,
             // Civ III supplies five cultural sheets; the default mapping is
             // data on each civilization and can be overridden by its theme.
-            civ3_style: self.players[city.owner]
+            art_style: self.players[city.owner]
                 .civilization_id
                 .as_deref()
                 .and_then(crate::rules::civilizations::by_id)
-                .map(|civilization| civilization.civ3_city_style)
+                .map(|civilization| civilization.city_art_style)
                 .unwrap_or(2),
-            civ3_era,
+            art_era,
             occupied,
             disorder,
             remembered: false,
@@ -751,13 +754,13 @@ impl Simulation {
         let radius = radius_sq.max(0).isqrt();
         let mut indices = self
             .map_wrap
-            .civ3_radius(x, y, radius)
+            .tiles_within_steps(x, y, radius)
             .into_iter()
             .filter(|(_, _, distance)| distance * distance <= radius_sq.max(0))
             .map(|(tx, ty, _)| self.map_wrap.index(tx, ty))
             .collect::<Vec<_>>();
         // remember_render_positions_with_sight uses binary_search on scoped
-        // indices when storing and pruning city memories. civ3_radius returns
+        // indices when storing and pruning city memories. tiles_within_steps returns
         // breadth-first order, not index order.
         indices.sort_unstable();
         let recipients = self.vision_recipients(owner);
@@ -949,8 +952,8 @@ impl Simulation {
                         && city.size > 0
                         && *revision <= self.observed_map.revision
                         && observed.remembered
-                        && observed.civ3_style < 5
-                        && observed.civ3_era < 4
+                        && observed.art_style < 5
+                        && observed.art_era < 4
                 })
     }
 }

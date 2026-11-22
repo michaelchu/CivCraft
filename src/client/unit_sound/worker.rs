@@ -109,7 +109,7 @@ impl PreparationCache {
             }
         }
     }
-    fn prepare(&mut self, media: &Civ3MediaResolver, requested: &Path) -> Prepared {
+    fn prepare(&mut self, media: &MediaResolver, requested: &Path) -> Prepared {
         if let Some(prepared) = self.sounds.get(requested) {
             return prepared.clone();
         }
@@ -119,7 +119,7 @@ impl PreparationCache {
     }
     fn prepare_uncached(
         &mut self,
-        media: &Civ3MediaResolver,
+        media: &MediaResolver,
         requested: &Path,
     ) -> Result<PreparedSound, String> {
         let path = media
@@ -190,7 +190,7 @@ mod tests {
             include_bytes!("../../../tests/fixtures/audio/tone.mp3"),
         )
         .unwrap();
-        let media = Civ3MediaResolver::new(vec![root.clone()]);
+        let media = MediaResolver::new(vec![root.clone()]);
         let mut cache = PreparationCache::default();
         let first = cache.prepare(&media, &path).unwrap();
         assert_eq!(first.cues.len(), 1);
@@ -216,7 +216,7 @@ mod tests {
         if !path.is_file() {
             return;
         }
-        let media = Civ3MediaResolver::installation(&root);
+        let media = MediaResolver::installation(&root);
         let mut cache = PreparationCache::default();
         let sound = cache.prepare(&media, &path).unwrap();
         let source = read_amb_cues(&path).unwrap();
@@ -232,7 +232,7 @@ mod tests {
     fn preparation_caches_failures_and_never_reads_outside_media_roots() {
         let root = std::env::temp_dir().join(format!("civcraft-audio-prep-{}", std::process::id()));
         std::fs::create_dir_all(&root).unwrap();
-        let media = Civ3MediaResolver::new(vec![root.clone()]);
+        let media = MediaResolver::new(vec![root.clone()]);
         let mut cache = PreparationCache::default();
         let missing = root.join("missing.wav");
         let first = cache.prepare(&media, &missing).err().unwrap();

@@ -265,8 +265,8 @@ impl Simulation {
                     {
                         continue;
                     }
-                    for (direction, (dx, dy)) in CIV3_DIRS.into_iter().enumerate() {
-                        let Some((tx, ty)) = self.map_wrap.civ3_offset(x, y, dx, dy) else {
+                    for (direction, (dx, dy)) in EIGHT_WAY_DIRS.into_iter().enumerate() {
+                        let Some((tx, ty)) = self.map_wrap.eight_way_offset(x, y, dx, dy) else {
                             continue;
                         };
                         if !self.tile(tx, ty).known_by[owner]
@@ -304,7 +304,7 @@ impl Simulation {
                     break;
                 };
                 committed.insert(id);
-                self.try_move_unit_civ3(id, direction);
+                self.try_move_unit(id, direction);
             }
         }
         committed

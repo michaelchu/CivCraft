@@ -222,7 +222,7 @@ impl Simulation {
                 result[index].1 += occupiers;
             }
             if any_undefended {
-                for (x, y, _) in self.map_wrap.civ3_radius(actor.x, actor.y, radius) {
+                for (x, y, _) in self.map_wrap.tiles_within_steps(actor.x, actor.y, radius) {
                     if let Some(index) = city_at[self.map_wrap.index(x, y)]
                         && undefended[index]
                     {
@@ -292,12 +292,12 @@ impl Simulation {
             let target = self
                 .raider_landing(&boat, None, Some(&troops), &[])
                 .and_then(|(_, x, y, (dx, dy))| {
-                    let shore = self.map_wrap.civ3_offset(x, y, dx, dy)?;
+                    let shore = self.map_wrap.eight_way_offset(x, y, dx, dy)?;
                     self.cities
                         .iter()
                         .filter(|c| {
                             self.at_war(owner, c.owner)
-                                && self.map_wrap.civ3_distance(shore.0, shore.1, c.x, c.y) <= 1
+                                && self.map_wrap.step_distance(shore.0, shore.1, c.x, c.y) <= 1
                                 && self.assault_capture_chance(c, &troops) >= 0.5
                         })
                         .min_by_key(|c| c.id)
@@ -370,7 +370,7 @@ impl Simulation {
         let own_defense = self.defense_power_against(defender, defender.x, defender.y, actor.kind);
         for other in self
             .map_wrap
-            .civ3_radius(defender.x, defender.y, 1)
+            .tiles_within_steps(defender.x, defender.y, 1)
             .into_iter()
             .flat_map(|(x, y, _)| self.tile_units_ordered(x, y))
             .filter(|u| {
@@ -450,7 +450,7 @@ impl Simulation {
             let Some(actor) = self.unit_by_id(id).cloned() else {
                 return;
             };
-            let Some(target) = self.map_wrap.civ3_offset(actor.x, actor.y, dx, dy) else {
+            let Some(target) = self.map_wrap.eight_way_offset(actor.x, actor.y, dx, dy) else {
                 break;
             };
             let enemy =
@@ -482,11 +482,11 @@ impl Simulation {
             {
                 return;
             }
-            let result = CIV3_DIRS
+            let result = EIGHT_WAY_DIRS
                 .iter()
                 .position(|&step| step == (dx, dy))
                 .map_or(MoveResult::Blocked, |direction| {
-                    self.try_move_unit_civ3(id, direction)
+                    self.try_move_unit(id, direction)
                 });
             if result == MoveResult::Blocked
                 || result == MoveResult::Fought

@@ -71,11 +71,12 @@ impl TechEra {
     }
 }
 
-struct Civ3TechCatalog {
+/// Built from Civ III technology data.
+struct TechCatalog {
     advances: Vec<Option<Advance>>,
 }
 
-impl Civ3TechCatalog {
+impl TechCatalog {
     fn get(&'static self, tech: Tech) -> Option<&'static Advance> {
         self.advances.get(tech.0).and_then(Option::as_ref)
     }
@@ -188,7 +189,7 @@ impl Tech {
     pub(crate) const IRONCLADS: Self = Self(100);
 
     pub(crate) fn storage_len() -> usize {
-        civ3_tech_catalog().advances.len()
+        tech_catalog().advances.len()
     }
 
     pub(crate) fn all() -> impl Iterator<Item = Self> {
@@ -205,7 +206,7 @@ impl Tech {
     }
 
     pub(crate) fn data(self) -> Option<&'static Advance> {
-        civ3_tech_catalog().get(self)
+        tech_catalog().get(self)
     }
 
     pub(crate) fn name(self) -> &'static str {
@@ -223,14 +224,18 @@ impl Tech {
 
     /// True when this stable runtime ID names a researchable native campaign
     /// technology. Radio and Freeciv-only aliases are intentionally excluded.
-    pub(crate) fn is_civ3_advance(self) -> bool {
-        civ3_tech_catalog().is_researchable(self)
+    ///
+    /// Based on the Civ III technology catalog.
+    pub(crate) fn is_researchable_advance(self) -> bool {
+        tech_catalog().is_researchable(self)
     }
 
     /// Direct native prerequisites, preserving the order of the four historical
     /// prerequisite slots. Returns `None` for a Freeciv-only technology ID.
-    pub(crate) fn civ3_prerequisites(self) -> Option<&'static [Self]> {
-        self.is_civ3_advance().then(|| {
+    ///
+    /// Based on the Civ III technology catalog.
+    pub(crate) fn catalog_prerequisites(self) -> Option<&'static [Self]> {
+        self.is_researchable_advance().then(|| {
             self.data()
                 .expect("researchable Civ III advance")
                 .prerequisites
@@ -239,8 +244,10 @@ impl Tech {
 
     /// Freeciv linear requirement count: this advance plus every unique
     /// transitive prerequisite in the native campaign graph.
-    pub(crate) fn civ3_requirement_count(self) -> Option<i32> {
-        self.is_civ3_advance().then(|| {
+    ///
+    /// Freeciv's linear requirement count over the Civ III technology graph.
+    pub(crate) fn linear_requirement_count(self) -> Option<i32> {
+        self.is_researchable_advance().then(|| {
             self.data()
                 .expect("researchable Civ III advance")
                 .requirement_count
@@ -257,7 +264,9 @@ impl Tech {
     /// CivCraft-only advances retained for current ruleset effects. Their
     /// effects now ride on the closest Civ III advance and
     /// they are not separate research choices.
-    pub(crate) fn civ3_equivalent(self) -> Option<Self> {
+    ///
+    /// Maps a retained CivCraft advance to its closest Civ III advance.
+    pub(crate) fn catalog_equivalent(self) -> Option<Self> {
         match self {
             Self::AUTOMOBILE => Some(Self::MOTORIZED_TRANSPORTATION),
             Self::BRIDGE_BUILDING | Self::EXPLOSIVES => Some(Self::ENGINEERING),
@@ -278,12 +287,14 @@ impl Tech {
         }
     }
 
-    pub(crate) fn optional_in_civ3(self) -> bool {
+    /// Civ III marks some advances optional for era advancement.
+    pub(crate) fn optional_for_era(self) -> bool {
         self.data().is_some_and(|advance| !advance.required_for_era)
     }
 
-    pub(crate) fn required_for_civ3_era(self) -> bool {
-        self.is_civ3_advance() && !self.optional_in_civ3()
+    /// Civ III era advancement requirement.
+    pub(crate) fn is_required_for_era(self) -> bool {
+        self.is_researchable_advance() && !self.optional_for_era()
     }
 
     pub(crate) fn era_gate(self) -> Option<TechEra> {
@@ -317,7 +328,8 @@ fn compatibility_name(tech: Tech) -> &'static str {
     }
 }
 
-struct RawCiv3Advance {
+/// An advance as read from Civ III technology data.
+struct RawAdvance {
     tech: Tech,
     prerequisites: Vec<Tech>,
     era: TechEra,
@@ -325,12 +337,14 @@ struct RawCiv3Advance {
     era_gate: Option<TechEra>,
 }
 
-fn civ3_tech_catalog() -> &'static Civ3TechCatalog {
-    static CATALOG: OnceLock<Civ3TechCatalog> = OnceLock::new();
-    CATALOG.get_or_init(build_civ3_tech_catalog)
+/// The catalog is built from Civ III technology data.
+fn tech_catalog() -> &'static TechCatalog {
+    static CATALOG: OnceLock<TechCatalog> = OnceLock::new();
+    CATALOG.get_or_init(build_tech_catalog)
 }
 
-fn build_civ3_tech_catalog() -> Civ3TechCatalog {
+/// Builds the catalog from Civ III technology data.
+fn build_tech_catalog() -> TechCatalog {
     let mut raw_advances = Vec::new();
     let native_catalog = crate::rules::native::technologies();
     let storage_len = tech_storage_len_for(native_catalog);
@@ -370,7 +384,7 @@ fn build_civ3_tech_catalog() -> Civ3TechCatalog {
                 Tech(prerequisite.runtime_index)
             })
             .collect();
-        raw_advances.push(RawCiv3Advance {
+        raw_advances.push(RawAdvance {
             tech,
             prerequisites,
             era: parse_tech_era(native.era),
@@ -382,7 +396,7 @@ fn build_civ3_tech_catalog() -> Civ3TechCatalog {
     let mut advances: Vec<Option<Advance>> =
         std::iter::repeat_with(|| None).take(storage_len).collect();
     for raw in &raw_advances {
-        let requirement_count = civ3_linear_requirement_count(raw.tech, &raw_advances);
+        let requirement_count = linear_requirement_count_for(raw.tech, &raw_advances);
         let prerequisites = Box::leak(raw.prerequisites.clone().into_boxed_slice());
         let native = native_catalog
             .technologies
@@ -407,7 +421,7 @@ fn build_civ3_tech_catalog() -> Civ3TechCatalog {
             era_gate: native.era_gate.map(parse_tech_era),
         });
     }
-    Civ3TechCatalog { advances }
+    TechCatalog { advances }
 }
 
 fn parse_tech_era(value: i32) -> TechEra {
@@ -420,7 +434,8 @@ fn parse_tech_era(value: i32) -> TechEra {
     }
 }
 
-fn civ3_linear_requirement_count(tech: Tech, graph: &[RawCiv3Advance]) -> i32 {
+/// Freeciv's linear requirement count over the Civ III technology graph.
+fn linear_requirement_count_for(tech: Tech, graph: &[RawAdvance]) -> i32 {
     let storage_len = graph
         .iter()
         .map(|advance| advance.tech.0 + 1)
@@ -483,43 +498,43 @@ mod sentinel_tests {
                 .data()
                 .is_some_and(|advance| advance.first_discovery_bonus)
         );
-        assert!(Tech::LITERATURE.optional_in_civ3());
+        assert!(Tech::LITERATURE.optional_for_era());
         assert_eq!(Tech::ENGINEERING.era_gate(), Some(TechEra::Ancient));
     }
 
     #[test]
     fn compiled_catalog_is_the_campaign_research_graph() {
         assert_eq!(
-            civ3_tech_catalog()
+            tech_catalog()
                 .advances
                 .iter()
                 .filter(|advance| advance.is_some())
                 .count(),
             85
         );
-        assert!(!Tech::RADIO.is_civ3_advance());
-        assert!(Tech::IRONCLADS.is_civ3_advance());
-        assert!(Tech::IRONCLADS.civ3_requirement_count().is_some());
+        assert!(!Tech::RADIO.is_researchable_advance());
+        assert!(Tech::IRONCLADS.is_researchable_advance());
+        assert!(Tech::IRONCLADS.linear_requirement_count().is_some());
         assert_eq!(
-            Tech::ALPHABET.civ3_requirement_count(),
+            Tech::ALPHABET.linear_requirement_count(),
             Some(1),
             "a root advance counts itself"
         );
         assert_eq!(
-            Tech::ADVANCED_FLIGHT.civ3_requirement_count(),
+            Tech::ADVANCED_FLIGHT.linear_requirement_count(),
             Some(47),
             "includes transitive era-gate prerequisites and counts shared prerequisites once"
         );
         assert!(
-            Tech::ENGINEERING.civ3_requirement_count().unwrap() > 10,
+            Tech::ENGINEERING.linear_requirement_count().unwrap() > 10,
             "Middle Ages era-root advance includes Ancient era-gate prerequisites"
         );
         assert!(
-            Tech::ROCKETRY.civ3_requirement_count().unwrap() > 45,
+            Tech::ROCKETRY.linear_requirement_count().unwrap() > 45,
             "Modern era-root advance includes all prior era-gate prerequisites"
         );
         assert_eq!(
-            Tech::ADVANCED_FLIGHT.civ3_prerequisites(),
+            Tech::ADVANCED_FLIGHT.catalog_prerequisites(),
             Some(
                 &[
                     Tech::FLIGHT,
@@ -530,24 +545,24 @@ mod sentinel_tests {
             "Native prerequisite order is retained"
         );
         assert_eq!(
-            Tech::COMMUNISM.civ3_prerequisites(),
+            Tech::COMMUNISM.catalog_prerequisites(),
             Some(&[Tech::NATIONALISM][..])
         );
         assert_eq!(
-            Tech::MOTORIZED_TRANSPORTATION.civ3_prerequisites(),
+            Tech::MOTORIZED_TRANSPORTATION.catalog_prerequisites(),
             Some(&[Tech::MASS_PRODUCTION][..])
         );
         assert_eq!(
-            Tech::SYNTHETIC_FIBERS.civ3_prerequisites(),
+            Tech::SYNTHETIC_FIBERS.catalog_prerequisites(),
             Some(&[Tech::ECOLOGY][..])
         );
         assert_eq!(
-            Tech::AMPHIBIOUS_WARFARE.civ3_prerequisites(),
+            Tech::AMPHIBIOUS_WARFARE.catalog_prerequisites(),
             Some(&[Tech::MASS_PRODUCTION][..]),
             "the shorter campaign name binds to the stable Amphibious Warfare ID"
         );
         assert_eq!(
-            Tech::IRONCLADS.civ3_prerequisites(),
+            Tech::IRONCLADS.catalog_prerequisites(),
             Some(&[Tech::STEAM_POWER][..])
         );
         assert_eq!(
@@ -568,7 +583,8 @@ mod constant_tests {
             .collect()
     }
 
-    const RENAMED_IN_CIV3: [(&str, &str); 4] = [
+    /// Technologies Civ III renamed relative to the legacy names.
+    const RENAMED_IN_CATALOG: [(&str, &str); 4] = [
         ("UNIVERSITY", "Education"),
         ("SUPERCONDUCTORS", "Superconductor"),
         ("MOBILE_WARFARE", "Motorized Transportation"),
@@ -596,9 +612,9 @@ mod constant_tests {
             };
             let actual = Tech(index).name();
             // Freeciv-named constants whose advance carries a Civ III name.
-            let renamed = RENAMED_IN_CIV3
+            let renamed = RENAMED_IN_CATALOG
                 .iter()
-                .any(|(constant, civ3)| *constant == name && *civ3 == actual);
+                .any(|(constant, catalog_name)| *constant == name && *catalog_name == actual);
             assert!(
                 renamed || normalized(name) == normalized(actual),
                 "{name} = Self({index}) but index {index} is {actual}"

@@ -77,13 +77,13 @@ impl Simulation {
             self.at_war(owner, u.owner)
                 && (self.players[owner].ai || self.unit_visible_to(owner, u))
                 && u.kind.stats().attack > 0
-                && self.map_wrap.civ3_distance(x, y, u.x, u.y) <= threat_range
+                && self.map_wrap.step_distance(x, y, u.x, u.y) <= threat_range
                 && (self.worker_enemy_native(u.kind, x, y)
                     || (u.kind.is_naval()
                         && u.kind != UnitKind::Submarine
                         && self
                             .map_wrap
-                            .civ3_neighbors(x, y)
+                            .eight_way_neighbors(x, y)
                             .any(|(tx, ty)| self.tile(tx, ty).terrain.is_water())))
         })
     }
@@ -155,8 +155,11 @@ impl Simulation {
             } else {
                 allowance - (spent - unit.moves_left.max(0)) % allowance
             };
-            for (direction, (dx, dy)) in CIV3_DIRS.into_iter().enumerate() {
-                let Some((x, y)) = self.map_wrap.civ3_neighbor(actor.x, actor.y, direction) else {
+            for (direction, (dx, dy)) in EIGHT_WAY_DIRS.into_iter().enumerate() {
+                let Some((x, y)) = self
+                    .map_wrap
+                    .eight_way_neighbor(actor.x, actor.y, direction)
+                else {
                     continue;
                 };
                 let next = self.map_wrap.index(x, y);
@@ -237,12 +240,12 @@ impl Simulation {
             if !path.is_empty() && self.ai_worker_tasks.insert(actor.id) {
                 let destination = path.iter().fold((actor.x, actor.y), |(x, y), &(dx, dy)| {
                     self.map_wrap
-                        .civ3_offset(x, y, dx, dy)
+                        .eight_way_offset(x, y, dx, dy)
                         .expect("planned step is real")
                 });
                 self.unit_goto_tiles.insert(actor.id, destination);
             }
-            self.follow_civ3_path(actor.id, path);
+            self.follow_grid_path(actor.id, path);
         }
     }
 
@@ -332,7 +335,7 @@ impl Simulation {
                 return;
             }
         }
-        self.follow_civ3_path(id, plan.path);
+        self.follow_grid_path(id, plan.path);
         if self
             .units
             .iter()

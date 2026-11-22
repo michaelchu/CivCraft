@@ -43,7 +43,7 @@ fn entering_a_village_resolves_every_reference_roll_once() {
         let before = game.units.len();
         let known = game.players[HUMAN].known.len();
         game.players[HUMAN].research = 7;
-        assert!(game.apply(Command::move_civ3_by_offset(&game, id, 0, -1)));
+        assert!(game.apply(Command::move_by_offset(&game, id, 0, -1)));
         assert!(!game.tile(x, y).hut);
         assert!(
             game.take_visual_events()
@@ -93,7 +93,7 @@ fn villages_offer_nomads_or_leave_a_city_nearby_unharmed() {
         let (cx, cy) = offset_native_by_map(x, y, 0, 1);
         game.create_city(HUMAN, cx, cy);
         let before = game.units.len();
-        assert!(game.apply(Command::move_civ3_by_offset(&game, id, 0, -1)));
+        assert!(game.apply(Command::move_by_offset(&game, id, 0, -1)));
         assert_eq!(game.cities.len(), 1);
         assert!(game.units.iter().any(|unit| unit.id == id));
         assert_eq!(game.units.len(), before + usize::from(roll == 11));
@@ -108,10 +108,10 @@ fn late_hostile_village_spawns_land_raiders() {
     let (mut game, id, (x, y)) = approach(10);
     assert_eq!(BARBARIAN_ONSET, 60);
     game.turn = BARBARIAN_ONSET;
-    for (nx, ny) in game.map_wrap.civ3_neighbors(x, y) {
+    for (nx, ny) in game.map_wrap.eight_way_neighbors(x, y) {
         game.tile_mut(nx, ny).terrain = Terrain::Plains;
     }
-    assert!(game.apply(Command::move_civ3_by_offset(&game, id, 0, -1)));
+    assert!(game.apply(Command::move_by_offset(&game, id, 0, -1)));
     let raiders = game.units.iter().filter(|unit| unit.owner == BARBARIANS);
     assert!(
         raiders
@@ -122,15 +122,16 @@ fn late_hostile_village_spawns_land_raiders() {
     assert!(game.units.iter().any(|unit| unit.id == id));
 }
 
+/// Mirrors Freeciv behavior.
 #[test]
-fn hostile_village_uses_the_freeciv_onset_boundary() {
+fn hostile_village_uses_the_reference_onset_boundary() {
     let (mut game, id, (x, y)) = approach(10);
     game.turn = BARBARIAN_ONSET - 1;
-    for (nx, ny) in game.map_wrap.civ3_neighbors(x, y) {
+    for (nx, ny) in game.map_wrap.eight_way_neighbors(x, y) {
         game.tile_mut(nx, ny).terrain = Terrain::Plains;
     }
 
-    assert!(game.apply(Command::move_civ3_by_offset(&game, id, 0, -1)));
+    assert!(game.apply(Command::move_by_offset(&game, id, 0, -1)));
     assert!(game.units.iter().all(|unit| unit.id != id));
     assert!(game.units.iter().all(|unit| unit.owner != BARBARIANS));
 }
@@ -143,10 +144,10 @@ fn advanced_raiders_require_three_civilizations_with_the_technology() {
         for player in &mut game.players[..civilizations] {
             player.known.push(Tech::METALLURGY);
         }
-        for (nx, ny) in game.map_wrap.civ3_neighbors(x, y) {
+        for (nx, ny) in game.map_wrap.eight_way_neighbors(x, y) {
             game.tile_mut(nx, ny).terrain = Terrain::Plains;
         }
-        assert!(game.apply(Command::move_civ3_by_offset(&game, id, 0, -1)));
+        assert!(game.apply(Command::move_by_offset(&game, id, 0, -1)));
         let expected = if civilizations == 3 {
             UnitKind::Cannon
         } else {
@@ -174,14 +175,14 @@ fn island_transport_loads_cargo_and_carries_it_to_a_landing() {
     for player in &mut game.players[..3] {
         player.known.push(Tech::GUNPOWDER);
     }
-    for (direction, (nx, ny)) in game.map_wrap.civ3_neighbors(x, y).enumerate() {
+    for (direction, (nx, ny)) in game.map_wrap.eight_way_neighbors(x, y).enumerate() {
         game.tile_mut(nx, ny).terrain = if direction == 0 {
             Terrain::Plains
         } else {
             Terrain::Sea
         };
     }
-    assert!(game.apply(Command::move_civ3_by_offset(&game, id, 0, -1)));
+    assert!(game.apply(Command::move_by_offset(&game, id, 0, -1)));
     let boat = game
         .units
         .iter()
@@ -212,10 +213,10 @@ fn island_transport_loads_cargo_and_carries_it_to_a_landing() {
         .iter()
         .any(|unit| unit.owner == BARBARIANS && (unit.x, unit.y) == (x, y));
     assert_eq!(game.units.iter().any(|unit| unit.id == id), !stayed);
-    let (sea_direction, (sx, sy)) = (0..CIV3_DIRS.len())
+    let (sea_direction, (sx, sy)) = (0..EIGHT_WAY_DIRS.len())
         .filter_map(|direction| {
             game.map_wrap
-                .civ3_neighbor(boat.x, boat.y, direction)
+                .eight_way_neighbor(boat.x, boat.y, direction)
                 .map(|point| (direction, point))
         })
         .find(|&(_, (sx, sy))| {
@@ -225,17 +226,17 @@ fn island_transport_loads_cargo_and_carries_it_to_a_landing() {
         .expect("boat has an unoccupied adjacent water tile");
     game.tile_mut(sx, sy).terrain = Terrain::Sea;
     assert_eq!(
-        game.try_move_unit_civ3(boat.id, sea_direction),
+        game.try_move_unit(boat.id, sea_direction),
         MoveResult::Moved
     );
     for id in cargo {
         let unit = game.units.iter_mut().find(|unit| unit.id == id).unwrap();
         assert_eq!((unit.x, unit.y), (sx, sy));
         unit.moves_left = MOVE_FRAGMENTS;
-        let (land_direction, (lx, ly)) = (0..CIV3_DIRS.len())
+        let (land_direction, (lx, ly)) = (0..EIGHT_WAY_DIRS.len())
             .filter_map(|direction| {
                 game.map_wrap
-                    .civ3_neighbor(sx, sy, direction)
+                    .eight_way_neighbor(sx, sy, direction)
                     .map(|point| (direction, point))
             })
             .find(|&(_, (lx, ly))| {
@@ -245,10 +246,7 @@ fn island_transport_loads_cargo_and_carries_it_to_a_landing() {
             })
             .expect("new sea tile borders unoccupied land");
         game.tile_mut(lx, ly).terrain = Terrain::Plains;
-        assert_eq!(
-            game.try_move_unit_civ3(id, land_direction),
-            MoveResult::Moved
-        );
+        assert_eq!(game.try_move_unit(id, land_direction), MoveResult::Moved);
         let unit = game.unit_by_id(id).unwrap();
         assert_eq!((unit.x, unit.y, unit.transport), (lx, ly, None));
     }

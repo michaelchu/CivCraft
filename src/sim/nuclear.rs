@@ -110,7 +110,7 @@ impl Simulation {
         // only detonate in place.
         let range = unit.kind.bombard_range();
         if !(unit.kind == UnitKind::ICBM && range == 0)
-            && self.map_wrap.civ3_distance(unit.x, unit.y, x, y) > range
+            && self.map_wrap.step_distance(unit.x, unit.y, x, y) > range
         {
             return false;
         }
@@ -165,7 +165,7 @@ impl Simulation {
         // Recorded owner exception (Civ III): nuclear detonations affect the
         // full 3x3 square (ground zero plus all 8 Civ III compass neighbors).
         self.map_wrap
-            .civ3_radius(x, y, 1)
+            .tiles_within_steps(x, y, 1)
             .into_iter()
             .map(|(tx, ty, _)| (tx, ty))
             .collect()
@@ -450,7 +450,7 @@ impl Simulation {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::random::FreecivRng;
+    use crate::random::GameRng;
 
     fn nuclear_game() -> Simulation {
         let mut game = Simulation::new(crate::mapgen::generate(42));
@@ -483,8 +483,9 @@ mod tests {
         );
     }
 
+    /// Mirrors the civ2civ3 ruleset behavior.
     #[test]
-    fn nuclear_actions_use_unit_ranges_and_selected_c2c3_enablers() {
+    fn nuclear_actions_use_unit_ranges_and_selected_ruleset_enablers() {
         let mut game = nuclear_game();
         let (x, y) = (10, 20);
         game.sign_pact(HUMAN, 1, Pact::War);
@@ -492,7 +493,7 @@ mod tests {
         let unit = game.unit_by_id(nuke).unwrap().clone();
         assert!(game.can_launch_nuclear_strike_at(&unit, x, y));
 
-        let adjacent_city = game.map_wrap.civ3_offset(x, y, 2, 0).unwrap();
+        let adjacent_city = game.map_wrap.eight_way_offset(x, y, 2, 0).unwrap();
         game.create_city(1, adjacent_city.0, adjacent_city.1);
         game.tile_mut(adjacent_city.0, adjacent_city.1)
             .known_by
@@ -500,7 +501,7 @@ mod tests {
         let city_nuke = game.unit_by_id(nuke).unwrap().clone();
         assert!(game.can_launch_nuclear_strike_at(&city_nuke, adjacent_city.0, adjacent_city.1));
 
-        let empty_units_tile = game.map_wrap.civ3_offset(x, y, 0, 2).unwrap();
+        let empty_units_tile = game.map_wrap.eight_way_offset(x, y, 0, 2).unwrap();
         game.tile_mut(empty_units_tile.0, empty_units_tile.1).owner = Some(1);
         game.tile_mut(empty_units_tile.0, empty_units_tile.1)
             .known_by
@@ -515,7 +516,7 @@ mod tests {
             "ACTRES_NUKE_UNITS accepts an empty physical stack when its tile enabler passes"
         );
 
-        let adjacent_units = game.map_wrap.civ3_offset(x, y, -2, 0).unwrap();
+        let adjacent_units = game.map_wrap.eight_way_offset(x, y, -2, 0).unwrap();
         game.tile_mut(adjacent_units.0, adjacent_units.1).owner = Some(1);
         game.tile_mut(adjacent_units.0, adjacent_units.1)
             .known_by
@@ -584,7 +585,7 @@ mod tests {
         game.sign_pact(HUMAN, 1, Pact::War);
         let nuke = make_nuke(&mut game, x, y);
         let unit = game.unit_by_id(nuke).unwrap().clone();
-        let target = game.map_wrap.civ3_offset(x, y, 2, 0).unwrap();
+        let target = game.map_wrap.eight_way_offset(x, y, 2, 0).unwrap();
 
         // The remembered tile belongs to the enemy but contains no known city.
         // A city is added at the same position after the observation, hidden
@@ -640,8 +641,9 @@ mod tests {
         );
     }
 
+    /// Mirrors Civ III behavior.
     #[test]
-    fn civ3_nuclear_blast_covers_full_three_by_three_square() {
+    fn native_nuclear_blast_covers_full_three_by_three_square() {
         let game = nuclear_game();
         let (x, y) = (10, 20);
         let affected = game.nuclear_blast_tiles(x, y);
@@ -650,12 +652,13 @@ mod tests {
         assert!(
             affected
                 .iter()
-                .all(|&(tx, ty)| game.map_wrap.civ3_distance(x, y, tx, ty) <= 1)
+                .all(|&(tx, ty)| game.map_wrap.step_distance(x, y, tx, ty) <= 1)
         );
     }
 
+    /// Mirrors Civ III behavior.
     #[test]
-    fn civ3_nuke_halves_population_kills_or_redlines_units_destroys_half_improvements_and_pollutes_3x3()
+    fn native_nuke_halves_population_kills_or_redlines_units_destroys_half_improvements_and_pollutes_3x3()
      {
         let mut game = nuclear_game();
         let (x, y) = (10, 20);
@@ -678,13 +681,13 @@ mod tests {
             Building::FACTORY,
             Building::CATHEDRAL,
         ]);
-        let nearby = game.map_wrap.civ3_neighbor(x, y, 2).unwrap();
+        let nearby = game.map_wrap.eight_way_neighbor(x, y, 2).unwrap();
         game.tile_mut(nearby.0, nearby.1).owner = Some(HUMAN);
         game.tile_mut(nearby.0, nearby.1).road = true;
         game.tile_mut(nearby.0, nearby.1).mine = true;
-        let ocean = game.map_wrap.civ3_neighbor(x, y, 6).unwrap();
+        let ocean = game.map_wrap.eight_way_neighbor(x, y, 6).unwrap();
         game.tile_mut(ocean.0, ocean.1).terrain = Terrain::Ocean;
-        let coast = game.map_wrap.civ3_neighbor(x, y, 0).unwrap();
+        let coast = game.map_wrap.eight_way_neighbor(x, y, 0).unwrap();
         game.tile_mut(coast.0, coast.1).terrain = Terrain::Coast;
         let nuke = make_nuke(&mut game, x, y);
         let mut tracked_units = Vec::new();
@@ -696,7 +699,7 @@ mod tests {
         let exposed = game.spawn_unit(HUMAN, UnitKind::Infantry, nearby.0, nearby.1);
         game.units.iter_mut().find(|u| u.id == exposed).unwrap().hp = 4;
         tracked_units.push(exposed);
-        game.native_random = Some(FreecivRng::new(87));
+        game.native_random = Some(GameRng::new(87));
 
         let blast_tiles = game.nuclear_blast_tiles(x, y);
         assert_eq!(blast_tiles.len(), 9);
@@ -752,8 +755,9 @@ mod tests {
         assert!(!game.tile(nearby.0, nearby.1).mine);
     }
 
+    /// Mirrors Civ III behavior.
     #[test]
-    fn civ3_nuclear_strike_never_razes_a_size_one_city() {
+    fn native_nuclear_strike_never_razes_a_size_one_city() {
         let mut game = nuclear_game();
         game.create_city(HUMAN, 10, 20);
         let city_id = game.cities[0].id;
@@ -768,8 +772,9 @@ mod tests {
         assert_eq!(city.size, 1);
     }
 
+    /// Mirrors Civ III behavior.
     #[test]
-    fn civ3_sdi_small_wonder_protects_entire_empire_with_icbm_75_and_tactical_37_5_odds() {
+    fn native_sdi_small_wonder_protects_entire_empire_with_icbm_75_and_tactical_37_5_odds() {
         // Place SDI Defense in a distant city (15 tiles away from the target)
         // belonging to civ 1; it still protects civ 1's target city.
         let mut icbm_intercepts = 0;
@@ -789,7 +794,7 @@ mod tests {
                 let sdi_index = game.city_index_at(distant_sdi.0, distant_sdi.1).unwrap();
                 game.cities[sdi_index].buildings.push(Building::SDI_DEFENSE);
                 let weapon = Unit::new(99, HUMAN, kind, 10, 20);
-                game.native_random = Some(FreecivRng::new(seed + 1));
+                game.native_random = Some(GameRng::new(seed + 1));
                 if game.nuclear_sdi_intercepts(&weapon, target.0, target.1) == Some(1) {
                     *counter += 1;
                 }
@@ -817,7 +822,7 @@ mod tests {
         game.cities[city_index]
             .buildings
             .push(Building::SDI_DEFENSE);
-        game.native_random = Some(FreecivRng::new(32));
+        game.native_random = Some(GameRng::new(32));
         assert!(game.apply(Command::NuclearStrike(nuke, x, y)));
         assert!(game.events.iter().any(|event| event.contains("detonated")));
     }

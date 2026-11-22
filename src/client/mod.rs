@@ -41,12 +41,12 @@ mod city_bar;
 mod city_manager;
 mod city_map;
 #[allow(dead_code)] // Standalone projection helpers are retained for geometry regression fixtures.
-mod civ3_geometry;
-mod civ3_projection;
+mod diamond_geometry;
+mod diamond_projection;
 mod espionage_view;
 mod flc;
-mod font;
 mod fog;
+mod font;
 mod government_view;
 mod hud;
 mod input;
@@ -624,7 +624,7 @@ impl Game {
         let mut events = std::mem::take(&mut self.prepared_events);
         if !self.turn_busy() {
             let mut incoming = self.sim.take_presentation_event_views();
-            presentation::configure_combat_timing(&mut incoming, &assets.civ3);
+            presentation::configure_combat_timing(&mut incoming, &assets.art_tileset);
             events.extend(incoming);
         }
         let now = get_time();
@@ -653,7 +653,7 @@ impl Game {
             Overlay::Spaceship => return self.draw_spaceship(),
             _ => {}
         }
-        self.draw_civ3_world_map(assets);
+        self.draw_world_map(assets);
         let mut actions = self.draw_hud(assets);
         if self.overlay == Overlay::Intro {
             actions.clear();
@@ -758,7 +758,7 @@ impl Game {
             self.fidget_sound_cycle = None;
             return;
         }
-        let pacing = assets.civ3.fidget_pacing(unit.kind);
+        let pacing = assets.art_tileset.fidget_pacing(unit.kind);
         let period = pacing.play_seconds + pacing.rest_seconds;
         if period <= 0.0 {
             return;
