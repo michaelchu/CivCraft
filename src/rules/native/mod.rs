@@ -6,7 +6,12 @@
 //! Each catalog lives in its own submodule with its schema, validation and
 //! cached accessor; this module re-exports them so callers keep one path.
 
-#![allow(dead_code)]
+// Catalog structs mirror their TOML schemas under `deny_unknown_fields`, so
+// some decoded fields are never read, and `ContentRuleset` is built by tests.
+#![allow(
+    dead_code,
+    reason = "schema fields must exist for strict TOML decoding"
+)]
 
 use serde::Deserialize;
 use std::sync::OnceLock;
