@@ -18,7 +18,7 @@ thread_local! {
     static TEXT_METRICS: std::cell::RefCell<TextMetricsCache> = Default::default();
 }
 
-/// `measure_text` with the default font and unit scale, memoized by (text, size).
+/// `measure_text` with the UI font and unit scale, memoized by (text, size).
 /// The cache is cleared when the window size or DPI scale changes.
 pub(super) fn measure_cached(text: &str, size: u16) -> TextDimensions {
     let surface = (screen_width(), screen_height(), screen_dpi_scale());
@@ -32,7 +32,7 @@ pub(super) fn measure_cached(text: &str, size: u16) -> TextDimensions {
         if let Some(found) = cache.by_size.get(&size).and_then(|m| m.get(text)) {
             return *found;
         }
-        let measured = measure_text(text, None, size, 1.0);
+        let measured = font::measure_text_ui(text, size);
         cache
             .by_size
             .entry(size)

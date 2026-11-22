@@ -311,7 +311,7 @@ impl Game {
                 }
             }
             let count = count.to_string();
-            let width = measure_text(&count, None, 13, 1.0).width;
+            let width = measure_cached(&count, 13).width;
             draw_text(
                 &count,
                 panel.x + (panel.w - width) * 0.5,
@@ -429,7 +429,7 @@ impl Game {
                 }
             }
             let label = format!("{}/{}", page + 1, pages);
-            let width = measure_text(&label, None, 12, 1.0).width;
+            let width = measure_cached(&label, 12).width;
             draw_text(
                 &label,
                 panel.x + (panel.w - width) * 0.5,
@@ -554,7 +554,7 @@ impl Game {
                 color,
             );
             let percentage = format!("{}%", share.percent);
-            let metrics = measure_text(&percentage, None, font_size as u16, 1.0);
+            let metrics = measure_cached(&percentage, font_size as u16);
             draw_text(
                 &percentage,
                 panel.right() - CITY_PANEL_PAD - metrics.width,
