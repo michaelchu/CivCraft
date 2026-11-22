@@ -92,9 +92,11 @@ fn counter_defender_selection_accounts_for_attacker_class_and_naval_city_penalty
         game.defender_versus(city, &air).unwrap().kind,
         UnitKind::AegisCruiser
     );
+    // Against a land attacker the standing land defender is chosen; ships get
+    // no fortify bonus in port.
     assert_eq!(
         game.defender_versus(city, &land).unwrap().kind,
-        UnitKind::AegisCruiser
+        UnitKind::Musketman
     );
     assert!(
         game.production_city_defender(city, 100)
@@ -132,22 +134,30 @@ fn island_city_with_known(known: Vec<Tech>) -> Simulation {
 }
 
 #[test]
-fn counter_defender_is_never_from_an_older_era_than_the_best_available() {
+fn counter_defender_is_never_older_than_the_newest_dedicated_defender() {
     let game = island_city_with_known(vec![Tech::BRONZE_WORKING, Tech::GUNPOWDER]);
     let city = &game.cities[0];
     let land = game.make_unit(0, 1, UnitKind::Swordsman, city.x, city.y);
-    let newest = UnitKind::simple_military()
-        .into_iter()
-        .filter(|&kind| game.unit_buildable(city, kind))
-        .map(UnitKind::era)
-        .max()
-        .unwrap();
+    // Without connected Iron a Warrior is still buildable and cheap, but a
+    // Musketman (Middle Ages defender) must replace it as the counter.
     assert!(UnitKind::Musketman.era() > UnitKind::Warrior.era());
     assert!(game.unit_buildable(city, UnitKind::Warrior));
     assert!(game.unit_buildable(city, UnitKind::Musketman));
+    let floor = UnitKind::Musketman.era();
     let pick = game.defender_versus(city, &land).unwrap().kind;
-    assert_eq!(pick.era(), newest);
+    assert!(pick.era() >= floor, "{pick:?}");
     assert_ne!(pick, UnitKind::Warrior);
+}
+
+#[test]
+fn newer_offensive_units_do_not_remove_the_standing_defender() {
+    // Invention unlocks Longbowman/Berserk (Offense role) but no new defender:
+    // the Ancient Spearman remains a valid counter and a counter still exists.
+    let game = island_city_with_known(vec![Tech::BRONZE_WORKING, Tech::INVENTION]);
+    let city = &game.cities[0];
+    let land = game.make_unit(0, 1, UnitKind::Swordsman, city.x, city.y);
+    assert!(game.unit_buildable(city, UnitKind::Spearman));
+    assert!(game.defender_versus(city, &land).is_some());
 }
 
 #[test]

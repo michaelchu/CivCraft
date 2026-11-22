@@ -17,12 +17,21 @@ impl Simulation {
             .filter(|&kind| self.unit_buildable(city, kind))
             .filter(|kind| !versus_air || kind.can_counter_air())
             .collect();
-        // Never counter with a unit from an earlier era than the newest one
-        // this city can build, however cheap it is per shield.
-        let newest_era = candidates.iter().map(|kind| kind.era()).max();
+        // Never counter with a unit from an earlier era than the city's newest
+        // dedicated defender (Spearman, Pikeman, Musketman, ...), however cheap
+        // it is per shield. Newer offensive units do not raise the floor, so an
+        // Ancient Spearman stays valid beside a Middle Ages Longbowman.
+        let newest_defender_era = candidates
+            .iter()
+            .filter(|kind| {
+                kind.has_ai_strategy(unit_catalog::UnitAiStrategy::Defense)
+                    || kind.has_ai_strategy(unit_catalog::UnitAiStrategy::AirDefense)
+            })
+            .map(|kind| kind.era())
+            .max();
         for kind in candidates
             .into_iter()
-            .filter(|kind| Some(kind.era()) == newest_era)
+            .filter(|kind| newest_defender_era.is_none_or(|floor| kind.era() >= floor))
         {
             let mut defender = self.make_unit(0, city.owner, kind, city.x, city.y);
             defender.home_city = Some(city.id);

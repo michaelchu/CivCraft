@@ -280,8 +280,9 @@ bonus (`UnitRule::can_fortify`, owner-confirmed 2026-11-22).
 City counter-defender selection (`defender_versus`) follows the same
 precedence, as an owner-directed departure from Freeciv's
 `dai_choose_defender_versus`: it never picks a unit from an earlier era than
-the newest era the city can build (a unit's era is that of its required
-technology; none is Ancient), and against aircraft or missiles it considers
+the newest era of the city's dedicated defenders (`Defense`/`AirDefense` AI
+role; a unit's era is that of its required technology, none is Ancient), and
+newer offensive units do not raise that floor. Against aircraft or missiles it considers
 only anti-air units (`UnitKind::can_counter_air`: `AttackAir` or
 `air_defense > 0`), never ground units. With no anti-air unit available there
 is no counter.
