@@ -161,7 +161,7 @@ impl Simulation {
         self.unit_available(city.owner, kind)
             && self.unit_resources_available(city, kind)
             && self.buildable_unit_successor(city, kind).is_none()
-            && (kind.unit_class().build_anywhere()
+            && (kind.unit_class().buildable_in_any_city()
                 || kind.is_aircraft()
                 || self.naval_city_access(city, kind))
     }
@@ -253,7 +253,7 @@ impl Simulation {
     pub(super) fn unit_buildable_later(&self, city: &City, kind: UnitKind) -> bool {
         !kind.has_no_build()
             && self.available_unit_successor(city.owner, kind).is_none()
-            && (kind.unit_class().build_anywhere()
+            && (kind.unit_class().buildable_in_any_city()
                 || kind.is_aircraft()
                 || self.naval_city_access(city, kind))
     }

@@ -226,7 +226,7 @@ impl Simulation {
         // direct requirements, deliberately ignoring its own obsolescence.
         kind.obsolete_by().is_some_and(|successor| {
             self.unit_available(city.owner, successor)
-                && (successor.unit_class().build_anywhere()
+                && (successor.unit_class().buildable_in_any_city()
                     || successor.is_aircraft()
                     || self.naval_city_access(city, successor))
         })

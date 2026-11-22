@@ -142,6 +142,20 @@ impl UnitRule {
         }
     }
 
+    /// Civ III city capture: a land unit that can attack, or an Army. Zero-attack
+    /// bombard units (Catapult, Artillery) and Helicopters cannot take a city.
+    /// Every consumer (movement, action enablers, AI) reads this one result.
+    pub(super) fn can_occupy_city(&self) -> bool {
+        self.unit_class().is_ground() && (self.attack > 0 || self.id == "army")
+    }
+
+    /// May be given the Fortify order: land units only. The separate
+    /// `CanFortify` class flag (city defense bonus) is data-driven and still
+    /// covers every unit with the `Fortify` capability.
+    pub(super) fn can_fortify(&self) -> bool {
+        self.unit_class().is_ground() && self.has_capability("Fortify")
+    }
+
     pub(super) fn metadata(&self) -> crate::sim::unit_catalog_data::UnitMetadata {
         use crate::sim::unit_catalog::UnitClass as C;
         use crate::sim::unit_catalog::UnitFlag as F;

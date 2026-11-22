@@ -456,3 +456,18 @@ fn rates_after_government_change(rates: [i32; 3], cap: i32) -> [i32; 3] {
 #[cfg(test)]
 #[path = "government/tests.rs"]
 mod tests;
+
+#[cfg(test)]
+mod constant_tests {
+    #[test]
+    fn government_index_constants_name_the_catalog_entry_at_their_index() {
+        crate::test_support::assert_index_constants_match_catalog(
+            include_str!("government.rs"),
+            |index| {
+                let government = &crate::rules::native::governments().governments[index];
+                vec![government.government.clone(), government.name.clone()]
+            },
+            8,
+        );
+    }
+}

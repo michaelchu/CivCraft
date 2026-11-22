@@ -275,9 +275,7 @@ impl UnitKind {
     }
 
     pub(in crate::sim) fn can_occupy_city(self) -> bool {
-        let class = self.unit_class();
-        !self.is_civilian()
-            && (class.can_occupy_city() || class == unit_catalog::UnitClass::SmallLand)
+        self.conquests_rule().can_occupy_city()
     }
 
     pub(crate) fn can_carry(self, kind: Self) -> bool {
@@ -305,6 +303,23 @@ impl UnitKind {
     }
 
     pub(crate) fn can_fortify(self) -> bool {
-        self.unit_class().can_fortify() && !self.has_flag(unit_catalog::UnitFlag::CantFortify)
+        self.conquests_rule().can_fortify()
+    }
+}
+
+#[cfg(test)]
+mod constant_tests {
+    use super::*;
+
+    #[test]
+    fn unit_index_constants_name_the_catalog_entry_at_their_index() {
+        crate::test_support::assert_index_constants_match_catalog(
+            include_str!("units.rs"),
+            |index| {
+                let unit = &crate::rules::native::units().units[index];
+                vec![unit.id.clone(), unit.name.clone()]
+            },
+            90,
+        );
     }
 }

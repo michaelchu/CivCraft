@@ -93,13 +93,10 @@ impl UnitClass {
     pub(super) fn is_ground(self) -> bool {
         matches!(self, Self::Land | Self::SmallLand | Self::BigLand)
     }
-    pub(super) fn can_fortify(self) -> bool {
-        matches!(self, Self::Land | Self::SmallLand | Self::BigLand)
-    }
-    pub(super) fn can_occupy_city(self) -> bool {
-        matches!(self, Self::Land | Self::BigLand | Self::Helicopter)
-    }
-    pub(super) fn build_anywhere(self) -> bool {
+    /// Production location: such units can be built in any city, inland too.
+    /// Distinct from the movement table's `build_anywhere` (native-terrain
+    /// nativity for a unit standing in a city).
+    pub(super) fn buildable_in_any_city(self) -> bool {
         matches!(
             self,
             Self::Land | Self::SmallLand | Self::BigLand | Self::Missile

@@ -264,6 +264,20 @@ enemy nuclear strikes targeting any city, tile, or unit of its owner inside the
 50% tactical evasion) against Tactical Nukes. Validate with `nuclear-warfare`
 (3 turns at seeds 42, 7 and 99) and the tests in `src/sim/nuclear.rs`.
 
+### Recorded exception: Civ III precedence for unit, building, technology and government rules
+
+On 2026-11-22 the owner directed that where the Freeciv model and Civ III
+disagree on units, buildings, technologies or governments, CivCraft resolves
+the conflict toward Civ III, and asks the owner when the Civ III behavior is
+unclear. City capture is the first applied case: a land unit with attack above
+zero, or an Army, can capture a city. Zero-attack bombard units (Catapult,
+Cannon, Artillery) and Helicopters cannot. This is defined once in
+`UnitRule::can_occupy_city` (`src/sim/civ3_unit_rules.rs`) and read by the
+movement table, the `CanOccupyCity` class flag and `UnitKind::can_occupy_city`.
+Derive new unit properties the same way, once on `UnitRule`, rather than
+re-deriving them per consumer. This narrows the aircraft exception's statement
+that helicopters retain their existing rules; their capture rule follows Civ III.
+
 ## Comparison source checkout
 
 The Freeciv source submodule at `reference/freeciv` tracks the public upstream

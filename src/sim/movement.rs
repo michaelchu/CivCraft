@@ -437,10 +437,9 @@ impl Simulation {
         kind: UnitKind,
     ) -> WorkerRouteMovementProfile {
         let rules = MovementRules::campaign();
-        let class = MovementRules::campaign_unit_class(kind);
-        let class_data = MovementRules::campaign_class_data(class);
+        let (class, unit_data) = MovementRules::campaign_unit_movement_data(kind);
         WorkerRouteMovementProfile {
-            step: StepMovementProfile::new(kind, class, class_data.can_occupy_city),
+            step: StepMovementProfile::new(kind, *class, unit_data.can_occupy_city),
             ignores_zoc: Self::unit_ignores_zoc(kind),
             unknown_tile_cost: rules
                 .unknown_tile_move_cost(kind)
