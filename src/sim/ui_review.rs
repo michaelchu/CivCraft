@@ -169,6 +169,10 @@ impl ReviewFixture<'_> {
         ui_review_army_combat_setup(self.0, attacking)
     }
 
+    pub(crate) fn air_combat_setup(&mut self, with_sam: bool) -> (u32, (i32, i32)) {
+        ui_review_air_combat_setup(self.0, with_sam)
+    }
+
     pub(crate) fn animation_setup(&mut self, combat: bool) -> (u32, (i32, i32)) {
         ui_review_animation_setup(self.0, combat)
     }
@@ -1171,4 +1175,66 @@ pub(crate) fn ui_review_army_combat_setup(
     ui_review_record_knowledge(sim);
     sim.enable_visual_events();
     (if attacking { army } else { opponent }, target, army)
+}
+
+/// A human Bomber strikes a nearby enemy city, either landing a bombing run or
+/// being intercepted by the city's SAM Battery.
+pub(crate) fn ui_review_air_combat_setup(
+    sim: &mut Simulation,
+    with_sam: bool,
+) -> (u32, (i32, i32)) {
+    let (_, _) = ui_review_animation_setup(sim, false);
+    sim.units.clear();
+    sim.cities.clear();
+    let base = (20, 24);
+    let target = (22, 24);
+    for dx in -2..=4 {
+        for dy in -2..=2 {
+            if let Some((x, y)) = sim.map_wrap.offset(base.0, base.1, dx, dy) {
+                let tile = sim.tile_mut(x, y);
+                tile.terrain = Terrain::Grassland;
+                tile.visible = true;
+                tile.seen = true;
+            }
+        }
+    }
+    sim.create_city(HUMAN, base.0, base.1);
+    sim.create_city(1, target.0, target.1);
+    sim.sign_pact(HUMAN, 1, Pact::War);
+    if with_sam && let Some(city) = sim.cities.iter_mut().find(|c| (c.x, c.y) == target) {
+        city.buildings.push(crate::rules::Building::SAM_BATTERY);
+    }
+    let bomber = sim.spawn_unit(HUMAN, UnitKind::Bomber, base.0, base.1);
+    sim.spawn_unit(1, UnitKind::Infantry, target.0, target.1);
+    // Pick a deterministic RNG state that guarantees SAM fire when `with_sam` is true.
+    sim.native_random = None;
+    if with_sam {
+        for seed in 0..100_u64 {
+            let mut probe = sim.clone();
+            probe.rng = seed;
+            probe.enable_visual_events();
+            let _ = probe.apply(Command::Bombard(bomber, target.0, target.1));
+            if probe.take_visual_events().into_iter().any(|event| {
+                matches!(
+                    event,
+                    VisualEvent::AirMission(m)
+                        if matches!(
+                            m.kind,
+                            super::presentation::AirMissionVisualKind::SamIntercept {
+                                shot_down: true
+                            }
+                        )
+                )
+            }) {
+                sim.rng = seed;
+                break;
+            }
+        }
+    } else {
+        sim.rng = 42;
+    }
+    sim.refresh_visibility();
+    ui_review_record_knowledge(sim);
+    sim.enable_visual_events();
+    (bomber, target)
 }

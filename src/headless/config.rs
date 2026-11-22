@@ -1,7 +1,7 @@
 use super::scenario::WorldProvenance;
 use crate::{
     mapgen::MapSize,
-    sim::trace::Entity,
+    sim::trace::{Entity, ProfileSelection},
     world_setup::{self, WorldSetup},
 };
 use serde_json::json;
@@ -29,6 +29,7 @@ pub(crate) struct Config {
     pub load_campaign: Option<PathBuf>,
     pub save_campaign: Option<PathBuf>,
     pub profile_turns: bool,
+    pub profile_selection: ProfileSelection,
 }
 fn list(text: &str) -> Vec<String> {
     if text == "none" {
@@ -80,6 +81,9 @@ impl Config {
             "--load-campaign",
             "--save-campaign",
             "--profile-turns",
+            "--profile-prefixes",
+            "--profile-start-turn",
+            "--profile-end-turn",
         ];
         let values = parse_options(args, |flag| {
             FLAGS.contains(&flag) || world_setup::FLAGS.contains(&flag)
@@ -131,10 +135,55 @@ impl Config {
             return Err("--stop-on-finding accepts none, any, invariant".into());
         }
         let profile_turns = match value("--profile-turns", "false") {
-            "true" => true,
+            "true" | "timing" => true,
             "false" => false,
-            _ => return Err("--profile-turns accepts true or false".into()),
+            _ => return Err("--profile-turns accepts true, false, or timing".into()),
         };
+        let profile_turn = |key| -> Result<Option<i32>, String> {
+            values
+                .get(key)
+                .map(|value| {
+                    value
+                        .parse::<i32>()
+                        .ok()
+                        .filter(|turn| *turn >= 0)
+                        .ok_or_else(|| format!("{key} must be a nonnegative campaign turn"))
+                })
+                .transpose()
+        };
+        let profile_selection = ProfileSelection {
+            timing_only: value("--profile-turns", "false") == "timing",
+            start_turn: profile_turn("--profile-start-turn")?,
+            end_turn: profile_turn("--profile-end-turn")?,
+            prefixes: values
+                .get("--profile-prefixes")
+                .map_or_else(Vec::new, |text| {
+                    text.split(',').map(str::to_owned).collect()
+                }),
+        };
+        if profile_selection
+            .start_turn
+            .zip(profile_selection.end_turn)
+            .is_some_and(|(start, end)| start > end)
+        {
+            return Err("--profile-start-turn must not exceed --profile-end-turn".into());
+        }
+        if profile_selection.prefixes.iter().any(|p| {
+            p.split('.').any(|part| {
+                part.is_empty() || !part.bytes().all(|c| c.is_ascii_alphanumeric() || c == b'_')
+            })
+        }) {
+            return Err("--profile-prefixes requires comma-separated dotted names (for example worker,city_manager)".into());
+        }
+        if values.keys().any(|key| {
+            matches!(
+                *key,
+                "--profile-prefixes" | "--profile-start-turn" | "--profile-end-turn"
+            )
+        }) && (!profile_turns || profile_selection.timing_only)
+        {
+            return Err("detailed profile filters require --profile-turns true".into());
+        }
         let turns =
             u32::try_from(positive("--turns", "30")?).map_err(|_| "turn count is too large")?;
         let growth_stall_turns = u32::try_from(positive("--growth-stall-turns", "2")?)
@@ -171,7 +220,7 @@ impl Config {
             report: value("--report", "headless-simulation.json").into(),
             analyzers: list(value(
                 "--analytics",
-                "growth,settlement,production,government,diplomacy",
+                "growth,settlement,production,government,diplomacy,military",
             )),
             growth_stall_turns,
             settlement_every,
@@ -187,6 +236,7 @@ impl Config {
             load_campaign,
             save_campaign,
             profile_turns,
+            profile_selection,
         })
     }
     pub fn retains(&self, event: &crate::sim::trace::Event) -> bool {
@@ -205,13 +255,16 @@ impl Config {
             "checkpoint_every":self.checkpoint_every,"trace_domains":self.trace_domains,"trace_entities":self.trace_entities,
             "report_detail":self.report_detail,"trace_buffer_events":self.buffer_events,"trace_max_events":self.max_events,"trace_max_bytes":self.max_event_bytes,
             "snapshot_providers":self.providers,"stop_on_finding":self.stop_on_finding,
-            "profile_turns":self.profile_turns})
+            "profile_turns":self.profile_turns,
+            "profile_mode":if !self.profile_turns { "off" } else if self.profile_selection.timing_only { "timing" } else { "full" },
+            "profile_start_turn":self.profile_selection.start_turn,"profile_end_turn":self.profile_selection.end_turn,
+            "profile_prefixes":self.profile_selection.prefixes})
     }
 }
 pub(crate) const HELP: &str = "Headless AI simulator\n\
 --seed 42 --turns 30 --map-size tiny --report report.json\n\
 --engine freeciv [--freeciv-server PATH] (uses seed, turns, map size, and report options)\n\
---analytics growth,settlement,production,government,diplomacy (or none); --list-analyzers\n\
+--analytics growth,settlement,production,government,diplomacy,military (or none); --list-analyzers\n\
 --growth-stall-turns 2 --settlement-check-every 10\n\
 --report-detail lean|verbose (default lean; analyzers always receive full observations)\n\
 --trace-domains all|none|cities,production,settlement,lifecycle\n\
@@ -220,7 +273,9 @@ pub(crate) const HELP: &str = "Headless AI simulator\n\
 --snapshot-providers cities,civilizations,territory,units,lifecycle,research,governments,diplomacy,religion[,minimap: desktop builds only] (or none; analyzer requirements are added)\n\
 minimap is selected via snapshot providers and exports one final PNG only\n\
 --stop-on-finding none|any|invariant --checkpoint-every 10\n\
---profile-turns true|false (records per-turn phase timings)\n\
+--profile-turns false|timing|true (off, total/phase timings only, full profiling)\n\
+--profile-prefixes worker,city_manager (full profiling; exact names and dotted descendants)\n\
+--profile-start-turn N --profile-end-turn N (inclusive campaign turns; limits details only)\n\
 --scenario NAME | --load-campaign PATH; --save-campaign PATH; --list-scenarios\n\
 World setup: --map-generator fractal|opensimplex (default fractal)\n\
 --ocean-coverage 60|70|80 --climate arid|normal|wet --world-age 3|4|5\n\

@@ -1161,6 +1161,8 @@ pub(super) struct Civ3 {
     unit_art: RefCell<HashMap<String, Civ3UnitArt>>,
     unit_team_palettes: Vec<UnitTeamPalette>,
     unit_cursor: Civ3UnitCursor,
+    bomb_effect: Option<Civ3EffectAnimation>,
+    sam_effect: Option<Civ3EffectAnimation>,
     unit_animation_sources: HashMap<String, UnitAnimationSource>,
     unit_sound_sources: HashMap<String, HashMap<String, UnitSoundSource>>,
     animation_pacing: super::unit_animation_pacing::UnitAnimationPacing,
@@ -1345,6 +1347,68 @@ struct Civ3UnitCursor {
     frame_count: usize,
     frame_columns: usize,
     frame_duration_seconds: f32,
+}
+
+struct Civ3EffectAnimation {
+    texture: Texture2D,
+    width: f32,
+    height: f32,
+    original_width: f32,
+    original_height: f32,
+    offset_left: f32,
+    offset_top: f32,
+    direction_count: usize,
+    frame_count: usize,
+    frame_columns: usize,
+    frame_rows: usize,
+    duration_seconds: f64,
+}
+
+fn load_optional_effect_animation(
+    media: &super::media::Civ3MediaResolver,
+    relative_path: &str,
+    default_palette: Option<&[[u8; 3]; 256]>,
+) -> AssetResult<Option<Civ3EffectAnimation>> {
+    let Some(found) = media.base_policy().lookup(relative_path)? else {
+        return Ok(None);
+    };
+    let bytes = fs::read(&found.path)
+        .map_err(|error| AssetError::io("read animation", &found.path, error))?;
+    let flic =
+        super::flc::decode_flic(&bytes).map_err(|error| AssetError::decode(&found.path, error))?;
+    let image = if let Some(palette) = default_palette {
+        flic.team_color_atlas(palette)
+            .map_err(|error| AssetError::decode(&found.path, error))?
+    } else {
+        let (base, _) = flic
+            .image_atlases()
+            .map_err(|error| AssetError::decode(&found.path, error))?;
+        base
+    };
+    let texture = Texture2D::from_image(&image);
+    texture.set_filter(FilterMode::Nearest);
+    let direction_count = flic.animations.len().max(1);
+    let frame_count = flic.animations[0].len().max(1);
+    let frame_columns = frame_count.min((4096 / flic.width.max(1)).max(1));
+    let frame_rows = frame_count.div_ceil(frame_columns);
+    // Civ III's Bombs.INI and Sam.INI both use Normal Speed=175 / Timing=0.5s.
+    // Scale raw FLC frame delay into a crisp 0.55..=0.85s visual clip.
+    let raw_seconds = (flic.animation_speed as f64 / 1000.0) * frame_count as f64;
+    let duration_seconds = (raw_seconds * 0.5).clamp(0.55, 0.85);
+    Ok(Some(Civ3EffectAnimation {
+        texture,
+        width: flic.width as f32,
+        height: flic.height as f32,
+        original_width: flic.original_width.max(flic.width) as f32,
+        original_height: flic.original_height.max(flic.height) as f32,
+        offset_left: flic.offset_left as f32,
+        offset_top: flic.offset_top as f32,
+        direction_count,
+        frame_count,
+        frame_columns,
+        frame_rows,
+        duration_seconds,
+    }))
 }
 
 struct Civ3UnitArt {
@@ -1784,6 +1848,17 @@ impl Civ3 {
             frame_columns: cursor_frame_count.min(4096 / cursor_flic.width),
             frame_duration_seconds: (cursor_flic.animation_speed as f32 / 1000.0).max(0.001),
         };
+        let default_team_palette = unit_team_palettes.first();
+        let bomb_effect = load_optional_effect_animation(
+            &theme.media,
+            "Art/Animations/Bombs/Bomb.flc",
+            default_team_palette,
+        )?;
+        let sam_effect = load_optional_effect_animation(
+            &theme.media,
+            "Art/Animations/SAM/SamAttackA.flc",
+            default_team_palette,
+        )?;
         Ok(Self {
             art,
             atlas: RefCell::default(),
@@ -1799,6 +1874,8 @@ impl Civ3 {
             unit_art: RefCell::default(),
             unit_team_palettes,
             unit_cursor,
+            bomb_effect,
+            sam_effect,
             unit_animation_sources: resolved_unit_paths,
             unit_sound_sources,
             animation_pacing,
@@ -1810,6 +1887,87 @@ impl Civ3 {
             territory,
             civilization_city_styles: theme.civilization_city_styles.clone(),
         })
+    }
+
+    fn draw_effect_animation(
+        effect: &Civ3EffectAnimation,
+        facing: u8,
+        progress: f32,
+        center: Vec2,
+        zoom: f32,
+    ) {
+        let direction = if usize::from(facing) < effect.direction_count {
+            usize::from(facing)
+        } else {
+            0
+        };
+        let frame = ((progress.clamp(0.0, 1.0) * effect.frame_count as f32).floor() as usize)
+            .min(effect.frame_count.saturating_sub(1));
+        let source = Rect::new(
+            (frame % effect.frame_columns) as f32 * effect.width,
+            (direction * effect.frame_rows + frame / effect.frame_columns) as f32 * effect.height,
+            effect.width,
+            effect.height,
+        );
+        let scale = WORLD_ART_SCALE * zoom;
+        let size = vec2(effect.width * scale, effect.height * scale);
+        let position = center
+            - vec2(
+                effect.original_width * scale,
+                effect.original_height * scale,
+            ) * 0.5
+            + vec2(effect.offset_left * scale, effect.offset_top * scale);
+        draw_texture_ex(
+            &effect.texture,
+            position.x,
+            position.y,
+            WHITE,
+            DrawTextureParams {
+                dest_size: Some(size),
+                source: Some(source),
+                ..Default::default()
+            },
+        );
+    }
+
+    pub(super) fn draw_bomb_effect(
+        &self,
+        facing: u8,
+        progress: f32,
+        center: Vec2,
+        zoom: f32,
+    ) -> bool {
+        let Some(effect) = self.bomb_effect.as_ref() else {
+            return false;
+        };
+        Self::draw_effect_animation(effect, facing, progress, center, zoom);
+        true
+    }
+
+    pub(super) fn draw_sam_effect(
+        &self,
+        facing: u8,
+        progress: f32,
+        center: Vec2,
+        zoom: f32,
+    ) -> bool {
+        let Some(effect) = self.sam_effect.as_ref() else {
+            return false;
+        };
+        Self::draw_effect_animation(effect, facing, progress, center, zoom);
+        true
+    }
+
+    pub(super) fn bomb_effect_duration_seconds(&self) -> Option<f64> {
+        self.bomb_effect
+            .as_ref()
+            .map(|effect| effect.duration_seconds)
+    }
+
+    pub(super) fn sam_effect_duration_seconds(&self) -> Option<f64> {
+        self.sam_effect
+            .as_ref()
+            .map(|effect| effect.duration_seconds)
     }
 
     pub(super) fn draw_unit_cursor(&self, center: Vec2, zoom: f32) {

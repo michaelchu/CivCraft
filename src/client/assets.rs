@@ -100,6 +100,8 @@ pub(crate) struct Assets {
     pub(super) civ3: super::tileset::Civ3,
     pub(super) source_fog: Texture2D,
     pub(super) hut_sound: Option<std::path::PathBuf>,
+    pub(super) bomb_sound: Option<std::path::PathBuf>,
+    pub(super) sam_sound: Option<std::path::PathBuf>,
 }
 
 impl Assets {
@@ -111,6 +113,12 @@ impl Assets {
     ) -> Option<std::path::PathBuf> {
         if action.eq_ignore_ascii_case("HUT") {
             return self.hut_sound.clone();
+        }
+        if action.eq_ignore_ascii_case("BOMB_EFFECT") {
+            return self.bomb_sound.clone();
+        }
+        if action.eq_ignore_ascii_case("SAM_EFFECT") {
+            return self.sam_sound.clone();
         }
         self.civ3
             .unit_sound_source(kind, era, action)
@@ -138,10 +146,22 @@ impl Assets {
             .media
             .lookup("Sounds/Hut.wav")?
             .map(|found| found.path);
+        let bomb_sound = context
+            .media
+            .base_policy()
+            .lookup("Art/Animations/Bombs/Bomb.wav")?
+            .map(|found| found.path);
+        let sam_sound = context
+            .media
+            .base_policy()
+            .lookup("Art/Animations/SAM/SAMAttack.wav")?
+            .map(|found| found.path);
         Ok(Self {
             civ3,
             source_fog,
             hut_sound,
+            bomb_sound,
+            sam_sound,
         })
     }
 }

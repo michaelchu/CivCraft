@@ -662,22 +662,22 @@ impl Simulation {
             && wonder_city != Some(city.id)
     }
 
-    /// Shared native stages preceding the sea/land offensive callbacks.
-    /// Returns (current choice, immediate return, severe-defense return).
-    pub(in crate::sim) fn pre_offensive_military_advice_with_wonder_city(
+    fn pre_offensive_military_advice_with_stage(
         &self,
         city: &City,
         wonder_city: Option<u32>,
-    ) -> (Option<AiBuildChoice>, bool, bool) {
+    ) -> (Option<AiBuildChoice>, Option<&'static str>, bool, bool) {
         let (mut military, martial) = self.native_city_defense_choice(city);
+        let mut stage = military.map(|_| "defense");
         // Source returns its life-saving defense advice before all routine
         // candidates and training when production/happiness/wonder gates fail.
         if !self.routine_military_advice_allowed_with_wonder_city(city, wonder_city) {
-            return (military, true, false);
+            return (military, stage, true, false);
         }
         let mut defensive = military.is_some();
         if self.consider_bodyguard_production(city, false, &mut military) {
             defensive = true;
+            stage = Some("bodyguard");
         }
         // Strict wants preserve source ordering among eligible unit choices.
         let consider_unit = |choice: &mut Option<AiBuildChoice>,
@@ -698,14 +698,36 @@ impl Simulation {
         let severe = military.is_some_and(|old| old.want - martial >= MILITARY_EMERGENCY_WANT)
             && self.city_grave_danger(city) > 0;
         if !severe {
+            if let Some(counter_air) = self.air_defense_production_choice(city)
+                && military.is_none_or(|old| counter_air.want > old.want)
+            {
+                military = Some(counter_air);
+                defensive = true;
+                stage = Some("defense");
+            }
             if self.consider_bodyguard_production(city, true, &mut military) {
                 defensive = true;
+                stage = Some("bodyguard");
             }
-            if !(defensive && military.is_some_and(|old| old.want >= MILITARY_EMERGENCY_WANT)) {
-                consider_unit(&mut military, self.aircraft_production_choice(city));
+            if !(defensive && military.is_some_and(|old| old.want >= MILITARY_EMERGENCY_WANT))
+                && consider_unit(&mut military, self.aircraft_production_choice(city))
+            {
+                stage = Some("aircraft");
             }
         }
-        (military, false, severe)
+        (military, stage, false, severe)
+    }
+
+    /// Shared native stages preceding the sea/land offensive callbacks.
+    /// Returns (current choice, immediate return, severe-defense return).
+    pub(in crate::sim) fn pre_offensive_military_advice_with_wonder_city(
+        &self,
+        city: &City,
+        wonder_city: Option<u32>,
+    ) -> (Option<AiBuildChoice>, bool, bool) {
+        let (military, _, early, severe) =
+            self.pre_offensive_military_advice_with_stage(city, wonder_city);
+        (military, early, severe)
     }
 
     #[cfg(test)]
@@ -713,7 +735,7 @@ impl Simulation {
         &self,
         city: &City,
     ) -> (Option<AiBuildChoice>, Option<AiBuildChoice>) {
-        let (before, after, _) =
+        let (before, after, _, _) =
             self.military_build_advice_with_wonder_city(city, self.ai_wonder_city(city.owner));
         (before, after)
     }
@@ -722,18 +744,27 @@ impl Simulation {
         &self,
         city: &City,
         wonder_city: Option<u32>,
-    ) -> (Option<AiBuildChoice>, Option<AiBuildChoice>, bool) {
-        let (mut military, early, severe) =
-            self.pre_offensive_military_advice_with_wonder_city(city, wonder_city);
+    ) -> (
+        Option<AiBuildChoice>,
+        Option<AiBuildChoice>,
+        bool,
+        Option<&'static str>,
+    ) {
+        let (mut military, mut stage, early, severe) =
+            self.pre_offensive_military_advice_with_stage(city, wonder_city);
         let pre_offensive_emergency =
             military.is_some_and(|choice| choice.want >= MILITARY_EMERGENCY_WANT);
         if early {
-            return (military, military, pre_offensive_emergency);
+            return (military, military, pre_offensive_emergency, stage);
         }
         if !severe {
             // kill_something_with performs its comparison BEFORE a ferry
             // replacement truncates want. Accept its final choice directly.
+            let before_offense = military.map(|c| (c.production, c.want.to_bits()));
             military = self.cached_offensive_advice(city, military).0;
+            if military.map(|c| (c.production, c.want.to_bits())) != before_offense {
+                stage = Some("offensive");
+            }
             if let Some((kind, want)) = self.hunter_production_choice(city)
                 && want > 0.0
                 && military.is_none_or(|old| want > old.want)
@@ -742,6 +773,7 @@ impl Simulation {
                     production: Production::Unit(kind),
                     want,
                 });
+                stage = Some("hunter");
             }
             if let Some(objective) = self.coordinated_war_objective(city.owner)
                 && (objective.muster_city == city.id
@@ -795,15 +827,20 @@ impl Simulation {
                             want: DOMESTIC_WANT_MAX,
                         }),
                         pre_offensive_emergency,
+                        Some("coordinated_muster"),
                     );
                 }
             }
         }
         let before = military;
         if !severe && let Some(choice) = military.as_mut() {
+            let before_prod = choice.production;
             self.adjust_military_training_choice(city, choice);
+            if choice.production != before_prod {
+                stage = Some("training_building");
+            }
         }
-        (before, military, pre_offensive_emergency)
+        (before, military, pre_offensive_emergency, stage)
     }
 
     pub(super) fn ai_build_choice_in_place(
@@ -864,112 +901,173 @@ impl Simulation {
         space_plan: Option<&std::collections::BTreeMap<u32, Building>>,
         upkeep_constrained: bool,
     ) -> Option<AiBuildChoice> {
+        let want_trace = self
+            .trace
+            .wants::<military_observation::MilitaryProductionDecisionEvent>();
         let profiler = self.trace.profiler();
         let _profile = profiler.scope("advisor.build.military");
-        let (_, mut military, pre_offensive_emergency) =
+        let (_, mut military, pre_offensive_emergency, military_stage) =
             self.military_build_advice_with_wonder_city(city, wonder_city);
         drop(_profile);
-        if pre_offensive_emergency {
-            let assessment = self.advisor_guard_city_assessment(city);
-            let defensive_emergency = assessment.urgency != 0
-                && (!upkeep_constrained
-                    || assessment.defense == 0
-                    || (assessment.grave > 0
-                        && self
-                            .tile_units_ordered(city.x, city.y)
-                            .filter(|u| {
-                                u.owner == city.owner && u.kind.is_military() && !u.kind.is_naval()
-                            })
-                            .count()
-                            < 2));
-            if defensive_emergency {
-                return military;
+        let initial_military = military;
+        let mut suppressed_reason: Option<&'static str> = None;
+        let mut defensive_emergency = false;
+        let selected = 'choose: {
+            if pre_offensive_emergency {
+                let assessment = self.advisor_guard_city_assessment(city);
+                defensive_emergency = assessment.urgency != 0
+                    && (!upkeep_constrained
+                        || assessment.defense == 0
+                        || (assessment.grave > 0
+                            && self
+                                .tile_units_ordered(city.x, city.y)
+                                .filter(|u| {
+                                    u.owner == city.owner
+                                        && u.kind.is_military()
+                                        && !u.kind.is_naval()
+                                })
+                                .count()
+                                < 2));
+                if defensive_emergency {
+                    break 'choose military;
+                }
             }
-        }
-        if let Some(&building) = space_plan.and_then(|plan| plan.get(&city.id)) {
-            return Some(AiBuildChoice {
-                production: Production::Building(building),
-                want: DOMESTIC_WANT_MAX,
-            });
-        }
-        if let Some(AiBuildChoice {
-            production: Production::Unit(kind),
-            ..
-        }) = military
-            && Self::is_ai_ferry(kind)
-        {
-            let city_count = self.player_cities_ordered(city.owner).count();
-            let ferry_count = self
-                .units_owned_by(city.owner)
-                .filter(|unit| Self::is_ai_ferry(unit.kind))
-                .count();
-            let ferry_cap = if upkeep_constrained {
-                (city_count / 2).max(2)
-            } else {
-                city_count.max(4)
-            };
-            if ferry_count >= ferry_cap {
-                military = None;
+            if let Some(&building) = space_plan.and_then(|plan| plan.get(&city.id)) {
+                if military.is_some() {
+                    suppressed_reason = Some("space_plan");
+                }
+                break 'choose Some(AiBuildChoice {
+                    production: Production::Building(building),
+                    want: DOMESTIC_WANT_MAX,
+                });
             }
-        }
-        if upkeep_constrained
-            && matches!(
-                military,
-                Some(AiBuildChoice {
-                    production: Production::Unit(kind),
-                    ..
-                }) if kind.conquests_rule().require_support != 0 && !Self::is_ai_ferry(kind)
-            )
-        {
-            military = None;
-        }
-        let wartime_demand = !upkeep_constrained
-            && military.is_some_and(|choice| choice.want > 0.0)
-            && self.ai_on_war_footing(city.owner);
-        if wartime_demand && wonder_city != Some(city.id) {
-            return military;
-        }
-
-        let mut best = military;
-        let mut consider = |production, want: f64| {
-            let want = want.min(DOMESTIC_WANT_MAX);
-            if want > 0.0 && best.is_none_or(|choice| want > choice.want) {
-                best = Some(AiBuildChoice { production, want });
-            }
-        };
-        if !wartime_demand {
-            let _profile = profiler.scope("advisor.build.worker");
-            if !upkeep_constrained
-                && let Some((kind, want)) =
-                    self.worker_production_choice_in_place(city, worker_cache)
+            if let Some(AiBuildChoice {
+                production: Production::Unit(kind),
+                ..
+            }) = military
+                && Self::is_ai_ferry(kind)
             {
-                consider(Production::Unit(kind), want);
+                let city_count = self.player_cities_ordered(city.owner).count();
+                let ferry_count = self
+                    .units_owned_by(city.owner)
+                    .filter(|unit| Self::is_ai_ferry(unit.kind))
+                    .count();
+                let ferry_cap = if upkeep_constrained {
+                    (city_count / 2).max(2)
+                } else {
+                    city_count.max(4)
+                };
+                if ferry_count >= ferry_cap {
+                    military = None;
+                    suppressed_reason = Some("ferry_cap");
+                }
             }
-            drop(_profile);
-            let _profile = profiler.scope("advisor.build.settlement");
-            if !upkeep_constrained
-                && let Some(choice) = self.cached_settlement_choice(city, wonder_city)
+            if upkeep_constrained
+                && matches!(
+                    military,
+                    Some(AiBuildChoice {
+                        production: Production::Unit(kind),
+                        ..
+                    }) if kind.conquests_rule().require_support != 0 && !Self::is_ai_ferry(kind)
+                )
+            {
+                military = None;
+                suppressed_reason = Some("upkeep_constrained");
+            }
+            let wartime_demand = !upkeep_constrained
+                && military.is_some_and(|choice| choice.want > 0.0)
+                && self.ai_on_war_footing(city.owner);
+            if wartime_demand && wonder_city != Some(city.id) {
+                break 'choose military;
+            }
+            if wartime_demand && wonder_city == Some(city.id) {
+                suppressed_reason = Some("wonder_city");
+            }
+
+            let mut best = military;
+            let mut consider = |production, want: f64| {
+                let want = want.min(DOMESTIC_WANT_MAX);
+                if want > 0.0 && best.is_none_or(|choice| want > choice.want) {
+                    best = Some(AiBuildChoice { production, want });
+                }
+            };
+            if !wartime_demand {
+                let _profile = profiler.scope("advisor.build.worker");
+                if !upkeep_constrained
+                    && let Some((kind, want)) =
+                        self.worker_production_choice_in_place(city, worker_cache)
+                {
+                    consider(Production::Unit(kind), want);
+                }
+                drop(_profile);
+                let _profile = profiler.scope("advisor.build.settlement");
+                if !upkeep_constrained
+                    && let Some(choice) = self.cached_settlement_choice(city, wonder_city)
+                {
+                    consider(choice.production, choice.want);
+                }
+                drop(_profile);
+            }
+            let _profile = profiler.scope("advisor.build.stable");
+            if let Some(choice) =
+                self.cached_building_choice(city, wonder_city, space_plan.is_some())
             {
                 consider(choice.production, choice.want);
             }
             drop(_profile);
+            if best.is_none()
+                && upkeep_constrained
+                && !self.city_forecast(city).disorder
+                && self.can_change_production(city, Production::Building(Building::COINAGE))
+            {
+                break 'choose Some(AiBuildChoice {
+                    production: Production::Building(Building::COINAGE),
+                    want: 1.0,
+                });
+            }
+            if suppressed_reason.is_none()
+                && let (Some(mil), Some(chosen)) = (military, best)
+                && chosen.production != mil.production
+            {
+                suppressed_reason = Some("domestic_outbid");
+            }
+            best
+        };
+        if want_trace && let Some(chosen) = selected {
+            let changed = city.production != chosen.production;
+            if changed || suppressed_reason.is_some() {
+                let at_war = (0..self.players.len()).any(|other| {
+                    other != city.owner
+                        && other != BARBARIANS
+                        && self.player_alive(other)
+                        && self.diplomatic_at_war(city.owner, other)
+                });
+                let on_war_footing = self.ai_on_war_footing(city.owner);
+                let grave_danger = self.city_grave_danger(city);
+                self.trace_military_production_decision(
+                    military_observation::MilitaryProductionDecisionEvent {
+                        owner: city.owner,
+                        city_id: city.id,
+                        at_war,
+                        on_war_footing,
+                        upkeep_constrained,
+                        grave_danger,
+                        emergency: defensive_emergency,
+                        selected: chosen.production.name().to_owned(),
+                        selected_role: military_observation::production_role(chosen.production),
+                        changed,
+                        military_candidate: initial_military
+                            .map(|c| c.production.name().to_owned()),
+                        military_candidate_role: initial_military
+                            .map(|c| military_observation::production_role(c.production)),
+                        military_stage,
+                        military_want: initial_military.map(|c| (c.want * 100.0).round() / 100.0),
+                        suppressed_reason,
+                    },
+                );
+            }
         }
-        let _profile = profiler.scope("advisor.build.stable");
-        if let Some(choice) = self.cached_building_choice(city, wonder_city, space_plan.is_some()) {
-            consider(choice.production, choice.want);
-        }
-        drop(_profile);
-        if best.is_none()
-            && upkeep_constrained
-            && !self.city_forecast(city).disorder
-            && self.can_change_production(city, Production::Building(Building::COINAGE))
-        {
-            return Some(AiBuildChoice {
-                production: Production::Building(Building::COINAGE),
-                want: 1.0,
-            });
-        }
-        best
+        selected
     }
 
     pub(in crate::sim) fn ai_build_choice(&self, city: &City) -> Option<AiBuildChoice> {

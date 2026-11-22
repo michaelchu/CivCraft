@@ -46,6 +46,10 @@ mod client_views;
 #[allow(dead_code)]
 #[cfg(feature = "desktop")]
 pub(crate) use client_api::{ClientSimulation, CompletedTurn};
+pub(crate) use client_views::{
+    AirMissionPresentationKind, AirMissionPresentationView, CombatPresentationView,
+    PresentationEventView,
+};
 #[cfg(feature = "desktop")]
 pub(crate) use client_views::{
     CityContextView, CityManagerView, DiplomacyMeetingView, DiplomacyRivalView, GameOverView,
@@ -54,7 +58,6 @@ pub(crate) use client_views::{
     SpaceshipAssemblyView, TechnologyResearchView, TopBarView, UnitActionView, UnitContextView,
     UnitFidgetView,
 };
-pub(crate) use client_views::{CombatPresentationView, PresentationEventView};
 #[cfg(feature = "desktop")]
 pub(crate) use diplomacy::EspionageRivalView;
 #[cfg(test)]
@@ -76,6 +79,7 @@ mod exploration;
 mod government;
 mod guards;
 mod headless;
+pub(crate) mod military_observation;
 pub(crate) mod observation;
 pub(crate) mod research_observation;
 pub(crate) mod trace;
@@ -98,9 +102,9 @@ mod movement;
 mod movement_rules;
 mod notifications;
 mod presentation;
-#[cfg(test)]
-pub(crate) use presentation::CombatVisual;
 pub(crate) use presentation::VisualEvent;
+#[cfg(test)]
+pub(crate) use presentation::{AirMissionVisual, AirMissionVisualKind, CombatVisual};
 mod normal_paths;
 mod observed_map;
 mod pathfinding;
@@ -291,6 +295,9 @@ pub(crate) struct Simulation {
     ai_free_bulbs: std::collections::BTreeMap<usize, i32>,
     ai_tech_wants: std::collections::BTreeMap<usize, Vec<f32>>,
     ai_ground_targets: std::collections::BTreeMap<u32, u32>,
+    ai_air_raid_turn: std::collections::BTreeMap<(usize, usize), i32>,
+    ai_city_bombed_turn: std::collections::BTreeMap<u32, i32>,
+    recon_revealed_tiles: std::collections::BTreeMap<usize, Vec<(i32, i32)>>,
     ai_settlement_targets: std::collections::BTreeMap<u32, settlement::SettlementReservation>,
     ai_relationship_memory:
         std::collections::BTreeMap<(usize, usize), diplomacy::relationships::RelationshipMemory>,
@@ -587,6 +594,9 @@ impl Simulation {
             ai_free_bulbs: Default::default(),
             ai_tech_wants: Default::default(),
             ai_ground_targets: Default::default(),
+            ai_air_raid_turn: Default::default(),
+            ai_city_bombed_turn: Default::default(),
+            recon_revealed_tiles: Default::default(),
             ai_settlement_targets: Default::default(),
             ai_relationship_memory: Default::default(),
             ai_diplomatic_memory: Default::default(),

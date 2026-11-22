@@ -133,11 +133,280 @@ impl Simulation {
         kind.bombard_strength() > 0 && kind.bombard_rate() > 0 && Self::civ3_bombard_range(kind) > 0
     }
 
+    pub(crate) fn aircraft_on_base(&self, unit: &Unit) -> bool {
+        self.refuel_site(unit.owner, unit.x, unit.y) || self.aboard_refueling_transport(unit)
+    }
+
+    pub(crate) fn observed_air_raid_turn(&self, victim: usize, attacker: usize) -> Option<i32> {
+        self.ai_air_raid_turn.get(&(victim, attacker)).copied()
+    }
+
+    pub(crate) fn city_bombed_turn(&self, city_id: u32) -> Option<i32> {
+        self.ai_city_bombed_turn.get(&city_id).copied()
+    }
+
+    fn rebase_carrier_at(&self, unit: &Unit, x: i32, y: i32) -> Option<u32> {
+        self.tile_units_ordered(x, y)
+            .find(|ship| {
+                self.allied(unit.owner, ship.owner)
+                    && ship.kind.can_carry(unit.kind)
+                    && self.ruleset_transport_pair_allowed_fail_closed(ship.kind, unit.kind)
+                    && (unit.transport == Some(ship.id)
+                        || self.cargo_count(ship.id) < self.unit_transport_capacity(ship))
+            })
+            .map(|ship| ship.id)
+    }
+
+    pub(super) fn aircraft_base_at(&self, unit: &Unit, x: i32, y: i32) -> bool {
+        if !(0..self.map_wrap.width()).contains(&x) || !(0..self.map_wrap.height()).contains(&y) {
+            return false;
+        }
+        if self.any_unit_at(x, y, |other| !self.allied(unit.owner, other.owner)) {
+            return false;
+        }
+        if self
+            .city_at_cached(x, y)
+            .is_some_and(|city| self.allied(unit.owner, city.owner))
+        {
+            return true;
+        }
+        let tile = self.tile(x, y);
+        if matches!(tile.base, Some(Base::Airstrip | Base::Airbase))
+            && tile.known_by[unit.owner]
+            && !tile
+                .owner
+                .is_some_and(|owner| owner != unit.owner && self.at_war(unit.owner, owner))
+        {
+            return true;
+        }
+        self.rebase_carrier_at(unit, x, y).is_some()
+    }
+
+    pub(crate) fn can_begin_rebase(&self, unit: &Unit) -> bool {
+        unit.kind.is_fixed_wing_aircraft() && unit.moves_left > 0 && self.aircraft_on_base(unit)
+    }
+
+    pub(crate) fn can_rebase_to(&self, unit: &Unit, x: i32, y: i32) -> bool {
+        self.can_begin_rebase(unit)
+            && (x, y) != (unit.x, unit.y)
+            && (0..self.map_wrap.width()).contains(&x)
+            && (0..self.map_wrap.height()).contains(&y)
+            && self.tile(x, y).known_by[unit.owner]
+            && self.map_wrap.civ3_distance(unit.x, unit.y, x, y) <= unit.kind.rebase_range()
+            && self.aircraft_base_at(unit, x, y)
+    }
+
+    pub(crate) fn rebaseable_bases_in_range(&self, id: u32) -> Vec<(i32, i32)> {
+        let Some(unit) = self.unit_by_id(id) else {
+            return Vec::new();
+        };
+        if !self.can_begin_rebase(unit) {
+            return Vec::new();
+        }
+        let static_sites = self.planning.airfields(&self.tiles, self.map_wrap);
+        let mut bases: Vec<_> = self
+            .cities
+            .iter()
+            .filter(|city| self.allied(unit.owner, city.owner))
+            .map(|city| (city.x, city.y))
+            .chain(static_sites.iter().copied())
+            .chain(
+                self.units
+                    .iter()
+                    .filter(|ship| {
+                        self.allied(unit.owner, ship.owner) && ship.kind.can_carry(unit.kind)
+                    })
+                    .map(|ship| (ship.x, ship.y)),
+            )
+            .filter(|&(x, y)| self.can_rebase_to(unit, x, y))
+            .collect();
+        drop(static_sites);
+        bases.sort_unstable_by_key(|&(x, y)| self.map_wrap.index(x, y));
+        bases.dedup();
+        bases
+    }
+
+    pub(super) fn rebase_aircraft(&mut self, id: u32, x: i32, y: i32) -> bool {
+        let Some(unit) = self.unit_by_id(id).cloned() else {
+            return false;
+        };
+        if !self.can_rebase_to(&unit, x, y) {
+            return false;
+        }
+        let target_carrier = if self.refuel_site(unit.owner, x, y) {
+            None
+        } else {
+            let Some(carrier_id) = self.rebase_carrier_at(&unit, x, y) else {
+                return false;
+            };
+            Some(carrier_id)
+        };
+        let from = (unit.x, unit.y);
+        if unit.transport.is_some() {
+            self.release_ai_ferry(id);
+        }
+        let visual_mover = self.visual_events.enabled.then(|| unit.clone());
+        let Some(index) = self.unit_index_by_id(id) else {
+            return false;
+        };
+        {
+            let live = &mut self.units[index];
+            live.x = x;
+            live.y = y;
+            live.transport = target_carrier;
+            live.moves_left = 0;
+            live.moved = true;
+            live.state = UnitState::Idle;
+            live.order = None;
+            live.automated = false;
+            live.clear_work();
+            self.list_order.unit(live);
+        }
+        self.unit_goto_tiles.remove(&id);
+        self.record_transport_change(id, target_carrier);
+        self.refresh_visibility();
+        if let Some(visual_unit) = visual_mover {
+            self.publish_visual_event(VisualEvent::AirMission(Box::new(
+                presentation::AirMissionVisual {
+                    aircraft: visual_unit,
+                    from,
+                    to: (x, y),
+                    kind: presentation::AirMissionVisualKind::Rebase,
+                },
+            )));
+        }
+        if self.trace.wants::<military_observation::AirMissionEvent>() {
+            self.trace_air_mission(military_observation::AirMissionEvent {
+                owner: unit.owner,
+                unit_id: id,
+                kind: unit.kind.name(),
+                role: military_observation::military_unit_role(unit.kind),
+                mission: "rebase",
+                from,
+                to: Some((x, y)),
+                target_owner: None,
+                succeeded: true,
+            });
+        }
+        true
+    }
+
+    pub(crate) fn can_begin_recon(&self, unit: &Unit) -> bool {
+        unit.kind.is_fixed_wing_aircraft()
+            && unit.kind.operational_range() > 0
+            && unit.moves_left > 0
+            && self.aircraft_on_base(unit)
+    }
+
+    pub(crate) fn can_recon_tile(&self, unit: &Unit, x: i32, y: i32) -> bool {
+        self.can_begin_recon(unit)
+            && (x, y) != (unit.x, unit.y)
+            && (0..self.map_wrap.width()).contains(&x)
+            && (0..self.map_wrap.height()).contains(&y)
+            && self.map_wrap.civ3_distance(unit.x, unit.y, x, y) <= unit.kind.operational_range()
+    }
+
+    pub(crate) fn recon_targets_in_range(&self, id: u32) -> Vec<(i32, i32)> {
+        let Some(unit) = self.unit_by_id(id) else {
+            return Vec::new();
+        };
+        if !self.can_begin_recon(unit) {
+            return Vec::new();
+        }
+        self.map_wrap
+            .civ3_radius(unit.x, unit.y, unit.kind.operational_range())
+            .into_iter()
+            .filter_map(|(x, y, _)| self.can_recon_tile(unit, x, y).then_some((x, y)))
+            .collect()
+    }
+
+    pub(super) fn recon_aircraft(&mut self, id: u32, x: i32, y: i32) -> bool {
+        let Some(unit) = self.unit_by_id(id).cloned() else {
+            return false;
+        };
+        if !self.can_recon_tile(&unit, x, y) {
+            return false;
+        }
+        let from = (unit.x, unit.y);
+        self.cancel_unit_order(id);
+        if !self.try_air_superiority_interceptions(id, (x, y)) {
+            if self.trace.wants::<military_observation::AirMissionEvent>() {
+                self.trace_air_mission(military_observation::AirMissionEvent {
+                    owner: unit.owner,
+                    unit_id: id,
+                    kind: unit.kind.name(),
+                    role: military_observation::military_unit_role(unit.kind),
+                    mission: "recon",
+                    from,
+                    to: Some((x, y)),
+                    target_owner: self.tile(x, y).owner,
+                    succeeded: false,
+                });
+            }
+            return true;
+        }
+        // Civ III Recon reveals the target tile and all 8 adjacent tiles (3x3)
+        // for the remainder of the current turn, enabling follow-up strikes.
+        self.reveal_map_circle(unit.owner, x, y, 1);
+        let patch: Vec<(i32, i32)> = self
+            .map_wrap
+            .civ3_radius(x, y, 1)
+            .into_iter()
+            .map(|(tx, ty, _)| (tx, ty))
+            .collect();
+        {
+            let entry = self.recon_revealed_tiles.entry(unit.owner).or_default();
+            for &coord in &patch {
+                if !entry.contains(&coord) {
+                    entry.push(coord);
+                }
+            }
+        }
+        if self.vision_recipients(unit.owner).contains(&HUMAN) {
+            for (tx, ty) in patch {
+                let tile = self.tile_mut(tx, ty);
+                tile.seen = true;
+                tile.visible = true;
+            }
+        }
+        if let Some(live) = self.units.iter_mut().find(|candidate| candidate.id == id) {
+            live.moves_left = 0;
+            live.moved = true;
+            live.state = UnitState::Idle;
+        }
+        if self.visual_events.enabled {
+            self.publish_visual_event(VisualEvent::AirMission(Box::new(
+                presentation::AirMissionVisual {
+                    aircraft: unit.clone(),
+                    from,
+                    to: (x, y),
+                    kind: presentation::AirMissionVisualKind::Recon,
+                },
+            )));
+        }
+        if unit.owner == HUMAN {
+            self.add_event(format!("{} completed a recon mission.", unit.kind.name()));
+        }
+        if self.trace.wants::<military_observation::AirMissionEvent>() {
+            self.trace_air_mission(military_observation::AirMissionEvent {
+                owner: unit.owner,
+                unit_id: id,
+                kind: unit.kind.name(),
+                role: military_observation::military_unit_role(unit.kind),
+                mission: "recon",
+                from,
+                to: Some((x, y)),
+                target_owner: self.tile(x, y).owner,
+                succeeded: true,
+            });
+        }
+        true
+    }
+
     pub(crate) fn can_set_air_superiority(&self, unit: &Unit) -> bool {
         civ3_air_superiority_unit(unit.kind)
             && unit.kind.operational_range() >= 2
-            && (self.refuel_site(unit.owner, unit.x, unit.y)
-                || self.aboard_refueling_transport(unit))
+            && self.aircraft_on_base(unit)
     }
 
     pub(crate) fn can_precision_bomb(&self, unit: &Unit) -> bool {
@@ -202,10 +471,7 @@ impl Simulation {
             if self.unit_by_id(interceptor_id).is_none() {
                 continue;
             }
-            let detection_chance = if matches!(
-                incoming.kind,
-                UnitKind::StealthBomber | UnitKind::StealthFighter
-            ) {
+            let detection_chance = if incoming.kind.is_stealth_aircraft() {
                 5
             } else {
                 50
@@ -213,6 +479,9 @@ impl Simulation {
             if self.rand_below(100) >= detection_chance {
                 continue;
             }
+            let interceptor_info = self
+                .unit_by_id(interceptor_id)
+                .map(|unit| (unit.owner, unit.kind, (unit.x, unit.y), unit.moved));
             if let Some(unit) = self.units.iter_mut().find(|unit| unit.id == interceptor_id) {
                 unit.air_superiority_shot = true;
             }
@@ -224,11 +493,211 @@ impl Simulation {
                 None,
                 false,
             );
-            if self.unit_by_id(attacking_id).is_none() {
-                return false;
+            // Position the air-to-air dogfight over the contested target tile so
+            // both aircraft face each other in combat instead of shooting from
+            // distant airfields.
+            if self.visual_events.enabled {
+                let incoming_pos = self
+                    .map_wrap
+                    .civ3_neighbors(target.0, target.1)
+                    .min_by_key(|&(nx, ny)| {
+                        self.map_wrap.civ3_distance(nx, ny, incoming.x, incoming.y)
+                    })
+                    .unwrap_or(target);
+                self.relocate_last_combat_visual(
+                    interceptor_id,
+                    attacking_id,
+                    target,
+                    incoming_pos,
+                );
             }
+            // A defending CAP interceptor scrambled on the opponent's turn;
+            // preserve its own-turn `moved` flag so it heals normally at base.
+            if let Some((_, _, _, was_moved)) = interceptor_info
+                && let Some(interceptor) =
+                    self.units.iter_mut().find(|unit| unit.id == interceptor_id)
+            {
+                interceptor.moved = was_moved;
+            }
+            let shot_down = self.unit_by_id(attacking_id).is_none();
+            // Civ III rule: any Air Superiority interception aborts the
+            // incoming aircraft's mission, even if the attacker survives.
+            if let Some(live) = self.units.iter_mut().find(|unit| unit.id == attacking_id) {
+                live.moves_left = 0;
+                live.moved = true;
+                live.state = UnitState::Idle;
+            }
+            if let Some((owner, kind, from, _)) = interceptor_info {
+                self.record_air_threat_contact(owner, incoming.owner, None);
+                self.record_air_threat_contact(incoming.owner, owner, None);
+                if owner == HUMAN || incoming.owner == HUMAN {
+                    let message = if shot_down {
+                        format!(
+                            "{} {} shot down {} {} during interception!",
+                            self.players[owner].name,
+                            kind.name(),
+                            self.players[incoming.owner].name,
+                            incoming.kind.name()
+                        )
+                    } else {
+                        format!(
+                            "{} {} intercepted {} {} and aborted its mission.",
+                            self.players[owner].name,
+                            kind.name(),
+                            self.players[incoming.owner].name,
+                            incoming.kind.name()
+                        )
+                    };
+                    self.add_event(message);
+                }
+                if self.trace.wants::<military_observation::AirMissionEvent>() {
+                    self.trace_air_mission(military_observation::AirMissionEvent {
+                        owner,
+                        unit_id: interceptor_id,
+                        kind: kind.name(),
+                        role: military_observation::military_unit_role(kind),
+                        mission: "interception",
+                        from,
+                        to: Some(target),
+                        target_owner: Some(incoming.owner),
+                        succeeded: shot_down,
+                    });
+                }
+            }
+            return false;
         }
         self.unit_by_id(attacking_id).is_some()
+    }
+
+    /// Resolve Civ III: Conquests passive anti-aircraft defense for a fixed-wing
+    /// bombard run: city SAM Battery first (50% normal / 5% stealth fire chance,
+    /// AA 8 vs aircraft defense; firing aborts the run even if the plane
+    /// survives), followed by up to 4 strongest hostile tile AA units
+    /// (`air_defense > 0`), each rolling `air_defense / (air_defense + 10 * D)`.
+    fn try_anti_aircraft_defense(
+        &mut self,
+        attacker_id: u32,
+        x: i32,
+        y: i32,
+    ) -> Option<&'static str> {
+        let attacker = self.unit_by_id(attacker_id).cloned()?;
+        if !attacker.kind.is_fixed_wing_aircraft() {
+            return None;
+        }
+        let plane_defense = attacker.kind.stats().defense.max(1);
+
+        // 1. City SAM Battery check.
+        if let Some((city_owner, city_name)) = self
+            .city_at(x, y)
+            .filter(|city| {
+                city.owner != attacker.owner
+                    && self.at_war(attacker.owner, city.owner)
+                    && city.has_building(crate::rules::Building::SAM_BATTERY)
+            })
+            .map(|city| (city.owner, city.name.clone()))
+        {
+            let fire_chance = if attacker.kind.is_stealth_aircraft() {
+                5
+            } else {
+                50
+            };
+            if self.rand_below(100) < fire_chance {
+                const SAM_BATTERY_AA: i32 = 8;
+                let shot_down = self.rand_below(SAM_BATTERY_AA + plane_defense) < SAM_BATTERY_AA;
+                if shot_down {
+                    self.remove_units_with_cargo_because(
+                        vec![attacker.id],
+                        lifecycle::UnitRemoval::Combat,
+                    );
+                    self.nation_scores[city_owner].units_killed += 1;
+                } else if let Some(live) = self.units.iter_mut().find(|unit| unit.id == attacker.id)
+                {
+                    live.moves_left = 0;
+                    live.moved = true;
+                    live.state = UnitState::Idle;
+                }
+                if self.visual_events.enabled {
+                    self.publish_visual_event(VisualEvent::AirMission(Box::new(
+                        presentation::AirMissionVisual {
+                            aircraft: attacker.clone(),
+                            from: (attacker.x, attacker.y),
+                            to: (x, y),
+                            kind: presentation::AirMissionVisualKind::SamIntercept { shot_down },
+                        },
+                    )));
+                }
+                if attacker.owner == HUMAN || city_owner == HUMAN {
+                    let message = if shot_down {
+                        format!(
+                            "{}'s SAM Battery shot down {} {}!",
+                            city_name,
+                            self.players[attacker.owner].name,
+                            attacker.kind.name()
+                        )
+                    } else {
+                        format!(
+                            "{}'s SAM Battery drove off {} {}.",
+                            city_name,
+                            self.players[attacker.owner].name,
+                            attacker.kind.name()
+                        )
+                    };
+                    self.add_event(message);
+                }
+                return Some("intercepted_sam");
+            }
+        }
+
+        // 2. Tile AA units (up to 4 strongest hostile units with air_defense > 0).
+        let mut aa_units: Vec<_> = self
+            .tile_units_ordered(x, y)
+            .filter(|unit| {
+                unit.owner != attacker.owner
+                    && self.at_war(attacker.owner, unit.owner)
+                    && unit.transport.is_none()
+                    && unit.kind.air_defense() > 0
+            })
+            .map(|unit| (unit.kind.air_defense(), unit.id, unit.owner, unit.kind))
+            .collect();
+        aa_units.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
+        aa_units.truncate(4);
+        for (aa_value, aa_id, aa_owner, aa_kind) in aa_units {
+            let denom = aa_value + 10 * plane_defense;
+            if self.rand_below(denom) < aa_value {
+                let aa_unit = self.unit_by_id(aa_id).cloned();
+                self.remove_units_with_cargo_because(
+                    vec![attacker.id],
+                    lifecycle::UnitRemoval::Combat,
+                );
+                self.nation_scores[aa_owner].units_killed += 1;
+                if self.visual_events.enabled
+                    && let Some(aa_unit) = aa_unit
+                {
+                    self.publish_visual_event(VisualEvent::AirMission(Box::new(
+                        presentation::AirMissionVisual {
+                            aircraft: attacker.clone(),
+                            from: (attacker.x, attacker.y),
+                            to: (x, y),
+                            kind: presentation::AirMissionVisualKind::AaUnitIntercept {
+                                aa_unit,
+                                shot_down: true,
+                            },
+                        },
+                    )));
+                }
+                if attacker.owner == HUMAN || aa_owner == HUMAN {
+                    self.add_event(format!(
+                        "{} {} shot down {} {} with anti-aircraft fire!",
+                        self.players[aa_owner].name,
+                        aa_kind.name(),
+                        self.players[attacker.owner].name,
+                        attacker.kind.name()
+                    ));
+                }
+                return Some("intercepted_aa");
+            }
+        }
+        None
     }
 
     fn civ3_bombard_range(kind: UnitKind) -> i32 {
@@ -756,6 +1225,21 @@ impl Simulation {
         Some(CityBombardTarget::Building(city.id, buildings[index]))
     }
 
+    pub(super) fn record_air_threat_contact(
+        &mut self,
+        victim_owner: usize,
+        attacker_owner: usize,
+        city_id: Option<u32>,
+    ) {
+        if victim_owner != attacker_owner {
+            self.ai_air_raid_turn
+                .insert((victim_owner, attacker_owner), self.turn);
+            if let Some(cid) = city_id {
+                self.ai_city_bombed_turn.insert(cid, self.turn);
+            }
+        }
+    }
+
     fn ai_bombard_tile_value(&self, attacker: &Unit, x: i32, y: i32) -> f64 {
         let hostile_city = self
             .city_at(x, y)
@@ -801,7 +1285,13 @@ impl Simulation {
             } else {
                 0.0
             };
+            let priority_mult = if target.kind == UnitKind::Army {
+                1.4
+            } else {
+                1.0
+            };
             value += city_unit_weight
+                * priority_mult
                 * ((f64::from(target.kind.stats().cost) + 1.0) * expected_damage
                     / f64::from(target.hp.max(1))
                     + lethal_bonus);
@@ -812,7 +1302,34 @@ impl Simulation {
                 .iter()
                 .filter(|building| building.data().genus == crate::rules::Genus::Improvement)
                 .count();
-            value += 0.25 * f64::from(city.size.max(1)) + 0.25 * improvements as f64;
+            let mut city_value = 0.0;
+            if city.size > 1 {
+                city_value += 0.25 * f64::from(city.size - 1);
+            }
+            city_value += 0.5 * improvements as f64;
+            let garrison_count = self
+                .tile_units_ordered(x, y)
+                .filter(|target| {
+                    target.owner != attacker.owner
+                        && self.at_war(attacker.owner, target.owner)
+                        && target.transport.is_none()
+                        && self.combat_target_reachable(attacker.kind, target.kind, x, y)
+                })
+                .count();
+            if garrison_count > 0 && value + city_value < 2.0 {
+                city_value += 4.0 * (garrison_count.min(4) as f64);
+            }
+            // Combined-arms coordination: prioritize softening enemy cities
+            // targeted by our active ground invasion force.
+            if city_value > 0.0
+                && self
+                    .ai_ground_targets
+                    .values()
+                    .any(|&target_city| target_city == city.id)
+            {
+                city_value *= 1.45;
+            }
+            value += city_value;
         }
         if self
             .tile(x, y)
@@ -820,6 +1337,45 @@ impl Simulation {
             .is_some_and(|owner| owner != attacker.owner && self.at_war(attacker.owner, owner))
         {
             value += bombardable_terrain_improvements(self, x, y).len() as f64;
+        }
+        // Observable AA risk awareness for fixed-wing aircraft: prefer softer
+        // targets over heavily AA-defended stacks (Stealth aircraft take far
+        // less SAM/AA risk than conventional bombers/fighters).
+        if value > 0.0 && attacker.kind.is_fixed_wing_aircraft() {
+            let plane_def = f64::from(attacker.kind.stats().defense.max(1));
+            let mut visible_aa: Vec<i32> = self
+                .tile_units_ordered(x, y)
+                .filter(|u| {
+                    u.owner != attacker.owner
+                        && self.at_war(attacker.owner, u.owner)
+                        && u.transport.is_none()
+                        && u.kind.air_defense() > 0
+                        && self.unit_visible_to(attacker.owner, u)
+                })
+                .map(|u| u.kind.air_defense())
+                .collect();
+            visible_aa.sort_unstable_by(|a, b| b.cmp(a));
+            visible_aa.truncate(4);
+            let mut survival = 1.0_f64;
+            for aa in visible_aa {
+                let aa_f = f64::from(aa);
+                survival *= 1.0 - aa_f / (aa_f + 10.0 * plane_def);
+            }
+            if let Some(city) = hostile_city
+                && city.has_building(crate::rules::Building::SAM_BATTERY)
+                && self.ai_city_bombed_turn.contains_key(&city.id)
+            {
+                let sam_factor = if attacker.kind.is_stealth_aircraft() {
+                    0.95
+                } else {
+                    0.55
+                };
+                survival *= sam_factor;
+            }
+            if survival < 1.0 {
+                let expected_loss = (1.0 - survival) * f64::from(attacker.kind.stats().cost) * 1.5;
+                value = (value * survival * survival - expected_loss).max(value * 0.15);
+            }
         }
         value
     }
@@ -921,7 +1477,83 @@ impl Simulation {
         }) {
             return MoveResult::Blocked;
         }
+        if attacker.kind.is_fixed_wing_aircraft() {
+            let raided_city = self
+                .city_at(x, y)
+                .filter(|city| city.owner != attacker.owner)
+                .map(|city| (city.owner, city.id));
+            if let Some((victim_owner, city_id)) = raided_city {
+                self.record_air_threat_contact(victim_owner, attacker.owner, Some(city_id));
+            } else {
+                let victims: Vec<usize> = self
+                    .tile_units_ordered(x, y)
+                    .filter(|u| u.owner != attacker.owner && self.at_war(attacker.owner, u.owner))
+                    .map(|u| u.owner)
+                    .chain(
+                        self.tile(x, y)
+                            .owner
+                            .filter(|&owner| owner != attacker.owner),
+                    )
+                    .collect();
+                for victim_owner in victims {
+                    self.record_air_threat_contact(victim_owner, attacker.owner, None);
+                }
+            }
+        }
         if !self.try_air_superiority_interceptions(attacker.id, (x, y)) {
+            if self.trace.wants::<military_observation::BombardEvent>() {
+                let target_city = self.city_at(x, y).map(|c| (c.id, c.owner));
+                let target_owner = target_city
+                    .map(|(_, owner)| owner)
+                    .or_else(|| self.tile(x, y).owner);
+                self.trace_bombard(military_observation::BombardEvent {
+                    attacker_id: attacker.id,
+                    attacker_owner: attacker.owner,
+                    attacker_kind: attacker.kind.name(),
+                    attacker_role: military_observation::military_unit_role(attacker.kind),
+                    precision,
+                    tile: (x, y),
+                    city_id: target_city.map(|(id, _)| id),
+                    target_owner,
+                    target_kind: "intercepted",
+                    intercepted: true,
+                    hp_damage: 0,
+                    units_hit: 0,
+                    units_killed: 0,
+                    building_destroyed: None,
+                    population_lost: 0,
+                    terrain_destroyed: Vec::new(),
+                    missile_expended: false,
+                });
+            }
+            return MoveResult::Fought;
+        }
+        if let Some(aa_kind) = self.try_anti_aircraft_defense(attacker.id, x, y) {
+            if self.trace.wants::<military_observation::BombardEvent>() {
+                let target_city = self.city_at(x, y).map(|c| (c.id, c.owner));
+                let target_owner = target_city
+                    .map(|(_, owner)| owner)
+                    .or_else(|| self.tile(x, y).owner);
+                self.trace_bombard(military_observation::BombardEvent {
+                    attacker_id: attacker.id,
+                    attacker_owner: attacker.owner,
+                    attacker_kind: attacker.kind.name(),
+                    attacker_role: military_observation::military_unit_role(attacker.kind),
+                    precision,
+                    tile: (x, y),
+                    city_id: target_city.map(|(id, _)| id),
+                    target_owner,
+                    target_kind: aa_kind,
+                    intercepted: true,
+                    hp_damage: 0,
+                    units_hit: 0,
+                    units_killed: 0,
+                    building_destroyed: None,
+                    population_lost: 0,
+                    terrain_destroyed: Vec::new(),
+                    missile_expended: false,
+                });
+            }
             return MoveResult::Fought;
         }
         let Some(attacker) = self.unit_by_id(attacker.id).cloned() else {
@@ -939,8 +1571,9 @@ impl Simulation {
                 target.owner != attacker.owner
                     && self.at_war(attacker.owner, target.owner)
                     && target.transport.is_none()
-                    && !(attacker.kind.fuel_capacity() > 0 && target.kind.fuel_capacity() > 0)
-                    && self.unit_visible_to(attacker.owner, target)
+                    && (city.is_some()
+                        || !(attacker.kind.fuel_capacity() > 0 && target.kind.fuel_capacity() > 0))
+                    && (city.is_some() || self.unit_visible_to(attacker.owner, target))
                     && self.combat_target_reachable(attacker.kind, target.kind, x, y)
             })
             .cloned()
@@ -985,7 +1618,13 @@ impl Simulation {
                 base_rate
             };
         let mut total_damage = 0;
+        let mut units_hit = 0;
+        let mut units_killed = 0;
+        let mut building_destroyed = None;
+        let mut population_lost = 0;
         let mut observed_targets = Vec::new();
+        let is_fixed_wing = attacker.kind.is_fixed_wing_aircraft();
+        let mut air_bombard_defender: Option<(Unit, i32, i32)> = None;
 
         // Freeciv's unit_bombard() walks every unit on the target tile and
         // fires one rate of attacks at each reachable defender. ACTION_BOMBARD
@@ -1009,8 +1648,13 @@ impl Simulation {
                     }
                 }
             }
-            total_damage += target.hp - hp;
+            let dealt = target.hp - hp;
+            total_damage += dealt;
+            if dealt > 0 {
+                units_hit += 1;
+            }
             if hp == 0 {
+                units_killed += 1;
                 self.remove_units_with_cargo_because(
                     vec![target.id],
                     lifecycle::UnitRemoval::Combat,
@@ -1020,23 +1664,29 @@ impl Simulation {
             }
             self.sync_army_damage(target.id);
             if self.visual_events.enabled {
-                self.publish_visual_event(VisualEvent::Combat(Box::new(
-                    presentation::CombatVisual {
-                        attacker: attacker.clone(),
-                        defender: target.clone(),
-                        hp: hp_steps,
-                        city: self.city_at(x, y).cloned(),
-                        bombard_effects: attacker.kind.has_bombard_effects(),
-                        battle_ended: true,
-                    },
-                )));
+                if is_fixed_wing {
+                    if air_bombard_defender.is_none() || dealt > 0 {
+                        air_bombard_defender = Some((target.clone(), target.hp, hp));
+                    }
+                } else {
+                    self.publish_visual_event(VisualEvent::Combat(Box::new(
+                        presentation::CombatVisual {
+                            attacker: attacker.clone(),
+                            defender: target.clone(),
+                            hp: hp_steps,
+                            city: self.city_at(x, y).cloned(),
+                            bombard_effects: attacker.kind.has_bombard_effects(),
+                            battle_ended: true,
+                        },
+                    )));
+                }
             }
             observed_targets.push((target.kind, target.owner));
         }
 
         if let Some(
             target @ (CityBombardTarget::Population(_) | CityBombardTarget::Building(_, _)),
-        ) = city_target
+        ) = city_target.as_ref()
         {
             let Some(city) = city.as_ref() else {
                 unreachable!("city bombard target requires its city");
@@ -1044,9 +1694,14 @@ impl Simulation {
             let defense = city_object_bombard_defense(self, city, &attacker);
             for _ in 0..rate {
                 if attack + defense > 0 && self.rand_below(attack + defense) < attack {
-                    match target {
+                    match *target {
                         CityBombardTarget::Population(city_id) => {
+                            let before_size =
+                                self.city_by_id(city_id).map_or(0, |current| current.size);
                             self.reduce_city_population_from_bombard(city_id, attacker.owner);
+                            let after_size =
+                                self.city_by_id(city_id).map_or(0, |current| current.size);
+                            population_lost += (before_size - after_size).max(0);
                         }
                         CityBombardTarget::Building(city_id, building) => {
                             if let Some(city) =
@@ -1054,6 +1709,7 @@ impl Simulation {
                             {
                                 city.buildings.retain(|&current| current != building);
                                 city.forget_culture_building(building);
+                                building_destroyed = Some(building.data().name);
                             }
                             if attacker.owner == HUMAN || city.owner == HUMAN {
                                 self.add_event(format!(
@@ -1092,7 +1748,8 @@ impl Simulation {
             }
         }
 
-        if attacker.kind == UnitKind::CruiseMissile {
+        let missile_expended = attacker.kind == UnitKind::CruiseMissile;
+        if missile_expended {
             self.remove_units_with_cargo_because(
                 vec![attacker.id],
                 lifecycle::UnitRemoval::Expended,
@@ -1102,6 +1759,57 @@ impl Simulation {
             bomber.moved = true;
             bomber.state = UnitState::Idle;
             bomber.work_left = 0;
+        }
+        if self.visual_events.enabled && is_fixed_wing {
+            self.publish_visual_event(VisualEvent::AirMission(Box::new(
+                presentation::AirMissionVisual {
+                    aircraft: attacker.clone(),
+                    from: (attacker.x, attacker.y),
+                    to: (x, y),
+                    kind: presentation::AirMissionVisualKind::Bombard {
+                        defender: air_bombard_defender,
+                        city: city.clone().map(Box::new),
+                    },
+                },
+            )));
+        }
+        if self.trace.wants::<military_observation::BombardEvent>() {
+            let target_kind = if city_action {
+                match city_target {
+                    Some(CityBombardTarget::Unit(_)) => "city_unit",
+                    Some(CityBombardTarget::Building(_, _)) => "city_building",
+                    Some(CityBombardTarget::Population(_)) => "city_population",
+                    None => "city_empty",
+                }
+            } else if has_unit_targets {
+                "field_units"
+            } else {
+                "terrain"
+            };
+            let target_owner = city
+                .as_ref()
+                .map(|c| c.owner)
+                .or_else(|| observed_targets.first().map(|&(_, owner)| owner))
+                .or_else(|| self.tile(x, y).owner);
+            self.trace_bombard(military_observation::BombardEvent {
+                attacker_id: attacker.id,
+                attacker_owner: attacker.owner,
+                attacker_kind: attacker.kind.name(),
+                attacker_role: military_observation::military_unit_role(attacker.kind),
+                precision,
+                tile: (x, y),
+                city_id: city.as_ref().map(|c| c.id),
+                target_owner,
+                target_kind,
+                intercepted: false,
+                hp_damage: total_damage,
+                units_hit,
+                units_killed,
+                building_destroyed,
+                population_lost,
+                terrain_destroyed: terrain_damage.iter().map(|t| t.name()).collect(),
+                missile_expended,
+            });
         }
         if attacker.owner == HUMAN || observed_targets.iter().any(|(_, owner)| *owner == HUMAN) {
             if !terrain_damage.is_empty() {
@@ -1155,7 +1863,11 @@ impl Simulation {
     pub(super) fn finish_aircraft_fuel_deaths(&mut self, owner: usize) {
         let dead: Vec<_> = self
             .player_units_ordered(owner)
-            .filter(|unit| unit.kind.fuel_capacity() > 0 && unit.fuel == 0)
+            .filter(|unit| {
+                unit.kind.fuel_capacity() > 0
+                    && !unit.kind.is_fixed_wing_aircraft()
+                    && unit.fuel == 0
+            })
             .map(|unit| (unit.id, unit.kind))
             .collect();
         for (id, kind) in dead {
@@ -1174,6 +1886,19 @@ impl Simulation {
             return;
         };
         let max_fuel = unit.kind.fuel_capacity();
+        if unit.kind.is_fixed_wing_aircraft() {
+            // Civ III fixed-wing aircraft are base-only, heal at base, and never
+            // auto-fly or crash from fuel exhaustion.
+            let hp = unit.hp + self.unit_hitpoint_gain_at(&unit, unit.x, unit.y);
+            if let Some(live) = self.units.iter_mut().find(|actor| actor.id == id) {
+                live.hp = hp.max(1);
+                live.moved = false;
+                live.paradropped = false;
+                live.air_superiority_shot = false;
+                live.fuel = max_fuel;
+            }
+            return;
+        }
         let site = self.refuel_site(unit.owner, unit.x, unit.y);
         let refueled = site || self.aboard_refueling_transport(&unit);
         // player_restore_units calls unit_gain_hitpoints before refueling.

@@ -62,6 +62,8 @@ pub(crate) const UI_REVIEW_SCENES: &[&str] = &[
     "army-defend-swordsman",
     "army-defend-spearman",
     "army-defend-horseman",
+    "air-bombard",
+    "air-sam-intercept",
 ];
 /// Cloning preserves the complete RNG and campaign state. Fixtures are built
 /// once and kept immutable; every scenario receives an independent clone.
@@ -331,6 +333,14 @@ impl Game {
                 self.select_unit_group(vec![unit], Some(unit));
                 self.playback.review_progress = Some(0.0);
                 self.zoom = 1.35;
+            }
+            57 | 58 => {
+                let (unit, target) = self.sim.review_fixture().air_combat_setup(scene == 58);
+                self.select_unit_group(vec![unit], Some(unit));
+                self.playback.review_progress = Some(0.0);
+                self.zoom = 1.25;
+                self.focus_camera_on((20 + target.0) / 2, target.1);
+                return;
             }
             23..=25 | 48 => {
                 let (unit, _) = self.sim.review_fixture().animation_setup(scene != 23);
@@ -826,6 +836,28 @@ impl Game {
                     self.move_selected(self.sim.review_state().move_command(id, 1, 0), id),
                 )?;
                 sequence.check("movement_refreshes_visibility", before != visibility(self))?;
+                return Ok(true);
+            }
+            return Ok(false);
+        }
+        if matches!(scene, 57 | 58) {
+            if phase == 1 {
+                let id = self.selected_unit.unwrap();
+                sequence.check(
+                    "air_mission_real_command",
+                    self.move_selected(Command::Bombard(id, 22, 24), id),
+                )?;
+            }
+            if phase == 6 {
+                let fraction = if scene == 57 { 0.48 } else { 0.42 };
+                sequence.check(
+                    "air_mission_clip_available",
+                    self.playback.review_first_air_mission(fraction),
+                )?;
+                sequence.check(
+                    "air_mission_actors_rendered",
+                    !self.playback.active().is_empty(),
+                )?;
                 return Ok(true);
             }
             return Ok(false);

@@ -150,6 +150,8 @@ pub(crate) struct UnitActionView {
     pub(crate) bombard: bool,
     pub(crate) precision_bombard: bool,
     pub(crate) air_superiority: bool,
+    pub(crate) rebase: bool,
+    pub(crate) recon: bool,
     pub(crate) has_order: bool,
     pub(crate) capture_units: bool,
     pub(crate) form_army: bool,
@@ -285,6 +287,41 @@ pub(crate) enum PresentationEventView {
         duration: f64,
     },
     Combat(Box<CombatPresentationView>),
+    AirMission(Box<AirMissionPresentationView>),
+}
+
+#[derive(Clone)]
+pub(crate) enum AirMissionPresentationKind {
+    Bombard {
+        defender: Option<(RenderedUnitView, i32, i32)>,
+        city: Option<RenderedCityView>,
+    },
+    Recon,
+    Rebase,
+    SamIntercept {
+        shot_down: bool,
+    },
+    AaUnitIntercept {
+        aa_unit: RenderedUnitView,
+        shot_down: bool,
+    },
+}
+
+#[derive(Clone)]
+pub(crate) struct AirMissionPresentationView {
+    pub(crate) aircraft: RenderedUnitView,
+    pub(crate) from: (i32, i32),
+    pub(crate) to: (i32, i32),
+    pub(crate) outbound_facing: u8,
+    pub(crate) return_facing: u8,
+    pub(crate) kind: AirMissionPresentationKind,
+    /// Duration of each flight leg (`from -> to` and, when applicable, `to -> from`).
+    pub(crate) fly_duration: f64,
+    /// Duration of the target-tile action (bombing run, SAM strike, AA fire).
+    pub(crate) action_duration: f64,
+    /// Duration of the post-action crash clip when shot down.
+    pub(crate) outcome_duration: f64,
+    pub(crate) duration: f64,
 }
 
 #[derive(Clone)]
@@ -298,6 +335,7 @@ pub(crate) struct CombatPresentationView {
     /// Client may replace these defaults with the resolved source clip timings.
     pub(crate) round_durations: Vec<f64>,
     pub(crate) result_duration: f64,
+    pub(crate) impact_duration: f64,
     pub(crate) duration: f64,
 }
 
@@ -311,6 +349,7 @@ impl PresentationEventView {
             | Self::Fortify { duration, .. }
             | Self::EnterHut { duration, .. } => *duration,
             Self::Combat(combat) => combat.duration,
+            Self::AirMission(mission) => mission.duration,
         }
     }
 
@@ -323,6 +362,16 @@ impl PresentationEventView {
             | Self::Fortify { unit, .. }
             | Self::EnterHut { unit, .. } => [Some(unit), None],
             Self::Combat(combat) => [Some(&combat.attacker), Some(&combat.defender)],
+            Self::AirMission(mission) => match &mission.kind {
+                AirMissionPresentationKind::Bombard {
+                    defender: Some((defender, _, _)),
+                    ..
+                } => [Some(&mission.aircraft), Some(defender)],
+                AirMissionPresentationKind::AaUnitIntercept { aa_unit, .. } => {
+                    [Some(&mission.aircraft), Some(aa_unit)]
+                }
+                _ => [Some(&mission.aircraft), None],
+            },
         }
         .into_iter()
         .flatten()

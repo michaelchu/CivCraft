@@ -102,52 +102,47 @@ impl Simulation {
             tile.base = None;
             tile.hut = false;
             tile.known_by.set(1, true);
+            tile.known_by.set(HUMAN, true);
+            tile.visible = true;
         }
         let home = (10, 24);
-        let near = offset_native_by_map(home.0, home.1, 1, 0);
+        let enemy_base = offset_native_by_map(home.0, home.1, 4, 0);
         let far = offset_native_by_map(home.0, home.1, 8, 0);
         self.create_city(1, home.0, home.1);
-        self.tile_mut(near.0, near.1).known_by.set(1, true);
-        self.tile_mut(far.0, far.1).known_by.set(1, true);
+        self.create_city(HUMAN, enemy_base.0, enemy_base.1);
         let fighter = self.spawn_unit(1, UnitKind::Fighter, home.0, home.1);
-        self.units.last_mut().unwrap().moves_left =
-            UnitKind::Fighter.stats().moves * MOVE_FRAGMENTS;
-        let close = self.spawn_unit(HUMAN, UnitKind::Bomber, near.0, near.1);
-        self.units.last_mut().unwrap().hp = 1;
-        self.units.last_mut().unwrap().moves_left = UnitKind::Bomber.stats().moves * MOVE_FRAGMENTS;
+        let enemy_bomber = self.spawn_unit(HUMAN, UnitKind::Bomber, enemy_base.0, enemy_base.1);
         self.refresh_visibility();
-        self.native_random = None;
-        self.rng = 1;
+        // Have the enemy bomber launch an observable air raid against player 1
+        // so the AI reacts to real observed air threats rather than fog-peeking.
+        self.tile_mut(home.0, home.1).visible = true;
+        self.apply(Command::Bombard(enemy_bomber, home.0, home.1));
         self.run_ai_player(1);
-        // Freeciv has no Air Superiority patrol mission or automatic
-        // interception. The AI should leave this fighter on its base; the
-        // ruleset target-tile attack path is covered by the aviation combat
-        // scenario, where combat is an explicit move into the target tile.
-        let explicit_strike = self.unit_by_id(close).is_none()
-            && self.unit_by_id(fighter).is_some_and(|plane| {
-                plane.moves_left < UnitKind::Fighter.stats().moves * MOVE_FRAGMENTS
-            });
-        self.update_activities_and_restore();
-        let refuel_test = self.spawn_unit(1, UnitKind::Fighter, home.0, home.1);
-        self.units
-            .iter_mut()
-            .find(|unit| unit.id == refuel_test)
-            .unwrap()
-            .fuel = 1;
-        self.restore_aircraft();
-        let refueled = self
-            .unit_by_id(refuel_test)
-            .is_some_and(|unit| unit.fuel == UnitKind::Fighter.fuel_capacity());
-        let distant = self.spawn_unit(HUMAN, UnitKind::Bomber, far.0, far.1);
-        self.units.last_mut().unwrap().hp = 1;
+        // Under Civ III Conquests rules, an AI Fighter defending a threatened
+        // city against an enemy with fixed-wing aircraft enters Air Superiority
+        // CAP from its base instead of flying melee attacks over open terrain.
+        let assigned_cap = self.unit_by_id(fighter).is_some_and(|plane| {
+            (plane.x, plane.y) == home
+                && matches!(plane.order, Some(UnitOrder::AirSuperiority { .. }))
+        });
+        let bomber_stays_at_base = self
+            .unit_by_id(enemy_bomber)
+            .is_some_and(|plane| (plane.x, plane.y) == enemy_base);
+
+        let distant = self.spawn_unit(HUMAN, UnitKind::Warrior, far.0, far.1);
         let plane = self.unit_by_id(fighter).unwrap();
         let target = self.unit_by_id(distant).unwrap();
-        let skipped = self.map_distance(home.0, home.1, target.x, target.y)
+        let skipped = self
+            .map_wrap
+            .civ3_distance(home.0, home.1, target.x, target.y)
             > plane.kind.operational_range()
-            && self
-                .route_cost_within(plane, target.x, target.y, plane.moves_left)
-                .is_none();
-        (explicit_strike, skipped, refueled)
+            && !self.can_bombard_tile(plane, target.x, target.y);
+
+        self.restore_aircraft();
+        let refueled = self
+            .unit_by_id(fighter)
+            .is_some_and(|unit| unit.fuel == UnitKind::Fighter.fuel_capacity());
+        (assigned_cap && bomber_stays_at_base, skipped, refueled)
     }
 
     pub(crate) fn ai_embarked_paradrop_danger_test(&mut self) -> bool {

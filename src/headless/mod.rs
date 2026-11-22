@@ -57,7 +57,15 @@ pub(crate) fn run(config: Config) -> Result<(), String> {
         scenario.game.start_research_observation();
     }
     if config.profile_turns {
-        scenario.game.trace.enable_profiling();
+        scenario
+            .game
+            .trace
+            .configure_profiling(crate::sim::trace::ProfileSelection {
+                timing_only: config.profile_selection.timing_only,
+                start_turn: config.profile_selection.start_turn,
+                end_turn: config.profile_selection.end_turn,
+                prefixes: config.profile_selection.prefixes.clone(),
+            });
     }
     let mut report = report::Report::new(&config.report, scenario.provenance.clone())?;
     let mut snapshot = analytics::providers::capture(&scenario.game, &providers, Phase::Initial);

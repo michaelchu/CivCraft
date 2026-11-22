@@ -21,6 +21,8 @@ pub(super) enum TargetingMode {
         /// Repeat the bombardment on following turns.
         auto: bool,
     },
+    Rebase,
+    Recon,
     NuclearStrike,
 }
 
@@ -42,6 +44,8 @@ impl TargetingMode {
                 precision: true, ..
             } => "PRECISION BOMBING: choose an enemy city",
             Self::Bombard { .. } => "BOMBARD: choose an enemy tile",
+            Self::Rebase => "REBASE: choose a friendly city, airfield, or carrier",
+            Self::Recon => "RECON: choose a tile within operational range",
             Self::NuclearStrike => "NUCLEAR STRIKE: choose a target",
         })
     }

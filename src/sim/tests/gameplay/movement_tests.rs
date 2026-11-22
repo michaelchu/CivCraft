@@ -325,23 +325,27 @@ impl Simulation {
 
         let base = offset_native_by_map(10, 24, 0, -1);
         game.tile_mut(base.0, base.1).base = Some(Base::Airbase);
-        let air = offset_native_by_map(base.0, base.1, 0, -1);
-        let bomber = game.spawn_unit(HUMAN, UnitKind::Bomber, air.0, air.1);
-        game.units.last_mut().unwrap().fuel = 1;
+        let bomber = game.spawn_unit(HUMAN, UnitKind::Bomber, base.0, base.1);
+        game.units.last_mut().unwrap().hp = 1;
         game.restore_player_units(HUMAN);
-        let rescued = game
+        let healed_at_base = game
             .units
             .iter()
             .find(|unit| unit.id == bomber)
-            .is_some_and(|unit| (unit.x, unit.y) == base && unit.moved);
+            .is_some_and(|unit| {
+                (unit.x, unit.y) == base
+                    && !unit.moved
+                    && unit.hp > 1
+                    && unit.fuel == UnitKind::Bomber.fuel_capacity()
+            });
         game.progress_player_unit_activities(HUMAN);
-        let rescue_moved = rescued
+        let air_restored = healed_at_base
             && game
                 .units
                 .iter()
                 .find(|unit| unit.id == bomber)
-                .is_some_and(|unit| unit.moved && unit.moves_left > 0);
-        (repaired, fortified, waited, rescue_moved)
+                .is_some_and(|unit| unit.moves_left == MOVE_FRAGMENTS);
+        (repaired, fortified, waited, air_restored)
     }
 
     pub(crate) fn native_movement_rules_test(&mut self) -> (bool, bool, bool) {

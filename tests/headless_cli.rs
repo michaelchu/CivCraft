@@ -729,3 +729,197 @@ fn saves_and_reloads_campaign_checkpoint() {
     );
     std::fs::remove_dir_all(directory).unwrap();
 }
+
+#[test]
+fn profile_modes_publish_selection_and_detail_coverage() {
+    let directory = report_directory("profile-modes");
+    for (mode, filters) in [
+        ("false", vec![]),
+        ("timing", vec![]),
+        (
+            "true",
+            vec![
+                "--profile-prefixes",
+                "ai",
+                "--profile-start-turn",
+                "2",
+                "--profile-end-turn",
+                "2",
+            ],
+        ),
+    ] {
+        let path = directory.join(format!("{mode}.json"));
+        headless()
+            .args([
+                "--seed",
+                "42",
+                "--turns",
+                "3",
+                "--profile-turns",
+                mode,
+                "--report",
+                path.to_str().unwrap(),
+            ])
+            .args(filters)
+            .assert()
+            .success();
+        let report = read_report(&path);
+        let profiles = report["turn_profiles"].as_array().unwrap();
+        assert_eq!(profiles.len(), if mode == "false" { 0 } else { 3 });
+        assert_eq!(
+            report["run"]["configuration"]["profile_mode"],
+            match mode {
+                "false" => "off",
+                "timing" => "timing",
+                _ => "full",
+            }
+        );
+        for profile in profiles {
+            let detailed = mode == "true" && profile["turn"] == 2;
+            assert_eq!(profile["details_recorded"], detailed);
+            assert!(!profile["phases"].as_array().unwrap().is_empty());
+            let spans = profile["spans"].as_array().unwrap();
+            let operations = profile["operations"].as_object().unwrap();
+            if detailed {
+                assert!(!spans.is_empty());
+                assert!(spans.iter().all(|s| {
+                    let n = s["name"].as_str().unwrap();
+                    n == "ai" || n.starts_with("ai.")
+                }));
+                assert!(operations.keys().all(|n| n == "ai" || n.starts_with("ai.")));
+            } else {
+                assert!(spans.is_empty());
+                assert!(operations.is_empty());
+            }
+        }
+    }
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn rejects_invalid_profile_filters() {
+    for args in [
+        vec!["--profile-turns", "bad"],
+        vec!["--profile-turns", "timing", "--profile-start-turn", "2"],
+        vec!["--profile-prefixes", "ai"],
+        vec![
+            "--profile-turns",
+            "true",
+            "--profile-start-turn",
+            "3",
+            "--profile-end-turn",
+            "2",
+        ],
+        vec!["--profile-turns", "true", "--profile-end-turn", "-1"],
+        vec![
+            "--profile-turns",
+            "true",
+            "--profile-prefixes",
+            "ai,,workers",
+        ],
+    ] {
+        headless().args(args).assert().failure();
+    }
+}
+
+#[test]
+fn military_analyzer_publishes_metrics_and_tracks_leader_and_army_scenarios() {
+    let list = headless().arg("--list-analyzers").output().unwrap();
+    assert!(list.status.success());
+    assert!(
+        String::from_utf8_lossy(&list.stdout)
+            .lines()
+            .any(|line| line == "military")
+    );
+
+    let directory = report_directory("military-analyzer");
+    for scenario in ["leader-army", "army-combat", "great-leader"] {
+        let path = directory.join(format!("{scenario}.json"));
+        headless()
+            .args([
+                "--scenario",
+                scenario,
+                "--turns",
+                "1",
+                "--analytics",
+                "military",
+                "--trace-domains",
+                "military",
+                "--report",
+                path.to_str().unwrap(),
+            ])
+            .assert()
+            .success();
+        let report = read_report(&path);
+        let totals = &report["analytics"]["metrics"]["military.totals"];
+        let nations = report["analytics"]["metrics"]["military.nations"]
+            .as_array()
+            .unwrap();
+        match scenario {
+            "leader-army" => {
+                assert_eq!(totals["armies_formed"], 3, "{totals}");
+            }
+            "army-combat" => {
+                assert!(
+                    totals["army_combats"].as_u64().unwrap_or(0) >= 1,
+                    "{totals}"
+                );
+                let civ0 = nations.iter().find(|n| n["id"] == 0).unwrap();
+                assert_eq!(
+                    civ0["leaders_and_armies"]["army_members_loaded"], 4,
+                    "{civ0}"
+                );
+                assert!(
+                    civ0["leaders_and_armies"]["army_attacks"]
+                        .as_u64()
+                        .unwrap_or(0)
+                        >= 1,
+                    "{civ0}"
+                );
+            }
+            "great-leader" => {
+                let civ1 = nations.iter().find(|n| n["id"] == 1).unwrap();
+                assert_eq!(
+                    civ1["leaders_and_armies"]["leader_actions"]["rushed_building"], 1,
+                    "{civ1}"
+                );
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    let lean_path = directory.join("lean.json");
+    let verbose_path = directory.join("verbose.json");
+    for (detail, path) in [("lean", &lean_path), ("verbose", &verbose_path)] {
+        headless()
+            .args([
+                "--seed",
+                "42",
+                "--turns",
+                "10",
+                "--analytics",
+                "military",
+                "--trace-domains",
+                "military",
+                "--report-detail",
+                detail,
+                "--report",
+                path.to_str().unwrap(),
+            ])
+            .assert()
+            .success();
+    }
+    let lean = read_report(&lean_path);
+    let verbose = read_report(&verbose_path);
+    assert_eq!(
+        lean["analytics"]["metrics"],
+        verbose["analytics"]["metrics"]
+    );
+    assert_eq!(lean["findings"], verbose["findings"]);
+    assert!(
+        lean["analytics"]["metrics"]["military.nations"]
+            .as_array()
+            .is_some_and(|rows| !rows.is_empty())
+    );
+    std::fs::remove_dir_all(directory).unwrap();
+}

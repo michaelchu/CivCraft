@@ -151,6 +151,8 @@ impl Simulation {
             precision_bombard: self.can_precision_bomb(unit),
             air_superiority: self.can_set_air_superiority(unit)
                 && !matches!(unit.order, Some(UnitOrder::AirSuperiority { .. })),
+            rebase: self.can_begin_rebase(unit),
+            recon: self.can_begin_recon(unit),
             has_order: unit.order.is_some(),
             capture_units: self.can_begin_capture_units(unit),
             form_army: self.can_form_army(unit),
@@ -287,7 +289,14 @@ impl Simulation {
                 UnitState::Sentry => "Sentry".to_owned(),
             }
         };
-        let status = if unit.kind.is_aircraft() {
+        let status = if unit.kind.is_fixed_wing_aircraft() {
+            let patrol = if matches!(unit.order, Some(UnitOrder::AirSuperiority { .. })) {
+                "Air Superiority"
+            } else {
+                status.as_str()
+            };
+            format!("{patrol} · Range {}", unit.kind.operational_range())
+        } else if unit.kind.is_aircraft() {
             format!(
                 "{status} · Fuel {}/{}",
                 unit.fuel,

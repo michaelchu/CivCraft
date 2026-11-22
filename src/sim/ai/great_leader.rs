@@ -38,7 +38,27 @@ impl Simulation {
     /// because a Leader never takes part in other unit handling.
     pub(in crate::sim) fn run_ai_great_leader(&mut self, unit: &Unit) -> bool {
         let Some(city_id) = self.great_leader_target(unit) else {
+            let can_form_army = self.can_form_army(unit);
             self.shelter_great_leader(unit);
+            if self.trace.wants::<military_observation::LeaderEvent>() {
+                self.trace_leader_event(military_observation::LeaderEvent {
+                    owner: unit.owner,
+                    action: "sheltered",
+                    unit_id: Some(unit.id),
+                    leader_id: Some(unit.id),
+                    army_id: None,
+                    city_id: None,
+                    kind: None,
+                    building: None,
+                    attacked: None,
+                    denominator: None,
+                    heroic_epic: None,
+                    shields_saved: None,
+                    can_form_army: Some(can_form_army),
+                    members_now: None,
+                    capacity: None,
+                });
+            }
             return true;
         };
         let Some((x, y)) = self.city_by_id(city_id).map(|city| (city.x, city.y)) else {
@@ -47,6 +67,25 @@ impl Simulation {
         if (unit.x, unit.y) != (x, y) {
             let result = self.ai_goto_unit(unit.id, (x, y), GotoTask::None);
             if !result.alive || !result.at_goal {
+                if result.alive && self.trace.wants::<military_observation::LeaderEvent>() {
+                    self.trace_leader_event(military_observation::LeaderEvent {
+                        owner: unit.owner,
+                        action: "en_route",
+                        unit_id: Some(unit.id),
+                        leader_id: Some(unit.id),
+                        army_id: None,
+                        city_id: Some(city_id),
+                        kind: None,
+                        building: None,
+                        attacked: None,
+                        denominator: None,
+                        heroic_epic: None,
+                        shields_saved: None,
+                        can_form_army: None,
+                        members_now: None,
+                        capacity: None,
+                    });
+                }
                 return true;
             }
         }

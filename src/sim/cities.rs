@@ -702,6 +702,16 @@ impl Simulation {
             let Some(unit) = self.unit_by_id(*id).cloned() else {
                 continue;
             };
+            if unit.kind.is_fixed_wing_aircraft()
+                && unit.owner != new_owner
+                && !self.allied(new_owner, unit.owner)
+            {
+                self.remove_units_with_cargo_because(
+                    vec![unit.id],
+                    lifecycle::UnitRemoval::CityLost,
+                );
+                continue;
+            }
             if unit.owner == old_owner {
                 let rehome = rehome_center_ids.contains(id);
                 self.transfer_city_center_unit(&unit, new_owner, city_id, rehome);

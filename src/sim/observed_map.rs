@@ -153,6 +153,13 @@ impl Simulation {
                 stamp(&mut main, &mut stealth, city.x, city.y, radius_sq);
             }
         }
+        for (&owner, tiles) in &self.recon_revealed_tiles {
+            if owner < 64 && ((givers_mask >> owner) & 1) != 0 {
+                for &(rx, ry) in tiles {
+                    main[self.map_wrap.index(rx, ry)] = true;
+                }
+            }
+        }
         (main.into(), stealth.into())
     }
 
@@ -205,6 +212,8 @@ impl Simulation {
                     *city_radii[city.owner]
                         .get_or_insert_with(|| self.city_vision_radius_sq(city.owner)),
                 )
+        }) || self.recon_revealed_tiles.iter().any(|(&owner, tiles)| {
+            owner < 64 && ((givers_mask >> owner) & 1) != 0 && tiles.contains(&(x, y))
         })
     }
 
@@ -266,6 +275,15 @@ impl Simulation {
                 }
             }
         }
+        if !requires_detection
+            && self.recon_revealed_tiles.iter().any(|(&owner, tiles)| {
+                owner < 64
+                    && ((givers_mask >> owner) & 1) != 0
+                    && tiles.contains(&(target.x, target.y))
+            })
+        {
+            return true;
+        }
         false
     }
 
@@ -314,6 +332,13 @@ impl Simulation {
                 self.cities
                     .iter()
                     .map(|c| (c.owner, c.x, c.y, self.city_vision_radius_sq(c.owner), 2)),
+            )
+            .chain(
+                self.recon_revealed_tiles
+                    .iter()
+                    .flat_map(|(&owner, tiles)| {
+                        tiles.iter().map(move |&(rx, ry)| (owner, rx, ry, 0, -1))
+                    }),
             )
             .collect();
         let recipients: Vec<_> = (0..self.players.len())

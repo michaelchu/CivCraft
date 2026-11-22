@@ -70,7 +70,8 @@ impl Simulation {
         self.cities.clear();
         self.sync_list_order();
         let p = (10, 24);
-        self.tile_mut(p.0, p.1).terrain = Terrain::Sea;
+        self.tile_mut(p.0, p.1).terrain = Terrain::Grassland;
+        self.create_city(HUMAN, p.0, p.1);
         let boat = self.spawn_unit(HUMAN, UnitKind::Carrier, p.0, p.1);
         let first = self.spawn_unit(HUMAN, UnitKind::Fighter, p.0, p.1);
         let second = self.spawn_unit(HUMAN, UnitKind::Fighter, p.0, p.1);

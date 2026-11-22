@@ -84,7 +84,11 @@ impl Simulation {
             let martless_unhappy = unhappy + angry + city.specialists[2].max(0);
             let candidates: Vec<_> = self
                 .tile_units_ordered(city.x, city.y)
-                .filter(|unit| unit.owner == owner && unit.transport.is_none())
+                .filter(|unit| {
+                    unit.owner == owner
+                        && unit.transport.is_none()
+                        && !unit.kind.is_fixed_wing_aircraft()
+                })
                 .map(|unit| unit.id)
                 .collect();
             let mut count = 0_i32;

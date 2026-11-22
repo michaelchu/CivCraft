@@ -189,6 +189,29 @@ impl Game {
                     self.sim.apply(Command::AirSuperiority(id));
                 }
             }
+            UiAction::BeginRebase => {
+                self.begin_targeting(TargetingMode::Rebase, |view| view.rebase);
+            }
+            UiAction::RebaseTo(x, y) => {
+                if self.targeting == TargetingMode::Rebase
+                    && let Some(id) = self.selected_unit
+                    && self.move_selected(Command::Rebase(id, x, y), id)
+                {
+                    self.focus_camera_on(x, y);
+                }
+                self.end_targeting(TargetingMode::Rebase);
+            }
+            UiAction::BeginRecon => {
+                self.begin_targeting(TargetingMode::Recon, |view| view.recon);
+            }
+            UiAction::ReconTo(x, y) => {
+                if self.targeting == TargetingMode::Recon
+                    && let Some(id) = self.selected_unit
+                {
+                    self.move_selected(Command::Recon(id, x, y), id);
+                }
+                self.end_targeting(TargetingMode::Recon);
+            }
             UiAction::NuclearStrikeTo(x, y) => {
                 if self.targeting == TargetingMode::NuclearStrike
                     && let Some(id) = self.selected_unit

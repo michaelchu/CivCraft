@@ -646,11 +646,38 @@ cargo run --offline --release --bin headless_sim -- \
 - `--stop-on-finding none|any|invariant` optionally stops after a full turn.
   Defaults to `none`; built-in heuristics cannot trigger `invariant` mode.
 - `--checkpoint-every 10` controls publication frequency.
-- `--profile-turns true` records opt-in per-turn timings for simulation phases
-  and named scopes, the starting city/unit counts, and operation counters.
-  Leave it disabled for ordinary scenario checks. Use it for deterministic
-  performance investigations and compare fixed turn windows rather than only
-  the total process runtime.
+- `--profile-turns timing` records lightweight total/phase wall-clock timings
+  and starting city/unit counts, without named scopes or operation counters.
+  Use this mode to observe turn-time growth. The default is `false` (off).
+- `--profile-turns true` retains full detailed profiling for existing scripts.
+  Add `--profile-prefixes worker,city_manager` to collect only matching
+  scope and counter names (exact names and dot-separated descendants, not
+  arbitrary string prefixes). Names are filtered independently: selecting
+  `ai` does not include counters named `normal_paths`, for example. Unknown
+  but syntactically valid prefixes collect nothing; inspect an unfiltered
+  report for available names. Excluded scopes are rejected before locking.
+- `--profile-start-turn N --profile-end-turn N` restrict detailed profiling to
+  an inclusive **campaign turn** range, including when loading a save. Either
+  bound may be omitted. Total/phase timings remain available on every turn.
+  These filters require `--profile-turns true`; they do not filter analytics
+  events or snapshots. Each profile's `details_recorded` identifies whether
+  details were enabled for that turn. Empty details do not imply no work.
+  With prefix filters, exclusive scope time subtracts only recorded child
+  scopes; unrecorded child work remains attributed to the recorded parent.
+- Leave profiling disabled for ordinary scenario checks and benchmark final
+  speed with it disabled. Detailed scopes add measurable overhead; compare
+  fixed turn windows with the same selection. Report configuration records
+  `profile_mode`, `profile_prefixes`, and the selected campaign-turn bounds.
+
+For example, observe timings cheaply, or inspect worker planning at turns 100–110:
+
+```sh
+cargo run --offline --release --bin headless_sim -- --seed 42 --turns 200 \
+  --profile-turns timing --report /tmp/turn-timing.json
+cargo run --offline --release --bin headless_sim -- --seed 42 --turns 110 \
+  --profile-turns true --profile-prefixes worker \
+  --profile-start-turn 100 --profile-end-turn 110 --report /tmp/worker-profile.json
+```
 
 Snapshots stream to disk rather than accumulating full history in memory. Their
 size grows with requested turns and selected/required providers; event limits
@@ -1124,7 +1151,72 @@ scores separate domestic alignment, culture, actual contentment relief, local
 defense, marginal spread and public diplomacy. The best candidate can be rejected
 by the cooldown or the improvement threshold; only the selected state is an
 action. Missionary opportunity values additional incoming pressure after the
-cap, using all own sources and visibility-safe foreign connections. Devout mood
-counterfactuals use the complete native citizen pipeline; a potential released
+cap, using all own sources and visibility-safe foreign connections. Devout mood counterfactuals use the complete native citizen pipeline; a potential released
 entertainer must remain out of disorder. Switching requires the base improvement
 plus `ai.switching_city_cost` per evaluated city.
+
+## Military analytics
+
+The `military` analyzer is registered in the default `--analytics` list and can
+be selected on its own (`--analytics military --trace-domains military`). It
+tracks passive `military.*` events together with `civilizations`, `diplomacy`,
+and `lifecycle` snapshots without mutating gameplay state or adding cost when
+disabled.
+
+Events emitted under domain `military`:
+
+- `military.combat`: battle participants, roles, elite/Army status, pre/post HP,
+  power, city capture, Cruise Missile expenditure, and Great Leader eligibility,
+  ineligibility reason, roll denominator, and created Leader ID.
+- `military.leader`: Great Leader roll outcomes (`spawned`, `roll_missed`),
+  rushed buildings (with shields saved and whether forming an Army was legal),
+  Army formation (`formed_army`), Army member loading (`army_member_loaded`),
+  and leader travel/sheltering.
+- `military.bombard`: ranged and precision bombardments by artillery, ships,
+  missiles, and aircraft (target kind, interceptions, HP damage, kills,
+  buildings/population/terrain destroyed).
+- `military.air_mission`: aircraft mission breakdown (`bombard`, `air_strike`,
+  `air_superiority`, `rebase_bombard`, `rebase_strategic`, `refuel_wait`,
+  `refuel_return`, `idle_on_base`), air-superiority interceptions, paratrooper
+  drops, and hunter Cruise Missile launches.
+- `military.nuclear_strike`: ICBM / Tactical Nuke launches, SDI interceptions,
+  unit casualties, cities hit, and fallout tiles.
+- `military.production_decision`: AI city production switches and wartime
+  military suppressions (`upkeep_constrained`, `ferry_cap`, `space_plan`,
+  `wonder_city`, `domestic_outbid`), including the winning military advisor
+  stage (`defense`, `bodyguard`, `aircraft`, `offensive`, `hunter`,
+  `coordinated_muster`, `training_building`).
+- `military.turn_summary`: one summary per AI civilization per turn with
+  unlocked military roles, fielded counts by role, per-unit dispatch branch
+  counts, wartime idle military counts, coordinated war objective readiness,
+  assault transport dispatches, and live Army status (loaded members, capacity,
+  dispatch, movement).
+
+Report metrics under `analytics.metrics`:
+
+- `military.nations`: per-civilization scorecard covering unlocked vs built/fielded
+  roles (`unlocked_but_never_used_in_war`), production stage wins and suppressions,
+  unit-turn dispatch shares, combat efficiency and city softening, bombardment,
+  air/missile/nuclear totals, Great Leader eligibility/expected-vs-actual spawns,
+  and Army utilization/combat.
+- `military.wars`: per-war episode rollups (start/end turns, combats, bombards,
+  air/nuclear strikes, city captures, shield exchanges, Army engagements).
+- `military.totals`, `military.recent_combats`, `military.recent_strikes`,
+  `military.recent_leader_events`: run-wide totals and bounded recent evidence.
+
+Built-in heuristic findings (`heuristic_candidate`) flag `war_army_idle`,
+`war_objective_stalled`, `unlocked_role_unused_in_war`, `army_underutilized`,
+and `leader_spawn_shortfall`. Lean mode compacts unchanged non-switching
+production suppressions, peacetime turn summaries, and repeated idle/sheltered
+aircraft or leader records while keeping all combat, strike, leader spawn/use,
+and wartime summary events; analyzer metrics are identical in lean and verbose
+modes.
+
+```sh
+jq '.analytics.metrics["military.nations"][] | {
+  name, war_turns, unlocked_but_never_used_in_war,
+  combat, bombard, air_and_missiles, leaders_and_armies
+}' report.json
+
+jq '.analytics.metrics["military.wars"]' report.json
+```

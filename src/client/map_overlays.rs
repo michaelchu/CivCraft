@@ -31,6 +31,10 @@ impl Game {
         );
     }
 
+    pub(super) fn unit_has_health_bar(unit: &RenderedUnitView) -> bool {
+        unit.attack > 0 || unit.defense > 0
+    }
+
     pub(super) fn draw_unit_health_at_zoom(
         &self,
         assets: &Assets,
@@ -41,7 +45,7 @@ impl Game {
         let camera_zoom = zoom.clamp(0.5, 1.0);
         let max_hp = unit.max_hp.max(1);
         let current_hp = unit.hp.clamp(0, max_hp);
-        let has_health_bar = unit.attack > 0 || unit.defense > 0;
+        let has_health_bar = Self::unit_has_health_bar(unit);
         let segment_height = (if max_hp <= 6 {
             4.0
         } else if max_hp <= 12 {
@@ -95,6 +99,67 @@ impl Game {
                 unit.moves_left,
                 unit.movement_rate,
                 camera_zoom,
+            );
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::sim::UnitKind;
+
+    fn rendered_for(kind: UnitKind) -> RenderedUnitView {
+        let stats = kind.stats();
+        RenderedUnitView {
+            id: 1,
+            kind,
+            owner: HUMAN,
+            era_index: 3,
+            x: 10,
+            y: 20,
+            facing: 0,
+            hp: stats.hp,
+            max_hp: stats.hp,
+            attack: stats.attack,
+            defense: stats.defense,
+            moves_left: 6,
+            movement_rate: 6,
+            state: UnitState::Idle,
+            transport: None,
+            is_transporter: false,
+            work_kind: None,
+            visible: true,
+            context: None,
+        }
+    }
+
+    #[test]
+    fn aircraft_health_bars_render_for_fixed_wing_and_helicopters_but_not_missiles() {
+        for kind in [
+            UnitKind::Fighter,
+            UnitKind::Bomber,
+            UnitKind::JetFighter,
+            UnitKind::F15,
+            UnitKind::StealthFighter,
+            UnitKind::StealthBomber,
+            UnitKind::Helicopter,
+        ] {
+            assert!(
+                Game::unit_has_health_bar(&rendered_for(kind)),
+                "{} should render a health bar",
+                kind.name()
+            );
+        }
+        for kind in [
+            UnitKind::CruiseMissile,
+            UnitKind::TacticalNuke,
+            UnitKind::ICBM,
+        ] {
+            assert!(
+                !Game::unit_has_health_bar(&rendered_for(kind)),
+                "{} should not render a health bar",
+                kind.name()
             );
         }
     }

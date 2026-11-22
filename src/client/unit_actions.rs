@@ -63,6 +63,12 @@ impl Game {
                         ("Air Superiority".to_owned(), UiAction::AirSuperiority, true),
                     );
                 }
+                if view.recon {
+                    entries.insert(0, ("Recon".to_owned(), UiAction::BeginRecon, true));
+                }
+                if view.rebase {
+                    entries.insert(0, ("Rebase".to_owned(), UiAction::BeginRebase, true));
+                }
                 if view.has_order {
                     entries.push((
                         "Cancel unit order".to_owned(),
@@ -298,6 +304,8 @@ pub(super) fn unit_action_icon(action: UiAction) -> HudIcon {
         | UiAction::BeginPrecisionBombard
         | UiAction::BeginAutoPrecisionBombard => HudIcon::Target,
         UiAction::AirSuperiority => HudIcon::Shield,
+        UiAction::BeginRebase => HudIcon::Plane,
+        UiAction::BeginRecon => HudIcon::Research,
         UiAction::CancelUnitOrder => HudIcon::Cross,
         UiAction::Airlift(_) => HudIcon::Plane,
         UiAction::BoardOrDeboard => HudIcon::Boat,

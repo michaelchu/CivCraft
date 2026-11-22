@@ -70,6 +70,28 @@ impl Simulation {
         if leader.owner == HUMAN {
             self.add_event("A Great Leader formed an Army.");
         }
+        if self.trace.wants::<military_observation::LeaderEvent>() {
+            let capacity = self
+                .unit_by_id(army_id)
+                .map(|army| self.unit_transport_capacity(army));
+            self.trace_leader_event(military_observation::LeaderEvent {
+                owner: leader.owner,
+                action: "formed_army",
+                unit_id: Some(unit_id),
+                leader_id: Some(unit_id),
+                army_id: Some(army_id),
+                city_id: Some(city_id),
+                kind: Some(UnitKind::Army.name()),
+                building: None,
+                attacked: None,
+                denominator: None,
+                heroic_epic: None,
+                shields_saved: None,
+                can_form_army: Some(true),
+                members_now: Some(0),
+                capacity,
+            });
+        }
         true
     }
 
@@ -112,12 +134,37 @@ impl Simulation {
         else {
             return false;
         };
+        let can_form_army = self.can_form_army(&unit);
         let city = &mut self.cities[city_index];
+        let shields_saved = (city.production.cost() - city.shields).max(0);
+        let building = match city.production {
+            Production::Building(building) => Some(building.data().name),
+            Production::Unit(_) => None,
+        };
         city.shields = city.production.cost();
         city.bought_production = true;
         let city_name = city.name.clone();
         self.remove_units_with_cargo_because(vec![unit_id], lifecycle::UnitRemoval::Expended);
         self.add_event(format!("A Leader completed production in {city_name}."));
+        if self.trace.wants::<military_observation::LeaderEvent>() {
+            self.trace_leader_event(military_observation::LeaderEvent {
+                owner: unit.owner,
+                action: "rushed_building",
+                unit_id: Some(unit_id),
+                leader_id: Some(unit_id),
+                army_id: None,
+                city_id: Some(city_id),
+                kind: None,
+                building,
+                attacked: None,
+                denominator: None,
+                heroic_epic: None,
+                shields_saved: Some(shields_saved),
+                can_form_army: Some(can_form_army),
+                members_now: None,
+                capacity: None,
+            });
+        }
         true
     }
 

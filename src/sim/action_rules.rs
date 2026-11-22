@@ -1187,11 +1187,20 @@ impl RequirementContext for SimulationRequirementContext<'_> {
                     _ => None,
                 }
                 .ok_or_else(unsupported)?;
+                let ignore_non_defending_air = self.action.as_deref().is_some_and(|action| {
+                    matches!(
+                        action,
+                        "Conquer City Shrink" | "Conquer City Shrink 2" | "Unit Move"
+                    )
+                });
                 let count = self
                     .simulation
                     .units
                     .iter()
-                    .filter(|unit| (unit.x, unit.y) == tile)
+                    .filter(|unit| {
+                        (unit.x, unit.y) == tile
+                            && !(ignore_non_defending_air && unit.kind.is_fixed_wing_aircraft())
+                    })
                     .count();
                 // common/requirements.c::is_maxtotalunitsontile_req_active
                 // compares the total tile-unit count with this maximum.

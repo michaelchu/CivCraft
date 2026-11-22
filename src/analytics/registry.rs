@@ -2,8 +2,8 @@
 use super::{
     Analyzer, Registry,
     analyzers::{
-        diplomacy::Diplomacy, government::Government, growth::Growth, production::Production,
-        settlement::Settlement,
+        diplomacy::Diplomacy, government::Government, growth::Growth, military::Military,
+        production::Production, settlement::Settlement,
     },
 };
 
@@ -13,6 +13,7 @@ pub(crate) const IDS: &[&str] = &[
     "production",
     "government",
     "diplomacy",
+    "military",
 ];
 pub(crate) fn build(
     names: &[String],
@@ -27,6 +28,7 @@ pub(crate) fn build(
             "production" => Box::new(Production::default()),
             "government" => Box::new(Government::default()),
             "diplomacy" => Box::new(Diplomacy::default()),
+            "military" => Box::new(Military::default()),
             _ => {
                 return Err(format!(
                     "unknown analyzer {name}; available: {}",

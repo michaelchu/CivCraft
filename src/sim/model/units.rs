@@ -167,9 +167,9 @@ impl UnitKind {
     }
 
     pub(in crate::sim) fn hp_loss_percent(self) -> i32 {
-        // Civ2Civ3 unit classes Air and Helicopter lose 10%; Missile and
-        // every supported land/sea class lose none.
-        if self.is_aircraft() && !self.is_missile() {
+        // Civ2Civ3 Helicopter loses 10% away from base; fixed-wing aircraft
+        // follow Civ III base-only rules and do not suffer field attrition.
+        if self.unit_class() == unit_catalog::UnitClass::Helicopter {
             10
         } else {
             0
@@ -216,6 +216,22 @@ impl UnitKind {
 
     pub(in crate::sim) fn operational_range(self) -> i32 {
         self.conquests_rule().operational_range
+    }
+
+    pub(crate) fn is_fixed_wing_aircraft(self) -> bool {
+        self.unit_class() == unit_catalog::UnitClass::Air
+    }
+
+    pub(in crate::sim) fn is_stealth_aircraft(self) -> bool {
+        matches!(self, Self::StealthFighter | Self::StealthBomber)
+    }
+
+    pub(in crate::sim) fn air_defense(self) -> i32 {
+        self.conquests_rule().air_defense
+    }
+
+    pub(in crate::sim) fn rebase_range(self) -> i32 {
+        self.operational_range() * 3
     }
 
     pub(in crate::sim) fn is_missile(self) -> bool {

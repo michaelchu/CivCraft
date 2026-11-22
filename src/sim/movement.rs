@@ -182,9 +182,13 @@ impl Simulation {
         if unit.kind == UnitKind::Army {
             return self.army_move_rate(unit);
         }
+        if unit.kind.is_fixed_wing_aircraft() {
+            // Civ III fixed-wing aircraft have a one-mission-per-turn action
+            // budget; mission radius is governed by operational_range/rebase_range.
+            return fragments;
+        }
         if unit.kind.conquests_rule().unit_type == 2 {
-            // Aircraft execute a one-turn mission within their source range;
-            // the planner's tile budget is not the PRTO action-count field.
+            // Missiles and helicopters execute within their source range.
             return unit.kind.operational_range().max(1) * fragments;
         }
         let (_, class) = MovementRules::campaign_unit_movement_data(unit.kind);
@@ -999,7 +1003,7 @@ impl Simulation {
             return MoveResult::Blocked;
         };
         let unit = self.units[index].clone();
-        if unit.kind.is_nuclear_weapon() {
+        if unit.kind.is_nuclear_weapon() || unit.kind.is_fixed_wing_aircraft() {
             return MoveResult::Blocked;
         }
         let action_available = {
@@ -1089,11 +1093,11 @@ impl Simulation {
             return MoveResult::Fought;
         }
 
-        if self
-            .units
-            .iter()
-            .any(|other| (other.x, other.y) == (nx, ny) && self.at_war(unit.owner, other.owner))
-        {
+        if self.units.iter().any(|other| {
+            (other.x, other.y) == (nx, ny)
+                && self.at_war(unit.owner, other.owner)
+                && !other.kind.is_fixed_wing_aircraft()
+        }) {
             return MoveResult::Blocked;
         }
         if let Some(city) = self.city_at(nx, ny)
@@ -1254,6 +1258,24 @@ impl Simulation {
         if entering_city.is_some_and(|action| action.is_some()) {
             self.capture_city_if_needed(unit_id, nx, ny);
         }
+        // Entering an undefended airfield or conquered city destroys any
+        // remaining hostile fixed-wing aircraft stationed on the ground there.
+        let overrun_aircraft: Vec<_> = self
+            .units
+            .iter()
+            .filter(|other| {
+                (other.x, other.y) == (nx, ny)
+                    && other.transport.is_none()
+                    && other.kind.is_fixed_wing_aircraft()
+                    && self.at_war(owner, other.owner)
+            })
+            .map(|other| other.id)
+            .collect();
+        if !overrun_aircraft.is_empty() {
+            let count = overrun_aircraft.len() as i32;
+            self.remove_units_with_cargo_because(overrun_aircraft, lifecycle::UnitRemoval::Combat);
+            self.nation_scores[owner].units_killed += count;
+        }
         drop(_profile);
         let _profile = profiler.scope("movement.execute.enter_tile.diplomacy");
         self.refresh_diplomatic_contact_at(owner, nx, ny);
@@ -1273,6 +1295,9 @@ impl Simulation {
         let Some(index) = self.unit_index_by_id(id) else {
             return false;
         };
+        if self.units[index].kind.is_fixed_wing_aircraft() {
+            return self.rebase_aircraft(id, x, y);
+        }
         let unit = &self.units[index];
         let path = self.plan_route(unit, x, y, true);
         if path.is_empty() && (unit.x, unit.y) != (x, y) {
@@ -1299,7 +1324,11 @@ impl Simulation {
             let Some(unit) = self.unit_by_id(id).filter(|unit| unit.owner == HUMAN) else {
                 continue;
             };
-            if (unit.x, unit.y) == (x, y) || !self.plan_route(unit, x, y, true).is_empty() {
+            if unit.kind.is_fixed_wing_aircraft() {
+                if self.can_rebase_to(unit, x, y) {
+                    valid.push(id);
+                }
+            } else if (unit.x, unit.y) == (x, y) || !self.plan_route(unit, x, y, true).is_empty() {
                 valid.push(id);
             }
         }
@@ -1370,7 +1399,10 @@ impl Simulation {
     }
 
     pub(super) fn can_start_patrol(&self, unit: &Unit) -> bool {
-        unit.kind.is_military() && unit.order.is_none() && unit.transport.is_none()
+        unit.kind.is_military()
+            && !unit.kind.is_fixed_wing_aircraft()
+            && unit.order.is_none()
+            && unit.transport.is_none()
     }
 
     fn movement_order_path(&self, unit: &Unit, x: i32, y: i32) -> Option<Vec<(i32, i32)>> {

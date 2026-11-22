@@ -145,9 +145,11 @@ impl Simulation {
 
     pub(crate) fn transport_action(&self, unit: &Unit) -> Option<&'static str> {
         if unit.transport.is_some() {
-            let can_exit = (unit.kind.is_aircraft()
-                || !self.tile(unit.x, unit.y).terrain.is_water())
-                && self.can_leave_transport(unit);
+            let can_exit = if unit.kind.is_fixed_wing_aircraft() {
+                self.refuel_site(unit.owner, unit.x, unit.y)
+            } else {
+                unit.kind.is_aircraft() || !self.tile(unit.x, unit.y).terrain.is_water()
+            } && self.can_leave_transport(unit);
             (can_exit
                 && self.action_available_for_unit_fail_closed(
                     unit,
@@ -223,6 +225,7 @@ impl Simulation {
     }
 
     pub(in crate::sim) fn set_transport(&mut self, index: usize, carrier: Option<u32>) {
+        let previous = self.units[index].transport;
         self.record_transport_change(self.units[index].id, carrier);
         self.units[index].transport = carrier;
         self.units[index].state = UnitState::Idle;
@@ -238,6 +241,31 @@ impl Simulation {
                 .is_some_and(|u| u.kind == UnitKind::Army)
         }) {
             self.rebuild_army(army);
+            if previous != Some(army)
+                && self.trace.wants::<military_observation::LeaderEvent>()
+                && let Some(ship) = self.unit_by_id(army)
+            {
+                let members_now = self.cargo_count(army);
+                let capacity = self.unit_transport_capacity(ship);
+                let city_id = self.city_at(ship.x, ship.y).map(|city| city.id);
+                self.trace_leader_event(military_observation::LeaderEvent {
+                    owner: unit.owner,
+                    action: "army_member_loaded",
+                    unit_id: Some(unit.id),
+                    leader_id: None,
+                    army_id: Some(army),
+                    city_id,
+                    kind: Some(unit.kind.name()),
+                    building: None,
+                    attacked: None,
+                    denominator: None,
+                    heroic_epic: None,
+                    shields_saved: None,
+                    can_form_army: None,
+                    members_now: Some(members_now),
+                    capacity: Some(capacity),
+                });
+            }
         }
         self.reconcile_city_workers();
     }
@@ -314,6 +342,13 @@ impl Simulation {
             .unit_by_id(lost)
             .is_some_and(|carrier| carrier.kind == UnitKind::Army)
         {
+            return false;
+        }
+        if passenger.kind.is_fixed_wing_aircraft()
+            && !self.refuel_site(passenger.owner, passenger.x, passenger.y)
+        {
+            // Civ III rule: fixed-wing aircraft aboard a Carrier sunk at sea
+            // are destroyed with the Carrier rather than left hovering over water.
             return false;
         }
         let tile = (passenger.x, passenger.y);

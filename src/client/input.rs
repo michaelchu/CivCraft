@@ -109,7 +109,16 @@ impl Game {
             });
         }
         if is_key_pressed(KeyCode::R) {
-            self.perform_action(UiAction::Road);
+            let view = self
+                .selected_unit
+                .and_then(|id| self.sim.unit_action_view(id));
+            if shift_down && view.as_ref().is_some_and(|v| v.recon) {
+                self.perform_action(UiAction::BeginRecon);
+            } else if view.as_ref().is_some_and(|v| v.rebase) {
+                self.perform_action(UiAction::BeginRebase);
+            } else {
+                self.perform_action(UiAction::Road);
+            }
         }
         if is_key_pressed(KeyCode::I) {
             self.perform_action(UiAction::Irrigate);
@@ -570,6 +579,8 @@ impl Game {
             TargetingMode::Patrol => self.perform_action(UiAction::PatrolTo(x, y)),
             TargetingMode::CaptureUnits => self.perform_action(UiAction::CaptureUnitsTo(x, y)),
             TargetingMode::Bombard { .. } => self.perform_action(UiAction::BombardTo(x, y)),
+            TargetingMode::Rebase => self.perform_action(UiAction::RebaseTo(x, y)),
+            TargetingMode::Recon => self.perform_action(UiAction::ReconTo(x, y)),
             TargetingMode::Goto => {
                 let group_order = self.selected_units.len() > 1;
                 if let Some(id) = self.selected_unit

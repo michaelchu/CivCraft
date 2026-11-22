@@ -214,6 +214,35 @@ history/influence checks at seeds 42, 7 and 99. Value marginal capped pressure
 and native mood counterfactuals; do not reward Missionary for pressure that the
 incoming cap discards, or Devout for content already covered by other effects.
 
+### Recorded exception: aircraft (Civ III Conquests)
+
+The owner authorized Civilization III: Conquests aircraft rules for fixed-wing
+aircraft (`UnitClass::Air`: Fighter, Bomber, Jet Fighter, F-15, Stealth Fighter,
+Stealth Bomber) on 2026-11-21. Fixed-wing aircraft are base-only units stationed
+in allied cities, friendly/neutral Airfields/Airstrips without hostile units, or
+allied Carriers with capacity. They cannot move tile-by-tile over open terrain,
+cannot make direct melee attacks against land/naval units, do not suffer
+fuel-exhaustion crashes or field attrition, and do not defend against ground or
+naval attacks; enemy fixed-wing aircraft stationed in a captured city or overrun
+airfield are destroyed. Each fixed-wing aircraft has a one-mission-per-turn
+budget (`moves = 1`). Missions are `Bombard` and `PrecisionBombard` (Stealth
+aircraft with Smart Weapons) within `operational_range`, `Recon` (revealing a
+3×3 area around any tile within `operational_range`), `Rebase` (relocating
+between valid bases within `3 * operational_range`), and `AirSuperiority`
+(Fighter-class CAP defending within `operational_range / 2`, once per turn, 50%
+normal / 5% stealth detection, air-to-air combat; any interception aborts the
+incoming mission even if the incoming aircraft survives). Fixed-wing bombard
+runs also face passive anti-aircraft defense: city `SAM_BATTERY` (50% normal /
+5% stealth fire chance, `8 / (8 + defense)` kill chance, firing aborts the run
+even on miss) and up to 4 strongest hostile tile AA units (`air_defense > 0`),
+each rolling `air_defense / (air_defense + 10 * defense)`. Helicopters and
+missiles retain their existing rules. AI counter-air production (`SAM_BATTERY`,
+`MobileSAM`/`Flak`, and CAP fighters) responds only to observable enemy air
+threats (visible aircraft or recent air raids/interceptions), never omniscient
+fog peeking. Validate with `air-counter-defense` (6 turns), its parallel
+control `air-counter-defense-control` (6 turns), and `air-warfare` (10 turns)
+at seeds 42, 7 and 99, plus source-adjacent tests in `src/sim/aviation/tests.rs`.
+
 ## Comparison source checkout
 
 The Freeciv source submodule at `reference/freeciv` tracks the public upstream

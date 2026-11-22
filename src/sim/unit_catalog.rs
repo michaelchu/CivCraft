@@ -223,7 +223,8 @@ mod tests {
         assert_eq!(UnitKind::Fighter.required_resources(), vec![Resource::Oil]);
         assert_eq!(UnitKind::Fighter.stats().attack, 4);
         assert_eq!(UnitKind::Fighter.stats().defense, 2);
-        assert_eq!(UnitKind::Fighter.hp_loss_percent(), 10);
+        assert_eq!(UnitKind::Fighter.hp_loss_percent(), 0);
+        assert_eq!(UnitKind::Helicopter.hp_loss_percent(), 10);
         assert!(UnitKind::Fighter.has_ai_strategy(UnitAiStrategy::AirDefense));
         assert_eq!(UnitKind::Destroyer.required_tech(), Some(Tech::COMBUSTION));
         assert_eq!(

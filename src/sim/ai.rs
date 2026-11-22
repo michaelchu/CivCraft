@@ -290,180 +290,337 @@ impl Simulation {
         drop(_profile);
         let _profile = profiler.scope("ai.units");
         self.planning.begin_units();
+        let want_turn_summary = owner != BARBARIANS
+            && self
+                .trace
+                .wants::<military_observation::MilitaryTurnSummaryEvent>();
+        let mut dispatch_counts = std::collections::BTreeMap::<&'static str, u32>::new();
+        let mut army_dispatches =
+            std::collections::BTreeMap::<u32, (&'static str, (i32, i32), i32)>::new();
+        let mut idle_wartime_military = 0_u32;
+        let war_enemies: Vec<usize> = if want_turn_summary {
+            (0..self.players.len())
+                .filter(|&other| {
+                    other != owner
+                        && other != BARBARIANS
+                        && self.player_alive(other)
+                        && self.diplomatic_at_war(owner, other)
+                })
+                .collect()
+        } else {
+            Vec::new()
+        };
+        let at_war_now = !war_enemies.is_empty();
         let unit_ids: Vec<u32> = self.player_units_ordered(owner).map(|u| u.id).collect();
         for id in unit_ids {
             let Some(unit) = self.unit_by_id(id).cloned() else {
                 continue;
             };
-            if drops.contains(&id) {
-                continue;
-            }
-            if unit.moves_left <= 0 {
-                self.trace.count_operation("ai.units.no_moves_skipped", 1);
-                continue;
-            }
-            if Some(id) == muster_guard {
-                self.unit_goto_tiles.remove(&id);
-                self.fortify_unit(id);
-                continue;
-            }
-            if unit.kind == UnitKind::Leader {
-                let _profile = profiler.scope("ai.units.great_leader");
-                self.run_ai_great_leader(&unit);
-                continue;
-            }
-            if unit.kind.is_nuclear_weapon() {
-                let _profile = profiler.scope("ai.units.nuclear");
-                self.run_ai_nuclear_strike(id);
-                continue;
-            }
-            // Ranged bombardment is an action on the current tile; try it
-            // before city defense, guard, or movement automation spends moves.
-            let _profile = profiler.scope("ai.units.bombard");
-            let bombarded = self.run_ai_bombard(&unit);
-            drop(_profile);
-            if bombarded {
-                continue;
-            }
-            let _profile = profiler.scope("ai.units.bombard_approach");
-            let approached = self.run_ai_bombard_approach(&unit);
-            drop(_profile);
-            if approached {
-                continue;
-            }
-            if let Some(home) = city_defender_homes.get(&id).copied() {
-                // dai_manage_military tries Hunter management before the
-                // DEFEND_HOME task, even for a unit selected by dai_set_defenders.
+            let track_unit = want_turn_summary
+                && (unit.kind.is_military()
+                    || matches!(unit.kind, UnitKind::Leader | UnitKind::Army)
+                    || unit.kind.is_naval()
+                    || unit.kind.is_aircraft()
+                    || unit.kind.is_missile()
+                    || unit.kind.is_nuclear_weapon());
+            let before_pos = (unit.x, unit.y);
+            let before_moves = unit.moves_left;
+            let dispatch: &'static str = 'dispatch: {
+                if drops.contains(&id) {
+                    break 'dispatch "paratrooper";
+                }
+                if unit.moves_left <= 0 {
+                    self.trace.count_operation("ai.units.no_moves_skipped", 1);
+                    break 'dispatch "no_moves";
+                }
+                if Some(id) == muster_guard {
+                    self.unit_goto_tiles.remove(&id);
+                    self.fortify_unit(id);
+                    break 'dispatch "muster_guard";
+                }
+                if unit.kind == UnitKind::Leader {
+                    let _profile = profiler.scope("ai.units.great_leader");
+                    self.run_ai_great_leader(&unit);
+                    break 'dispatch "great_leader";
+                }
+                if unit.kind.is_nuclear_weapon() {
+                    let _profile = profiler.scope("ai.units.nuclear");
+                    self.run_ai_nuclear_strike(id);
+                    break 'dispatch "nuclear";
+                }
+                if unit.kind.is_fixed_wing_aircraft() {
+                    let _profile = profiler.scope("ai.units.aircraft");
+                    self.run_ai_strike_aircraft(&unit);
+                    break 'dispatch "strike_aircraft";
+                }
+                // Ranged bombardment is an action on the current tile; try it
+                // before city defense, guard, or movement automation spends moves.
+                let _profile = profiler.scope("ai.units.bombard");
+                let bombarded = self.run_ai_bombard(&unit);
+                drop(_profile);
+                if bombarded {
+                    break 'dispatch "bombard";
+                }
+                let _profile = profiler.scope("ai.units.bombard_approach");
+                let approached = self.run_ai_bombard_approach(&unit);
+                drop(_profile);
+                if approached {
+                    break 'dispatch "bombard_approach";
+                }
+                if let Some(home) = city_defender_homes.get(&id).copied() {
+                    // dai_manage_military tries Hunter management before the
+                    // DEFEND_HOME task, even for a unit selected by dai_set_defenders.
+                    if owner != BARBARIANS
+                        && super::action_rules::unit_has_role(unit.kind, "Hunter")
+                    {
+                        let _profile = profiler.scope("ai.units.city_hunter");
+                        if self.run_existing_hunter(&unit, &mut claimed_targets) {
+                            break 'dispatch "hunter";
+                        }
+                    }
+                    let _profile = profiler.scope("ai.units.city_defender");
+                    self.manage_ai_city_defender(id, home);
+                    break 'dispatch "city_defender";
+                }
+                let _profile = profiler.scope("ai.units.assigned_guard");
+                let guarded = self.ai_guard_targets.contains_key(&id) && self.run_ai_guard(id);
+                drop(_profile);
+                if guarded {
+                    break 'dispatch "guard";
+                }
+                if ferry_managed.contains(&id)
+                    || unit
+                        .transport
+                        .and_then(|boat| self.unit_by_id(boat))
+                        .is_some_and(|boat| boat.owner == owner)
+                {
+                    // Native owner iteration delegates own passengers through
+                    // their transport. Foreign allied transports are different.
+                    break 'dispatch "cargo_passenger";
+                }
+                if unit.kind.fuel_capacity() > 0 {
+                    let _profile = profiler.scope("ai.units.aircraft");
+                    self.run_ai_strike_aircraft(&unit);
+                    break 'dispatch "strike_aircraft";
+                }
+                if assault.contains(&id) {
+                    break 'dispatch "assault_transport";
+                }
+                if counterattacks.contains(&id) {
+                    break 'dispatch "counterattack";
+                }
+                if reinforcements.contains(&id) {
+                    break 'dispatch "reinforce";
+                }
+                if settlement_ferries.values().any(|plan| plan.founder == id) {
+                    break 'dispatch "settlement_ferry";
+                }
+                // Native worker/founder dispatch precedes standalone ferry AI.
+                if unit.kind.is_worker() || unit.kind.stats().can_found {
+                    break 'dispatch "civilian";
+                }
+                if unit.kind.is_naval()
+                    && unit.kind != UnitKind::Submarine
+                    && unit.kind.transport_capacity() > 0
+                    && !self.hunter_targets.contains_key(&id)
+                {
+                    let _profile = profiler.scope("ai.units.source_ferry");
+                    let (handled, done) = self.run_source_air_ferry(&unit);
+                    drop(_profile);
+                    ferry_managed.extend(done);
+                    if handled {
+                        break 'dispatch "source_ferry";
+                    }
+                    if let Some(plan) = settlement_ferries.get(&id) {
+                        self.run_settlement_ferry(id, plan);
+                        break 'dispatch "settlement_ferry";
+                    }
+                    let _profile = profiler.scope("ai.units.transport_raider");
+                    if !self.clean_current_tile(&unit) {
+                        self.run_raider_transport(&unit);
+                    }
+                    drop(_profile);
+                    break 'dispatch "transport_raider";
+                }
                 if owner != BARBARIANS && super::action_rules::unit_has_role(unit.kind, "Hunter") {
-                    let _profile = profiler.scope("ai.units.city_hunter");
+                    let _profile = profiler.scope("ai.units.hunter");
                     if self.run_existing_hunter(&unit, &mut claimed_targets) {
-                        continue;
+                        break 'dispatch "hunter";
                     }
                 }
-                let _profile = profiler.scope("ai.units.city_defender");
-                self.manage_ai_city_defender(id, home);
-                continue;
-            }
-            let _profile = profiler.scope("ai.units.assigned_guard");
-            let guarded = self.ai_guard_targets.contains_key(&id) && self.run_ai_guard(id);
-            drop(_profile);
-            if guarded {
-                continue;
-            }
-            if ferry_managed.contains(&id)
-                || unit
-                    .transport
-                    .and_then(|boat| self.unit_by_id(boat))
-                    .is_some_and(|boat| boat.owner == owner)
-            {
-                // Native owner iteration delegates own passengers through
-                // their transport. Foreign allied transports are different.
-                continue;
-            }
-            if unit.kind.fuel_capacity() > 0 {
-                let _profile = profiler.scope("ai.units.aircraft");
-                self.run_ai_strike_aircraft(&unit);
-                continue;
-            }
-            if assault.contains(&id)
-                || counterattacks.contains(&id)
-                || reinforcements.contains(&id)
-                || settlement_ferries.values().any(|plan| plan.founder == id)
-            {
-                continue;
-            }
-            // Native worker/founder dispatch precedes standalone ferry AI.
-            if unit.kind.is_worker() || unit.kind.stats().can_found {
-                continue;
-            }
-            if unit.kind.is_naval()
-                && unit.kind != UnitKind::Submarine
-                && unit.kind.transport_capacity() > 0
-                && !self.hunter_targets.contains_key(&id)
-            {
-                let _profile = profiler.scope("ai.units.source_ferry");
-                let (handled, done) = self.run_source_air_ferry(&unit);
+                let _profile = profiler.scope("ai.units.guard_assignment");
+                let assigned_guard = unit.kind.is_military()
+                    && !unit.kind.is_aircraft()
+                    && !Self::is_ai_ferry(unit.kind)
+                    && self.run_ai_guard(id);
                 drop(_profile);
-                ferry_managed.extend(done);
-                if handled {
-                    continue;
+                if assigned_guard {
+                    break 'dispatch "guard";
                 }
-                if let Some(plan) = settlement_ferries.get(&id) {
-                    self.run_settlement_ferry(id, plan);
-                    continue;
-                }
-                let _profile = profiler.scope("ai.units.transport_raider");
-                if !self.clean_current_tile(&unit) {
-                    self.run_raider_transport(&unit);
-                }
-                drop(_profile);
-                continue;
-            }
-            if owner != BARBARIANS && super::action_rules::unit_has_role(unit.kind, "Hunter") {
-                let _profile = profiler.scope("ai.units.hunter");
-                if self.run_existing_hunter(&unit, &mut claimed_targets) {
-                    continue;
-                }
-            }
-            let _profile = profiler.scope("ai.units.guard_assignment");
-            let assigned_guard = unit.kind.is_military()
-                && !unit.kind.is_aircraft()
-                && !Self::is_ai_ferry(unit.kind)
-                && self.run_ai_guard(id);
-            drop(_profile);
-            if assigned_guard {
-                continue;
-            }
-            let _profile = profiler.scope("ai.units.fallback_movement");
-            match unit.kind {
-                // Founders and workers share the late-phase workermap.
-                UnitKind::Settler | UnitKind::Worker => {}
-                UnitKind::Explorer => {
-                    self.run_auto_explorer(id);
-                }
-                _ => {
-                    if unit.kind.is_military()
-                        && !unit.kind.is_aircraft()
-                        && !unit.kind.is_naval()
-                        && owner != BARBARIANS
-                    {
-                        let _profile = profiler.scope("ai.fallback.ground_mission");
-                        if coordinated_objective.is_some_and(|objective| {
-                            self.run_coordinated_ground_order(&unit, objective)
-                        }) {
-                            continue;
-                        }
-                        if !ground_missions
-                            .get(&id)
-                            .is_some_and(|target| self.run_ground_mission(&unit, target))
+                let _profile = profiler.scope("ai.units.fallback_movement");
+                match unit.kind {
+                    // Founders and workers share the late-phase workermap.
+                    UnitKind::Settler | UnitKind::Worker => "civilian",
+                    UnitKind::Explorer => {
+                        self.run_auto_explorer(id);
+                        "explore"
+                    }
+                    _ => {
+                        if unit.kind.is_military()
+                            && !unit.kind.is_aircraft()
+                            && !unit.kind.is_naval()
+                            && owner != BARBARIANS
                         {
-                            self.ai_ground_targets.remove(&id);
+                            let _profile = profiler.scope("ai.fallback.ground_mission");
+                            if coordinated_objective.is_some_and(|objective| {
+                                self.run_coordinated_ground_order(&unit, objective)
+                            }) {
+                                break 'dispatch "coordinated_objective";
+                            }
+                            if !ground_missions
+                                .get(&id)
+                                .is_some_and(|target| self.run_ground_mission(&unit, target))
+                            {
+                                self.ai_ground_targets.remove(&id);
+                                self.unit_goto_tiles.remove(&id);
+                                self.run_auto_explorer(id);
+                                break 'dispatch "fallback_explore";
+                            }
+                            break 'dispatch "ground_invasion";
+                        }
+                        let _profile = profiler.scope("ai.fallback.enemy_city_response");
+                        if let Some(target) = self
+                            .cities
+                            .iter()
+                            .filter(|c| self.at_war(c.owner, owner))
+                            .min_by_key(|c| self.map_distance(unit.x, unit.y, c.x, c.y))
+                            .cloned()
+                        {
+                            self.unit_goto_tiles.insert(id, (target.x, target.y));
+                            self.ai_goto_unit(id, (target.x, target.y), GotoTask::Attack);
+                            "fallback_attack"
+                        } else if owner == BARBARIANS {
+                            self.wander_unit(id);
+                            "wander"
+                        } else {
                             self.unit_goto_tiles.remove(&id);
                             self.run_auto_explorer(id);
+                            "fallback_explore"
                         }
-                        continue;
-                    }
-                    let _profile = profiler.scope("ai.fallback.enemy_city_response");
-                    if let Some(target) = self
-                        .cities
-                        .iter()
-                        .filter(|c| self.at_war(c.owner, owner))
-                        .min_by_key(|c| self.map_distance(unit.x, unit.y, c.x, c.y))
-                        .cloned()
-                    {
-                        self.unit_goto_tiles.insert(id, (target.x, target.y));
-                        self.ai_goto_unit(id, (target.x, target.y), GotoTask::Attack);
-                    } else if owner == BARBARIANS {
-                        self.wander_unit(id);
-                    } else {
-                        self.unit_goto_tiles.remove(&id);
-                        self.run_auto_explorer(id);
                     }
                 }
+            };
+            if track_unit {
+                *dispatch_counts.entry(dispatch).or_default() += 1;
+                if unit.kind == UnitKind::Army {
+                    army_dispatches.insert(id, (dispatch, before_pos, before_moves));
+                }
+                if at_war_now
+                    && !matches!(
+                        dispatch,
+                        "city_defender"
+                            | "muster_guard"
+                            | "guard"
+                            | "cargo_passenger"
+                            | "no_moves"
+                            | "great_leader"
+                    )
+                    && self.unit_by_id(id).is_some_and(|after| {
+                        (after.x, after.y) == before_pos
+                            && after.moves_left == before_moves
+                            && after.moves_left > 0
+                            && !matches!(after.order, Some(UnitOrder::AirSuperiority { .. }))
+                    })
+                {
+                    idle_wartime_military += 1;
+                }
             }
-            drop(_profile);
         }
         drop(_profile);
+        if want_turn_summary {
+            let cities = self.cities_owned_by(owner).count();
+            let army_limit = cities
+                / crate::rules::engine_rules::GreatLeaderSettings::campaign().cities_per_army;
+            let mut units_by_role = std::collections::BTreeMap::<&'static str, usize>::new();
+            let mut armies_owned = 0;
+            let mut leaders_owned = 0;
+            let mut elite_land_units = 0;
+            let mut armies = Vec::new();
+            for unit in self.units_owned_by(owner) {
+                let role = military_observation::military_unit_role(unit.kind);
+                if role != "civilian" {
+                    *units_by_role.entry(role).or_default() += 1;
+                }
+                if unit.kind == UnitKind::Army {
+                    armies_owned += 1;
+                    let (dispatch, before_pos, before_moves) = army_dispatches
+                        .get(&unit.id)
+                        .copied()
+                        .unwrap_or(("unscheduled", (unit.x, unit.y), unit.moves_left));
+                    armies.push(military_observation::ArmyTurnStatus {
+                        id: unit.id,
+                        members: self.cargo_count(unit.id),
+                        capacity: self.unit_transport_capacity(unit),
+                        hp: unit.hp,
+                        max_hp: unit.max_hit_points(),
+                        tile: (unit.x, unit.y),
+                        dispatch,
+                        moved: (unit.x, unit.y) != before_pos,
+                        spent_moves: unit.moves_left < before_moves,
+                    });
+                } else if unit.kind == UnitKind::Leader {
+                    leaders_owned += 1;
+                } else if !unit.kind.is_naval()
+                    && !unit.kind.is_aircraft()
+                    && !unit.kind.is_missile()
+                    && self.unit_is_elite(unit)
+                {
+                    elite_land_units += 1;
+                }
+            }
+            let coordinated_status = coordinated_objective.and_then(|objective| {
+                let city = self.city_by_id(objective.city)?;
+                let staging_troops = self
+                    .tile_units_ordered(objective.staging.0, objective.staging.1)
+                    .filter(|unit| {
+                        unit.owner == owner
+                            && unit.transport.is_none()
+                            && Self::can_join_ground_offensive(unit.kind)
+                    })
+                    .count();
+                Some(military_observation::CoordinatedObjectiveStatus {
+                    city_id: objective.city,
+                    target_owner: city.owner,
+                    at_war_with_target: self.diplomatic_at_war(owner, city.owner),
+                    staging_troops,
+                    force_ready: self.war_force_ready(owner, objective),
+                })
+            });
+            let unlocked_roles = self.unlocked_military_roles(owner);
+            let on_war_footing = self.ai_on_war_footing(owner);
+            let assault_transports_dispatched = assault
+                .iter()
+                .filter(|&&id| self.unit_by_id(id).is_some_and(|u| u.kind.is_naval()))
+                .count();
+            self.trace_military_turn_summary(military_observation::MilitaryTurnSummaryEvent {
+                owner,
+                at_war: at_war_now,
+                war_enemies,
+                on_war_footing,
+                cities,
+                army_limit,
+                armies_owned,
+                leaders_owned,
+                elite_land_units,
+                unlocked_roles,
+                units_by_role,
+                dispatch_counts,
+                idle_wartime_military,
+                assault_transports_dispatched,
+                coordinated_objective: coordinated_status,
+                armies,
+            });
+        }
         self.end_ai_planning();
         true
     }

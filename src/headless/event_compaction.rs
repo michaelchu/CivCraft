@@ -8,6 +8,10 @@ pub(super) struct EventCompaction {
     funding: BTreeMap<u64, serde_json::Value>,
     trades: BTreeMap<(u64, u64), serde_json::Value>,
     negotiations: BTreeMap<(u64, u64), serde_json::Value>,
+    military_production: BTreeMap<(u64, u64), serde_json::Value>,
+    military_turn_summary: BTreeMap<u64, serde_json::Value>,
+    military_air_idle: BTreeMap<u64, serde_json::Value>,
+    military_leader_idle: BTreeMap<u64, serde_json::Value>,
     pub counts: BTreeMap<String, usize>,
 }
 #[derive(serde::Deserialize)]
@@ -76,6 +80,40 @@ impl EventCompaction {
                     .ok()
                     .is_some_and(|s| s.selected)
             }
+            "military.production_decision" => {
+                event.payload["changed"] == false
+                    && event.payload["owner"]
+                        .as_u64()
+                        .zip(event.payload["city_id"].as_u64())
+                        .is_some_and(|key| {
+                            self.military_production.get(&key) == Some(&event.payload)
+                        })
+            }
+            "military.turn_summary" => {
+                event.payload["at_war"] == false
+                    && event.payload["on_war_footing"] == false
+                    && event.payload["armies_owned"].as_u64().unwrap_or(0) == 0
+                    && event.payload["leaders_owned"].as_u64().unwrap_or(0) == 0
+                    && event.payload["owner"].as_u64().is_some_and(|owner| {
+                        self.military_turn_summary.get(&owner) == Some(&event.payload)
+                    })
+            }
+            "military.air_mission" => {
+                matches!(
+                    event.payload["mission"].as_str(),
+                    Some("refuel_wait" | "idle_on_base")
+                ) && event.payload["unit_id"]
+                    .as_u64()
+                    .is_some_and(|id| self.military_air_idle.get(&id) == Some(&event.payload))
+            }
+            "military.leader" => {
+                matches!(
+                    event.payload["action"].as_str(),
+                    Some("sheltered" | "en_route")
+                ) && event.payload["unit_id"]
+                    .as_u64()
+                    .is_some_and(|id| self.military_leader_idle.get(&id) == Some(&event.payload))
+            }
             _ => false,
         };
         if routine {
@@ -115,6 +153,45 @@ impl EventCompaction {
         }
         if let Some(decision) = Self::decision(event) {
             self.decisions.insert(decision.advice.owner, decision);
+        }
+        if event.kind == "military.production_decision"
+            && let Some(key) = event.payload["owner"]
+                .as_u64()
+                .zip(event.payload["city_id"].as_u64())
+        {
+            self.military_production.insert(key, event.payload.clone());
+        }
+        if event.kind == "military.turn_summary"
+            && let Some(owner) = event.payload["owner"].as_u64()
+        {
+            self.military_turn_summary
+                .insert(owner, event.payload.clone());
+        }
+        if event.kind == "military.air_mission"
+            && let Some(unit_id) = event.payload["unit_id"].as_u64()
+        {
+            if matches!(
+                event.payload["mission"].as_str(),
+                Some("refuel_wait" | "idle_on_base")
+            ) {
+                self.military_air_idle
+                    .insert(unit_id, event.payload.clone());
+            } else {
+                self.military_air_idle.remove(&unit_id);
+            }
+        }
+        if event.kind == "military.leader"
+            && let Some(unit_id) = event.payload["unit_id"].as_u64()
+        {
+            if matches!(
+                event.payload["action"].as_str(),
+                Some("sheltered" | "en_route")
+            ) {
+                self.military_leader_idle
+                    .insert(unit_id, event.payload.clone());
+            } else {
+                self.military_leader_idle.remove(&unit_id);
+            }
         }
     }
 }

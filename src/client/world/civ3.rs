@@ -535,14 +535,27 @@ impl<'a> Civ3WorldPainter<'a> {
             self.draw_map_base(x, y, center, tile_w, tile_h);
         }
         if view.interactive
-            && let TargetingMode::Bombard { precision, .. } = game.targeting
             && let Some(unit_id) = game.selected_unit
+            && let Some((targets, color)) = match game.targeting {
+                TargetingMode::Bombard { precision, .. } => Some((
+                    if precision {
+                        game.sim.precision_bombardable_targets_in_range(unit_id)
+                    } else {
+                        game.sim.bombardable_targets_in_range(unit_id)
+                    },
+                    Color::from_rgba(236, 68, 54, 205),
+                )),
+                TargetingMode::Rebase => Some((
+                    game.sim.rebaseable_bases_in_range(unit_id),
+                    Color::from_rgba(72, 184, 245, 220),
+                )),
+                TargetingMode::Recon => Some((
+                    game.sim.recon_targets_in_range(unit_id),
+                    Color::from_rgba(238, 206, 92, 140),
+                )),
+                _ => None,
+            }
         {
-            let targets = if precision {
-                game.sim.precision_bombardable_targets_in_range(unit_id)
-            } else {
-                game.sim.bombardable_targets_in_range(unit_id)
-            };
             for (x, y) in targets {
                 let center = view.project(game.sim.map_wrap(), x, y);
                 if center.x < viewport.x - tile_w
@@ -552,7 +565,6 @@ impl<'a> Civ3WorldPainter<'a> {
                 {
                     continue;
                 }
-                let color = Color::from_rgba(236, 68, 54, 205);
                 let half_w = tile_w * 0.5;
                 let half_h = tile_h * 0.5;
                 let corners = [

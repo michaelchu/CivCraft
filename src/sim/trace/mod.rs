@@ -59,6 +59,8 @@ pub(crate) struct Collector {
     phase: Phase,
     pending: Vec<Event>,
     profile_enabled: bool,
+    profile_selection: Arc<ProfileSelection>,
+    profile_details_active: bool,
     profile_turn: Option<TurnProfileInProgress>,
     profiles: Vec<TurnProfile>,
     operations: RefCell<BTreeMap<&'static str, u64>>,
@@ -73,6 +75,31 @@ struct TurnProfileInProgress {
     phase_started: Instant,
     phase: Phase,
     phases: Vec<PhaseProfile>,
+}
+
+/// Selection is immutable while a campaign runs; reject unmatched scopes before locking.
+#[derive(Default)]
+pub(crate) struct ProfileSelection {
+    pub timing_only: bool,
+    pub start_turn: Option<i32>,
+    pub end_turn: Option<i32>,
+    pub prefixes: Vec<String>,
+}
+impl ProfileSelection {
+    fn includes_turn(&self, turn: i32) -> bool {
+        !self.timing_only
+            && self.start_turn.is_none_or(|start| turn >= start)
+            && self.end_turn.is_none_or(|end| turn <= end)
+    }
+    fn includes_name(&self, name: &str) -> bool {
+        self.prefixes.is_empty()
+            || self.prefixes.iter().any(|prefix| {
+                name == prefix
+                    || name
+                        .strip_prefix(prefix.as_str())
+                        .is_some_and(|tail| tail.starts_with('.'))
+            })
+    }
 }
 
 #[derive(Default)]
@@ -97,7 +124,10 @@ struct SpanAggregate {
 }
 
 #[derive(Clone)]
-pub(crate) struct ProfileHandle(Option<Arc<Mutex<SpanRecorder>>>);
+pub(crate) struct ProfileHandle {
+    recorder: Option<Arc<Mutex<SpanRecorder>>>,
+    selection: Option<Arc<ProfileSelection>>,
+}
 
 pub(crate) struct ProfileSpan {
     recorder: Arc<Mutex<SpanRecorder>>,
@@ -113,6 +143,7 @@ pub(crate) struct PhaseProfile {
 #[derive(Clone, Debug, Serialize)]
 pub(crate) struct TurnProfile {
     pub turn: i32,
+    pub details_recorded: bool,
     pub city_count: usize,
     pub unit_count: usize,
     pub elapsed_seconds: f64,
@@ -200,26 +231,36 @@ impl Collector {
             ..Self::default()
         }
     }
+    #[cfg(test)]
     pub fn enable_profiling(&mut self) {
+        self.configure_profiling(ProfileSelection::default());
+    }
+    pub fn configure_profiling(&mut self, selection: ProfileSelection) {
         self.profile_enabled = true;
-        self.span_recorder
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .enabled = true;
+        self.profile_selection = Arc::new(selection);
     }
     /// A cheap cloned handle lets profiling scopes coexist with mutable access
     /// to the simulation while a module performs its work.
     pub fn profiler(&self) -> ProfileHandle {
-        ProfileHandle(self.profile_enabled.then(|| self.span_recorder.clone()))
+        ProfileHandle {
+            recorder: self
+                .profile_details_active
+                .then(|| self.span_recorder.clone()),
+            selection: self
+                .profile_details_active
+                .then(|| self.profile_selection.clone()),
+        }
     }
     pub fn begin_turn_profile(&mut self, turn: i32, city_count: usize, unit_count: usize) {
         if !self.profile_enabled {
             return;
         }
         let now = Instant::now();
+        self.profile_details_active = self.profile_selection.includes_turn(turn);
         self.operations.get_mut().clear();
         {
             let mut recorder = self.span_recorder.lock().unwrap_or_else(|e| e.into_inner());
+            recorder.enabled = self.profile_details_active;
             recorder.active.clear();
             recorder.completed.clear();
         }
@@ -234,7 +275,7 @@ impl Collector {
         });
     }
     pub fn count_operation(&self, operation: &'static str, count: u64) {
-        if !self.profile_enabled {
+        if !self.profile_details_active || !self.profile_selection.includes_name(operation) {
             return;
         }
         *self.operations.borrow_mut().entry(operation).or_default() += count;
@@ -273,6 +314,7 @@ impl Collector {
         .collect();
         self.profiles.push(TurnProfile {
             turn: current.turn,
+            details_recorded: self.profile_details_active,
             city_count: current.city_count,
             unit_count: current.unit_count,
             elapsed_seconds: now.duration_since(current.started).as_secs_f64(),
@@ -280,6 +322,11 @@ impl Collector {
             spans,
             operations: std::mem::take(self.operations.get_mut()),
         });
+        self.profile_details_active = false;
+        self.span_recorder
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .enabled = false;
     }
     pub fn drain_profiles(&mut self) -> Vec<TurnProfile> {
         std::mem::take(&mut self.profiles)
@@ -360,7 +407,10 @@ impl ProfileHandle {
     /// Start a named timing scope. Scopes nest and aggregate by stable name for
     /// the current turn; when profiling is disabled this returns immediately.
     pub fn scope(&self, name: &'static str) -> Option<ProfileSpan> {
-        let shared = self.0.as_ref()?;
+        let shared = self.recorder.as_ref()?;
+        if !self.selection.as_ref()?.includes_name(name) {
+            return None;
+        }
         let mut recorder = shared.lock().unwrap_or_else(|e| e.into_inner());
         if !recorder.enabled {
             return None;
@@ -483,6 +533,18 @@ mod integration_tests {
         traced.start_research_observation();
         let mut profiled = plain.clone();
         profiled.trace.enable_profiling();
+        let mut timing = plain.clone();
+        timing.trace.configure_profiling(ProfileSelection {
+            timing_only: true,
+            ..Default::default()
+        });
+        let mut filtered = plain.clone();
+        filtered.trace.configure_profiling(ProfileSelection {
+            start_turn: Some(2),
+            end_turn: Some(2),
+            prefixes: vec!["ai".into()],
+            ..Default::default()
+        });
         let mut event_count = 0;
         let mut event_kinds = BTreeSet::new();
         for _ in 0..3 {
@@ -491,6 +553,18 @@ mod integration_tests {
             traced.reconcile_lifecycle_observation();
             traced.reconcile_research_observation();
             profiled.simulate_turn();
+            timing.simulate_turn();
+            filtered.simulate_turn();
+            for observed in [&timing, &filtered] {
+                assert_eq!(
+                    plain.encode_campaign().unwrap(),
+                    observed.encode_campaign().unwrap()
+                );
+                assert_eq!(
+                    bincode::serialize(&plain.native_random).unwrap(),
+                    bincode::serialize(&observed.native_random).unwrap()
+                );
+            }
             let _ = traced.observe_cities();
             let _ = traced.observe_units();
             let _ = traced.observe_civilizations();
@@ -579,6 +653,79 @@ mod integration_tests {
         assert!(workers.inclusive_seconds >= nested.inclusive_seconds);
         assert_eq!(nested.calls, 1);
         assert_eq!(profiles[0].operations["routes"], 4);
+    }
+
+    #[test]
+    fn timing_only_profiles_keep_phases_without_details() {
+        let mut collector = Collector::default();
+        collector.configure_profiling(ProfileSelection {
+            timing_only: true,
+            ..Default::default()
+        });
+        collector.begin_turn_profile(42, 3, 7);
+        collector.phase(Phase::AiPlanning);
+        assert!(collector.profiler().scope("ai.workers").is_none());
+        collector.count_operation("ai.workers.calls", 1);
+        collector.finish_turn_profile();
+        let profiles = collector.drain_profiles();
+        assert_eq!(profiles.len(), 1);
+        assert!(!profiles[0].details_recorded);
+        assert!(profiles[0].spans.is_empty());
+        assert!(profiles[0].operations.is_empty());
+        assert!(
+            profiles[0]
+                .phases
+                .iter()
+                .any(|phase| phase.phase == Phase::AiPlanning)
+        );
+    }
+
+    #[test]
+    fn profile_selection_filters_names_and_inclusive_campaign_turns() {
+        let mut collector = Collector::default();
+        collector.configure_profiling(ProfileSelection {
+            start_turn: Some(8),
+            end_turn: Some(9),
+            prefixes: vec!["workers".into()],
+            ..Default::default()
+        });
+        for turn in 7..=10 {
+            collector.begin_turn_profile(turn, 1, 2);
+            let profiler = collector.profiler();
+            assert!(profiler.scope("workers_extra").is_none());
+            assert!(profiler.scope("ai").is_none());
+            {
+                let scope = profiler.scope("workers");
+                assert_eq!(scope.is_some(), (8..=9).contains(&turn));
+                let _excluded = profiler.scope("unrelated");
+                let _child = profiler.scope("workers.path");
+            }
+            collector.count_operation("workers.routes", 2);
+            collector.count_operation("workers_extra.routes", 99);
+            collector.finish_turn_profile();
+            assert!(profiler.scope("workers").is_none());
+        }
+        for profile in collector.drain_profiles() {
+            let selected = (8..=9).contains(&profile.turn);
+            assert_eq!(profile.details_recorded, selected);
+            assert_eq!(profile.spans.len(), if selected { 2 } else { 0 });
+            assert_eq!(profile.operations.len(), usize::from(selected));
+            if selected {
+                assert_eq!(profile.operations["workers.routes"], 2);
+                let parent = profile.spans.iter().find(|s| s.name == "workers").unwrap();
+                let child = profile
+                    .spans
+                    .iter()
+                    .find(|s| s.name == "workers.path")
+                    .unwrap();
+                assert!(parent.inclusive_seconds >= child.inclusive_seconds);
+                assert!(
+                    (parent.inclusive_seconds - parent.exclusive_seconds - child.inclusive_seconds)
+                        .abs()
+                        < 1e-9
+                );
+            }
+        }
     }
 
     #[test]

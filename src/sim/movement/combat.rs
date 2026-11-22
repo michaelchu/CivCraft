@@ -689,6 +689,7 @@ impl Simulation {
         let mut best_rank = None;
         for defender in self.tile_units_ordered(x, y).filter(|unit| {
             self.at_war(unit.owner, attacker.owner)
+                && (!unit.kind.is_fixed_wing_aircraft() || attacker.kind.is_fixed_wing_aircraft())
                 && self.combat_unit_can_defend_here(unit)
                 && self.physical_attack_result(attacker, unit, x, y)
                     == PhysicalAttackResult::Allowed
@@ -866,6 +867,23 @@ impl Simulation {
             attacker.facing = facing;
         }
         let defender = self.units[defender_index].clone();
+        let want_combat_trace = self.trace.wants::<military_observation::CombatEvent>();
+        let city_before = want_combat_trace
+            .then(|| self.city_at(nx, ny).map(|city| (city.id, city.owner)))
+            .flatten();
+        let attacker_elite = want_combat_trace && self.unit_is_elite(&attacker);
+        let defender_elite = want_combat_trace && self.unit_is_elite(&defender);
+        let attacker_army_members = if want_combat_trace && attacker.kind == UnitKind::Army {
+            self.cargo_count(attacker.id)
+        } else {
+            0
+        };
+        let defender_army_members = if want_combat_trace && defender.kind == UnitKind::Army {
+            self.cargo_count(defender.id)
+        } else {
+            0
+        };
+        let defender_was_damaged = defender.hp < defender.max_hit_points();
         let attacker_moves_used = (self.unit_move_rate(&attacker) - attacker.moves_left).max(0);
         let defender_moves_used = (self.unit_move_rate(&defender) - defender.moves_left).max(0);
         let (attack_firepower, defense_firepower) = self.combat_firepower(&attacker, &defender);
@@ -1049,8 +1067,10 @@ impl Simulation {
 
         // Judged on the units as they entered the fight, so a promotion earned
         // in this fight does not make the winner eligible.
-        let attacker_can_lead = self.great_leader_eligible(&attacker, &defender);
-        let defender_can_lead = self.great_leader_eligible(&defender, &attacker);
+        let attacker_ineligible = self.great_leader_ineligibility_reason(&attacker, &defender);
+        let defender_ineligible = self.great_leader_ineligibility_reason(&defender, &attacker);
+        let attacker_can_lead = attacker_ineligible.is_none();
+        let defender_can_lead = defender_ineligible.is_none();
         let experienced_attacker = self
             .army_combat_member(&attacker, true)
             .map_or(attacker_id, |u| u.id);
@@ -1065,11 +1085,17 @@ impl Simulation {
             defender_veteran_chance,
         );
         // Only a real kill can create a Great Leader, never a powerless attack.
-        if attack_power > 0 && defense_power > 0 {
+        let powerless_combat = attack_power <= 0 || defense_power <= 0;
+        let mut leader_roll_denominator = None;
+        let mut leader_created_id = None;
+        if !powerless_combat {
             if def_hp <= 0 && attacker_can_lead {
-                self.draw_great_leader(attacker_id, true);
+                leader_roll_denominator = Some(self.great_leader_denominator(attacker.owner, true));
+                leader_created_id = self.draw_great_leader(attacker_id, true);
             } else if att_hp <= 0 && defender_can_lead {
-                self.draw_great_leader(defender_id, false);
+                leader_roll_denominator =
+                    Some(self.great_leader_denominator(defender.owner, false));
+                leader_created_id = self.draw_great_leader(defender_id, false);
             }
         }
 
@@ -1077,10 +1103,13 @@ impl Simulation {
         let defender_name = defender.kind.name();
         let attacker_owner = attacker.owner;
         let defender_owner = defender.owner;
+        let mut attacker_occupied_tile = false;
+        let mut missile_expended = false;
         if def_hp <= 0 {
             self.remove_combat_losses(&defender, &attacker);
             self.apply_combat_population_loss(&attacker, nx, ny);
             if attacker.kind == UnitKind::CruiseMissile {
+                missile_expended = true;
                 self.remove_units_with_cargo_because(
                     vec![attacker_id],
                     lifecycle::UnitRemoval::Expended,
@@ -1118,6 +1147,7 @@ impl Simulation {
                     unit.moves_left = full_moves;
                 }
                 let entered = self.enter_tile(attacker_id, nx, ny, cost, facing);
+                attacker_occupied_tile = entered;
                 if entered
                     && let Some(unit) = self.units.iter_mut().find(|unit| unit.id == attacker_id)
                 {
@@ -1138,6 +1168,68 @@ impl Simulation {
                     "{defender_name} held the tile against {attacker_name}."
                 ));
             }
+        }
+        if want_combat_trace {
+            let winner = if def_hp <= 0 {
+                "attacker"
+            } else if att_hp <= 0 {
+                "defender"
+            } else {
+                "none"
+            };
+            let (leader_eligible, leader_ineligible_reason) = if powerless_combat {
+                (false, Some("powerless_combat"))
+            } else if def_hp <= 0 {
+                (attacker_can_lead, attacker_ineligible)
+            } else if att_hp <= 0 {
+                (defender_can_lead, defender_ineligible)
+            } else {
+                (false, Some("no_kill"))
+            };
+            let city_captured = city_before.is_some_and(|(city_id, prev_owner)| {
+                prev_owner != attacker_owner
+                    && self
+                        .city_by_id(city_id)
+                        .is_none_or(|city| city.owner == attacker_owner)
+            });
+            self.trace_combat(military_observation::CombatEvent {
+                attacker_id,
+                attacker_owner,
+                attacker_kind: attacker.kind.name(),
+                attacker_role: military_observation::military_unit_role(attacker.kind),
+                attacker_elite,
+                attacker_is_army: attacker.kind == UnitKind::Army,
+                attacker_army_members,
+                attacker_hp_before: attacker.hp,
+                attacker_hp_after: att_hp,
+                attacker_cost: attacker.kind.stats().cost,
+                defender_id,
+                defender_owner,
+                defender_kind: defender.kind.name(),
+                defender_role: military_observation::military_unit_role(defender.kind),
+                defender_elite,
+                defender_is_army: defender.kind == UnitKind::Army,
+                defender_army_members,
+                defender_hp_before: defender.hp,
+                defender_hp_after: def_hp,
+                defender_cost: defender.kind.stats().cost,
+                tile: (nx, ny),
+                city_id: city_before.map(|(id, _)| id),
+                city_owner: city_before.map(|(_, owner)| owner),
+                attack_power,
+                defense_power,
+                rounds,
+                winner,
+                attacker_occupied_tile,
+                city_captured,
+                missile_expended,
+                powerless_combat,
+                defender_was_damaged,
+                leader_eligible,
+                leader_ineligible_reason,
+                leader_roll_denominator,
+                leader_created_id,
+            });
         }
         if attacker_owner == HUMAN || defender_owner == HUMAN {
             self.refresh_visibility();

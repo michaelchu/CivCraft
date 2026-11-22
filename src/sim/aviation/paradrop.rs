@@ -366,6 +366,19 @@ impl Simulation {
             self.remove_units_with_cargo(vec![id]);
             self.refresh_visibility();
             self.check_game_over();
+            if self.trace.wants::<military_observation::AirMissionEvent>() {
+                self.trace_air_mission(military_observation::AirMissionEvent {
+                    owner: unit.owner,
+                    unit_id: unit.id,
+                    kind: unit.kind.name(),
+                    role: military_observation::military_unit_role(unit.kind),
+                    mission: "paradrop",
+                    from: (unit.x, unit.y),
+                    to: Some((x, y)),
+                    target_owner: None,
+                    succeeded: false,
+                });
+            }
             return true;
         }
 
@@ -406,6 +419,19 @@ impl Simulation {
             self.remove_units_with_cargo(vec![id]);
             self.refresh_visibility();
             self.check_game_over();
+            if self.trace.wants::<military_observation::AirMissionEvent>() {
+                self.trace_air_mission(military_observation::AirMissionEvent {
+                    owner: unit.owner,
+                    unit_id: unit.id,
+                    kind: unit.kind.name(),
+                    role: military_observation::military_unit_role(unit.kind),
+                    mission: "paradrop",
+                    from: (unit.x, unit.y),
+                    to: Some((x, y)),
+                    target_owner: victim,
+                    succeeded: false,
+                });
+            }
             return true;
         }
 
@@ -422,6 +448,19 @@ impl Simulation {
         self.action_success_casus_belli(&unit, action, actual_owner, (x, y));
         self.refresh_visibility();
         self.check_game_over();
+        if self.trace.wants::<military_observation::AirMissionEvent>() {
+            self.trace_air_mission(military_observation::AirMissionEvent {
+                owner: unit.owner,
+                unit_id: unit.id,
+                kind: unit.kind.name(),
+                role: military_observation::military_unit_role(unit.kind),
+                mission: "paradrop",
+                from: (unit.x, unit.y),
+                to: Some((x, y)),
+                target_owner: city_owner.or(actual_owner),
+                succeeded: true,
+            });
+        }
         true
     }
 }

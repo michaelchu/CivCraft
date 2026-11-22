@@ -269,13 +269,25 @@ fn defender_reachability_uses_c2c3_target_classes_and_city_exception() {
     game.units.clear();
     game.cities.clear();
     let (x, y) = (10, 24);
+    game.tile_mut(x, y).terrain = Terrain::Grassland;
+    game.tile_mut(x + 1, y).terrain = Terrain::Grassland;
     let ground = game.spawn_unit(HUMAN, UnitKind::Warrior, x, y);
-    let fighter = game.spawn_unit(1, UnitKind::Fighter, x + 1, y);
+    let heli = game.spawn_unit(1, UnitKind::Helicopter, x + 1, y);
     let attacker = game.unit_by_id(ground).unwrap().clone();
 
     assert_eq!(game.best_defender_id(&attacker, x + 1, y), None);
     game.create_city(1, x + 1, y);
-    assert_eq!(game.best_defender_id(&attacker, x + 1, y), Some(fighter));
+    game.cities.last_mut().unwrap().size = 2;
+    assert_eq!(game.best_defender_id(&attacker, x + 1, y), Some(heli));
+
+    // Civ III exception: fixed-wing aircraft do not defend against ground
+    // attacks, and capturing the undefended city destroys them.
+    game.remove_units_with_cargo(vec![heli]);
+    let fighter = game.spawn_unit(1, UnitKind::Fighter, x + 1, y);
+    assert_eq!(game.best_defender_id(&attacker, x + 1, y), None);
+    assert!(game.apply(Command::MoveCiv3(ground, 2)));
+    assert_eq!(game.city_at(x + 1, y).unwrap().owner, HUMAN);
+    assert!(game.unit_by_id(fighter).is_none());
 }
 
 #[test]

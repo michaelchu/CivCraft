@@ -3,6 +3,7 @@
 use super::*;
 
 mod ai_paradrops;
+mod air_warfare;
 mod border_offensive;
 mod campaign_readiness;
 mod city_governor;
@@ -20,6 +21,7 @@ mod expansion_balance;
 mod great_leader;
 mod harbor_trade;
 mod lifecycle_history;
+mod modern_combined_arms;
 mod naval;
 mod peaceful_first_contact;
 mod proactive_trade;
@@ -111,6 +113,10 @@ pub(super) const SCENARIOS: &[Scenario] = &[
     naval::ship_combat::SCENARIO,
     expansion_balance::SCENARIO,
     lifecycle_history::SCENARIO,
+    modern_combined_arms::SCENARIO,
+    air_warfare::WARFARE,
+    air_warfare::COUNTER_DEFENSE,
+    air_warfare::COUNTER_DEFENSE_CONTROL,
     great_leader::SCENARIO,
     great_leader::ARMY,
     great_leader::ARMY_COMBAT,

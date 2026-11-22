@@ -19,35 +19,62 @@ impl Simulation {
             .any(|unit| unit.owner == owner && self.unit_is_elite(unit))
     }
 
-    /// Whether this kill could create a Great Leader. Cheap checks come first
-    /// and nothing here draws from the RNG.
-    pub(in crate::sim) fn great_leader_eligible(&self, winner: &Unit, loser: &Unit) -> bool {
-        if winner.kind == UnitKind::Army
-            || winner.created_leader
-            || winner.owner == BARBARIANS
-            || loser.owner == BARBARIANS
-            || winner.kind.is_naval()
-            || winner.kind.is_aircraft()
-            || winner.kind.is_missile()
-            || !self.unit_is_elite(winner)
-            // A Leader appears on the winner's tile; never create one at sea.
-            || self.tile(winner.x, winner.y).terrain.is_water()
-        {
-            return false;
+    /// Reason a victorious unit is ineligible to create a Great Leader, or
+    /// `None` when eligible. Cheap checks come first and nothing draws from RNG.
+    pub(in crate::sim) fn great_leader_ineligibility_reason(
+        &self,
+        winner: &Unit,
+        loser: &Unit,
+    ) -> Option<&'static str> {
+        if winner.kind == UnitKind::Army {
+            return Some("army_winner");
+        }
+        if winner.created_leader {
+            return Some("winner_already_created_leader");
+        }
+        if winner.owner == BARBARIANS {
+            return Some("barbarian_winner");
+        }
+        if loser.owner == BARBARIANS {
+            return Some("barbarian_loser");
+        }
+        if winner.kind.is_naval() || winner.kind.is_aircraft() || winner.kind.is_missile() {
+            return Some("non_land_winner");
+        }
+        if !self.unit_is_elite(winner) {
+            return Some("not_elite");
+        }
+        // A Leader appears on the winner's tile; never create one at sea.
+        if self.tile(winner.x, winner.y).terrain.is_water() {
+            return Some("on_water");
         }
         let in_army = winner
             .transport
             .and_then(|id| self.unit_by_id(id))
             .is_some_and(|transport| transport.kind == UnitKind::Army);
-        !in_army
-            && !self
-                .units
-                .iter()
-                .any(|unit| unit.owner == winner.owner && unit.kind == UnitKind::Leader)
+        if in_army {
+            return Some("in_army");
+        }
+        if self
+            .units
+            .iter()
+            .any(|unit| unit.owner == winner.owner && unit.kind == UnitKind::Leader)
+        {
+            return Some("already_has_leader");
+        }
+        None
+    }
+
+    /// Whether this kill could create a Great Leader. Cheap checks come first
+    /// and nothing here draws from the RNG.
+    #[cfg(test)]
+    pub(in crate::sim) fn great_leader_eligible(&self, winner: &Unit, loser: &Unit) -> bool {
+        self.great_leader_ineligibility_reason(winner, loser)
+            .is_none()
     }
 
     /// The "1 in N" denominator for the owner's next eligible kill.
-    fn great_leader_denominator(&self, owner: usize, attacked: bool) -> i32 {
+    pub(in crate::sim) fn great_leader_denominator(&self, owner: usize, attacked: bool) -> i32 {
         let settings = GreatLeaderSettings::campaign();
         let heroic_epic = self
             .cities
@@ -86,8 +113,31 @@ impl Simulation {
         winner_attacked: bool,
     ) -> Option<u32> {
         let winner = self.unit_by_id(winner_id)?.clone();
+        let heroic_epic = self
+            .cities
+            .iter()
+            .any(|city| city.owner == winner.owner && city.has_building(Building::HEROIC_EPIC));
         let denominator = self.great_leader_denominator(winner.owner, winner_attacked);
         if self.rand_below(denominator) != 0 {
+            if self.trace.wants::<military_observation::LeaderEvent>() {
+                self.trace_leader_event(military_observation::LeaderEvent {
+                    owner: winner.owner,
+                    action: "roll_missed",
+                    unit_id: Some(winner_id),
+                    leader_id: None,
+                    army_id: None,
+                    city_id: None,
+                    kind: Some(winner.kind.name()),
+                    building: None,
+                    attacked: Some(winner_attacked),
+                    denominator: Some(denominator),
+                    heroic_epic: Some(heroic_epic),
+                    shields_saved: None,
+                    can_form_army: None,
+                    members_now: None,
+                    capacity: None,
+                });
+            }
             return None;
         }
         if let Some(unit) = self.units.iter_mut().find(|unit| unit.id == winner_id) {
@@ -99,13 +149,33 @@ impl Simulation {
                 winner.kind.name()
             ));
         }
-        Some(self.spawn_unit_with_origin(
+        let leader_id = self.spawn_unit_with_origin(
             winner.owner,
             UnitKind::Leader,
             winner.x,
             winner.y,
             lifecycle::UnitOrigin::GreatLeader { winner_id },
-        ))
+        );
+        if self.trace.wants::<military_observation::LeaderEvent>() {
+            self.trace_leader_event(military_observation::LeaderEvent {
+                owner: winner.owner,
+                action: "spawned",
+                unit_id: Some(winner_id),
+                leader_id: Some(leader_id),
+                army_id: None,
+                city_id: None,
+                kind: Some(winner.kind.name()),
+                building: None,
+                attacked: Some(winner_attacked),
+                denominator: Some(denominator),
+                heroic_epic: Some(heroic_epic),
+                shields_saved: None,
+                can_form_army: None,
+                members_now: None,
+                capacity: None,
+            });
+        }
+        Some(leader_id)
     }
 
     /// Ids and owners of an owner's Leaders, taken before an operation that

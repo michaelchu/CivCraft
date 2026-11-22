@@ -605,32 +605,47 @@ fn aegis_cruisers_defend_against_air_attackers_and_sail_without_cargo() {
 }
 
 #[test]
-fn legacy_air_defense_strength_does_not_intercept_selected_ruleset_bombard() {
-    let mut game = Simulation::new(crate::test_support::seeded_map());
-    game.units.clear();
-    game.cities.clear();
-    let (sx, sy) = (10, 20);
-    let (tx, ty) = offset_native_by_map(sx, sy, 1, 0);
-    game.tile_mut(sx, sy).terrain = Terrain::Grassland;
-    game.tile_mut(tx, ty).terrain = Terrain::Grassland;
-    game.tile_mut(tx, ty).owner = Some(1);
-    game.sign_pact(HUMAN, 1, Pact::War);
-    game.create_city(HUMAN, sx, sy);
-    let bomber = game.spawn_unit(HUMAN, UnitKind::Bomber, sx, sy);
-    let defender = game.spawn_unit(1, UnitKind::Warrior, tx, ty);
-    game.spawn_unit(1, UnitKind::Flak, tx, ty);
+fn civ3_anti_aircraft_units_can_shoot_down_fixed_wing_bombers() {
+    let mut shot_down_seen = false;
+    let mut survived_seen = false;
+    for seed in 1_u64..=80 {
+        let mut game = Simulation::new(crate::test_support::seeded_map());
+        game.units.clear();
+        game.cities.clear();
+        let (sx, sy) = (10, 20);
+        let (tx, ty) = offset_native_by_map(sx, sy, 1, 0);
+        game.tile_mut(sx, sy).terrain = Terrain::Grassland;
+        game.tile_mut(tx, ty).terrain = Terrain::Grassland;
+        game.tile_mut(tx, ty).owner = Some(1);
+        game.tile_mut(tx, ty).visible = true;
+        game.sign_pact(HUMAN, 1, Pact::War);
+        game.create_city(HUMAN, sx, sy);
+        let bomber = game.spawn_unit(HUMAN, UnitKind::Bomber, sx, sy);
+        game.spawn_unit(1, UnitKind::Warrior, tx, ty);
+        for _ in 0..4 {
+            game.spawn_unit(1, UnitKind::MobileSAM, tx, ty);
+        }
 
-    // Freeciv has no separate Conquests Air Defense interception roll. Flak
-    // remains an ordinary unit in the target stack while Bombard resolves.
-    game.native_random = None;
-    game.rng = 3;
-    assert_eq!(
-        game.try_bombard(&game.unit_by_id(bomber).unwrap().clone(), tx, ty),
-        MoveResult::Fought
+        game.native_random = None;
+        game.rng = seed;
+        assert_eq!(
+            game.try_bombard(&game.unit_by_id(bomber).unwrap().clone(), tx, ty),
+            MoveResult::Fought
+        );
+        if game.unit_by_id(bomber).is_none() {
+            shot_down_seen = true;
+        } else {
+            survived_seen = true;
+            assert_eq!(game.unit_by_id(bomber).unwrap().moves_left, 0);
+        }
+        if shot_down_seen && survived_seen {
+            break;
+        }
+    }
+    assert!(
+        shot_down_seen && survived_seen,
+        "Civ III tile AA defense (Mobile SAM, up to 4 units) should probabilistically shoot down bombers"
     );
-    assert!(game.unit_by_id(bomber).is_some());
-    assert_eq!(game.unit_by_id(bomber).unwrap().moves_left, 0);
-    assert!(game.unit_by_id(defender).is_some());
 }
 
 #[test]
@@ -1098,36 +1113,19 @@ fn ai_bomber_rebases_to_a_site_with_an_in_range_enemy_city() {
     staged.y = base.1;
     staged.moves_left = actor.kind.stats().moves * MOVE_FRAGMENTS;
     assert!(game.can_bombard_tile(&staged, target.0, target.1));
-    let route = game.aircraft_bombard_base_route(&actor, &[base]).unwrap();
-    assert_eq!(route.1, base);
-    assert!(game.aircraft_attack_path(&actor).is_none());
+    assert!(game.can_rebase_to(&actor, base.0, base.1));
     assert!(game.refuel_site(1, source.0, source.1));
     assert!(game.refuel_site(1, base.0, base.1));
-    assert_eq!(actor.fuel, actor.kind.fuel_capacity());
     assert!(game.can_begin_bombard(&actor));
     let mut probe = game.clone();
     assert!(!probe.run_ai_bombard(&actor));
 
+    // Under Civ III Conquests rules, rebasing is a single-turn relocation
+    // within 3 * operational_range.
     game.run_ai_strike_aircraft(&actor);
-    assert_ne!(
-        (
-            game.unit_by_id(bomber).unwrap().x,
-            game.unit_by_id(bomber).unwrap().y
-        ),
-        base,
-        "the fuel route can span several turns"
-    );
-    assert_eq!(game.unit_goto_tiles.get(&bomber), Some(&base));
-    game.restore_player_units(1);
-    game.progress_player_unit_activities(1);
-    game.run_ai_strike_aircraft(&game.unit_by_id(bomber).unwrap().clone());
-    assert_eq!(
-        (
-            game.unit_by_id(bomber).unwrap().x,
-            game.unit_by_id(bomber).unwrap().y
-        ),
-        base
-    );
+    let rebased = game.unit_by_id(bomber).unwrap();
+    assert_eq!((rebased.x, rebased.y), base);
+    assert_eq!(rebased.moves_left, 0);
     game.restore_player_units(1);
     game.progress_player_unit_activities(1);
     let bomber_unit = game.unit_by_id(bomber).unwrap().clone();
@@ -1308,7 +1306,8 @@ fn bombard_uses_civ3_range_and_unit_mapping() {
     assert!(game.apply(Command::Bombard(bomber, tx, ty)));
     assert!(matches!(
         game.take_visual_events().front(),
-        Some(VisualEvent::Combat(combat)) if !combat.bombard_effects
+        Some(VisualEvent::AirMission(mission))
+            if matches!(mission.kind, crate::sim::presentation::AirMissionVisualKind::Bombard { .. })
     ));
     let unit = game.unit_by_id(bomber).unwrap();
     assert_eq!((unit.x, unit.y, unit.moves_left), (x, y, 0));
@@ -1508,28 +1507,30 @@ fn aircraft_can_return_to_airstrips_or_crash_when_out_of_fuel() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     let (x, y) = (10, 20);
     let (nx, ny) = offset_native_by_map(x, y, -1, 0);
+    game.tile_mut(x, y).terrain = Terrain::Grassland;
     game.tile_mut(nx, ny).terrain = Terrain::Grassland;
     game.tile_mut(nx, ny).base = Some(Base::Airstrip);
-    let first = game.spawn_unit(HUMAN, UnitKind::Bomber, x, y);
-    let second = game.spawn_unit(HUMAN, UnitKind::Bomber, x, y);
+    game.tile_mut(nx, ny).known_by.set(HUMAN, true);
+    // Civ III fixed-wing aircraft do not crash from fuel exhaustion and cannot
+    // auto-fly off-base; missiles retain fuel-exhaustion rules.
+    let bomber = game.spawn_unit(HUMAN, UnitKind::Bomber, nx, ny);
+    let missile = game.spawn_unit(HUMAN, UnitKind::CruiseMissile, x, y);
     for unit in game
         .units
         .iter_mut()
-        .filter(|unit| [first, second].contains(&unit.id))
+        .filter(|unit| [bomber, missile].contains(&unit.id))
     {
         unit.fuel = 1;
-        if unit.id == second {
-            unit.moves_left = 0;
-        }
+        unit.moves_left = 0;
     }
-    game.refresh_visibility(); // Newly placed human aircraft see the nearby airstrip.
+    game.refresh_visibility();
     game.restore_aircraft();
-    let saved = game.unit_by_id(first).unwrap();
+    let saved = game.unit_by_id(bomber).unwrap();
     assert_eq!(
         (saved.x, saved.y, saved.fuel),
         (nx, ny, UnitKind::Bomber.fuel_capacity())
     );
-    assert!(!game.units.iter().any(|unit| unit.id == second));
+    assert!(game.unit_by_id(missile).is_none());
 }
 
 #[cfg(test)]
@@ -1542,36 +1543,42 @@ mod fighter_tests {
         game.units.clear();
         game.cities.clear();
         let (x, y) = (10, 20);
-        let (tx, ty) = offset_native_by_map(x, y, 1, 0);
+        let (tx, ty) = offset_native_by_map(x, y, 2, 0);
         for (tile_x, tile_y) in [(x, y), (tx, ty)] {
             game.tile_mut(tile_x, tile_y).terrain = Terrain::Grassland;
             game.tile_mut(tile_x, tile_y).visible = true;
+            game.tile_mut(tile_x, tile_y).known_by.fill(true);
         }
-        game.tile_mut(tx, ty).owner = Some(1);
+        game.create_city(HUMAN, x, y);
+        game.create_city(1, tx, ty);
         game.sign_pact(HUMAN, 1, Pact::War);
         let fighter = game.spawn_unit(HUMAN, UnitKind::Fighter, x, y);
         let bomber = game.spawn_unit(1, UnitKind::Bomber, tx, ty);
+        // Under Civ III Conquests rules, fixed-wing aircraft cannot make direct
+        // tile-by-tile melee moves; Fighters engage enemy aircraft via Air
+        // Superiority interception.
+        assert!(!game.apply(Command::move_civ3_by_offset(&game, fighter, 1, 0)));
+        assert!(game.apply(Command::AirSuperiority(fighter)));
         game.units
             .iter_mut()
             .find(|unit| unit.id == bomber)
             .unwrap()
             .hp = 1;
-        assert!(game.combat_target_reachable(UnitKind::Fighter, UnitKind::Bomber, tx, ty));
-        assert!(!game.combat_target_reachable(UnitKind::Bomber, UnitKind::Fighter, x, y));
-        game.native_random = None;
-        // A nonzero fallback RNG state exercises attacker wins (all-zero
-        // xorshift state always produced defender hits).
-        game.rng = 1;
-        assert!(game.apply(Command::move_civ3_by_offset(&game, fighter, 1, 0)));
+        let mut intercepted = false;
+        for seed in 1_u64..=30 {
+            let mut probe = game.clone();
+            probe.native_random = None;
+            probe.rng = seed;
+            probe.try_ranged_bombard(bomber, x, y);
+            if probe.unit_by_id(fighter).unwrap().air_superiority_shot {
+                intercepted = true;
+                break;
+            }
+        }
         assert!(
-            game.unit_by_id(bomber).is_none(),
-            "fighter combat result: fighter={:?}, bomber={:?}",
-            game.unit_by_id(fighter)
-                .map(|unit| ((unit.x, unit.y), unit.hp)),
-            game.unit_by_id(bomber)
-                .map(|unit| ((unit.x, unit.y), unit.hp))
+            intercepted,
+            "Air Superiority fighter should intercept enemy bomber raiding its city"
         );
-        assert!(game.unit_by_id(fighter).is_some());
     }
 }
 
@@ -1600,7 +1607,6 @@ mod carrier_tests {
         game.players[HUMAN].known.push(Tech::MASS_PRODUCTION);
         game.players[HUMAN].known.push(Tech::REFINING);
         assert!(game.can_produce(&city, port));
-        game.cities.clear();
         assert!(UnitKind::Carrier.can_carry(UnitKind::Fighter));
         assert!(!UnitKind::Carrier.can_carry(UnitKind::Warrior));
         assert!(!UnitKind::Carrier.can_carry(UnitKind::Cannon));
@@ -1609,12 +1615,23 @@ mod carrier_tests {
         assert!(UnitKind::Transport.can_carry(UnitKind::CruiseMissile));
         assert!(!UnitKind::Transport.can_carry(UnitKind::Fighter));
         assert_eq!(UnitKind::Carrier.transport_capacity(), 4);
-        game.restore_aircraft();
-        let saved = game.unit_by_id(fighter).unwrap();
-        assert_eq!(
-            (saved.transport, saved.fuel),
-            (Some(carrier), UnitKind::Fighter.fuel_capacity())
-        );
+
+        // Under Civ III Conquests rules, a fixed-wing aircraft relocates onto
+        // an allied Carrier at sea via Rebase rather than emergency landing.
+        let carrier_pos = {
+            let ship = game.unit_by_id(carrier).unwrap();
+            (ship.x, ship.y)
+        };
+        game.tile_mut(carrier_pos.0, carrier_pos.1)
+            .known_by
+            .set(HUMAN, true);
+        let city_fighter = game.spawn_unit(HUMAN, UnitKind::Fighter, x, y);
+        assert!(game.apply(Command::Rebase(city_fighter, carrier_pos.0, carrier_pos.1)));
+        let aboard = game.unit_by_id(city_fighter).unwrap();
+        assert_eq!((aboard.x, aboard.y), carrier_pos);
+        assert_eq!(aboard.transport, Some(carrier));
+        assert_eq!(aboard.moves_left, 0);
+        assert!(game.unit_by_id(fighter).is_some());
     }
 }
 
@@ -1712,17 +1729,17 @@ mod stealth_tests {
     fn carrier_does_not_activate_a_distant_reserved_aircraft_without_cargo() {
         let (mut game, boat, fighter, victim) =
             loaded_hunt(2, UnitKind::Fighter, UnitKind::Carrier);
-        assert!(game.board_or_deboard(fighter));
         let remote = offset_native_by_map(10, 20, 5, 0);
         game.tile_mut(remote.0, remote.1).terrain = Terrain::Grassland;
         game.tile_mut(remote.0, remote.1).base = Some(Base::Airstrip);
+        game.tile_mut(remote.0, remote.1).known_by.set(1, true);
+        assert!(game.rebase_aircraft(fighter, remote.0, remote.1));
         let fresh_moves = game.unit_move_rate(game.unit_by_id(fighter).unwrap());
         let actor = game
             .units
             .iter_mut()
             .find(|unit| unit.id == fighter)
             .unwrap();
-        (actor.x, actor.y) = remote;
         actor.moves_left = fresh_moves;
         actor.fuel = actor.kind.fuel_capacity();
         actor.moved = false;
@@ -1754,45 +1771,21 @@ mod stealth_tests {
 
     #[test]
     fn empty_air_refuel_path_does_not_embark_until_emergency_rescue() {
-        let (mut game, boat, fighter, victim) =
+        // Under Civ III Conquests rules, a fixed-wing Fighter aboard a Carrier
+        // at sea cannot deboard onto open ocean water; it rebases to an allied
+        // city/airfield or executes missions from the carrier deck.
+        let (mut game, boat, fighter, _victim) =
             loaded_hunt(2, UnitKind::Fighter, UnitKind::Carrier);
-        assert!(game.board_or_deboard(fighter));
-        game.units
-            .iter_mut()
-            .find(|unit| unit.id == fighter)
-            .unwrap()
-            .fuel = 2;
-        let actor = game
-            .units
-            .iter()
-            .find(|unit| unit.id == fighter)
-            .unwrap()
-            .clone();
-        assert_eq!(actor.fuel, 2);
-        game.run_ai_strike_aircraft(&actor);
-        assert!(game.units.iter().any(|unit| unit.id == victim));
-        assert!(game.units.iter().any(|unit| unit.id == fighter
-            && unit.transport.is_none()
-            && unit.moves_left == actor.moves_left));
-        // C2C3 Air units lose `unit.hp * 10 / 100` off-base. On Civ III's
-        // retained 3-HP scale, the source integer formula truncates this to 0.
-        let nonnative_decay = actor.max_hit_points() * 10 / 100;
-        game.restore_aircraft();
-        assert!(
-            game.units
-                .iter()
-                .any(|unit| unit.id == fighter && unit.transport.is_none() && unit.fuel == 1)
-        );
-        game.restore_aircraft();
-        assert!(game.units.iter().any(|unit| unit.id == fighter
-            && unit.transport == Some(boat)
-            && unit.fuel == UnitKind::Fighter.fuel_capacity()
-            && unit.hp == actor.hp - 2 * nonnative_decay));
-        game.restore_aircraft();
-        assert!(game.units.iter().any(|unit| unit.id == fighter
-            && unit.transport == Some(boat)
-            && unit.fuel == UnitKind::Fighter.fuel_capacity()
-            && unit.hp == unit.max_hit_points()));
+        assert!(!game.board_or_deboard(fighter));
+        assert_eq!(game.unit_by_id(fighter).unwrap().transport, Some(boat));
+        let shore = offset_native_by_map(10, 20, 3, 0);
+        game.tile_mut(shore.0, shore.1).terrain = Terrain::Grassland;
+        game.tile_mut(shore.0, shore.1).known_by.set(1, true);
+        game.create_city(1, shore.0, shore.1);
+        assert!(game.rebase_aircraft(fighter, shore.0, shore.1));
+        let landed = game.unit_by_id(fighter).unwrap();
+        assert_eq!((landed.x, landed.y), shore);
+        assert_eq!(landed.transport, None);
     }
 
     #[test]
@@ -1974,20 +1967,19 @@ mod stealth_tests {
 
     #[test]
     fn airborne_plane_refuels_before_attacking_and_waits_for_full_fuel() {
+        // Under Civ III Conquests rules, fixed-wing aircraft operate from base
+        // via ranged bombard missions and never fly onto open terrain or spend
+        // a turn waiting to refuel.
         let mut game = Simulation::new(crate::test_support::seeded_map());
         let (id, victim) = game.ai_aircraft_advisor_fixture();
         let home = (game.cities[0].x, game.cities[0].y);
-        let open = offset_native_by_map(home.0, home.1, 1, 0);
-        let plane = game.units.iter_mut().find(|u| u.id == id).unwrap();
-        (plane.x, plane.y) = open;
-        plane.fuel = 1;
-        let snapshot = plane.clone();
+        let snapshot = game.unit_by_id(id).unwrap().clone();
+        assert_eq!((snapshot.x, snapshot.y), home);
         game.run_ai_strike_aircraft(&snapshot);
-        let plane = game.unit_by_id(id).unwrap().clone();
+        let plane = game.unit_by_id(id).unwrap();
         assert_eq!((plane.x, plane.y), home);
-        assert!(game.units.iter().any(|u| u.id == victim));
-        game.run_ai_strike_aircraft(&plane);
-        assert!(game.units.iter().any(|u| u.id == victim));
+        assert_eq!(plane.moves_left, 0);
+        assert!(game.unit_by_id(victim).is_some());
     }
 
     #[test]
@@ -2081,6 +2073,7 @@ mod stealth_tests {
         let home = (game.cities[0].x, game.cities[0].y);
         let airport = offset_native_by_map(home.0, home.1, 2, 0);
         game.tile_mut(airport.0, airport.1).terrain = Terrain::Grassland;
+        game.tile_mut(airport.0, airport.1).known_by.set(1, true);
         game.create_city(1, airport.0, airport.1);
         game.cities
             .last_mut()
@@ -2088,13 +2081,13 @@ mod stealth_tests {
             .buildings
             .push(Building::AIRPORT);
         let plane = game.units.iter_mut().find(|u| u.id == id).unwrap();
-        (plane.x, plane.y) = offset_native_by_map(home.0, home.1, 1, 0);
+        (plane.x, plane.y) = home;
         plane.hp = 1;
-        plane.fuel = plane.kind.fuel_capacity();
         let plane = plane.clone();
         game.run_ai_strike_aircraft(&plane);
         let plane = game.unit_by_id(id).unwrap();
         assert_eq!((plane.x, plane.y), airport);
+        assert_eq!(plane.moves_left, 0);
     }
 
     #[test]
@@ -2293,4 +2286,656 @@ fn ai_paratrooper_refuses_a_defended_city_and_captures_it_when_vacated() {
     assert!(game.run_ai_paratrooper(&game.unit_by_id(troop).unwrap().clone()));
     assert_eq!(game.city_at(target.0, target.1).unwrap().owner, HUMAN);
     assert!(game.unit_by_id(troop).unwrap().paradropped);
+}
+
+#[test]
+fn civ3_fixed_wing_rebase_range_is_3x_operational_range_and_blocks_open_tile_movement() {
+    let mut game = Simulation::new(crate::test_support::seeded_map());
+    game.units.clear();
+    game.cities.clear();
+    for tile in &mut game.tiles {
+        tile.terrain = Terrain::Grassland;
+        tile.base = None;
+        tile.hut = false;
+        tile.owner = None;
+        tile.known_by.set(HUMAN, true);
+    }
+    let home = (10, 4);
+    let in_range_city = (10, 40); // vertical staggered Civ3 distance == 18 == 3 * Fighter range (6)
+    let too_far_city = (10, 42); // vertical staggered Civ3 distance == 19 > 18
+    let open_tile = (11, 4);
+    game.create_city(HUMAN, home.0, home.1);
+    game.create_city(HUMAN, in_range_city.0, in_range_city.1);
+    game.create_city(HUMAN, too_far_city.0, too_far_city.1);
+    let fighter = game.spawn_unit(HUMAN, UnitKind::Fighter, home.0, home.1);
+    assert_eq!(
+        game.map_wrap
+            .civ3_distance(home.0, home.1, in_range_city.0, in_range_city.1),
+        UnitKind::Fighter.rebase_range()
+    );
+    assert!(
+        game.map_wrap
+            .civ3_distance(home.0, home.1, too_far_city.0, too_far_city.1)
+            > UnitKind::Fighter.rebase_range()
+    );
+
+    // Tile-by-tile movement and GoTo onto open tiles are blocked.
+    assert!(!game.apply(Command::move_civ3_by_offset(&game, fighter, 1, 0)));
+    assert!(!game.apply(Command::GoTo(fighter, open_tile.0, open_tile.1)));
+    assert!(!game.apply(Command::Rebase(fighter, open_tile.0, open_tile.1)));
+    // Rebase beyond 3 * operational_range is rejected.
+    assert!(!game.apply(Command::Rebase(fighter, too_far_city.0, too_far_city.1)));
+    // Rebase at exact 3 * operational_range succeeds and spends the turn.
+    assert!(game.apply(Command::Rebase(fighter, in_range_city.0, in_range_city.1)));
+    let moved = game.unit_by_id(fighter).unwrap();
+    assert_eq!((moved.x, moved.y), in_range_city);
+    assert_eq!(moved.moves_left, 0);
+}
+
+#[test]
+fn civ3_recon_reveals_3x3_area_and_is_aborted_when_intercepted() {
+    let mut game = Simulation::new(crate::test_support::seeded_map());
+    game.units.clear();
+    game.cities.clear();
+    for tile in &mut game.tiles {
+        tile.terrain = Terrain::Grassland;
+        tile.base = None;
+        tile.hut = false;
+        tile.owner = None;
+        tile.known_by.set(HUMAN, false);
+        tile.seen = false;
+        tile.visible = false;
+    }
+    let home = (10, 20);
+    let target = (15, 20); // distance 5 <= Fighter range 6
+    let out_of_range = (17, 20); // distance 7 > Fighter range 6
+    game.create_city(HUMAN, home.0, home.1);
+    let fighter = game.spawn_unit(HUMAN, UnitKind::Fighter, home.0, home.1);
+    game.refresh_visibility();
+    assert!(!game.tile(target.0, target.1).known_by[HUMAN]);
+    assert!(!game.apply(Command::Recon(fighter, out_of_range.0, out_of_range.1)));
+
+    assert!(game.apply(Command::Recon(fighter, target.0, target.1)));
+    let scout = game.unit_by_id(fighter).unwrap();
+    assert_eq!((scout.x, scout.y), home);
+    assert_eq!(scout.moves_left, 0);
+    for (tx, ty, _) in game.map_wrap.civ3_radius(target.0, target.1, 1) {
+        assert!(game.tile(tx, ty).known_by[HUMAN]);
+        assert!(game.tile(tx, ty).visible);
+    }
+
+    // Enemy Air Superiority fighter within half-range intercepts Recon and
+    // prevents the 3x3 reveal.
+    let mut contested = Simulation::new(crate::test_support::seeded_map());
+    contested.units.clear();
+    contested.cities.clear();
+    for tile in &mut contested.tiles {
+        tile.terrain = Terrain::Grassland;
+        tile.base = None;
+        tile.hut = false;
+        tile.owner = None;
+        tile.known_by.set(HUMAN, false);
+        tile.seen = false;
+        tile.visible = false;
+    }
+    contested.sign_pact(HUMAN, 1, Pact::War);
+    contested.create_city(HUMAN, home.0, home.1);
+    contested.create_city(1, target.0, target.1);
+    let recon_plane = contested.spawn_unit(HUMAN, UnitKind::Fighter, home.0, home.1);
+    let cap_plane = contested.spawn_unit(1, UnitKind::JetFighter, target.0, target.1);
+    assert!(contested.start_air_superiority(cap_plane));
+    contested.refresh_visibility();
+    let mut intercepted = false;
+    for seed in 1_u64..=30 {
+        let mut probe = contested.clone();
+        probe.native_random = None;
+        probe.rng = seed;
+        assert!(probe.apply(Command::Recon(recon_plane, target.0, target.1)));
+        if probe
+            .unit_by_id(cap_plane)
+            .is_none_or(|u| u.air_superiority_shot)
+        {
+            intercepted = true;
+            assert!(
+                !probe.tile(target.0, target.1).known_by[HUMAN],
+                "intercepted recon must not reveal the target area"
+            );
+            break;
+        }
+    }
+    assert!(intercepted);
+}
+
+#[test]
+fn civ3_air_superiority_interception_aborts_bombard_even_if_attacker_survives() {
+    let mut game = Simulation::new(crate::test_support::seeded_map());
+    game.units.clear();
+    game.cities.clear();
+    for tile in &mut game.tiles {
+        tile.terrain = Terrain::Grassland;
+        tile.base = None;
+        tile.hut = false;
+        tile.owner = None;
+        tile.known_by.fill(true);
+        tile.visible = true;
+    }
+    let home = (10, 20);
+    let enemy = (14, 20);
+    game.sign_pact(HUMAN, 1, Pact::War);
+    game.create_city(HUMAN, home.0, home.1);
+    game.create_city(1, enemy.0, enemy.1);
+    game.tile_mut(enemy.0, enemy.1).visible = true;
+    game.tile_mut(enemy.0, enemy.1).known_by.fill(true);
+    let bomber = game.spawn_unit(HUMAN, UnitKind::Bomber, home.0, home.1);
+    // Give bomber high HP and interceptor 1 HP so the bomber survives the dogfight.
+    game.units.iter_mut().find(|u| u.id == bomber).unwrap().hp = 20;
+    let cap = game.spawn_unit(1, UnitKind::Fighter, enemy.0, enemy.1);
+    game.units.iter_mut().find(|u| u.id == cap).unwrap().hp = 1;
+    assert!(game.start_air_superiority(cap));
+    let defender = game.spawn_unit(1, UnitKind::Warrior, enemy.0, enemy.1);
+    let defender_hp = game.unit_by_id(defender).unwrap().hp;
+
+    let mut survived_and_aborted = false;
+    for seed in 1_u64..=40 {
+        let mut probe = game.clone();
+        probe.native_random = None;
+        probe.rng = seed;
+        assert!(probe.apply(Command::Bombard(bomber, enemy.0, enemy.1)));
+        let cap_engaged = probe.unit_by_id(cap).is_none_or(|u| u.air_superiority_shot);
+        if cap_engaged && probe.unit_by_id(bomber).is_some() {
+            let live_bomber = probe.unit_by_id(bomber).unwrap();
+            assert_eq!(live_bomber.moves_left, 0);
+            assert_eq!(
+                probe.unit_by_id(defender).unwrap().hp,
+                defender_hp,
+                "aborted bombing run must not deliver bombs even when bomber survives"
+            );
+            survived_and_aborted = true;
+            break;
+        }
+    }
+    assert!(survived_and_aborted);
+}
+
+#[test]
+fn civ3_sam_battery_fires_aborts_or_destroys_bomber_and_empty_size1_city_scores_zero() {
+    let mut game = Simulation::new(crate::test_support::seeded_map());
+    game.units.clear();
+    game.cities.clear();
+    for tile in &mut game.tiles {
+        tile.terrain = Terrain::Grassland;
+        tile.base = None;
+        tile.hut = false;
+        tile.owner = None;
+        tile.known_by.fill(true);
+        tile.visible = true;
+    }
+    let home = (10, 20);
+    let enemy = (14, 20);
+    game.sign_pact(HUMAN, 1, Pact::War);
+    game.create_city(HUMAN, home.0, home.1);
+    game.create_city(1, enemy.0, enemy.1);
+    game.tile_mut(enemy.0, enemy.1).visible = true;
+    game.tile_mut(enemy.0, enemy.1).known_by.fill(true);
+    let bomber = game.spawn_unit(HUMAN, UnitKind::Bomber, home.0, home.1);
+    // Size-1 enemy city with no improvements and no garrison scores 0 for AI bombard.
+    assert_eq!(
+        game.ai_bombard_tile_value(game.unit_by_id(bomber).unwrap(), enemy.0, enemy.1),
+        0.0
+    );
+
+    // Add SAM Battery + garrison and verify SAM Battery can shoot down or abort runs.
+    game.cities
+        .iter_mut()
+        .find(|c| (c.x, c.y) == enemy)
+        .unwrap()
+        .buildings
+        .push(Building::SAM_BATTERY);
+    let garrison = game.spawn_unit(1, UnitKind::MechInfantry, enemy.0, enemy.1);
+    let garrison_hp = game.unit_by_id(garrison).unwrap().hp;
+    assert!(game.ai_bombard_tile_value(game.unit_by_id(bomber).unwrap(), enemy.0, enemy.1) > 0.0);
+
+    let mut sam_kill = false;
+    let mut sam_abort = false;
+    for seed in 1_u64..=120 {
+        let mut probe = game.clone();
+        probe.native_random = None;
+        probe.rng = seed;
+        assert!(probe.apply(Command::Bombard(bomber, enemy.0, enemy.1)));
+        if probe.unit_by_id(bomber).is_none() {
+            sam_kill = true;
+            assert_eq!(probe.unit_by_id(garrison).unwrap().hp, garrison_hp);
+        } else if probe
+            .events
+            .iter()
+            .any(|e| e.contains("SAM Battery drove off"))
+        {
+            sam_abort = true;
+            assert_eq!(probe.unit_by_id(bomber).unwrap().moves_left, 0);
+            assert_eq!(probe.unit_by_id(garrison).unwrap().hp, garrison_hp);
+        }
+        if sam_kill && sam_abort {
+            break;
+        }
+    }
+    assert!(
+        sam_kill && sam_abort,
+        "SAM Battery should both shoot down bombers and drive off surviving bombers"
+    );
+}
+
+#[test]
+fn civ3_overrunning_undefended_airfield_destroys_stationed_enemy_aircraft() {
+    let mut game = Simulation::new(crate::test_support::seeded_map());
+    game.units.clear();
+    game.cities.clear();
+    for tile in &mut game.tiles {
+        tile.terrain = Terrain::Grassland;
+        tile.base = None;
+        tile.hut = false;
+        tile.owner = None;
+        tile.known_by.fill(true);
+    }
+    let start = (10, 20);
+    let airfield = offset_native_by_map(start.0, start.1, 1, 0);
+    game.tile_mut(airfield.0, airfield.1).base = Some(Base::Airbase);
+    game.sign_pact(HUMAN, 1, Pact::War);
+    let tank = game.spawn_unit(HUMAN, UnitKind::Tank, start.0, start.1);
+    let enemy_bomber = game.spawn_unit(1, UnitKind::Bomber, airfield.0, airfield.1);
+    assert!(game.apply(Command::move_civ3_by_offset(&game, tank, 1, 0)));
+    assert_eq!(
+        (
+            game.unit_by_id(tank).unwrap().x,
+            game.unit_by_id(tank).unwrap().y
+        ),
+        airfield
+    );
+    assert!(game.unit_by_id(enemy_bomber).is_none());
+}
+
+#[test]
+fn civ3_ai_counter_air_responds_to_observed_raids_and_ignores_ground_only_control() {
+    let build_world = || {
+        let mut game = Simulation::new(crate::test_support::seeded_map());
+        game.units.clear();
+        game.cities.clear();
+        for tile in &mut game.tiles {
+            tile.terrain = Terrain::GrasslandShield;
+            tile.road = true;
+            tile.railroad = true;
+            tile.base = None;
+            tile.hut = false;
+            tile.owner = None;
+            tile.known_by.fill(true);
+            tile.visible = true;
+        }
+        let all_techs: Vec<Tech> = Tech::all().collect();
+        for owner in [HUMAN, 1] {
+            game.players[owner].known = all_techs.clone();
+            game.players[owner].gold = 2000;
+        }
+        game.sign_pact(HUMAN, 1, Pact::War);
+        game.create_city(1, 10, 20);
+        game.cities.last_mut().unwrap().size = 8;
+        game.cities.last_mut().unwrap().buildings.extend([
+            Building::FACTORY,
+            Building::MARKETPLACE,
+            Building::LIBRARY,
+            Building::BARRACKS_III,
+            Building::AIRPORT,
+        ]);
+        game.create_city(HUMAN, 16, 20);
+        game.cities.last_mut().unwrap().size = 8;
+        for _ in 0..3 {
+            game.spawn_unit(1, UnitKind::MechInfantry, 10, 20);
+        }
+        game
+    };
+
+    // Control: no enemy aircraft and no air raids -> air_defense_production_choice is None.
+    let control = build_world();
+    let city = control.city_at(10, 20).unwrap().clone();
+    assert_eq!(control.observed_enemy_air_threat(1), 0);
+    assert!(control.air_defense_production_choice(&city).is_none());
+
+    // Treatment: after an enemy Bomber bombs the city, AI strongly selects SAM_BATTERY.
+    let mut treatment = build_world();
+    let bomber = treatment.spawn_unit(HUMAN, UnitKind::Bomber, 16, 20);
+    treatment.tile_mut(10, 20).visible = true;
+    assert!(treatment.apply(Command::Bombard(bomber, 10, 20)));
+    assert!(treatment.observed_enemy_air_threat(1) > 0);
+    let city = treatment.city_at(10, 20).unwrap().clone();
+    let choice = treatment
+        .air_defense_production_choice(&city)
+        .expect("bombed city must evaluate counter-air defense");
+    assert_eq!(
+        choice.production,
+        Production::Building(Building::SAM_BATTERY)
+    );
+    assert!(choice.want >= 200.0);
+
+    // Once SAM_BATTERY is built, AI evaluates MobileSAM tile AA defense next.
+    treatment
+        .cities
+        .iter_mut()
+        .find(|c| c.id == city.id)
+        .unwrap()
+        .buildings
+        .push(Building::SAM_BATTERY);
+    // Give Oil + Aluminum for MobileSAM buildability.
+    for (pos, terrain, res) in [
+        ((9, 20), Terrain::Desert, Resource::Oil),
+        ((11, 20), Terrain::Hills, Resource::Aluminum),
+    ] {
+        let t = treatment.tile_mut(pos.0, pos.1);
+        t.terrain = terrain;
+        t.resource = Some(res);
+        t.owner = Some(1);
+        t.road = true;
+    }
+    let city_with_sam = treatment.city_at(10, 20).unwrap().clone();
+    let follow_up = treatment
+        .air_defense_production_choice(&city_with_sam)
+        .expect("city with SAM still under air raid should evaluate Mobile SAM");
+    assert_eq!(follow_up.production, Production::Unit(UnitKind::MobileSAM));
+}
+
+#[test]
+fn civ3_recon_reveals_fogged_enemy_units_for_same_turn_bomber_strike() {
+    let mut game = Simulation::new(crate::test_support::seeded_map());
+    game.units.clear();
+    game.cities.clear();
+    for tile in &mut game.tiles {
+        tile.terrain = Terrain::Grassland;
+        tile.base = None;
+        tile.hut = false;
+        tile.owner = None;
+        tile.known_by.fill(true);
+        tile.visible = false;
+    }
+    let home = (10, 20);
+    let target = (15, 20); // distance 5 (outside city sight, inside Fighter/Bomber range)
+    game.sign_pact(1, HUMAN, Pact::War);
+    game.create_city(1, home.0, home.1);
+    let fighter = game.spawn_unit(1, UnitKind::Fighter, home.0, home.1);
+    let bomber = game.spawn_unit(1, UnitKind::Bomber, home.0, home.1);
+    let hidden_tank = game.spawn_unit(HUMAN, UnitKind::Tank, target.0, target.1);
+    game.refresh_visibility();
+
+    // Before Recon, the Tank in fog is invisible and cannot be bombarded.
+    assert!(!game.unit_visible_to(1, game.unit_by_id(hidden_tank).unwrap()));
+    assert!(!game.can_bombard_tile(game.unit_by_id(bomber).unwrap(), target.0, target.1));
+
+    // Fighter flies Recon over the fogged tile -> Bomber immediately sees & bombs the Tank!
+    assert!(game.recon_aircraft(fighter, target.0, target.1));
+    assert!(game.unit_visible_to(1, game.unit_by_id(hidden_tank).unwrap()));
+    assert!(game.can_bombard_tile(game.unit_by_id(bomber).unwrap(), target.0, target.1));
+    let bomber_snapshot = game.unit_by_id(bomber).unwrap().clone();
+    assert!(game.run_ai_bombard(&bomber_snapshot));
+    assert_eq!(game.unit_by_id(bomber).unwrap().moves_left, 0);
+}
+
+#[test]
+fn civ3_ai_bomber_prefers_soft_target_over_mobile_sam_stack() {
+    let mut game = Simulation::new(crate::test_support::seeded_map());
+    game.units.clear();
+    game.cities.clear();
+    for tile in &mut game.tiles {
+        tile.terrain = Terrain::Grassland;
+        tile.base = None;
+        tile.hut = false;
+        tile.owner = None;
+        tile.known_by.fill(true);
+    }
+    let home = (10, 20);
+    let soft = (12, 20);
+    let aa_guarded = (12, 22);
+    game.sign_pact(1, HUMAN, Pact::War);
+    game.create_city(1, home.0, home.1);
+    let bomber = game.spawn_unit(1, UnitKind::Bomber, home.0, home.1);
+    // Spotter keeps both target tiles visible to AI.
+    game.spawn_unit(1, UnitKind::Warrior, 12, 21);
+    game.spawn_unit(HUMAN, UnitKind::Tank, soft.0, soft.1);
+    game.spawn_unit(HUMAN, UnitKind::Tank, aa_guarded.0, aa_guarded.1);
+    for _ in 0..3 {
+        game.spawn_unit(HUMAN, UnitKind::MobileSAM, aa_guarded.0, aa_guarded.1);
+    }
+    game.refresh_visibility();
+
+    let plane = game.unit_by_id(bomber).unwrap();
+    let soft_val = game.ai_bombard_tile_value(plane, soft.0, soft.1);
+    let aa_val = game.ai_bombard_tile_value(plane, aa_guarded.0, aa_guarded.1);
+    assert!(
+        soft_val > 0.0 && soft_val > aa_val,
+        "conventional bomber should prefer unescorted Tank ({soft_val}) over 3x Mobile SAM stack ({aa_val})"
+    );
+}
+
+#[test]
+fn civ3_ai_evaluates_aircraft_production_during_war_plan_preparation() {
+    let mut game = Simulation::new(crate::test_support::seeded_map());
+    game.units.clear();
+    game.cities.clear();
+    for tile in &mut game.tiles {
+        tile.terrain = Terrain::GrasslandShield;
+        tile.road = true;
+        tile.base = None;
+        tile.hut = false;
+        tile.owner = None;
+        tile.known_by.fill(true);
+    }
+    game.players[1].known = Tech::all().collect();
+    game.sign_pact(1, HUMAN, Pact::Peace);
+    game.create_city(1, 10, 20);
+    game.create_city(HUMAN, 16, 20);
+    for (pos, terrain, res) in [
+        ((9, 20), Terrain::Desert, Resource::Oil),
+        ((11, 20), Terrain::Hills, Resource::Aluminum),
+        ((10, 18), Terrain::Forest, Resource::Rubber),
+    ] {
+        let t = game.tile_mut(pos.0, pos.1);
+        t.terrain = terrain;
+        t.resource = Some(res);
+        t.owner = Some(1);
+        t.road = true;
+    }
+    let city = game.city_at(10, 20).unwrap().clone();
+    // At peace without a war plan, no offensive aircraft production is requested.
+    assert!(game.aircraft_production_choice(&city).is_none());
+
+    // With an active WarPlan against HUMAN, AI evaluates building aircraft in advance.
+    game.ai_war_plans.insert(
+        (1, HUMAN),
+        diplomacy::WarPlan {
+            countdown: 4,
+            reason: diplomacy::WarReason::Spoils,
+            objective: None,
+        },
+    );
+    let choice = game.aircraft_production_choice(&city);
+    assert!(
+        choice.is_some_and(|(kind, want)| kind.is_fixed_wing_aircraft() && want > 0.0),
+        "AI with active WarPlan should consider building fixed-wing aircraft; got {choice:?}"
+    );
+}
+
+#[test]
+fn civ3_city_bombardment_can_damage_and_destroy_parked_aircraft_in_city() {
+    let setup = |attacker_kind: UnitKind, defender_hp: i32| {
+        let mut game = Simulation::new(crate::test_support::seeded_map());
+        game.units.clear();
+        game.cities.clear();
+        for tile in &mut game.tiles {
+            tile.terrain = Terrain::Grassland;
+            tile.base = None;
+            tile.hut = false;
+            tile.owner = None;
+            tile.known_by.fill(true);
+        }
+        let home = (10, 20);
+        let enemy = (12, 20);
+        game.sign_pact(HUMAN, 1, Pact::War);
+        game.create_city(HUMAN, home.0, home.1);
+        game.create_city(1, enemy.0, enemy.1);
+        game.tile_mut(enemy.0, enemy.1).visible = true;
+        game.tile_mut(enemy.0, enemy.1).known_by.fill(true);
+        let attacker = game.spawn_unit(HUMAN, attacker_kind, home.0, home.1);
+        let parked = game.spawn_unit(1, UnitKind::Fighter, enemy.0, enemy.1);
+        game.units.iter_mut().find(|u| u.id == parked).unwrap().hp = defender_hp;
+        (game, attacker, parked, enemy)
+    };
+
+    // 1. Non-lethal Artillery bombardment damages a parked aircraft inside a city
+    //    down to at least 1 HP without killing it.
+    let (base_artillery, artillery, parked_a, enemy) = setup(UnitKind::Artillery, 3);
+    let mut damaged_non_lethal = false;
+    for seed in 1_u64..=80 {
+        let mut probe = base_artillery.clone();
+        probe.native_random = None;
+        probe.rng = seed;
+        assert!(probe.apply(Command::Bombard(artillery, enemy.0, enemy.1)));
+        let live = probe
+            .unit_by_id(parked_a)
+            .expect("non-lethal Artillery must not kill parked aircraft");
+        assert!(live.hp >= 1);
+        if live.hp < 3 {
+            damaged_non_lethal = true;
+            break;
+        }
+    }
+    assert!(
+        damaged_non_lethal,
+        "city bombardment by Artillery should be able to damage a parked enemy aircraft"
+    );
+
+    // 2. Lethal Stealth Bomber bombardment can destroy a parked aircraft in a city.
+    let (base_bomber, bomber, parked_b, enemy) = setup(UnitKind::StealthBomber, 1);
+    let mut killed_lethal = false;
+    for seed in 1_u64..=80 {
+        let mut probe = base_bomber.clone();
+        probe.native_random = None;
+        probe.rng = seed;
+        assert!(probe.apply(Command::Bombard(bomber, enemy.0, enemy.1)));
+        if probe.unit_by_id(parked_b).is_none() {
+            killed_lethal = true;
+            break;
+        }
+    }
+    assert!(
+        killed_lethal,
+        "lethal city bombardment by Stealth Bomber should be able to destroy a parked enemy aircraft"
+    );
+}
+
+#[test]
+fn civ3_sinking_carrier_in_naval_combat_destroys_embarked_aircraft() {
+    let mut game = Simulation::new(crate::test_support::seeded_map());
+    game.units.clear();
+    game.cities.clear();
+    let sea_a = (10, 20);
+    let sea_b = (11, 20);
+    for (x, y) in [sea_a, sea_b] {
+        let t = game.tile_mut(x, y);
+        t.terrain = Terrain::Sea;
+        t.base = None;
+        t.hut = false;
+        t.owner = None;
+        t.known_by.fill(true);
+        t.visible = true;
+    }
+    game.sign_pact(HUMAN, 1, Pact::War);
+    let battleship = game.spawn_unit(HUMAN, UnitKind::Battleship, sea_a.0, sea_a.1);
+    game.units
+        .iter_mut()
+        .find(|u| u.id == battleship)
+        .unwrap()
+        .hp = 10;
+    let carrier = game.spawn_unit(1, UnitKind::Carrier, sea_b.0, sea_b.1);
+    game.units.iter_mut().find(|u| u.id == carrier).unwrap().hp = 1;
+    let embarked = game.spawn_unit(1, UnitKind::JetFighter, sea_b.0, sea_b.1);
+    assert!(game.board_specific_ship(embarked, carrier));
+    assert_eq!(game.unit_by_id(embarked).unwrap().transport, Some(carrier));
+
+    let mut sunk = false;
+    for seed in 1_u64..=40 {
+        let mut probe = game.clone();
+        probe.native_random = None;
+        probe.rng = seed;
+        assert!(probe.apply(Command::MoveCiv3(battleship, 2)));
+        if probe.unit_by_id(carrier).is_none() {
+            assert!(
+                probe.unit_by_id(embarked).is_none(),
+                "sinking a Carrier must destroy all embarked aircraft"
+            );
+            sunk = true;
+            break;
+        }
+    }
+    assert!(sunk, "Battleship should sink 1-HP Carrier");
+}
+
+#[test]
+fn civ3_air_to_air_dogfight_leaves_winning_aircraft_wounded_and_heals_at_airport() {
+    let mut game = Simulation::new(crate::test_support::seeded_map());
+    game.units.clear();
+    game.cities.clear();
+    for tile in &mut game.tiles {
+        tile.terrain = Terrain::Grassland;
+        tile.base = None;
+        tile.hut = false;
+        tile.owner = None;
+        tile.known_by.fill(true);
+    }
+    let home = (10, 20);
+    let enemy = (13, 20);
+    game.sign_pact(HUMAN, 1, Pact::War);
+    game.create_city(HUMAN, home.0, home.1);
+    game.create_city(1, enemy.0, enemy.1);
+    game.cities
+        .iter_mut()
+        .find(|c| (c.x, c.y) == enemy)
+        .unwrap()
+        .buildings
+        .push(Building::AIRPORT);
+    game.tile_mut(enemy.0, enemy.1).visible = true;
+    game.tile_mut(enemy.0, enemy.1).known_by.fill(true);
+
+    let bomber = game.spawn_unit(HUMAN, UnitKind::StealthBomber, home.0, home.1);
+    let cap = game.spawn_unit(1, UnitKind::Fighter, enemy.0, enemy.1);
+    // Give both aircraft 4 HP so the winner can take real partial HP damage.
+    for id in [bomber, cap] {
+        let u = game.units.iter_mut().find(|u| u.id == id).unwrap();
+        u.veteran = 2; // Veteran -> max 4 HP
+        u.hp = u.max_hit_points();
+    }
+    assert!(game.start_air_superiority(cap));
+
+    let mut wounded_cap_healed = false;
+    for seed in 1_u64..=120 {
+        let mut probe = game.clone();
+        probe.native_random = None;
+        probe.rng = seed;
+        assert!(probe.apply(Command::Bombard(bomber, enemy.0, enemy.1)));
+        if let Some(survivor) = probe.unit_by_id(cap)
+            && survivor.air_superiority_shot
+            && survivor.hp > 0
+            && survivor.hp < survivor.max_hit_points()
+        {
+            let wounded_hp = survivor.hp;
+            let max_hp = survivor.max_hit_points();
+            probe.restore_aircraft();
+            let healed = probe.unit_by_id(cap).unwrap();
+            assert_eq!(
+                healed.hp, max_hp,
+                "wounded CAP fighter ({wounded_hp}/{max_hp} HP) should fully heal at Airport"
+            );
+            assert!(!healed.air_superiority_shot);
+            wounded_cap_healed = true;
+            break;
+        }
+    }
+    assert!(
+        wounded_cap_healed,
+        "air-to-air interception should be able to leave the winning CAP fighter wounded before healing at base"
+    );
 }

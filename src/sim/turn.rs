@@ -42,6 +42,7 @@ impl Simulation {
         self.advance_diplomacy();
         self.advance_calendar();
         self.turn += 1;
+        self.recon_revealed_tiles.clear();
     }
 
     pub(in crate::sim) fn end_turn(&mut self) {

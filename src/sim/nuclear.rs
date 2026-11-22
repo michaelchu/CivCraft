@@ -326,6 +326,15 @@ impl Simulation {
     }
 
     pub(super) fn nuclear_strike(&mut self, weapon: &Unit, action: &str, x: i32, y: i32) {
+        let target_city = self.city_at(x, y).map(|city| (city.id, city.owner));
+        let initial_target_owner = target_city
+            .map(|(_, owner)| owner)
+            .or_else(|| self.tile(x, y).owner)
+            .or_else(|| {
+                self.tile_units_ordered(x, y)
+                    .find(|unit| unit.owner != weapon.owner)
+                    .map(|unit| unit.owner)
+            });
         self.publish_visual_event(VisualEvent::Capture {
             unit: weapon.clone(),
         });
@@ -336,6 +345,29 @@ impl Simulation {
             self.action_caught_casus_belli(weapon, action, Some(defending_city_owner), (x, y));
             self.remove_units_with_cargo_because(vec![weapon.id], lifecycle::UnitRemoval::Combat);
             self.add_event("SDI Defense intercepted the incoming nuclear attack.");
+            if self
+                .trace
+                .wants::<military_observation::NuclearStrikeEvent>()
+            {
+                self.trace_nuclear_strike(military_observation::NuclearStrikeEvent {
+                    owner: weapon.owner,
+                    weapon_id: weapon.id,
+                    kind: weapon.kind.name(),
+                    action: match action {
+                        "Explode Nuclear" => "explode_nuclear",
+                        "Nuke City" => "nuke_city",
+                        "Nuke Units" => "nuke_units",
+                        _ => "other",
+                    },
+                    tile: (x, y),
+                    city_id: target_city.map(|(id, _)| id),
+                    target_owner: initial_target_owner.or(Some(defending_city_owner)),
+                    intercepted_by_sdi: Some(defending_city_owner),
+                    units_killed: 0,
+                    cities_hit: 0,
+                    fallout_tiles: 0,
+                });
+            }
             return;
         }
 
@@ -350,6 +382,8 @@ impl Simulation {
             .expect("selected C2C3 nuclear combat settings are valid");
 
         let mut casualties = 0;
+        let mut cities_hit = 0;
+        let mut fallout_tiles = 0;
         for &(tx, ty) in &affected {
             let city_tile = self.city_at(tx, ty).is_some();
             let unit_ids = self
@@ -383,10 +417,15 @@ impl Simulation {
                 self.nation_scores[weapon.owner].units_killed += removed;
             }
             if let Some(index) = self.city_index_at(tx, ty) {
+                cities_hit += 1;
                 let city_id = self.cities[index].id;
                 self.apply_nuclear_city_population_loss(city_id, combat_rules.nuke_pop_loss_pct);
             }
+            let had_fallout = self.tile(tx, ty).fallout;
             self.place_nuclear_fallout(weapon.owner, tx, ty);
+            if !had_fallout && self.tile(tx, ty).fallout {
+                fallout_tiles += 1;
+            }
         }
         self.refresh_visibility();
         // server/unithand.c applies action_consequence_success only after the
@@ -398,6 +437,29 @@ impl Simulation {
         self.add_event(format!(
             "A nuclear weapon detonated, destroying {casualties} units."
         ));
+        if self
+            .trace
+            .wants::<military_observation::NuclearStrikeEvent>()
+        {
+            self.trace_nuclear_strike(military_observation::NuclearStrikeEvent {
+                owner: weapon.owner,
+                weapon_id: weapon.id,
+                kind: weapon.kind.name(),
+                action: match action {
+                    "Explode Nuclear" => "explode_nuclear",
+                    "Nuke City" => "nuke_city",
+                    "Nuke Units" => "nuke_units",
+                    _ => "other",
+                },
+                tile: (x, y),
+                city_id: target_city.map(|(id, _)| id),
+                target_owner: initial_target_owner,
+                intercepted_by_sdi: None,
+                units_killed: casualties,
+                cities_hit,
+                fallout_tiles,
+            });
+        }
     }
 }
 

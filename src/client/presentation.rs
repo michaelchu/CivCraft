@@ -6,9 +6,75 @@ const COMBAT_EXPLOSION_SECONDS: f64 = 0.100;
 
 fn combat_impact_duration(combat: &crate::sim::CombatPresentationView) -> f64 {
     if combat.bombard_effects {
-        COMBAT_EXPLOSION_SECONDS
+        if combat.impact_duration > 0.0 {
+            combat.impact_duration
+        } else {
+            COMBAT_EXPLOSION_SECONDS
+        }
     } else {
         0.0
+    }
+}
+
+fn air_mission_total_duration(
+    kind: &crate::sim::AirMissionPresentationKind,
+    fly: f64,
+    action: f64,
+    outcome: f64,
+) -> f64 {
+    match kind {
+        crate::sim::AirMissionPresentationKind::Rebase => fly,
+        crate::sim::AirMissionPresentationKind::Bombard { .. }
+        | crate::sim::AirMissionPresentationKind::Recon => fly + action + fly,
+        crate::sim::AirMissionPresentationKind::SamIntercept { shot_down }
+        | crate::sim::AirMissionPresentationKind::AaUnitIntercept { shot_down, .. } => {
+            if *shot_down {
+                fly + action + outcome
+            } else {
+                fly + action + fly
+            }
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum AirMissionPhase {
+    Outbound(f32),
+    Action(f32),
+    Crash(f32),
+    Return(f32),
+}
+
+fn air_mission_phase(
+    mission: &crate::sim::AirMissionPresentationView,
+    elapsed: f64,
+) -> AirMissionPhase {
+    let t = elapsed.max(0.0);
+    if matches!(mission.kind, crate::sim::AirMissionPresentationKind::Rebase) {
+        return AirMissionPhase::Outbound((t / mission.fly_duration.max(0.001)).min(1.0) as f32);
+    }
+    if t < mission.fly_duration {
+        return AirMissionPhase::Outbound((t / mission.fly_duration.max(0.001)).min(1.0) as f32);
+    }
+    let after_out = t - mission.fly_duration;
+    if after_out < mission.action_duration {
+        return AirMissionPhase::Action(
+            (after_out / mission.action_duration.max(0.001)).min(1.0) as f32
+        );
+    }
+    let after_action = after_out - mission.action_duration;
+    let shot_down = matches!(
+        mission.kind,
+        crate::sim::AirMissionPresentationKind::SamIntercept { shot_down: true }
+            | crate::sim::AirMissionPresentationKind::AaUnitIntercept {
+                shot_down: true,
+                ..
+            }
+    );
+    if shot_down {
+        AirMissionPhase::Crash((after_action / mission.outcome_duration.max(0.001)).min(1.0) as f32)
+    } else {
+        AirMissionPhase::Return((after_action / mission.fly_duration.max(0.001)).min(1.0) as f32)
     }
 }
 
@@ -31,34 +97,77 @@ pub(super) fn configure_event_combat_timing(
     art: &super::tileset::Civ3,
 ) {
     use super::tileset::Civ3UnitAction::*;
-    if let PresentationEventView::Combat(combat) = event {
-        combat.round_durations = (0..combat.hp.len().saturating_sub(1).max(1))
-            .map(|round| {
-                art.combat_clip_seconds(&combat.attacker, attack_action(round))
-                    .max(art.combat_clip_seconds(&combat.defender, Defend))
-            })
-            .collect();
-        let (a, d) = combat.hp.last().copied().unwrap_or((1, 1));
-        combat.result_duration = if a <= 0 {
-            art.combat_clip_seconds(&combat.attacker, Death)
-                .max(if combat.battle_ended {
-                    art.combat_clip_seconds(&combat.defender, Victory)
-                } else {
-                    0.0
+    match event {
+        PresentationEventView::Combat(combat) => {
+            combat.round_durations = (0..combat.hp.len().saturating_sub(1).max(1))
+                .map(|round| {
+                    art.combat_clip_seconds(&combat.attacker, attack_action(round))
+                        .max(art.combat_clip_seconds(&combat.defender, Defend))
                 })
-        } else if d <= 0 {
-            art.combat_clip_seconds(&combat.defender, Death)
-                .max(if combat.battle_ended {
-                    art.combat_clip_seconds(&combat.attacker, Victory)
-                } else {
-                    0.0
-                })
-        } else {
-            0.0
-        };
-        combat.duration = combat.round_durations.iter().sum::<f64>()
-            + combat.result_duration
-            + combat_impact_duration(combat);
+                .collect();
+            let (a, d) = combat.hp.last().copied().unwrap_or((1, 1));
+            combat.result_duration = if a <= 0 {
+                art.combat_clip_seconds(&combat.attacker, Death)
+                    .max(if combat.battle_ended {
+                        art.combat_clip_seconds(&combat.defender, Victory)
+                    } else {
+                        0.0
+                    })
+            } else if d <= 0 {
+                art.combat_clip_seconds(&combat.defender, Death)
+                    .max(if combat.battle_ended {
+                        art.combat_clip_seconds(&combat.attacker, Victory)
+                    } else {
+                        0.0
+                    })
+            } else {
+                0.0
+            };
+            combat.impact_duration = if combat.bombard_effects {
+                art.bomb_effect_duration_seconds()
+                    .unwrap_or(COMBAT_EXPLOSION_SECONDS)
+            } else {
+                0.0
+            };
+            combat.duration = combat.round_durations.iter().sum::<f64>()
+                + combat.result_duration
+                + combat_impact_duration(combat);
+        }
+        PresentationEventView::AirMission(mission) => {
+            match &mission.kind {
+                crate::sim::AirMissionPresentationKind::Bombard { defender, .. } => {
+                    let bomb_seconds = art.combat_clip_seconds(&mission.aircraft, Victory);
+                    let defender_death = defender
+                        .as_ref()
+                        .filter(|(_, _, hp_after)| *hp_after <= 0)
+                        .map_or(0.0, |(unit, _, _)| art.combat_clip_seconds(unit, Death));
+                    mission.action_duration = bomb_seconds.max(defender_death).max(0.5);
+                }
+                crate::sim::AirMissionPresentationKind::SamIntercept { shot_down } => {
+                    mission.action_duration = art.sam_effect_duration_seconds().unwrap_or(0.55);
+                    if *shot_down {
+                        mission.outcome_duration =
+                            art.combat_clip_seconds(&mission.aircraft, Death).max(0.5);
+                    }
+                }
+                crate::sim::AirMissionPresentationKind::AaUnitIntercept { aa_unit, shot_down } => {
+                    mission.action_duration = art.combat_clip_seconds(aa_unit, Attack).max(0.5);
+                    if *shot_down {
+                        mission.outcome_duration =
+                            art.combat_clip_seconds(&mission.aircraft, Death).max(0.5);
+                    }
+                }
+                crate::sim::AirMissionPresentationKind::Recon
+                | crate::sim::AirMissionPresentationKind::Rebase => {}
+            }
+            mission.duration = air_mission_total_duration(
+                &mission.kind,
+                mission.fly_duration,
+                mission.action_duration,
+                mission.outcome_duration,
+            );
+        }
+        _ => {}
     }
 }
 
@@ -186,6 +295,14 @@ impl Playback {
         self.review_first_combat_clip(fraction)
     }
 
+    pub(super) fn review_first_air_mission(&mut self, progress: f32) -> bool {
+        let Some(PresentationEventView::AirMission(_)) = self.events.front() else {
+            return false;
+        };
+        self.review_progress = Some(progress.clamp(0.0, 1.0));
+        true
+    }
+
     pub(super) fn pending(&self) -> bool {
         !self.events.is_empty()
     }
@@ -200,6 +317,14 @@ impl Playback {
             }
             if let PresentationEventView::Combat(combat) = event
                 && let Some(city) = &combat.city
+            {
+                self.city_overrides
+                    .entry(city.id)
+                    .or_insert_with(|| city.clone());
+            } else if let PresentationEventView::AirMission(mission) = event
+                && let crate::sim::AirMissionPresentationKind::Bombard {
+                    city: Some(city), ..
+                } = &mission.kind
             {
                 self.city_overrides
                     .entry(city.id)
@@ -239,6 +364,35 @@ impl Playback {
                 (a.hp, d.hp) = combat.hp[index];
                 vec![(a, vec2(0.0, index as f32)), (d, vec2(0.0, index as f32))]
             }
+            PresentationEventView::AirMission(mission) => {
+                let phase = air_mission_phase(mission, f64::from(p) * mission.duration);
+                let mut aircraft = mission.aircraft.clone();
+                aircraft.facing = match phase {
+                    AirMissionPhase::Return(_) => mission.return_facing,
+                    _ => mission.outbound_facing,
+                };
+                let mut result = Vec::with_capacity(2);
+                match &mission.kind {
+                    crate::sim::AirMissionPresentationKind::Bombard {
+                        defender: Some((defender, hp_before, hp_after)),
+                        ..
+                    } => {
+                        let mut def = defender.clone();
+                        def.hp = match phase {
+                            AirMissionPhase::Outbound(_) => *hp_before,
+                            AirMissionPhase::Action(t) if t < 0.5 => *hp_before,
+                            _ => *hp_after,
+                        };
+                        result.push((def, vec2(0.0, 1.0)));
+                    }
+                    crate::sim::AirMissionPresentationKind::AaUnitIntercept { aa_unit, .. } => {
+                        result.push((aa_unit.clone(), vec2(0.0, 2.0)));
+                    }
+                    _ => {}
+                }
+                result.push((aircraft, vec2(p, 0.0)));
+                result
+            }
         }
     }
 }
@@ -247,6 +401,78 @@ fn sound_requests(
     event: &PresentationEventView,
     active_unit: Option<u32>,
 ) -> Vec<super::unit_sound::UnitSoundRequest> {
+    if let PresentationEventView::AirMission(mission) = event {
+        let selected_matches =
+            active_unit.is_some_and(|id| event.actors().any(|unit| unit.id == id));
+        let human_involved = mission.aircraft.owner == HUMAN
+            || match &mission.kind {
+                crate::sim::AirMissionPresentationKind::Bombard {
+                    defender: Some((defender, _, _)),
+                    ..
+                } => defender.owner == HUMAN,
+                crate::sim::AirMissionPresentationKind::Bombard {
+                    city: Some(city), ..
+                } => city.owner == HUMAN,
+                crate::sim::AirMissionPresentationKind::AaUnitIntercept { aa_unit, .. } => {
+                    aa_unit.owner == HUMAN
+                }
+                crate::sim::AirMissionPresentationKind::SamIntercept { .. } => true,
+                _ => false,
+            };
+        if !selected_matches && !human_involved {
+            return Vec::new();
+        }
+        let mut requests = Vec::with_capacity(4);
+        let mut push = |unit: &RenderedUnitView, action: &str, delay_seconds: f64| {
+            requests.push(super::unit_sound::UnitSoundRequest {
+                #[cfg(test)]
+                unit_id: unit.id,
+                kind: unit.kind,
+                era_index: unit.era_index,
+                action: action.to_owned(),
+                delay_seconds,
+            });
+        };
+        push(&mission.aircraft, "RUN", 0.0);
+        match &mission.kind {
+            crate::sim::AirMissionPresentationKind::Bombard { defender, .. } => {
+                // Civ III stores each aircraft's bombing-run sound under VICTORY.
+                push(&mission.aircraft, "VICTORY", mission.fly_duration);
+                if let Some((defender, _, hp_after)) = defender
+                    && *hp_after <= 0
+                {
+                    push(
+                        defender,
+                        "DEATH",
+                        mission.fly_duration + mission.action_duration * 0.45,
+                    );
+                }
+            }
+            crate::sim::AirMissionPresentationKind::Recon
+            | crate::sim::AirMissionPresentationKind::Rebase => {}
+            crate::sim::AirMissionPresentationKind::SamIntercept { shot_down } => {
+                push(&mission.aircraft, "SAM_EFFECT", mission.fly_duration);
+                if *shot_down {
+                    push(
+                        &mission.aircraft,
+                        "DEATH",
+                        mission.fly_duration + mission.action_duration,
+                    );
+                }
+            }
+            crate::sim::AirMissionPresentationKind::AaUnitIntercept { aa_unit, shot_down } => {
+                push(aa_unit, "ATTACK1", mission.fly_duration);
+                if *shot_down {
+                    push(
+                        &mission.aircraft,
+                        "DEATH",
+                        mission.fly_duration + mission.action_duration,
+                    );
+                }
+            }
+        }
+        return requests;
+    }
     let is_hut = matches!(event, PresentationEventView::EnterHut { .. });
     let Some(active_unit) = active_unit
         .filter(|id| event.actors().any(|unit| unit.id == *id))
@@ -259,7 +485,7 @@ fn sound_requests(
         return Vec::new();
     };
     let capacity = match event {
-        PresentationEventView::Combat(combat) => combat.hp.len().saturating_sub(1).max(1) + 1,
+        PresentationEventView::Combat(combat) => combat.hp.len().saturating_sub(1).max(1) + 2,
         _ => 1,
     };
     let mut requests = Vec::with_capacity(capacity);
@@ -325,7 +551,12 @@ fn sound_requests(
                     }
                 }
             }
+            if combat.bombard_effects {
+                let impact_start = (combat.duration - combat_impact_duration(combat)).max(0.0);
+                request(&combat.attacker, "BOMB_EFFECT", impact_start);
+            }
         }
+        PresentationEventView::AirMission(_) => unreachable!("handled above"),
     }
     requests
 }
@@ -344,6 +575,198 @@ impl Game {
         }
         let project = |x, y| view.project(self.sim.map_wrap(), x, y);
         let progress = self.playback.progress();
+        if let PresentationEventView::AirMission(mission) = event {
+            use super::tileset::Civ3UnitAction as Action;
+            let elapsed = f64::from(progress) * mission.duration;
+            let phase = air_mission_phase(mission, elapsed);
+            let from_center = project(mission.from.0, mission.from.1);
+            let to_center = project(mission.to.0, mission.to.1);
+            let period = self.sim.map_wrap().width() as f32 * TILE_W * view.zoom;
+            let dx = map_view::shortest_wrapped_delta(to_center.x - from_center.x, period);
+            let dy = to_center.y - from_center.y;
+            let flight_vector = vec2(dx, dy);
+
+            // 1. Draw any ground/naval target or firing AA unit underneath the aircraft.
+            match &mission.kind {
+                crate::sim::AirMissionPresentationKind::Bombard {
+                    defender: Some((defender, hp_before, hp_after)),
+                    ..
+                } => {
+                    let mut def = defender.clone();
+                    let (def_action, def_progress, def_duration) = match phase {
+                        AirMissionPhase::Outbound(_) => (Action::Default, 0.0, None),
+                        AirMissionPhase::Action(t) if t < 0.5 => {
+                            def.hp = *hp_before;
+                            (
+                                Action::Defend,
+                                t * 2.0,
+                                Some((mission.action_duration * 0.5) as f32),
+                            )
+                        }
+                        AirMissionPhase::Action(t) => {
+                            def.hp = *hp_after;
+                            if *hp_after <= 0 {
+                                (
+                                    Action::Death,
+                                    (t - 0.5) * 2.0,
+                                    Some((mission.action_duration * 0.5) as f32),
+                                )
+                            } else {
+                                (
+                                    Action::Defend,
+                                    1.0,
+                                    Some((mission.action_duration * 0.5) as f32),
+                                )
+                            }
+                        }
+                        AirMissionPhase::Return(_) | AirMissionPhase::Crash(_) => {
+                            def.hp = *hp_after;
+                            if *hp_after <= 0 {
+                                (Action::Death, 1.0, Some(0.5))
+                            } else {
+                                (Action::Default, 0.0, None)
+                            }
+                        }
+                    };
+                    if !(*hp_after <= 0 && matches!(phase, AirMissionPhase::Return(_))) {
+                        self.draw_unit_at_zoom(
+                            assets,
+                            &def,
+                            to_center,
+                            1,
+                            def_action,
+                            def_progress,
+                            def_duration,
+                            view.zoom,
+                        );
+                        self.draw_unit_health_at_zoom(assets, &def, to_center, view.zoom);
+                    }
+                }
+                crate::sim::AirMissionPresentationKind::AaUnitIntercept { aa_unit, .. } => {
+                    let (aa_action, aa_progress, aa_duration) = match phase {
+                        AirMissionPhase::Action(t) => {
+                            (Action::Attack, t, Some(mission.action_duration as f32))
+                        }
+                        _ => (Action::Default, 0.0, None),
+                    };
+                    self.draw_unit_at_zoom(
+                        assets,
+                        aa_unit,
+                        to_center,
+                        1,
+                        aa_action,
+                        aa_progress,
+                        aa_duration,
+                        view.zoom,
+                    );
+                    self.draw_unit_health_at_zoom(assets, aa_unit, to_center, view.zoom);
+                }
+                _ => {}
+            }
+
+            // 2. Draw the target explosion / SAM launch animation on the target tile.
+            if let AirMissionPhase::Action(t) = phase {
+                match &mission.kind {
+                    crate::sim::AirMissionPresentationKind::Bombard { .. } => {
+                        let palette_index =
+                            self.sim.player_team_palette_view(mission.aircraft.owner);
+                        // Civ III stores each aircraft's dedicated bomb explosion
+                        // clip (`BomberBomb.flc`, `FighterBomb.flc`, etc.) in VICTORY.
+                        let drawn = assets.civ3.draw_unit(
+                            mission.aircraft.kind,
+                            mission.aircraft.owner,
+                            palette_index,
+                            mission.outbound_facing,
+                            mission.aircraft.era_index,
+                            Action::Victory,
+                            t,
+                            Some(mission.action_duration as f32),
+                            to_center,
+                            view.zoom * WORLD_ART_SCALE,
+                            false,
+                        );
+                        if !drawn {
+                            let _ = assets.civ3.draw_bomb_effect(
+                                mission.outbound_facing,
+                                t,
+                                to_center,
+                                view.zoom,
+                            );
+                        }
+                    }
+                    crate::sim::AirMissionPresentationKind::SamIntercept { .. } => {
+                        let drawn = assets.civ3.draw_sam_effect(
+                            mission.outbound_facing,
+                            t,
+                            to_center,
+                            view.zoom,
+                        );
+                        if !drawn {
+                            let tail = to_center + vec2(0.0, 22.0 * view.zoom);
+                            let tip = to_center + vec2(0.0, (22.0 - 46.0 * t) * view.zoom);
+                            draw_line(
+                                tail.x,
+                                tail.y,
+                                tip.x,
+                                tip.y,
+                                (2.5 * view.zoom).max(1.5),
+                                Color::from_rgba(255, 240, 180, 235),
+                            );
+                        }
+                    }
+                    _ => {}
+                }
+            }
+
+            // 3. Draw the aircraft flying its outbound / over-target / crash / return path.
+            let mut aircraft = mission.aircraft.clone();
+            let (plane_center, plane_action, plane_progress, plane_duration) = match phase {
+                AirMissionPhase::Outbound(t) => {
+                    aircraft.facing = mission.outbound_facing;
+                    (
+                        from_center + flight_vector * t,
+                        Action::Run,
+                        t,
+                        mission.fly_duration as f32,
+                    )
+                }
+                AirMissionPhase::Action(t) => {
+                    aircraft.facing = mission.outbound_facing;
+                    let drift = flight_vector.normalize_or_zero() * ((t - 0.5) * 18.0 * view.zoom);
+                    (
+                        to_center + drift,
+                        Action::Run,
+                        t,
+                        mission.action_duration as f32,
+                    )
+                }
+                AirMissionPhase::Crash(t) => {
+                    aircraft.facing = mission.outbound_facing;
+                    aircraft.hp = 0;
+                    (to_center, Action::Death, t, mission.outcome_duration as f32)
+                }
+                AirMissionPhase::Return(t) => {
+                    aircraft.facing = mission.return_facing;
+                    (
+                        to_center - flight_vector * t,
+                        Action::Run,
+                        t,
+                        mission.fly_duration as f32,
+                    )
+                }
+            };
+            self.draw_unit_at_zoom(
+                assets,
+                &aircraft,
+                plane_center,
+                1,
+                plane_action,
+                plane_progress,
+                Some(plane_duration.max(0.05)),
+                view.zoom,
+            );
+            return;
+        }
         for (unit, phase) in self.playback.active() {
             let center = match event {
                 PresentationEventView::Move { from, to, .. } => {
@@ -395,7 +818,8 @@ impl Game {
                 }
                 PresentationEventView::WorkStarted { .. }
                 | PresentationEventView::Fortify { .. }
-                | PresentationEventView::EnterHut { .. } => Action::Default,
+                | PresentationEventView::EnterHut { .. }
+                | PresentationEventView::AirMission(_) => Action::Default,
             };
             self.draw_unit_at_zoom(
                 assets,
@@ -414,25 +838,35 @@ impl Game {
         if let PresentationEventView::Combat(combat) = event
             && combat.bombard_effects
         {
+            let impact_duration = combat_impact_duration(combat);
             let elapsed = self.playback.progress() as f64 * event.duration();
-            let explosion_start = event.duration() - COMBAT_EXPLOSION_SECONDS;
+            let explosion_start = event.duration() - impact_duration;
             if elapsed >= explosion_start {
                 let center = project(combat.defender.x, combat.defender.y);
-                let frame = (((elapsed - explosion_start) / 0.020) as i32).min(4);
-                let radius = (7.0 + frame as f32 * 3.0) * view.zoom;
-                draw_circle(
-                    center.x,
-                    center.y,
-                    radius,
-                    Color::new(1.0, 0.42, 0.08, 0.72),
-                );
-                draw_circle_lines(
-                    center.x,
-                    center.y,
-                    radius,
-                    (2.0 * view.zoom).max(1.0),
-                    Color::from_rgba(255, 222, 115, 240),
-                );
+                let effect_progress = ((elapsed - explosion_start) / impact_duration.max(0.001))
+                    .clamp(0.0, 1.0) as f32;
+                if !assets.civ3.draw_bomb_effect(
+                    combat.attacker.facing,
+                    effect_progress,
+                    center,
+                    view.zoom,
+                ) {
+                    let frame = (((elapsed - explosion_start) / 0.020) as i32).min(4);
+                    let radius = (7.0 + frame as f32 * 3.0) * view.zoom;
+                    draw_circle(
+                        center.x,
+                        center.y,
+                        radius,
+                        Color::new(1.0, 0.42, 0.08, 0.72),
+                    );
+                    draw_circle_lines(
+                        center.x,
+                        center.y,
+                        radius,
+                        (2.0 * view.zoom).max(1.0),
+                        Color::from_rgba(255, 222, 115, 240),
+                    );
+                }
             }
         }
     }
@@ -841,5 +1275,159 @@ mod tests {
             playback.finish();
             assert!(playback.overrides().is_empty());
         }
+    }
+
+    #[test]
+    fn air_mission_playback_schedules_authentic_civ3_sounds_and_phases() {
+        let mut sim = Simulation::new(crate::mapgen::generate(42));
+        let (bomber, (tx, ty)) = crate::sim::ui_review::ui_review_air_combat_setup(&mut sim, false);
+        let bomber_unit = sim.unit_by_id(bomber).unwrap().clone();
+        let (sx, sy) = (bomber_unit.x, bomber_unit.y);
+        let defender_unit = sim
+            .units()
+            .iter()
+            .find(|u| u.owner == 1 && (u.x, u.y) == (tx, ty))
+            .unwrap()
+            .clone();
+        let defender = defender_unit.id;
+        let flak = 103;
+        let mut flak_unit = defender_unit.clone();
+        flak_unit.id = flak;
+        flak_unit.kind = UnitKind::MobileSAM;
+        let artillery = 104;
+        let mut artillery_unit = bomber_unit.clone();
+        artillery_unit.id = artillery;
+        artillery_unit.kind = UnitKind::Artillery;
+
+        // 1. Bombing run killing a defender schedules RUN -> VICTORY (*Bomb.wav) -> defender DEATH.
+        let bombard = VisualEvent::AirMission(Box::new(crate::sim::AirMissionVisual {
+            aircraft: bomber_unit.clone(),
+            from: (sx, sy),
+            to: (tx, ty),
+            kind: crate::sim::AirMissionVisualKind::Bombard {
+                defender: Some((defender_unit.clone(), 3, 0)),
+                city: None,
+            },
+        }));
+        let bombard_view = sim.presentation_event_view_for_test(bombard);
+        let PresentationEventView::AirMission(mission) = &bombard_view else {
+            unreachable!()
+        };
+        assert_eq!(mission.outbound_facing, 3); // East
+        assert_eq!(mission.return_facing, 7); // West
+        assert!(matches!(
+            air_mission_phase(mission, 0.05),
+            AirMissionPhase::Outbound(_)
+        ));
+        assert!(matches!(
+            air_mission_phase(mission, mission.fly_duration + 0.1),
+            AirMissionPhase::Action(_)
+        ));
+        assert!(matches!(
+            air_mission_phase(
+                mission,
+                mission.fly_duration + mission.action_duration + 0.05
+            ),
+            AirMissionPhase::Return(_)
+        ));
+        let sounds = sound_requests(&bombard_view, Some(bomber));
+        assert_eq!(
+            sounds
+                .iter()
+                .map(|r| (r.unit_id, r.action.as_str()))
+                .collect::<Vec<_>>(),
+            vec![(bomber, "RUN"), (bomber, "VICTORY"), (defender, "DEATH")]
+        );
+        assert!(sounds[1].delay_seconds > sounds[0].delay_seconds);
+        assert!(sounds[2].delay_seconds > sounds[1].delay_seconds);
+
+        // 2. City SAM Battery interception schedules RUN -> SAM_EFFECT -> aircraft DEATH when shot down.
+        let sam = VisualEvent::AirMission(Box::new(crate::sim::AirMissionVisual {
+            aircraft: bomber_unit.clone(),
+            from: (sx, sy),
+            to: (tx, ty),
+            kind: crate::sim::AirMissionVisualKind::SamIntercept { shot_down: true },
+        }));
+        let sam_view = sim.presentation_event_view_for_test(sam);
+        let PresentationEventView::AirMission(sam_mission) = &sam_view else {
+            unreachable!()
+        };
+        assert!(matches!(
+            air_mission_phase(
+                sam_mission,
+                sam_mission.fly_duration + sam_mission.action_duration + 0.05
+            ),
+            AirMissionPhase::Crash(_)
+        ));
+        let sam_sounds = sound_requests(&sam_view, Some(bomber));
+        assert_eq!(
+            sam_sounds
+                .iter()
+                .map(|r| r.action.as_str())
+                .collect::<Vec<_>>(),
+            vec!["RUN", "SAM_EFFECT", "DEATH"]
+        );
+
+        // 3. Tile AA unit (Mobile SAM / Flak) shoots down bomber: RUN -> AA ATTACK1 -> bomber DEATH.
+        let aa = VisualEvent::AirMission(Box::new(crate::sim::AirMissionVisual {
+            aircraft: bomber_unit.clone(),
+            from: (sx, sy),
+            to: (tx, ty),
+            kind: crate::sim::AirMissionVisualKind::AaUnitIntercept {
+                aa_unit: flak_unit,
+                shot_down: true,
+            },
+        }));
+        let aa_sounds = sound_requests_for(&sim, aa, Some(bomber));
+        assert_eq!(
+            aa_sounds
+                .iter()
+                .map(|r| (r.unit_id, r.kind, r.action.as_str()))
+                .collect::<Vec<_>>(),
+            vec![
+                (bomber, UnitKind::Bomber, "RUN"),
+                (flak, UnitKind::MobileSAM, "ATTACK1"),
+                (bomber, UnitKind::Bomber, "DEATH"),
+            ]
+        );
+
+        // 4. Recon & Rebase schedule RUN with smooth flight duration.
+        let recon_view = sim.presentation_event_view_for_test(VisualEvent::AirMission(Box::new(
+            crate::sim::AirMissionVisual {
+                aircraft: bomber_unit,
+                from: (sx, sy),
+                to: (tx, ty),
+                kind: crate::sim::AirMissionVisualKind::Recon,
+            },
+        )));
+        assert!(recon_view.duration() >= 0.5);
+        assert_eq!(
+            sound_requests(&recon_view, Some(bomber))
+                .iter()
+                .map(|r| r.action.as_str())
+                .collect::<Vec<_>>(),
+            vec!["RUN"]
+        );
+
+        // 5. Non-aircraft artillery bombardment schedules BOMB_EFFECT alongside ATTACK1.
+        let art_sounds = sound_requests_for(
+            &sim,
+            VisualEvent::Combat(Box::new(CombatVisual {
+                attacker: artillery_unit,
+                defender: defender_unit,
+                hp: vec![(3, 3), (3, 2)],
+                city: None,
+                bombard_effects: true,
+                battle_ended: true,
+            })),
+            Some(artillery),
+        );
+        assert_eq!(
+            art_sounds
+                .iter()
+                .map(|r| r.action.as_str())
+                .collect::<Vec<_>>(),
+            vec!["ATTACK1", "BOMB_EFFECT"]
+        );
     }
 }

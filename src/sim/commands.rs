@@ -21,6 +21,8 @@ pub(crate) enum Command {
     PrecisionBombard(u32, i32, i32),
     AutoPrecisionBombard(u32, i32, i32),
     AirSuperiority(u32),
+    Rebase(u32, i32, i32),
+    Recon(u32, i32, i32),
     CancelOrder(u32),
     GoTo(u32, i32, i32),
     GoToGroup(Vec<u32>, i32, i32),
@@ -138,6 +140,8 @@ impl Simulation {
             | PrecisionBombard(id, ..)
             | AutoPrecisionBombard(id, ..)
             | AirSuperiority(id)
+            | Rebase(id, ..)
+            | Recon(id, ..)
             | CancelOrder(id)
             | GoTo(id, ..)
             | Connect(id, ..)
@@ -193,6 +197,8 @@ impl Simulation {
             }
             AutoPrecisionBombard(id, x, y) => self.start_repeated_precision_bombard(id, x, y),
             AirSuperiority(id) => self.start_air_superiority(id),
+            Rebase(id, x, y) => self.rebase_aircraft(id, x, y),
+            Recon(id, x, y) => self.recon_aircraft(id, x, y),
             CancelOrder(id) => self.cancel_unit_order(id),
             GoTo(id, x, y) => self.issue_player_goto(id, x, y),
             GoToGroup(ids, x, y) => self.issue_player_goto_group(ids, x, y),
