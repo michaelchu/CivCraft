@@ -37,8 +37,12 @@ and it replaces the unit named by `replaces` for that civilization. Any other
 unit is available to every civilization except those whose unique unit replaces
 it. `wonder_created` units, Leaders and Armies are never buildable. The optional
 `restricted_to` list of civilization nouns limits a non-unique unit to those
-civilizations; it is currently used only by Scout, and cannot be combined with
-`unique_civilization`.
+civilizations (currently only Scout), and `excluded_from` lists civilizations
+that cannot build it although no unique unit of theirs replaces it (Spearman,
+Pikeman and Medieval Infantry, from the original Civ III availability data).
+Neither can be combined with `unique_civilization`. The frozen fixture
+`tests/fixtures/unit_availability_v1.json` records exactly which units each
+civilization can build, and a test requires the catalog to reproduce it.
 
 `required_technology` references a compiled technology ID, such as
 `TECH_Bronze_Working`; `upgrade_to` and `replaces` reference unit IDs, such as

@@ -46,6 +46,10 @@ pub(crate) struct NativeUnit {
     /// nouns. Unique units use `unique_civilization` instead.
     #[serde(default)]
     pub(crate) restricted_to: Vec<String>,
+    /// Civilizations (nouns) that cannot build this non-unique unit even though
+    /// no unique unit of theirs replaces it, as in the Civ III availability data.
+    #[serde(default)]
+    pub(crate) excluded_from: Vec<String>,
     #[serde(default)]
     pub(crate) unique_civilization: String,
     #[serde(default)]
@@ -137,6 +141,7 @@ pub(crate) fn parse_units(
         for noun in unit
             .restricted_to
             .iter()
+            .chain(&unit.excluded_from)
             .chain((!unit.unique_civilization.is_empty()).then_some(&unit.unique_civilization))
         {
             if !nouns.contains(&noun.as_str()) {

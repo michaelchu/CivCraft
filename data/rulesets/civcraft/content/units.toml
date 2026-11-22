@@ -127,6 +127,7 @@ upgrade_to = "numidian_mercenary"
 capabilities = ["Foot", "Fortify", "Embark", "Airlift"]
 ai_roles = ["Defense"]
 domain = "Land"
+excluded_from = ["Sumerians"]
 
 [[units]]
 id = "swordsman"
@@ -187,6 +188,7 @@ upgrade_to = "musketman"
 capabilities = ["Foot", "Fortify", "Embark", "Airlift"]
 ai_roles = ["Defense"]
 domain = "Land"
+excluded_from = ["Greeks", "Carthaginians"]
 
 [[units]]
 id = "longbowman"
@@ -1213,6 +1215,7 @@ upgrade_to = "guerilla"
 capabilities = ["Foot", "Fortify", "Embark", "Airlift"]
 ai_roles = ["Offense"]
 domain = "Land"
+excluded_from = ["Persians"]
 
 [[units]]
 id = "guerilla"

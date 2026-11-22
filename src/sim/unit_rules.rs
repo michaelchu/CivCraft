@@ -40,6 +40,8 @@ pub(super) struct UnitRule {
     pub(super) air_defense: i32,
     /// `;`-joined civilization nouns; empty means no extra limit.
     pub(super) restricted_to: &'static str,
+    /// `;`-joined civilization nouns that cannot build this unit.
+    pub(super) excluded_from: &'static str,
     #[allow(dead_code)]
     pub(super) unique_civilization: &'static str,
     #[allow(dead_code)]
@@ -215,11 +217,15 @@ impl UnitRule {
     }
 
     fn civilization_mask_allows(&self, source_noun: &str) -> bool {
-        self.restricted_to.is_empty()
+        (self.restricted_to.is_empty()
             || self
                 .restricted_to
                 .split(';')
-                .any(|allowed| allowed == source_noun)
+                .any(|allowed| allowed == source_noun))
+            && !self
+                .excluded_from
+                .split(';')
+                .any(|excluded| excluded == source_noun)
     }
 
     /// Resolve a stable civilization ID to the canonical Civ III noun used by
@@ -303,6 +309,7 @@ fn rules() -> &'static [UnitRule] {
                 required_resources[slot] = leak(resource);
             }
             let restricted_to = leak(&native.restricted_to.join(";"));
+            let excluded_from = leak(&native.excluded_from.join(";"));
             let unique_civilization = leak(&native.unique_civilization);
             let replaces = leak(&native.replaces);
             parsed.push(UnitRule {
@@ -339,6 +346,7 @@ fn rules() -> &'static [UnitRule] {
                 worker_strength: native.worker_strength,
                 air_defense: native.air_defense,
                 restricted_to,
+                excluded_from,
                 unique_civilization,
                 replaces,
             });
@@ -494,6 +502,31 @@ mod tests {
         }
     }
 
+    /// `tests/fixtures/unit_availability_v1.json` freezes which units each
+    /// civilization can build, as resolved from the original Civ III
+    /// availability data before rosters were replaced by `unique_civilization`,
+    /// `restricted_to` and `excluded_from`.
+    #[test]
+    fn per_civilization_unit_availability_matches_civ3_data() {
+        let expected: std::collections::BTreeMap<String, Vec<String>> = serde_json::from_str(
+            include_str!("../../tests/fixtures/unit_availability_v1.json"),
+        )
+        .unwrap();
+        assert_eq!(expected.len(), crate::rules::civilizations::all().len());
+        for civilization in crate::rules::civilizations::all() {
+            let actual: Vec<&str> = rules()
+                .iter()
+                .filter(|rule| rule.available_to(&civilization.id))
+                .map(|rule| rule.id)
+                .collect();
+            assert_eq!(
+                actual, expected[&civilization.id],
+                "{} unit availability",
+                civilization.name
+            );
+        }
+    }
+
     #[test]
     fn native_toml_unit_catalog_matches_the_legacy_extraction() {
         let native = crate::rules::native::units();
@@ -528,6 +561,7 @@ mod tests {
             );
             assert_eq!(migrated.upgrade_to, source.upgrade_to);
             assert_eq!(migrated.restricted_to.join(";"), source.restricted_to);
+            assert_eq!(migrated.excluded_from.join(";"), source.excluded_from);
             assert_eq!(migrated.unique_civilization, source.unique_civilization);
             assert_eq!(migrated.replaces, source.replaces);
             assert_eq!(migrated.domain.index(), source.unit_type);
