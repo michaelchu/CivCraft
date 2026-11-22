@@ -535,6 +535,51 @@ mod tests {
     }
 
     #[test]
+    fn strategic_resource_requirements_need_a_connected_resource() {
+        let map = crate::mapgen::generate(42);
+        let (x, y) = map.starts[0];
+        let mut game = Simulation::new(map);
+        game.create_city(HUMAN, x, y);
+        let neighbors: Vec<_> = game.map_wrap.eight_way_neighbors(x, y).collect();
+        for &(nx, ny) in &neighbors {
+            let tile = game.tile_mut(nx, ny);
+            tile.terrain = Terrain::Plains;
+            tile.resource = None;
+        }
+        for name in ["Industrialization", "Mathematics"] {
+            game.discover(HUMAN, Tech::all().find(|tech| tech.name() == name).unwrap());
+        }
+        let factory = building("Factory");
+        let zeus = building("Statue of Zeus");
+        let blocked =
+            |game: &Simulation, building| game.building_blocker(&game.cities[0], building);
+        // Civ III: a Factory needs Iron and the Statue of Zeus needs Ivory.
+        assert!(blocked(&game, factory).is_some());
+        assert!(blocked(&game, zeus).is_some());
+        // The resource counts once its tile is owned and road-connected.
+        let (ix, iy) = neighbors[0];
+        {
+            let tile = game.tile_mut(ix, iy);
+            tile.terrain = Terrain::Hills;
+            tile.resource = Some(Resource::Iron);
+            tile.owner = Some(HUMAN);
+        }
+        assert!(blocked(&game, factory).is_some());
+        game.tile_mut(ix, iy).road = true;
+        assert!(blocked(&game, factory).is_none());
+        // One resource does not satisfy the other building's requirement.
+        assert!(blocked(&game, zeus).is_some());
+        let (vx, vy) = neighbors[1];
+        {
+            let tile = game.tile_mut(vx, vy);
+            tile.resource = Some(Resource::Ivory);
+            tile.owner = Some(HUMAN);
+            tile.road = true;
+        }
+        assert!(blocked(&game, zeus).is_none());
+    }
+
+    #[test]
     fn coastal_and_aqueduct_requirements_distinguish_lakes_sea_and_rivers() {
         let map = crate::mapgen::generate(42);
         let (x, y) = map.starts[0];

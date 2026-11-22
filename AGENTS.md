@@ -290,6 +290,17 @@ Technologies are Civ III only: there are no Freeciv-only advances or
 compatibility aliases. Engine rule tables name Civ III advances directly
 (`Tech::from_name`), and retired tech indices stay reserved so saved games keep
 their meaning. Freeciv rules with no Civ III counterpart (Plastics) are dropped.
+Buildings follow the Conquests BIQ records kept in
+`tests/fixtures/civ3_building_records.json` (extracted from the install,
+owner-confirmed valid on 2026-11-22): unlock technology, prerequisite building,
+strategic-resource requirements, obsolescence and upkeep for the 71 matched
+buildings, verified by `matched_buildings_follow_the_civ3_biq_records`. A building
+resource requirement means a resource connected to the city (owned, road-linked),
+the same test units use. Not yet at parity: building costs, the 12 Civ III records
+with no rule (10 spaceship parts, Civil Defense, Commercial Dock) and the 20
+Freeciv-only rules; those lists are pinned in that test and must be updated when
+a gap closes. The Pentagon era gate and culture rates are owner-authorized
+deviations.
 Derive new unit properties the same way, once on `UnitRule`, rather than
 re-deriving them per consumer. This narrows the aircraft exception's statement
 that helicopters retain their existing rules; their capture rule follows Civ III.
