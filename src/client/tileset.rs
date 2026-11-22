@@ -35,6 +35,7 @@ const REMEMBERED_FOG_ALPHA_GAMMA: f32 = 1.2;
 pub(super) struct TerrainOverlayContext {
     /// NW, NE, SW, SE bits used by the four-by-four hill/mountain atlases.
     pub(super) hilly_neighbors: u8,
+    pub(super) base_terrain: TerrainBase,
     pub(super) dominant_vegetation: Option<Terrain>,
 }
 
@@ -151,7 +152,7 @@ const LAND_SHEETS: [(&str, &str, [Ground; 3]); 6] = [
     ("tundra-grass-coast", "XTGC", [Tundra, Grass, Coast]),
     ("grass-coast", "XGGC", [Grass, Grass, Coast]),
 ];
-const OVERLAYS: [(&str, &str, u16, u16, usize); 13] = [
+const OVERLAYS: [(&str, &str, u16, u16, usize); 16] = [
     ("vegetation", "grassland forests", 768, 616, 88),
     ("marsh", "marsh", 768, 264, 88),
     ("hills", "xhills", 512, 288, 72),
@@ -165,7 +166,73 @@ const OVERLAYS: [(&str, &str, u16, u16, usize); 13] = [
     ("mountains-jungle", "mountain jungles", 512, 352, 88),
     ("volcano-forest", "Volcanos forests", 512, 352, 88),
     ("volcano-jungle", "Volcanos jungles", 512, 352, 88),
+    ("vegetation-plains", "plains forests", 768, 616, 88),
+    ("vegetation-tundra", "tundra forests", 768, 880, 88),
+    ("volcano-snow", "Volcanos-snow", 512, 352, 88),
 ];
+/// Native small vegetation rows and four-by-four connected relief cells.
+fn overlay_cell(
+    terrain: Terrain,
+    context: TerrainOverlayContext,
+    x: i32,
+    y: i32,
+) -> Option<(usize, usize, usize)> {
+    let variant = |count| (i64::from(x) * 37 + i64::from(y) * 13).rem_euclid(count) as usize;
+    let cold = matches!(context.base_terrain, TerrainBase::Tundra | TerrainBase::Ice);
+    Some(match terrain {
+        Terrain::Forest => match context.base_terrain {
+            TerrainBase::Plains => (13, 6, variant(5)),
+            TerrainBase::Tundra | TerrainBase::Ice => (14, 8 + variant(12) / 6, variant(6)),
+            _ => (0, 6, variant(5)),
+        },
+        Terrain::Jungle => (0, 2, variant(6)),
+        Terrain::Marsh => (1, 2, variant(6)),
+        Terrain::Hills => {
+            let index = match context.dominant_vegetation {
+                Some(Terrain::Forest) => 6,
+                Some(Terrain::Jungle) => 7,
+                _ => 2,
+            };
+            let shape = usize::from(context.hilly_neighbors & 0x0f);
+            (index, shape / 4, shape % 4)
+        }
+        Terrain::Mountains => {
+            let index = match context.dominant_vegetation {
+                _ if cold => 8,
+                Some(Terrain::Forest) => 9,
+                Some(Terrain::Jungle) => 10,
+                _ => 3,
+            };
+            let shape = usize::from(context.hilly_neighbors & 0x0f);
+            (index, shape / 4, shape % 4)
+        }
+        Terrain::FloodPlains => (4, 0, variant(4)),
+        Terrain::Volcano => {
+            let index = match context.dominant_vegetation {
+                _ if cold => 15,
+                Some(Terrain::Forest) => 11,
+                Some(Terrain::Jungle) => 12,
+                _ => 5,
+            };
+            let shape = usize::from(context.hilly_neighbors & 0x0f);
+            (index, shape / 4, shape % 4)
+        }
+        _ => return None,
+    })
+}
+
+/// Optional biome sheets fall back to the original manifest roles. A legacy
+/// 616px vegetation sheet cannot supply pine rows, so also restore its row.
+fn overlay_fallback(index: usize, row: usize, col: usize) -> Option<(usize, usize, usize)> {
+    Some(match index {
+        13 | 14 => (0, 6, col % 5),
+        8..=10 => (3, row, col),
+        11 | 12 | 15 => (5, row, col),
+        6 | 7 => (2, row, col),
+        _ => return None,
+    })
+}
+
 const IRRIGATION: [(&str, &str); 4] = [
     ("irrigation", "irrigation"),
     ("irrigation-plains", "irrigation PLAINS"),
@@ -2739,40 +2806,14 @@ impl Civ3 {
             );
             return true;
         }
-        let (index, row, col) = match terrain {
-            Terrain::Forest => (0, 6, (x * 37 + y * 13).rem_euclid(5) as usize),
-            Terrain::Jungle => (0, 2, (x * 37 + y * 13).rem_euclid(6) as usize),
-            Terrain::Marsh => (1, 2, (x * 37 + y * 13).rem_euclid(6) as usize),
-            Terrain::Hills => {
-                let index = match context.dominant_vegetation {
-                    Some(Terrain::Forest) => 6,
-                    Some(Terrain::Jungle) => 7,
-                    _ => 2,
-                };
-                let shape = usize::from(context.hilly_neighbors & 0x0f);
-                (index, shape / 4, shape % 4)
-            }
-            Terrain::Mountains => {
-                let index = match context.dominant_vegetation {
-                    Some(Terrain::Forest) => 9,
-                    Some(Terrain::Jungle) => 10,
-                    _ => 3,
-                };
-                let shape = usize::from(context.hilly_neighbors & 0x0f);
-                (index, shape / 4, shape % 4)
-            }
-            Terrain::FloodPlains => (4, 0, (x * 37 + y * 13).rem_euclid(4) as usize),
-            Terrain::Volcano => {
-                let index = match context.dominant_vegetation {
-                    Some(Terrain::Forest) => 11,
-                    Some(Terrain::Jungle) => 12,
-                    _ => 5,
-                };
-                let shape = usize::from(context.hilly_neighbors & 0x0f);
-                (index, shape / 4, shape % 4)
-            }
-            _ => return true,
+        let Some((mut index, mut row, mut col)) = overlay_cell(terrain, context, x, y) else {
+            return true;
         };
+        if self.overlays[index].is_none()
+            && let Some(fallback) = overlay_fallback(index, row, col)
+        {
+            (index, row, col) = fallback;
+        }
         let Some(texture) = &self.overlays[index] else {
             return false;
         };
@@ -2926,6 +2967,84 @@ fn draw_sprite(texture: &Texture2D, center: Vec2, size: Vec2, source: Rect) {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn biome_overlay_selection_keeps_native_cells_and_safe_fallbacks() {
+        use super::*;
+        for base in [
+            TerrainBase::Grassland,
+            TerrainBase::Plains,
+            TerrainBase::Tundra,
+            TerrainBase::Ice,
+        ] {
+            for x in -16..16 {
+                let context = TerrainOverlayContext {
+                    base_terrain: base,
+                    hilly_neighbors: x as u8,
+                    dominant_vegetation: Some(Terrain::Forest),
+                };
+                for terrain in [
+                    Terrain::Forest,
+                    Terrain::Jungle,
+                    Terrain::Mountains,
+                    Terrain::Volcano,
+                ] {
+                    let (sheet, row, col) = overlay_cell(terrain, context, x, 7).unwrap();
+                    let (_, _, width, height, cell_height) = OVERLAYS[sheet];
+                    assert!((col + 1) * WIDTH <= width as usize);
+                    assert!((row + 1) * cell_height <= height as usize);
+                    if terrain == Terrain::Jungle {
+                        assert_eq!((sheet, row), (0, 2));
+                    }
+                    if terrain == Terrain::Forest && base == TerrainBase::Plains {
+                        assert_eq!((sheet, row), (13, 6));
+                    }
+                    if terrain == Terrain::Forest && base == TerrainBase::Tundra {
+                        assert_eq!(sheet, 14);
+                        assert!((8..=9).contains(&row));
+                    }
+                    if matches!(base, TerrainBase::Tundra | TerrainBase::Ice)
+                        && terrain == Terrain::Mountains
+                    {
+                        assert_eq!(sheet, 8);
+                    }
+                    if matches!(base, TerrainBase::Tundra | TerrainBase::Ice)
+                        && terrain == Terrain::Volcano
+                    {
+                        assert_eq!(sheet, 15);
+                    }
+                    if let Some((fallback, r, c)) = overlay_fallback(sheet, row, col) {
+                        let (_, _, w, h, cell) = OVERLAYS[fallback];
+                        assert!((c + 1) * WIDTH <= w as usize && (r + 1) * cell <= h as usize);
+                    }
+                }
+            }
+        }
+        assert_eq!(overlay_fallback(14, 9, 5), Some((0, 6, 0)));
+        assert_eq!(overlay_fallback(15, 3, 3), Some((5, 3, 3)));
+    }
+
+    #[test]
+    fn biome_manifest_roles_are_optional_and_preserve_legacy_vegetation() {
+        use super::*;
+        let directory =
+            std::env::temp_dir().join(format!("civ3-biome-theme-{}", std::process::id()));
+        fs::create_dir_all(&directory).unwrap();
+        let manifest = directory.join("tileset.conf");
+        fs::write(&manifest, "vegetation = Terrain/legacy.png\nvegetation-plains = Terrain/plains.pcx\nvegetation-tundra = Terrain/pines.pcx\nvolcano-snow = Terrain/snow.pcx\n").unwrap();
+        let theme = Theme::read(&directory).unwrap();
+        assert_eq!(theme.paths["vegetation"], "Terrain/legacy.png");
+        assert_eq!(theme.paths["vegetation-tundra"], "Terrain/pines.pcx");
+        fs::remove_file(&manifest).unwrap();
+        let theme = Theme::read(&directory).unwrap();
+        assert!(
+            theme
+                .image("vegetation-tundra", "missing.pcx", (768, 880), false)
+                .unwrap()
+                .is_none()
+        );
+        fs::remove_dir(directory).unwrap();
+    }
+
     #[test]
     fn fortified_units_hold_a_pose_for_each_available_clip() {
         use super::Civ3UnitAction::{Fortify, FortifyHold};

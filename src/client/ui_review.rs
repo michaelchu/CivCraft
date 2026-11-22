@@ -266,6 +266,9 @@ impl Game {
             }
             27 | 28 => {
                 self.sim.review_fixture().terrain_layers(scene == 28);
+                if scene == 27 {
+                    self.sim.review_fixture().terrain_biomes();
+                }
                 self.zoom = Self::ui_review_map_zoom();
             }
             37 => {

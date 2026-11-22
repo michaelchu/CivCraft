@@ -145,6 +145,10 @@ impl ReviewFixture<'_> {
         ui_review_civ3_water_depths(self.0)
     }
 
+    pub(crate) fn terrain_biomes(&mut self) {
+        ui_review_terrain_biomes(self.0);
+    }
+
     pub(crate) fn terrain_seams(&mut self) {
         ui_review_terrain_seams(self.0)
     }
@@ -914,6 +918,28 @@ pub(crate) fn ui_review_terrain_layers(sim: &mut Simulation, layers: bool) -> Op
         }
         super::topology::rebuild_civ3_river_edges(sim.map_wrap, &mut sim.tiles);
         None
+    }
+}
+
+fn ui_review_terrain_biomes(sim: &mut Simulation) {
+    // Rows of matching biome/feature pairs, including cold relief, for
+    // selection QA. No campaign generation or simulation rule changes.
+    for (dy, base) in [
+        (-1, TerrainBase::Grassland),
+        (1, TerrainBase::Plains),
+        (3, TerrainBase::Tundra),
+    ] {
+        for (dx, terrain) in [
+            (-3, Terrain::Forest),
+            (-2, Terrain::Forest),
+            (0, Terrain::Mountains),
+            (2, Terrain::Volcano),
+        ] {
+            let (x, y) = offset_native_by_map(20, 24, dx, dy);
+            let tile = sim.tile_mut(x, y);
+            tile.terrain = terrain;
+            tile.base_terrain = base;
+        }
     }
 }
 

@@ -636,6 +636,23 @@ impl super::Generator {
                 plains -= 1;
             }
         }
+        if let Some(climate) = freeciv_temperature {
+            // Freeciv features have no underlying Civ III biome. Adapt only
+            // their presentation base after placement, without random draws.
+            // Cold/polar relief gets snow art; dry temperate forest gets the
+            // plains sheet. This is a CivCraft heuristic, not a native rule.
+            for tile in 0..terrain.len() {
+                if matches!(
+                    terrain[tile],
+                    Terrain::Forest | Terrain::Hills | Terrain::Mountains | Terrain::Volcano
+                ) {
+                    base_terrain[tile] = feature_presentation_base(
+                        climate.get(tile),
+                        climate.is_dry(self, tile, &terrain_water),
+                    );
+                }
+            }
+        }
         (terrain, base_terrain, temperature)
     }
 
@@ -1003,5 +1020,44 @@ mod tests {
         assert_eq!(find_sea_level(&heights, 60), 153);
         assert_eq!(find_sea_level(&heights, 54), 138);
         assert_eq!(find_sea_level(&heights, 42), 107);
+    }
+}
+
+/// Presentation-only bridge from the source temperature field to Civ III art.
+fn feature_presentation_base(zone: TemperatureType, dry: bool) -> TerrainBase {
+    match zone {
+        TemperatureType::Frozen | TemperatureType::Cold => TerrainBase::Tundra,
+        TemperatureType::Temperate if dry => TerrainBase::Plains,
+        _ => TerrainBase::Grassland,
+    }
+}
+
+#[cfg(test)]
+mod presentation_tests {
+    use super::*;
+    #[test]
+    fn feature_biomes_use_existing_climate_without_drawing_randomness() {
+        for dry in [false, true] {
+            assert_eq!(
+                feature_presentation_base(TemperatureType::Frozen, dry),
+                TerrainBase::Tundra
+            );
+            assert_eq!(
+                feature_presentation_base(TemperatureType::Cold, dry),
+                TerrainBase::Tundra
+            );
+            assert_eq!(
+                feature_presentation_base(TemperatureType::Tropical, dry),
+                TerrainBase::Grassland
+            );
+        }
+        assert_eq!(
+            feature_presentation_base(TemperatureType::Temperate, true),
+            TerrainBase::Plains
+        );
+        assert_eq!(
+            feature_presentation_base(TemperatureType::Temperate, false),
+            TerrainBase::Grassland
+        );
     }
 }

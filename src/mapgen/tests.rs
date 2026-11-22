@@ -1389,3 +1389,90 @@ fn fractal_generator_applies_world_settings_deterministically() {
         "80% ocean coverage should produce more water than 60%: {water_b} vs {water_a}"
     );
 }
+
+/// Reproducible, zero-turn diagnostic; deliberately excluded from routine tests.
+#[test]
+#[ignore]
+fn terrain_biome_census() {
+    for seed in [42, 7, 99] {
+        for climate in [Climate::Arid, Climate::Normal, Climate::Wet] {
+            for temperature in [Temperature::Cool, Temperature::Temperate, Temperature::Warm] {
+                let settings = WorldSettings {
+                    climate,
+                    temperature,
+                    ..WorldSettings::default()
+                };
+                let map = generate_with_map_generator(
+                    &FreecivFractalMapGenerator,
+                    map_generation_request(
+                        seed,
+                        MapWrap::X,
+                        settings,
+                        crate::world::DEFAULT_CIVILIZATION_COUNT,
+                    ),
+                );
+                let mut counts = std::collections::BTreeMap::new();
+                for tile in &map.tiles {
+                    if TerrainBase::is_feature_terrain(tile.terrain) {
+                        *counts
+                            .entry(format!("{:?},{:?}", tile.terrain, tile.base_terrain))
+                            .or_insert(0usize) += 1;
+                    }
+                }
+                for (pair, count) in counts {
+                    println!("CENSUS,{seed},{climate:?},{temperature:?},{pair},{count}");
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn fractal_feature_biomes_cover_cold_dry_and_temperate_art_without_changing_poles() {
+    let mut forest_bases = [false; 3];
+    let mut snowy_relief = 0;
+    for seed in [42, 7, 99] {
+        for temperature in [Temperature::Cool, Temperature::Temperate, Temperature::Warm] {
+            let map = generate_with_map_generator(
+                &FreecivFractalMapGenerator,
+                map_generation_request(
+                    seed,
+                    MapWrap::X,
+                    WorldSettings {
+                        temperature,
+                        ..WorldSettings::default()
+                    },
+                    crate::world::DEFAULT_CIVILIZATION_COUNT,
+                ),
+            );
+            for (i, tile) in map.tiles.iter().enumerate() {
+                if i < map.map_wrap.width() as usize
+                    || i >= map.tiles.len() - map.map_wrap.width() as usize
+                {
+                    assert_eq!(
+                        (tile.terrain, tile.base_terrain),
+                        (Terrain::Ocean, TerrainBase::Ocean)
+                    );
+                }
+                if tile.terrain == Terrain::Forest {
+                    match tile.base_terrain {
+                        TerrainBase::Grassland => forest_bases[0] = true,
+                        TerrainBase::Plains => forest_bases[1] = true,
+                        TerrainBase::Tundra => forest_bases[2] = true,
+                        other => panic!("unexpected forest base {other:?}"),
+                    }
+                }
+                if matches!(tile.terrain, Terrain::Mountains | Terrain::Volcano)
+                    && tile.base_terrain == TerrainBase::Tundra
+                {
+                    snowy_relief += 1;
+                }
+                if tile.terrain == Terrain::Jungle {
+                    assert_eq!(tile.base_terrain, TerrainBase::Grassland);
+                }
+            }
+        }
+    }
+    assert_eq!(forest_bases, [true; 3]);
+    assert!(snowy_relief > 0);
+}
