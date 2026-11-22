@@ -2766,6 +2766,7 @@ fn native_ai_evaluates_aircraft_production_during_war_plan_preparation() {
             countdown: 4,
             reason: diplomacy::WarReason::Spoils,
             objective: None,
+            readiness_waited: 0,
         },
     );
     let choice = game.aircraft_production_choice(&city);

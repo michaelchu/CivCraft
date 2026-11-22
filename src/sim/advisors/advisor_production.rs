@@ -776,34 +776,70 @@ impl Simulation {
                 stage = Some("hunter");
             }
             if let Some(objective) = self.coordinated_war_objective(city.owner)
-                && (objective.muster_city == city.id
-                    || (self.war_muster_has_garrison(city)
-                        && self.map_distance(
-                            city.x,
-                            city.y,
-                            objective.staging.0,
-                            objective.staging.1,
-                        ) <= 8
-                        && {
-                            let regions = self.continent_labels();
-                            regions[self.map_wrap.index(city.x, city.y)]
-                                == regions[self
-                                    .map_wrap
-                                    .index(objective.staging.0, objective.staging.1)]
-                        }))
+                && {
+                    let regions = self.continent_labels();
+                    let muster_region = self
+                        .city_by_id(objective.muster_city)
+                        .map(|home| regions[self.map_wrap.index(home.x, home.y)]);
+                    objective.muster_city == city.id
+                        || (self.war_muster_has_garrison(city)
+                            && muster_region
+                                == Some(regions[self.map_wrap.index(city.x, city.y)]))
+                }
                 && self.city_grave_danger(city) == 0
                 && !self.war_force_ready(city.owner, objective)
                 && {
                     let strategy = self.strategic_priorities(city.owner);
                     !strategy.economic_crisis
                         && (strategy.can_start_optional_war()
-                            || (!strategy.space_program
-                                && self
-                                    .city_by_id(objective.city)
-                                    .is_some_and(|target| self.at_war(city.owner, target.owner))))
+                            || self.city_by_id(objective.city).is_some_and(|target| {
+                                self.ai_war_plan_is_obligated(city.owner, target.owner)
+                                    || (!strategy.space_program
+                                        && self.at_war(city.owner, target.owner))
+                            }))
                 }
             {
-                let kind = if self.war_muster_has_garrison(city) {
+                let kind = if !self.war_muster_has_garrison(city) {
+                    self.production_city_defender_with_assessment(
+                        city,
+                        0,
+                        self.advisor_guard_city_assessment(city),
+                    )
+                } else if objective.kind == super::super::diplomacy::WarObjectiveKind::Naval {
+                    let transport_kind = self.buildable_naval_transport_kind(city);
+                    let total_capacity: usize = self
+                        .units_owned_by(city.owner)
+                        .filter(|unit| Self::is_naval_assault_transport(unit.kind))
+                        .map(|unit| unit.kind.transport_capacity())
+                        .sum();
+                    let free_slots: usize = self
+                        .units_owned_by(city.owner)
+                        .filter(|unit| Self::is_naval_assault_transport(unit.kind))
+                        .map(|unit| {
+                            unit.kind
+                                .transport_capacity()
+                                .saturating_sub(self.cargo_count(unit.id))
+                        })
+                        .sum();
+                    let need_transport = total_capacity < 2 || free_slots == 0;
+                    if need_transport && let Some(boat_kind) = transport_kind {
+                        Some(boat_kind)
+                    } else {
+                        let carrier = self.city_by_id(objective.muster_city).and_then(|home| {
+                            self.available_naval_transport_kind(city.owner, home)
+                        });
+                        UnitKind::all()
+                            .filter(|&kind| {
+                                Self::can_join_ground_offensive(kind)
+                                    && self.unit_buildable(city, kind)
+                                    && carrier.is_none_or(|boat| boat.can_carry(kind))
+                            })
+                            .max_by_key(|kind| {
+                                let stats = kind.stats();
+                                stats.attack * stats.attack * 100 / stats.cost.max(1)
+                            })
+                    }
+                } else {
                     UnitKind::all()
                         .filter(|&kind| {
                             Self::can_join_ground_offensive(kind) && self.unit_buildable(city, kind)
@@ -812,12 +848,6 @@ impl Simulation {
                             let stats = kind.stats();
                             stats.attack * stats.attack * 100 / stats.cost.max(1)
                         })
-                } else {
-                    self.production_city_defender_with_assessment(
-                        city,
-                        0,
-                        self.advisor_guard_city_assessment(city),
-                    )
                 };
                 if let Some(kind) = kind {
                     return (

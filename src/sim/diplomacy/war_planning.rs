@@ -3,54 +3,135 @@
 use super::*;
 use crate::sim::normal_paths::{GotoTask, NormalPaths};
 
-const FRONT_RANGE: i32 = 8;
+const BEHAVIOR_READINESS_TIMEOUT: u16 = 4;
 
 impl WarReason {
     fn requires_readiness(self) -> bool {
         matches!(self, Self::Hatred | Self::Excuse | Self::Spoils)
     }
+
+    fn readiness_timeout(self) -> Option<u16> {
+        matches!(self, Self::Behavior).then_some(BEHAVIOR_READINESS_TIMEOUT)
+    }
 }
 
 impl Simulation {
-    fn valid_war_objective(&self, owner: usize, target: usize, objective: WarObjective) -> bool {
-        self.city_by_id(objective.city)
-            .is_some_and(|city| city.owner == target)
-            && self
-                .city_by_id(objective.muster_city)
-                .is_some_and(|city| city.owner == owner)
-            && (0..self.map_wrap.height()).contains(&objective.staging.1)
-            && self
-                .city_at(objective.staging.0, objective.staging.1)
-                .is_none()
-            && self
-                .tile(objective.staging.0, objective.staging.1)
-                .owner
-                .is_none_or(|controller| controller == owner || self.allied(owner, controller))
+    pub(in crate::sim) fn is_naval_assault_transport(kind: UnitKind) -> bool {
+        matches!(
+            kind,
+            UnitKind::Galley | UnitKind::Caravel | UnitKind::Galleon | UnitKind::Transport
+        )
     }
 
-    fn choose_war_objective(&self, owner: usize, target: usize) -> Option<WarObjective> {
-        let continents = self.continent_labels();
+    pub(in crate::sim) fn buildable_naval_transport_kind(&self, city: &City) -> Option<UnitKind> {
+        [
+            UnitKind::Transport,
+            UnitKind::Galleon,
+            UnitKind::Caravel,
+            UnitKind::Galley,
+        ]
+        .into_iter()
+        .filter(|&kind| self.unit_buildable(city, kind) && self.naval_city_access(city, kind))
+        .max_by_key(|&kind| (kind.transport_capacity(), kind.stats().moves))
+    }
+
+    pub(in crate::sim) fn available_naval_transport_kind(
+        &self,
+        owner: usize,
+        city: &City,
+    ) -> Option<UnitKind> {
+        self.units_owned_by(owner)
+            .filter(|unit| {
+                Self::is_naval_assault_transport(unit.kind)
+                    && self.naval_city_access(city, unit.kind)
+            })
+            .map(|unit| unit.kind)
+            .max_by_key(|&kind| (kind.transport_capacity(), kind.stats().moves))
+            .or_else(|| self.buildable_naval_transport_kind(city))
+    }
+
+    pub(in crate::sim) fn ai_war_plan_is_obligated(&self, owner: usize, target: usize) -> bool {
+        self.ai_war_plans
+            .get(&(owner, target))
+            .is_some_and(|plan| plan.countdown >= 0 && !plan.reason.requires_readiness())
+    }
+
+    fn valid_war_objective(&self, owner: usize, target: usize, objective: WarObjective) -> bool {
+        let Some(home) = self
+            .city_by_id(objective.muster_city)
+            .filter(|city| city.owner == owner)
+        else {
+            return false;
+        };
+        if !self
+            .city_by_id(objective.city)
+            .is_some_and(|city| city.owner == target)
+            || !(0..self.map_wrap.height()).contains(&objective.staging.1)
+        {
+            return false;
+        }
+        match objective.kind {
+            WarObjectiveKind::Land => {
+                self.city_at(objective.staging.0, objective.staging.1)
+                    .is_none()
+                    && self.pf_native_tile(
+                        UnitKind::Warrior,
+                        objective.staging.0,
+                        objective.staging.1,
+                    )
+                    && self
+                        .tile(objective.staging.0, objective.staging.1)
+                        .owner
+                        .is_none_or(|controller| {
+                            controller == owner || self.allied(owner, controller)
+                        })
+            }
+            WarObjectiveKind::Naval => {
+                self.available_naval_transport_kind(owner, home).is_some()
+                    && (objective.staging == (home.x, home.y)
+                        || (self
+                            .city_at(objective.staging.0, objective.staging.1)
+                            .is_none()
+                            && self
+                                .tile(objective.staging.0, objective.staging.1)
+                                .terrain
+                                .is_water()
+                            && self
+                                .tile(objective.staging.0, objective.staging.1)
+                                .owner
+                                .is_none_or(|controller| {
+                                    controller == owner || self.allied(owner, controller)
+                                })))
+            }
+        }
+    }
+
+    fn choose_land_war_objective(
+        &self,
+        owner: usize,
+        target: usize,
+        continents: &[usize],
+    ) -> Option<WarObjective> {
         let mut candidates = Vec::new();
         for city in self.cities_owned_by(target) {
             if !self.tile(city.x, city.y).known_by[owner] {
                 continue;
             }
             for home in self.cities_owned_by(owner) {
-                let distance = self.map_distance(home.x, home.y, city.x, city.y);
-                if distance > FRONT_RANGE
-                    || continents[self.map_wrap.index(home.x, home.y)]
-                        != continents[self.map_wrap.index(city.x, city.y)]
+                if continents[self.map_wrap.index(home.x, home.y)]
+                    != continents[self.map_wrap.index(city.x, city.y)]
                 {
                     continue;
                 }
+                let distance = self.map_distance(home.x, home.y, city.x, city.y);
                 for (x, y, _) in self.map_wrap.tiles_within_steps(city.x, city.y, 3) {
                     let objective = WarObjective {
                         city: city.id,
                         muster_city: home.id,
                         staging: (x, y),
+                        kind: WarObjectiveKind::Land,
                     };
                     if !self.tile(x, y).known_by[owner]
-                        || !self.pf_native_tile(UnitKind::Warrior, x, y)
                         || continents[self.map_wrap.index(x, y)]
                             != continents[self.map_wrap.index(city.x, city.y)]
                         || !self.valid_war_objective(owner, target, objective)
@@ -82,9 +163,128 @@ impl Simulation {
                 let probe = self.make_unit(0, owner, UnitKind::Warrior, home.x, home.y);
                 NormalPaths::goto_map(self, &probe, GotoTask::None)
                     .position_turn_astar(self, x, y)
-                    .filter(|&turns| turns <= FRONT_RANGE)
                     .map(|_| objective)
             })
+    }
+
+    fn choose_naval_war_objective(
+        &self,
+        owner: usize,
+        target: usize,
+        continents: &[usize],
+    ) -> Option<WarObjective> {
+        let mut best: Option<((u8, i32, i32, u32, u32, i32, i32), WarObjective)> = None;
+        for home in self.cities_owned_by(owner) {
+            let Some(transport_kind) = self.available_naval_transport_kind(owner, home) else {
+                continue;
+            };
+            let home_continent = continents[self.map_wrap.index(home.x, home.y)];
+            let probe = self.make_unit(0, owner, transport_kind, home.x, home.y);
+            let mut peace_routes = None;
+            let mut attack_routes = None;
+
+            for city in self.cities_owned_by(target) {
+                if !self.tile(city.x, city.y).known_by[owner] {
+                    continue;
+                }
+                let city_continent = continents[self.map_wrap.index(city.x, city.y)];
+                if city_continent == home_continent {
+                    continue;
+                }
+                let mut found_forward = false;
+                let mut water_candidates = Vec::new();
+                for (x, y, dist) in self.map_wrap.tiles_within_steps(city.x, city.y, 4) {
+                    if dist == 0 || !self.tile(x, y).known_by[owner] {
+                        continue;
+                    }
+                    let objective = WarObjective {
+                        city: city.id,
+                        muster_city: home.id,
+                        staging: (x, y),
+                        kind: WarObjectiveKind::Naval,
+                    };
+                    if !self.valid_war_objective(owner, target, objective) {
+                        continue;
+                    }
+                    let near_landing = self
+                        .map_wrap
+                        .tiles_within_steps(x, y, 2)
+                        .into_iter()
+                        .any(|(lx, ly, _)| {
+                            self.pf_native_tile(UnitKind::Warrior, lx, ly)
+                                && continents[self.map_wrap.index(lx, ly)] == city_continent
+                                && self.map_distance(lx, ly, city.x, city.y) <= 2
+                        });
+                    if near_landing {
+                        water_candidates.push((dist, x, y, objective));
+                    }
+                }
+                water_candidates.sort_unstable_by_key(|&(dist, x, y, _)| (dist, x, y));
+                for (dist, x, y, objective) in water_candidates {
+                    let routes = peace_routes
+                        .get_or_insert_with(|| NormalPaths::goto_map(self, &probe, GotoTask::None));
+                    if let Some(turns) = routes.position_turn_astar(self, x, y) {
+                        let key = (0, turns, dist, city.id, home.id, x, y);
+                        if best.is_none_or(|(best_key, _)| key < best_key) {
+                            best = Some((key, objective));
+                        }
+                        found_forward = true;
+                        break;
+                    }
+                }
+                if !found_forward {
+                    let mut coastal_water = Vec::new();
+                    for (x, y, dist) in self.map_wrap.tiles_within_steps(city.x, city.y, 3) {
+                        if dist == 0
+                            || !self.tile(x, y).known_by[owner]
+                            || !self.tile(x, y).terrain.is_water()
+                        {
+                            continue;
+                        }
+                        let adjacent_landing = EIGHT_WAY_DIRS.into_iter().any(|(dx, dy)| {
+                            self.map_wrap
+                                .eight_way_offset(x, y, dx, dy)
+                                .is_some_and(|(lx, ly)| {
+                                    self.pf_native_tile(UnitKind::Warrior, lx, ly)
+                                        && continents[self.map_wrap.index(lx, ly)] == city_continent
+                                        && self.map_distance(lx, ly, city.x, city.y) <= 2
+                                })
+                        });
+                        if adjacent_landing {
+                            coastal_water.push((dist, x, y));
+                        }
+                    }
+                    coastal_water.sort_unstable();
+                    for (dist, x, y) in coastal_water {
+                        let routes = attack_routes.get_or_insert_with(|| {
+                            NormalPaths::goto_map(self, &probe, GotoTask::Attack)
+                        });
+                        if let Some(turns) = routes.position_turn_astar(self, x, y) {
+                            let objective = WarObjective {
+                                city: city.id,
+                                muster_city: home.id,
+                                staging: (home.x, home.y),
+                                kind: WarObjectiveKind::Naval,
+                            };
+                            if self.valid_war_objective(owner, target, objective) {
+                                let key = (1, turns, dist, city.id, home.id, home.x, home.y);
+                                if best.is_none_or(|(best_key, _)| key < best_key) {
+                                    best = Some((key, objective));
+                                }
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        best.map(|(_, objective)| objective)
+    }
+
+    fn choose_war_objective(&self, owner: usize, target: usize) -> Option<WarObjective> {
+        let continents = self.continent_labels();
+        self.choose_land_war_objective(owner, target, &continents)
+            .or_else(|| self.choose_naval_war_objective(owner, target, &continents))
     }
 
     pub(crate) fn coordinated_war_objective(&self, owner: usize) -> Option<WarObjective> {
@@ -138,6 +338,44 @@ impl Simulation {
             && kind.stats().attack >= 2
     }
 
+    pub(in crate::sim) fn staged_objective_troops(
+        &self,
+        owner: usize,
+        objective: WarObjective,
+    ) -> Vec<&Unit> {
+        match objective.kind {
+            WarObjectiveKind::Land => self
+                .tile_units_ordered(objective.staging.0, objective.staging.1)
+                .filter(|unit| {
+                    unit.owner == owner
+                        && unit.transport.is_none()
+                        && Self::can_join_ground_offensive(unit.kind)
+                })
+                .collect(),
+            WarObjectiveKind::Naval => {
+                let boats: Vec<_> = self
+                    .tile_units_ordered(objective.staging.0, objective.staging.1)
+                    .filter(|unit| {
+                        unit.owner == owner
+                            && Self::is_naval_assault_transport(unit.kind)
+                            && self.military_ferry_ready(unit.id)
+                    })
+                    .map(|boat| boat.id)
+                    .collect();
+                boats
+                    .into_iter()
+                    .flat_map(|boat_id| {
+                        self.cargo_units_ordered(boat_id)
+                            .filter(|unit| {
+                                unit.owner == owner && Self::can_join_ground_offensive(unit.kind)
+                            })
+                            .collect::<Vec<_>>()
+                    })
+                    .collect()
+            }
+        }
+    }
+
     pub(in crate::sim) fn war_force_ready(&self, owner: usize, objective: WarObjective) -> bool {
         let Some(city) = self.city_by_id(objective.city) else {
             return false;
@@ -148,14 +386,7 @@ impl Simulation {
         if !self.war_muster_has_garrison(home) {
             return false;
         }
-        let troops: Vec<_> = self
-            .tile_units_ordered(objective.staging.0, objective.staging.1)
-            .filter(|unit| {
-                unit.owner == owner
-                    && unit.transport.is_none()
-                    && Self::can_join_ground_offensive(unit.kind)
-            })
-            .collect();
+        let troops = self.staged_objective_troops(owner, objective);
         if troops.len() < 2 {
             return false;
         }
@@ -252,6 +483,7 @@ impl Simulation {
                 countdown: delay,
                 reason,
                 objective: None,
+                readiness_waited: 0,
             },
         );
         self.trace_diplomacy(
@@ -448,10 +680,7 @@ impl Simulation {
                 self.ai_war_plans.remove(&(owner, target));
                 continue;
             }
-            if plan.countdown >= 0
-                && plan.reason.requires_readiness()
-                && !self.at_war(owner, target)
-            {
+            if plan.countdown >= 0 && !self.at_war(owner, target) {
                 let objective = plan
                     .objective
                     .filter(|objective| self.valid_war_objective(owner, target, *objective))
@@ -461,38 +690,58 @@ impl Simulation {
                     .unwrap()
                     .objective = objective;
                 if plan.countdown == 0 {
-                    let reason = match objective {
-                        None => {
-                            self.ai_war_plans
-                                .get_mut(&(owner, target))
-                                .unwrap()
-                                .countdown = -10;
-                            "no_reachable_border_objective"
-                        }
-                        Some(_) if strategy.economic_crisis => "economic_recovery",
-                        Some(_)
-                            if !strategy.can_start_optional_war()
-                                || contacts.iter().any(|&other| self.at_war(owner, other)) =>
-                        {
-                            "other_strategic_commitment"
-                        }
-                        Some(objective) if !self.war_force_ready(owner, objective) => {
-                            "assembling_force"
-                        }
-                        Some(_) => {
-                            self.declare_prepared_ai_war(owner, target, plan.reason);
-                            continue;
-                        }
-                    };
-                    self.trace_diplomacy(
-                        owner,
-                        target,
-                        "war_deferred",
-                        reason,
-                        self.contacted_pact(owner, target),
-                        None,
-                    );
-                    continue;
+                    if plan.reason.requires_readiness() {
+                        let reason = match objective {
+                            None => {
+                                self.ai_war_plans
+                                    .get_mut(&(owner, target))
+                                    .unwrap()
+                                    .countdown = -10;
+                                "no_reachable_objective"
+                            }
+                            Some(_) if strategy.economic_crisis => "economic_recovery",
+                            Some(_)
+                                if !strategy.can_start_optional_war()
+                                    || contacts.iter().any(|&other| self.at_war(owner, other)) =>
+                            {
+                                "other_strategic_commitment"
+                            }
+                            Some(objective) if !self.war_force_ready(owner, objective) => {
+                                "assembling_force"
+                            }
+                            Some(_) => {
+                                self.declare_prepared_ai_war(owner, target, plan.reason);
+                                continue;
+                            }
+                        };
+                        self.trace_diplomacy(
+                            owner,
+                            target,
+                            "war_deferred",
+                            reason,
+                            self.contacted_pact(owner, target),
+                            None,
+                        );
+                        continue;
+                    } else if let Some(timeout) = plan.reason.readiness_timeout()
+                        && let Some(objective) = objective
+                        && !self.war_force_ready(owner, objective)
+                        && plan.readiness_waited < timeout
+                    {
+                        self.ai_war_plans
+                            .get_mut(&(owner, target))
+                            .unwrap()
+                            .readiness_waited += 1;
+                        self.trace_diplomacy(
+                            owner,
+                            target,
+                            "war_deferred",
+                            "assembling_force",
+                            self.contacted_pact(owner, target),
+                            None,
+                        );
+                        continue;
+                    }
                 }
             }
             if plan.countdown > 0 {
@@ -551,6 +800,7 @@ impl Simulation {
                     .ai_war_plans
                     .get(&(owner, target))
                     .and_then(|plan| plan.objective),
+                readiness_waited: 0,
             },
         );
         if let Some(relation) = self.diplomacy.get_mut(&Self::relation_key(owner, target)) {

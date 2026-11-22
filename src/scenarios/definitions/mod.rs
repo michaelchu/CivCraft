@@ -42,6 +42,7 @@ mod unit_recovery;
 mod upkeep_shock;
 mod vassalage;
 mod vassalage_ai;
+mod war_preparation;
 mod wartime_funding;
 
 #[cfg(test)]
@@ -99,6 +100,9 @@ pub(super) const SCENARIOS: &[Scenario] = &[
     campaign_readiness::SCENARIO,
     border_offensive::SCENARIO,
     border_offensive::REINFORCED,
+    war_preparation::DISTANT_OFFENSIVE,
+    war_preparation::OVERSEAS_OFFENSIVE,
+    war_preparation::PROVOKED_REVENGE,
     city_governor::GOVERNED,
     city_governor::CONTROL,
     city_governor::FOOD_SHOCK,

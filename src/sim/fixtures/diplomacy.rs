@@ -71,6 +71,10 @@ impl WorldBuilder<'_> {
             .until = until;
     }
 
+    pub(crate) fn provocation(&mut self, victim: usize, offender: usize) {
+        self.game.set_scenario_provocation(victim, offender);
+    }
+
     pub(crate) fn immediate_war_plan(&mut self, owner: usize, target: usize) {
         self.game.ai_war_plans.insert(
             (owner, target),
@@ -78,6 +82,7 @@ impl WorldBuilder<'_> {
                 countdown: 0,
                 reason: crate::sim::diplomacy::WarReason::Behavior,
                 objective: None,
+                readiness_waited: u16::MAX,
             },
         );
     }

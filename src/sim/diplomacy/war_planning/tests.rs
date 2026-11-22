@@ -293,6 +293,7 @@ fn senate_requires_a_revolution_before_the_planned_declaration() {
             countdown: 0,
             reason: WarReason::Behavior,
             objective: None,
+            readiness_waited: 0,
         },
     );
     game.advance_ai_war_plans();
@@ -341,3 +342,257 @@ fn economic_crisis_blocks_optional_wars_but_preserves_ally_obligations() {
         WarReason::Alliance
     ));
 }
+
+#[test]
+fn distant_same_continent_objective_stages_beyond_eight_tiles() {
+    let mut game = war_planning_game();
+    game.cities.clear();
+    for tile in &mut game.tiles {
+        tile.terrain = Terrain::Grassland;
+        tile.river = false;
+        tile.road = true;
+        tile.known_by.set(1, true);
+    }
+    let home = (6, 24);
+    let target = (20, 24);
+    assert!(game.map_distance(home.0, home.1, target.0, target.1) > 10);
+    game.create_city(1, home.0, home.1);
+    game.create_city(HUMAN, target.0, target.1);
+    game.spawn_unit(1, UnitKind::Spearman, home.0, home.1);
+    let swordsman = game.spawn_unit(1, UnitKind::Swordsman, home.0, home.1);
+    game.players[1].gold = 1000;
+
+    game.begin_ai_war_plan(1, HUMAN, 1, WarReason::Hatred);
+    game.advance_ai_war_plans_for(1);
+    let objective = game
+        .coordinated_war_objective(1)
+        .expect("distant same-continent target should produce a Land objective");
+    assert_eq!(objective.kind, WarObjectiveKind::Land);
+
+    let actor = game.unit_by_id(swordsman).unwrap().clone();
+    assert!(game.run_coordinated_ground_order(&actor, objective));
+    let moved = game.unit_by_id(swordsman).unwrap();
+    assert_ne!((moved.x, moved.y), home);
+
+    for _ in 0..8 {
+        game.spawn_unit(
+            1,
+            UnitKind::Swordsman,
+            objective.staging.0,
+            objective.staging.1,
+        );
+    }
+    assert!(game.war_force_ready(1, objective));
+    game.advance_ai_war_plans_for(1);
+    assert!(game.at_war(1, HUMAN));
+}
+
+#[test]
+fn overseas_naval_objective_builds_transports_stages_and_declares_when_ready() {
+    let mut game = war_planning_game();
+    game.cities.clear();
+    game.units.clear();
+    for tile in &mut game.tiles {
+        tile.terrain = Terrain::Coast;
+        tile.river = false;
+        tile.road = false;
+        tile.owner = None;
+        tile.known_by.set(1, true);
+    }
+    let home = (10, 20);
+    let target = (18, 20);
+    for (cx, cy) in [home, target] {
+        game.tile_mut(cx, cy).terrain = Terrain::Grassland;
+        let (dx, dy) = EIGHT_WAY_DIRS[0];
+        let (nx, ny) = game.map_wrap.eight_way_offset(cx, cy, dx, dy).unwrap();
+        game.tile_mut(nx, ny).terrain = Terrain::Grassland;
+    }
+
+    game.create_city(1, home.0, home.1);
+    let home_city = game.city_at(home.0, home.1).unwrap().id;
+    game.create_city(HUMAN, target.0, target.1);
+    game.players[1]
+        .known
+        .extend([Tech::MAP_MAKING, Tech::IRON_WORKING, Tech::BRONZE_WORKING]);
+    game.players[1].gold = 1000;
+    game.spawn_unit(1, UnitKind::Spearman, home.0, home.1);
+
+    game.begin_ai_war_plan(1, HUMAN, 1, WarReason::Hatred);
+    game.advance_ai_war_plans_for(1);
+    let objective = game
+        .coordinated_war_objective(1)
+        .expect("cross-continent coastal target should produce a Naval objective");
+    assert_eq!(objective.kind, WarObjectiveKind::Naval);
+    assert!(!game.war_force_ready(1, objective));
+
+    // Save/load round-trip preserves Naval WarObjectiveKind.
+    let path = crate::sim::save::tests::temporary_save("naval-war-objective");
+    game.save_campaign(&path).unwrap();
+    game = Simulation::load_campaign(&path).unwrap();
+    std::fs::remove_file(path).unwrap();
+    assert_eq!(game.coordinated_war_objective(1), Some(objective));
+
+    // Without a transport yet, coordinated_muster builds a Galley at the muster port.
+    let city = game.city_by_id(home_city).unwrap().clone();
+    let choice = game.ai_build_choice(&city).unwrap();
+    assert_eq!(choice.production, Production::Unit(UnitKind::Galley));
+
+    // With transports loaded and staged at objective.staging, readiness passes and war declares.
+    for _ in 0..4 {
+        let boat = game.spawn_unit(1, UnitKind::Galley, objective.staging.0, objective.staging.1);
+        for _ in 0..2 {
+            let troop =
+                game.spawn_unit(1, UnitKind::Swordsman, objective.staging.0, objective.staging.1);
+            assert!(game.board_specific_ship(troop, boat));
+        }
+    }
+    assert!(game.war_force_ready(1, objective));
+    game.advance_ai_war_plans_for(1);
+    assert!(game.at_war(1, HUMAN));
+}
+
+#[test]
+fn alliance_and_space_wars_stage_during_countdown_without_blocking_declaration() {
+    for reason in [WarReason::Alliance, WarReason::Space] {
+        let mut game = war_planning_game();
+        for tile in &mut game.tiles {
+            tile.terrain = Terrain::Grassland;
+            tile.known_by.set(1, true);
+        }
+        game.spawn_unit(1, UnitKind::Spearman, 12, 24);
+        if matches!(reason, WarReason::Alliance) {
+            game.sign_pact(1, 2, Pact::Alliance);
+            game.diplomacy.entry((HUMAN, 2)).or_default().first_contact = Some(1);
+            game.sign_pact(HUMAN, 2, Pact::War);
+            game.refresh_diplomatic_intelligence();
+        }
+        game.begin_ai_war_plan(1, HUMAN, 1, reason);
+        game.advance_ai_war_plans_for(1);
+        assert!(!game.at_war(1, HUMAN));
+        assert_eq!(game.ai_war_countdown(1, HUMAN), 0);
+        let objective = game
+            .coordinated_war_objective(1)
+            .expect("obligated war should pick a staging objective during countdown");
+        assert!(!game.war_force_ready(1, objective));
+
+        // Countdown 0 declares immediately without waiting for war_force_ready.
+        game.advance_ai_war_plans_for(1);
+        assert!(game.at_war(1, HUMAN));
+    }
+}
+
+#[test]
+fn behavior_war_waits_for_readiness_up_to_timeout_then_declares() {
+    let mut game = war_planning_game();
+    for tile in &mut game.tiles {
+        tile.terrain = Terrain::Grassland;
+        tile.known_by.set(1, true);
+    }
+    game.spawn_unit(1, UnitKind::Spearman, 12, 24);
+    game.begin_ai_war_plan(1, HUMAN, 0, WarReason::Behavior);
+
+    for expected_wait in 1..=BEHAVIOR_READINESS_TIMEOUT {
+        game.advance_ai_war_plans_for(1);
+        assert!(!game.at_war(1, HUMAN));
+        assert_eq!(game.ai_war_plans[&(1, HUMAN)].readiness_waited, expected_wait);
+        assert!(game.coordinated_war_objective(1).is_some());
+    }
+    // Once timeout is reached, revenge war declares anyway.
+    game.advance_ai_war_plans_for(1);
+    assert!(game.at_war(1, HUMAN));
+
+    // If force becomes ready before the timeout, Behavior declares immediately.
+    let mut ready = war_planning_game();
+    for tile in &mut ready.tiles {
+        tile.terrain = Terrain::Grassland;
+        tile.known_by.set(1, true);
+    }
+    ready.spawn_unit(1, UnitKind::Spearman, 12, 24);
+    ready.begin_ai_war_plan(1, HUMAN, 0, WarReason::Behavior);
+    ready.advance_ai_war_plans_for(1);
+    assert!(!ready.at_war(1, HUMAN));
+    let objective = ready.coordinated_war_objective(1).unwrap();
+    for _ in 0..8 {
+        ready.spawn_unit(
+            1,
+            UnitKind::Swordsman,
+            objective.staging.0,
+            objective.staging.1,
+        );
+    }
+    assert!(ready.war_force_ready(1, objective));
+    ready.advance_ai_war_plans_for(1);
+    assert!(ready.at_war(1, HUMAN));
+}
+
+#[test]
+fn overseas_naval_transport_boards_stages_and_lands_after_war_declaration() {
+    let mut game = war_planning_game();
+    game.cities.clear();
+    game.units.clear();
+    for tile in &mut game.tiles {
+        tile.terrain = Terrain::Coast;
+        tile.river = false;
+        tile.road = false;
+        tile.owner = None;
+        tile.known_by.set(1, true);
+    }
+    let home = (10, 20);
+    let target = (18, 20);
+    for (cx, cy) in [home, target] {
+        game.tile_mut(cx, cy).terrain = Terrain::Grassland;
+        let (dx, dy) = EIGHT_WAY_DIRS[0];
+        let (nx, ny) = game.map_wrap.eight_way_offset(cx, cy, dx, dy).unwrap();
+        game.tile_mut(nx, ny).terrain = Terrain::Grassland;
+    }
+
+    game.create_city(1, home.0, home.1);
+    game.create_city(HUMAN, target.0, target.1);
+    game.players[1]
+        .known
+        .extend([Tech::MAP_MAKING, Tech::IRON_WORKING, Tech::BRONZE_WORKING]);
+    let guard = game.spawn_unit(1, UnitKind::Spearman, home.0, home.1);
+    let boat = game.spawn_unit(1, UnitKind::Galley, home.0, home.1);
+    let t1 = game.spawn_unit(1, UnitKind::Swordsman, home.0, home.1);
+    let t2 = game.spawn_unit(1, UnitKind::Swordsman, home.0, home.1);
+
+    game.begin_ai_war_plan(1, HUMAN, 2, WarReason::Hatred);
+    game.advance_ai_war_plans_for(1);
+    let objective = game.coordinated_war_objective(1).unwrap();
+    assert_eq!(objective.kind, WarObjectiveKind::Naval);
+
+    // Run transport preparation turns until it boards troops and reaches objective.staging.
+    for _ in 0..8 {
+        if let Some(ship) = game.unit_by_id(boat).cloned() {
+            assert!(game.run_coordinated_naval_transport(&ship, objective, Some(guard)));
+        }
+        for unit in &mut game.units {
+            unit.moves_left = unit.kind.stats().moves * 3;
+        }
+    }
+    assert_eq!(game.unit_by_id(t1).unwrap().transport, Some(boat));
+    assert_eq!(game.unit_by_id(t2).unwrap().transport, Some(boat));
+    assert_eq!(game.unit_by_id(guard).unwrap().transport, None);
+    let staged_ship = game.unit_by_id(boat).unwrap();
+    assert_eq!((staged_ship.x, staged_ship.y), objective.staging);
+
+    // Once war is declared, the staged transport sails to a beachhead and disembarks onto the target continent.
+    game.sign_pact(1, HUMAN, Pact::War);
+    let continents = game.continent_labels();
+    let target_continent = continents[game.map_wrap.index(target.0, target.1)];
+    for _ in 0..6 {
+        if let Some(ship) = game.unit_by_id(boat).cloned() {
+            game.run_coordinated_naval_transport(&ship, objective, Some(guard));
+        }
+        for unit in &mut game.units {
+            unit.moves_left = unit.kind.stats().moves * 3;
+        }
+    }
+    let landed = [t1, t2].into_iter().all(|id| {
+        let u = game.unit_by_id(id).unwrap();
+        u.transport.is_none() && continents[game.map_wrap.index(u.x, u.y)] == target_continent
+    });
+    assert!(landed, "staged troops should disembark onto target continent after war starts");
+}
+
+

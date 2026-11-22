@@ -68,6 +68,7 @@ fn advisor_danger_distinguishes_love_pacts_excuses_and_allocated_enemy_allies() 
             countdown: 0,
             reason: WarReason::Spoils,
             objective: None,
+            readiness_waited: 0,
         },
     );
     assert!(game.advisor_player_dangerous(1, HUMAN));

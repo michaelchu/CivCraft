@@ -68,7 +68,7 @@ mod combat_rules;
 mod commands;
 mod diplomacy;
 #[cfg(any(test, feature = "scenarios"))]
-pub(crate) use diplomacy::VassalKind;
+pub(crate) use diplomacy::{VassalKind, WarObjectiveKind};
 #[cfg(feature = "desktop")]
 pub(crate) use diplomacy::VassalTerms;
 mod tech_trade;
