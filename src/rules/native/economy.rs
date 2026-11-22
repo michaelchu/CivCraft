@@ -14,6 +14,14 @@ pub(crate) struct NativeResource {
     pub(crate) trade: i32,
 }
 
+/// Who pays gold upkeep: each city, the nation, or a mix of both.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum NativeGoldUpkeepStyle {
+    City,
+    Mixed,
+    Nation,
+}
+
 pub(crate) struct NativeCityEconomy {
     pub(crate) city_min_distance: i32,
     pub(crate) food_cost: i32,
@@ -25,7 +33,7 @@ pub(crate) struct NativeCityEconomy {
     pub(crate) city_center_minimum: [i32; 3],
     pub(crate) no_trade_size: i32,
     pub(crate) full_trade_size: i32,
-    pub(crate) gold_upkeep_style: String,
+    pub(crate) gold_upkeep_style: NativeGoldUpkeepStyle,
     pub(crate) celebrate_size_limit: i32,
 }
 
@@ -50,7 +58,7 @@ pub(crate) fn economy() -> &'static EconomyCatalog {
                 city_center_minimum: [0, 0, 0],
                 no_trade_size: 0,
                 full_trade_size: 1,
-                gold_upkeep_style: "Mixed".to_owned(),
+                gold_upkeep_style: NativeGoldUpkeepStyle::Mixed,
                 celebrate_size_limit: 3,
             },
             resources: vec![

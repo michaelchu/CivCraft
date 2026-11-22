@@ -15,7 +15,7 @@ pub(crate) struct UnitCatalog {
 pub(crate) struct NativeUnit {
     pub(crate) id: String,
     pub(crate) name: String,
-    pub(crate) category: String,
+    pub(crate) category: UnitCategory,
     pub(crate) cost_shields: i32,
     pub(crate) population_cost: i32,
     pub(crate) attack: i32,
@@ -47,6 +47,25 @@ pub(crate) struct NativeUnit {
     pub(crate) air_defense: i32,
     pub(crate) icon_index: i32,
     pub(crate) civilopedia_entry: String,
+}
+
+/// How a unit relates to civilization rosters and wonder creation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum UnitCategory {
+    Standard,
+    Unique,
+    WonderCreated,
+}
+
+impl UnitCategory {
+    pub(crate) fn as_str(self) -> &'static str {
+        match self {
+            Self::Standard => "standard",
+            Self::Unique => "unique",
+            Self::WonderCreated => "wonder_created",
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]

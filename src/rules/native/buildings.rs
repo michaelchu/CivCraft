@@ -30,7 +30,7 @@ pub(crate) struct NativeBuildingRule {
     #[serde(skip)]
     pub(crate) legacy_runtime_index: usize,
     pub(crate) name: String,
-    pub(crate) genus: String,
+    pub(crate) genus: crate::rules::Genus,
     pub(crate) cost: i32,
     pub(crate) upkeep: i32,
     #[serde(default)]
@@ -43,11 +43,29 @@ pub(crate) struct NativeBuildingRule {
     pub(crate) selected_obsolescence: bool,
 }
 
+/// Requirement vocabulary accepted in `buildings.toml`; an unknown name is a
+/// parse error rather than a later string mismatch.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
+pub(crate) enum NativeRequirementKind {
+    Tech,
+    Improvement,
+    River,
+    Lake,
+    Sea,
+    Water,
+    MinSize,
+    OwnerCityCount,
+    OwnerArmyCount,
+    OwnerBuildingCount,
+    Resource,
+    OwnerEliteUnit,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct NativeBuildingRequirement {
     pub(crate) target: Option<String>,
-    pub(crate) kind: String,
+    pub(crate) kind: NativeRequirementKind,
     #[serde(default)]
     pub(crate) value: i32,
     #[serde(default)]
@@ -75,8 +93,8 @@ pub(crate) fn parse_buildings(
         .collect();
     for rule in &catalog.rules {
         for requirement in rule.requirements.iter().chain(&rule.obsolete) {
-            match requirement.kind.as_str() {
-                "Tech" => {
+            match requirement.kind {
+                NativeRequirementKind::Tech => {
                     if requirement
                         .target
                         .as_deref()
@@ -88,7 +106,7 @@ pub(crate) fn parse_buildings(
                         return Err(format!("unknown technology target in {}", rule.id));
                     }
                 }
-                "Improvement" | "OwnerBuildingCount" => {
+                NativeRequirementKind::Improvement | NativeRequirementKind::OwnerBuildingCount => {
                     if !requirement
                         .target
                         .as_deref()
@@ -97,7 +115,7 @@ pub(crate) fn parse_buildings(
                         return Err(format!("unknown building target in {}", rule.id));
                     }
                 }
-                "Resource" => {
+                NativeRequirementKind::Resource => {
                     if !requirement
                         .target
                         .as_deref()
@@ -106,13 +124,18 @@ pub(crate) fn parse_buildings(
                         return Err(format!("unknown resource target in {}", rule.id));
                     }
                 }
-                "River" | "Lake" | "Sea" | "Water" | "MinSize" | "OwnerCityCount"
-                | "OwnerEliteUnit" | "OwnerArmyCount" => {
+                NativeRequirementKind::River
+                | NativeRequirementKind::Lake
+                | NativeRequirementKind::Sea
+                | NativeRequirementKind::Water
+                | NativeRequirementKind::MinSize
+                | NativeRequirementKind::OwnerCityCount
+                | NativeRequirementKind::OwnerEliteUnit
+                | NativeRequirementKind::OwnerArmyCount => {
                     if requirement.target.is_some() {
                         return Err(format!("unexpected named target in {}", rule.id));
                     }
                 }
-                other => return Err(format!("unsupported building requirement {other}")),
             }
             if requirement.value < 0 || requirement.second_value < 0 {
                 return Err(format!("negative building requirement in {}", rule.id));
@@ -124,12 +147,13 @@ pub(crate) fn parse_buildings(
     for rule in &mut catalog.rules {
         for requirement in rule.requirements.iter_mut().chain(&mut rule.obsolete) {
             if let Some(id) = requirement.target.as_deref() {
-                let index = match requirement.kind.as_str() {
-                    "Tech" => {
+                let index = match requirement.kind {
+                    NativeRequirementKind::Tech => {
                         crate::rules::technologies::runtime_index_in(technologies, id).unwrap()
                     }
-                    "Improvement" | "OwnerBuildingCount" => building_ids[id],
-                    "Resource" => RESOURCE_TARGETS
+                    NativeRequirementKind::Improvement
+                    | NativeRequirementKind::OwnerBuildingCount => building_ids[id],
+                    NativeRequirementKind::Resource => RESOURCE_TARGETS
                         .iter()
                         .position(|name| *name == id)
                         .unwrap(),

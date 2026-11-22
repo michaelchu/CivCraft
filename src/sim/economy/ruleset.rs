@@ -53,11 +53,11 @@ impl CityEconomySettings {
         static SETTINGS: OnceLock<CityEconomySettings> = OnceLock::new();
         SETTINGS.get_or_init(|| {
             let native = &crate::rules::native::economy().city;
-            let gold_upkeep_style = match native.gold_upkeep_style.to_ascii_lowercase().as_str() {
-                "city" => GoldUpkeepStyle::City,
-                "mixed" => GoldUpkeepStyle::Mixed,
-                "nation" => GoldUpkeepStyle::Nation,
-                other => panic!("unknown native gold_upkeep_style {other:?}"),
+            use crate::rules::native::NativeGoldUpkeepStyle as Native;
+            let gold_upkeep_style = match native.gold_upkeep_style {
+                Native::City => GoldUpkeepStyle::City,
+                Native::Mixed => GoldUpkeepStyle::Mixed,
+                Native::Nation => GoldUpkeepStyle::Nation,
             };
             assert!(!native.granary_food_initial.is_empty());
             Self {
