@@ -1,5 +1,14 @@
 # Civ III: Conquests PRTO field audit
 
+> **Historical record.** The audit describes the catalog as it was when
+> checked. Since then, `art_folder`, `art_root` and `bombard_effects` moved to
+> `src/rules/native/bindings.rs`; `icon_index`, `civilopedia_entry` and
+> `create_craters` were removed because nothing read them; and the civilization
+> mask (`available_to`) was replaced by `unique_civilization`, `restricted_to`
+> and `excluded_from`, verified by `tests/fixtures/unit_availability_v1.json`.
+> Defaulted fields are omitted from `units.toml`. See
+> [the configuration contract](RULESET_CONFIGURATION.md).
+
 ## Scope and evidence
 
 This audit compares every source-backed field currently exported in

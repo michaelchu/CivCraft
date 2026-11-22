@@ -39,7 +39,9 @@ pub(crate) struct NativeBuildingRule {
     pub(crate) upkeep: i32,
     #[serde(default)]
     pub(crate) culture_per_turn: i32,
+    #[serde(default)]
     pub(crate) requirements: Vec<NativeBuildingRequirement>,
+    #[serde(default)]
     pub(crate) obsolete: Vec<NativeBuildingRequirement>,
     #[serde(default)]
     pub(crate) flags: Vec<String>,

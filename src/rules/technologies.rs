@@ -176,12 +176,8 @@ mod tests {
             runtime_index,
             name: id.into(),
             display_name: None,
-            civilopedia_entry: id.into(),
             cost: base.cost,
             era: base.era,
-            advance_icon: base.advance_icon,
-            x: base.x,
-            y: base.y,
             prerequisites,
             flags: Vec::new(),
             required_for_era: true,
@@ -252,8 +248,7 @@ mod tests {
                     "id": t.id, "runtime_index": t.runtime_index, "name": t.name,
                     "cost": t.cost, "era": t.era, "prerequisites": prerequisites,
                     "flags": t.flags, "required_for_era": t.required_for_era, "era_gate": t.era_gate,
-                    "display_name": t.display_name, "advance_icon": t.advance_icon,
-                    "x": t.x, "y": t.y, "civilopedia_entry": t.civilopedia_entry
+                    "display_name": t.display_name
                 })
             })
             .collect();

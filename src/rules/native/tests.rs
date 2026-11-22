@@ -9,7 +9,8 @@ fn parse_buildings_and_units_reject_unknown_technology_ids() {
 
     let units_src = include_str!("../../../data/rulesets/civcraft/content/units.toml");
     let bad_units = units_src.replace("TECH_Bronze_Working", "TECH_Missing_Bronze");
-    let err = super::parse_units(&bad_units, super::technologies()).unwrap_err();
+    let err =
+        super::parse_units(&bad_units, super::technologies(), super::civilizations()).unwrap_err();
     assert!(err.contains("unknown technology ID"));
 }
 

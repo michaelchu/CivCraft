@@ -29,8 +29,10 @@ impl Simulation {
                 .and_then(crate::sim::unit_rules::get)
                 .is_some_and(|rule| {
                     rule.category == "wonder_created"
-                        || !rule.available_to.is_empty()
                         || matches!(rule.id, "army" | "leader")
+                        || crate::rules::civilizations::all()
+                            .iter()
+                            .any(|civilization| rule.available_to(&civilization.id))
                 })
         });
         let order = roster.len() == 92

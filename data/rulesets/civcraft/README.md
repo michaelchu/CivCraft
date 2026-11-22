@@ -13,7 +13,7 @@ See [the configuration contract](../../../docs/RULESET_CONFIGURATION.md).
 
 Current catalogs:
 
-- `content/units.toml`: 92 native unit identities and tuneable source values.
+- `content/units.toml`: 92 native unit identities and tuneable values (defaults omitted).
 - `content/experience_levels.toml`: Conquests experience ranks, hit points, and promotion values.
 - `content/civilizations.toml`: 31 civilizations, city lists, starting technologies,
   and starting-unit profiles.
@@ -22,6 +22,11 @@ Current catalogs:
 - `content/technologies.toml`: 85 native technology identities, costs,
   prerequisites, eras, and research metadata.
 - `content/religion.toml`: custom religion founding, spread, faith bonuses, and policy rules.
+
+Values that are not tuning knobs (unit art folders, technology save indices,
+civilization palette/city-style bindings, bombardment effect flags) live in
+`src/rules/native/bindings.rs`, not in these files. Default-valued fields are
+omitted, so a record lists only what differs from the default.
 
 Economy/resource overrides, settlement/Great Leader/village tables, AI strategy,
 diplomacy/vassalage policies, and the eight campaign governments live directly in

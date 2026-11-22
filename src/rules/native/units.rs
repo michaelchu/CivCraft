@@ -21,36 +21,66 @@ pub(crate) struct NativeUnit {
     pub(crate) name: String,
     pub(crate) category: UnitCategory,
     pub(crate) cost_shields: i32,
+    #[serde(default)]
     pub(crate) population_cost: i32,
     pub(crate) attack: i32,
     pub(crate) defense: i32,
     pub(crate) moves: i32,
+    #[serde(default)]
     pub(crate) bombard_strength: i32,
+    #[serde(default)]
     pub(crate) bombard_range: i32,
+    #[serde(default)]
     pub(crate) rate_of_fire: i32,
+    #[serde(default)]
     pub(crate) operational_range: i32,
+    #[serde(default)]
     pub(crate) capacity: usize,
+    #[serde(default)]
     pub(crate) required_technology: String,
+    #[serde(default)]
     pub(crate) required_resources: Vec<String>,
+    #[serde(default)]
     pub(crate) upgrade_to: String,
-    pub(crate) available_to: Vec<String>,
+    /// Optional extra roster limit for a non-unique unit, as civilization
+    /// nouns. Unique units use `unique_civilization` instead.
+    #[serde(default)]
+    pub(crate) restricted_to: Vec<String>,
+    /// Civilizations (nouns) that cannot build this non-unique unit even though
+    /// no unique unit of theirs replaces it, as in the Civ III availability data.
+    #[serde(default)]
+    pub(crate) excluded_from: Vec<String>,
+    #[serde(default)]
     pub(crate) unique_civilization: String,
+    #[serde(default)]
     pub(crate) replaces: String,
     pub(crate) domain: UnitDomain,
+    #[serde(default)]
     pub(crate) enslave_result: String,
+    #[serde(default)]
     pub(crate) capabilities: Vec<String>,
+    #[serde(default)]
     pub(crate) ai_roles: Vec<String>,
+    #[serde(default)]
     pub(crate) hit_point_bonus: i32,
+    #[serde(skip)]
     pub(crate) art_folder: String,
+    #[serde(skip)]
     pub(crate) art_root: String,
+    #[serde(default)]
     pub(crate) zone_of_control: i32,
+    #[serde(skip)]
     pub(crate) bombard_effects: i32,
+    #[serde(default = "default_require_support")]
     pub(crate) require_support: i32,
-    pub(crate) create_craters: i32,
+    #[serde(default)]
     pub(crate) worker_strength: f32,
+    #[serde(default)]
     pub(crate) air_defense: i32,
-    pub(crate) icon_index: i32,
-    pub(crate) civilopedia_entry: String,
+}
+
+fn default_require_support() -> i32 {
+    1
 }
 
 /// How a unit relates to civilization rosters and wonder creation.
@@ -92,12 +122,38 @@ impl UnitDomain {
 pub(crate) fn parse_units(
     source: &str,
     technologies: &TechnologyCatalog,
+    civilizations: &CivilizationCatalog,
 ) -> Result<UnitCatalog, String> {
-    let catalog: UnitCatalog = toml::from_str(source).map_err(|error| error.to_string())?;
+    let mut catalog: UnitCatalog = toml::from_str(source).map_err(|error| error.to_string())?;
+    for unit in &mut catalog.units {
+        (unit.art_folder, unit.art_root) = super::bindings::unit_art(&unit.id, &unit.name);
+        unit.bombard_effects = i32::from(super::bindings::has_bombard_effects(&unit.id));
+    }
     validate_ids(catalog.units.iter().map(|unit| unit.id.as_str()), "unit")?;
     let unit_ids: std::collections::HashSet<&str> =
         catalog.units.iter().map(|unit| unit.id.as_str()).collect();
     for unit in &catalog.units {
+        let nouns: Vec<&str> = civilizations
+            .civilizations
+            .iter()
+            .map(|civilization| civilization.noun.as_str())
+            .collect();
+        for noun in unit
+            .restricted_to
+            .iter()
+            .chain(&unit.excluded_from)
+            .chain((!unit.unique_civilization.is_empty()).then_some(&unit.unique_civilization))
+        {
+            if !nouns.contains(&noun.as_str()) {
+                return Err(format!("unknown civilization {noun} for {}", unit.id));
+            }
+        }
+        if !unit.restricted_to.is_empty() && !unit.unique_civilization.is_empty() {
+            return Err(format!(
+                "{} cannot set both unique_civilization and restricted_to",
+                unit.id
+            ));
+        }
         if !unit.required_technology.is_empty()
             && crate::rules::technologies::runtime_index_in(technologies, &unit.required_technology)
                 .is_none()
@@ -135,6 +191,7 @@ pub(crate) fn units() -> &'static UnitCatalog {
         parse_units(
             include_str!("../../../data/rulesets/civcraft/content/units.toml"),
             technologies(),
+            civilizations(),
         )
         .unwrap_or_else(|error| panic!("invalid native units TOML: {error}"))
     })
