@@ -272,7 +272,7 @@ the conflict toward Civ III, and asks the owner when the Civ III behavior is
 unclear. City capture is the first applied case: a land unit with attack above
 zero, or an Army, can capture a city. Zero-attack bombard units (Catapult,
 Cannon, Artillery) and Helicopters cannot. This is defined once in
-`UnitRule::can_occupy_city` (`src/sim/civ3_unit_rules.rs`) and read by the
+`UnitRule::can_occupy_city` (`src/sim/unit_rules.rs`) and read by the
 movement table, the `CanOccupyCity` class flag and `UnitKind::can_occupy_city`.
 Fortifying follows the same rule: only land units fortify, so ships and
 aircraft get neither the Fortify order nor the fortified/city-fortified defense
