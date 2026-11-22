@@ -88,8 +88,8 @@ The ignored `mapgen::tests::opensimplex_tileset_audit` diagnostic passed in
 release mode, with a zero exit status. Its run took 2.30 seconds, excluding
 compilation. No campaign turns were necessary. Formatting, diff checks, and all-target
 Clippy passed. The ordinary Rust suite was not rerun for this diagnostic-only
-audit. Raw per-map counts and example
-coordinates are retained in `opensimplex-terrain-audit.jsonl`.
+audit. Raw per-map counts and example coordinates remain in the local
+`maps.jsonl` evidence listed below and can be reproduced with the diagnostic.
 
 Reproduce from this worktree:
 
@@ -195,9 +195,9 @@ CIVCRAFT_OPENSIMPLEX_BASELINE_DIR=/tmp/opensimplex-before \
   from the comparison. Replay determinism, water/feature validity and clean
   ocean-only edge rows also passed.
 - The same 8,582 forests now comprise 5,690 Grassland, 2,186 Plains and 706
-  Tundra art bases. Full post-fix rows, including baseline verification flags,
-  are retained in `opensimplex-terrain-fixed.jsonl`; the original
-  `opensimplex-terrain-audit.jsonl` is unchanged.
+  Tundra art bases. Full post-fix rows and baseline verification flags remain
+  in the local `after-maps.jsonl` evidence listed below. Generated census
+  files are not checked into the repository.
 - `cargo test --offline --all-targets`: 1,460 library tests passed, 4 ignored;
   report tests 2/2 and CLI tests 19/19 passed. Existing map goldens passed
   without changes. `cargo test --offline --doc` passed.

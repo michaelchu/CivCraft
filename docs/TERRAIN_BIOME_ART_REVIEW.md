@@ -87,7 +87,8 @@ The post-change release census preserves every per-map feature count (checked
 against the baseline). Forest now uses Grassland 1,878 / Plains 11 / Tundra 90;
 Mountains uses Grassland 1,155 / Plains 66 / Tundra 153; Hills uses Grassland
 2,595 / Plains 237 / Tundra 6. Jungle (440) and Marsh (916) remain unchanged.
-`terrain-biome-census.json` retains totals and each of the 27 before/after maps.
+Per-map results can be reproduced with the diagnostic above; generated census
+output is retained locally rather than checked into the repository.
 The same diagnostic passes in release mode; the actual generation takes 0.07s.
 Compilation time is separate from this zero-turn run.
 
