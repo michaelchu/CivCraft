@@ -965,7 +965,6 @@ fn load_unit_team_palettes(theme: &Theme) -> AssetResult<Vec<UnitTeamPalette>> {
 struct Junction {
     ground: [Ground; 4],
     variant: u8,
-    straight_ice: bool,
 }
 
 fn spatial_variant_hash(x: i32, y: i32, choices: u8) -> u8 {
@@ -1058,16 +1057,6 @@ fn is_water(ground: Ground) -> bool {
     matches!(ground, Coast | Sea | Ocean)
 }
 
-fn ice_row(ground: [Ground; 4]) -> Option<usize> {
-    match ground.map(|tile| tile == Ice) {
-        [true, true, false, true] => Some(0),
-        [true, false, false, false] => Some(1),
-        [false, true, true, true] => Some(2),
-        [false, false, true, false] => Some(3),
-        _ => None,
-    }
-}
-
 impl GroundArt {
     fn land_sheet(&self, ground: [Ground; 4], tip: Option<Ground>) -> usize {
         if tip.is_none()
@@ -1089,11 +1078,51 @@ impl GroundArt {
     }
 
     fn rasterize_base(&self, key: Junction) -> Image {
-        let ground = key.ground;
+        let mut image = self.rasterize_cell(key);
+        if key.ground.iter().all(|&ground| ground == key.ground[0])
+            || key.ground.iter().all(|&ground| is_water(ground))
+        {
+            return image;
+        }
+        // A junction's remote corners may require another atlas. Along a
+        // shared edge, however, both junctions must use only its two endpoints.
+        // Blend a narrow rim from that canonical two-terrain cell so changing
+        // either remote corner cannot cut a different biome into the edge.
+        let [n, e, south, w] = key.ground;
+        let edges = [
+            [n, e, e, n],
+            [e, e, south, south],
+            [w, south, south, w],
+            [n, n, w, w],
+        ];
+        let rims = edges.map(|ground| self.rasterize_cell(Junction { ground, variant: 0 }));
+        for (index, pixel) in image.get_image_data_mut().iter_mut().enumerate() {
+            let y = (index / CELL_W).saturating_sub(1).clamp(1, HEIGHT - 2);
+            let half = (2 * y.min(HEIGHT - 1 - y)).saturating_sub(1).max(1);
+            let x = (index % CELL_W)
+                .saturating_sub(1)
+                .clamp(64 - half, 63 + half);
+            let dx = (x as f32 + 0.5) / 64.0 - 1.0;
+            let dy = (y as f32 + 0.5) / 32.0 - 1.0;
+            let distances = [1.0 - dx + dy, 1.0 - dx - dy, 1.0 + dx - dy, 1.0 + dx + dy];
+            for (edge, distance) in distances.into_iter().enumerate() {
+                let weight = 1.0 - smooth((distance - 0.05) / 0.20);
+                if weight > 0.0 {
+                    *pixel = mix(*pixel, rims[edge].get_image_data()[index], weight);
+                }
+            }
+        }
+        image
+    }
+
+    fn rasterize_cell(&self, key: Junction) -> Image {
+        // Ice is a legacy land marker, not a water depth. Bounded off-map
+        // water is supplied by junctions rather than masquerading as Ice.
+        let ground = key
+            .ground
+            .map(|tile| if tile == Ice { Tundra } else { tile });
         let variant = usize::from(key.variant);
         let pure_water = ground.iter().all(|&tile| is_water(tile));
-        let pure_ice = ground == [Ice; 4];
-        let ice_over_water = ground.iter().all(|&tile| is_water(tile) || tile == Ice);
         let depths = ground.map(water_depth);
         let water_transition = SheetCell::lookup(&self.water, depths);
         let land_water_transition = SheetCell::lookup(
@@ -1109,16 +1138,12 @@ impl GroundArt {
         );
         let mut patch = [None, None, None, None];
         let mut tundra_blend = false;
-        let blend_land_water =
-            !pure_water && !ice_over_water && ground.iter().any(|&tile| is_water(tile));
-        // Polar PCX cells are keyed overlays; keep ocean art beneath the cap.
-        let main = if pure_ice || key.straight_ice {
-            SheetCell::new(&self.ocean, variant, (variant * 5) % 9)
-        } else if pure_water && depths == [1; 4] {
+        let blend_land_water = !pure_water && ground.iter().any(|&tile| is_water(tile));
+        let main = if pure_water && depths == [1; 4] {
             SheetCell::new(&self.sea, variant, (variant * 5) % 9)
         } else if pure_water && depths == [2; 4] {
             SheetCell::new(&self.ocean, variant, (variant * 5) % 9)
-        } else if ice_over_water {
+        } else if pure_water {
             water_transition
         } else {
             let land = ground.map(|tile| match tile {
@@ -1165,7 +1190,6 @@ impl GroundArt {
                 }),
             )
         };
-        let blend_ice = ground.contains(&Ice) && !pure_ice && !key.straight_ice;
         let mut image = Image::gen_image_color(CELL_W as u16, CELL_H as u16, BLANK);
         for (index, pixel) in image.get_image_data_mut().iter_mut().enumerate() {
             let y = (index / CELL_W).saturating_sub(1).clamp(1, HEIGHT - 2);
@@ -1193,12 +1217,6 @@ impl GroundArt {
                 } else if let Some(other) = &patch[i] {
                     let width = if tundra_blend { 0.28 } else { 0.08 };
                     color = mix(color, other.pixel(x, y), smooth(0.5 + distance / width));
-                } else if blend_ice && !ice_over_water && is_water(ground[i]) && depths[i] != 0 {
-                    color = mix(
-                        color,
-                        water_transition.pixel(x, y),
-                        smooth(0.5 + distance / 0.28),
-                    );
                 }
             }
             *pixel = [color[0], color[1], color[2], 255];
@@ -2743,23 +2761,16 @@ impl Civ3 {
         // unexplored cells. This preserves terrain transitions at the known
         // frontier without drawing hidden overlays or units.
         let ground = |x: i32, y: i32| {
-            wrap.normalize(x.div_euclid(2), y).map_or(Ice, |(nx, ny)| {
-                render_ground(&game.sim.render_tile_view(nx, ny))
-            })
+            wrap.normalize(x.div_euclid(2), y)
+                .map_or(Ocean, |(nx, ny)| {
+                    render_ground(&game.sim.render_tile_view(nx, ny))
+                })
         };
         std::array::from_fn(|side| {
             let (dx, dy) = SIDES[side];
             let (jx, jy) = (px + dx, y + dy);
             let tiles = SIDES.map(|(sx, sy)| ground(jx + sx, jy + sy));
-            let straight_ice = ice_row(tiles).is_some()
-                && tiles.iter().all(|&t| t == Ice || t == Ocean)
-                && [-2, 2].into_iter().all(|offset| {
-                    SIDES
-                        .into_iter()
-                        .zip(tiles)
-                        .all(|((sx, sy), tile)| ground(jx + sx + offset, jy + sy) == tile)
-                });
-            let variant = if tiles.contains(&Ice) || tiles == [Ocean; 4] {
+            let variant = if tiles == [Ocean; 4] {
                 let x = jx.rem_euclid(2 * wrap.width());
                 let y = jy;
                 spatial_variant_hash(x, y, 8)
@@ -2769,7 +2780,6 @@ impl Civ3 {
             Junction {
                 ground: tiles,
                 variant,
-                straight_ice,
             }
         })
     }
@@ -2967,6 +2977,81 @@ fn draw_sprite(texture: &Texture2D, center: Vec2, size: Vec2, source: Rect) {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn shared_edge_art_does_not_depend_on_remote_junction_corners() {
+        let sheet = |color| Image::gen_image_color(1152, 576, color);
+        let art = GroundArt {
+            land: (0..6)
+                .map(|i| sheet(Color::from_rgba(30 + i * 20, 90, 40, 255)))
+                .collect(),
+            water: sheet(BLUE),
+            sea: sheet(DARKBLUE),
+            ocean: sheet(BLACK),
+        };
+        for (edge, (x, y)) in [(94, 16), (94, 47), (33, 47), (33, 16)]
+            .into_iter()
+            .enumerate()
+        {
+            let mut a = [Grass, Coast, Desert, Tundra];
+            let mut b = [Grass, Coast, Plains, Ocean];
+            a.rotate_right(edge);
+            b.rotate_right(edge);
+            let a = art.rasterize_base(Junction {
+                ground: a,
+                variant: 0,
+            });
+            let b = art.rasterize_base(Junction {
+                ground: b,
+                variant: 0,
+            });
+            let index = (y + 1) * CELL_W + x + 1;
+            assert_eq!(
+                a.get_image_data()[index],
+                b.get_image_data()[index],
+                "edge {edge}"
+            );
+        }
+    }
+
+    #[test]
+    fn legacy_ice_uses_land_transitions_in_every_neighbor_context() {
+        // Distinct atlas colors expose the old switch from water to land
+        // when a third terrain entered an Ice/Sea junction.
+        let sheet = |color| Image::gen_image_color(1152, 576, color);
+        let art = GroundArt {
+            land: (0..6)
+                .map(|i| sheet(Color::from_rgba(30 + i * 20, 90, 40, 255)))
+                .collect(),
+            water: sheet(BLUE),
+            sea: sheet(DARKBLUE),
+            ocean: sheet(BLACK),
+        };
+        for neighbor in [Grass, Plains, Desert, Tundra, Coast, Sea, Ocean, Ice] {
+            for position in 0..4 {
+                let mut ground = [Ice, Sea, neighbor, neighbor];
+                ground.rotate_left(position);
+                let ice = art.rasterize_base(Junction { ground, variant: 0 });
+                let tundra = art.rasterize_base(Junction {
+                    ground: ground.map(|g| if g == Ice { Tundra } else { g }),
+                    variant: 0,
+                });
+                assert_eq!(ice.bytes, tundra.bytes, "{ground:?}");
+            }
+        }
+        let land = art.rasterize_base(Junction {
+            ground: [Ice; 4],
+            variant: 0,
+        });
+        assert_ne!(
+            land.bytes,
+            art.rasterize_base(Junction {
+                ground: [Ocean; 4],
+                variant: 0
+            })
+            .bytes
+        );
+    }
+
     #[test]
     fn biome_overlay_selection_keeps_native_cells_and_safe_fallbacks() {
         use super::*;

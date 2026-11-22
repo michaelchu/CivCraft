@@ -122,3 +122,60 @@ Full local evidence: `/tmp/civcraft-terrain-evidence/`. Final scene reports are
 `after/report.json`, `after-{north-pole,south-pole,wrap-seam,terrain-seams-default,world}/report.json`
 and `after-cool-world/report.json`. Intermediate `after-initial*` captures are
 retained for traceability but are not the final validation artifacts.
+
+## Follow-up: hard terrain intersections
+
+The owner's inspection of `after/terrain-blending.png` identified hard water
+intersections and a rectangular-looking biome patch missed in the initial
+visual review. The earlier similarity passes did not establish seamless art.
+
+Two renderer paths contributed:
+
+- Legacy Ice was treated as deep water in Ice/water junctions but as Tundra
+  in junctions containing another land type. Adjacent cells therefore changed
+  both material and shoreline interpretation. Ice now consistently uses Tundra
+  land art; off-map padding is explicitly Ocean, preserving ocean-only poles.
+- Native land atlases cover at most three ground types. The per-junction atlas
+  choice and fallback patches could change an edge when a remote fourth biome
+  changed. The renderer now feathers a narrow boundary strip from a canonical
+  native cell selected only by the edge's two endpoint terrains. This is a
+  CivCraft compositing correction, not recovered original-engine behavior.
+  Uniform land and all-water junctions retain their previous rasterization.
+
+The fixture, terrain generation, biome layout and source assets are unchanged
+by this follow-up. Rectangular biome bands remain deliberate fixture geometry;
+the correction addresses the abrupt internal material cuts, not that layout.
+Source-adjacent tests cover Ice/Tundra equivalence for every neighbor type and
+rotation, and remote-corner independence on all four junction edges.
+
+Intermediate evidence is retained: `edges-fixed` shows the Ice-only correction;
+`edges-stitched` shows the initial seam correction. A development-build pole
+comparison initially failed at 0.98347370 because stitching also changed
+ordinary water-depth junctions. That attempt was narrowed to land-containing
+junctions. Its failed report remains at `edge-poles-debug/report.json`; no
+baseline was replaced or approved. Development builds were used only for UI
+iteration; final captures below use the release executable.
+
+Final follow-up validation:
+
+- `cargo test --offline --all-targets`: 1,458 library tests passed, 3 ignored;
+  report integration 2/2 and CLI integration 19/19 passed.
+- `cargo test --offline --doc`: passed (no doc test cases).
+- Release build with desktop audio passed. Final release evidence is in
+  `edge-final-*` (explicit baseline comparisons) and `edge-checked-*`
+  (complete scene checks without baseline comparison), under the same evidence
+  directory. The three changed scenes pass all non-baseline checks, including
+  their second captures where applicable. `edge-final-wide` passes the
+  terrain-blending fixture at requested 1600×900. Actual final PNGs inspected.
+- At the unchanged 0.99 comparison threshold, north pole passes at 0.99795392,
+  south pole at 0.99923753 and world at 0.99423093. Ocean backing remains
+  continuous with no black polar gaps.
+- The old terrain-blending comparison **fails** at 0.97252954,
+  terrain-seams-default **fails** at 0.91999409, and wrap-seam **fails** at
+  0.95579016. These fixtures include the corrected Ice/land shoreline and
+  compositing, so visual inspection confirms expected material changes and
+  removal of the large clipped water strips. These are failed comparisons,
+  not approved replacement baselines; the originals remain untouched.
+- Remaining limitations: targeted scenes rather than the full gallery; the
+  synthetic biome bands still have angular layouts, and the wrap fixture's
+  sharp visibility/fog boundaries are outside this terrain-material fix.
