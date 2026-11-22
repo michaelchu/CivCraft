@@ -173,7 +173,8 @@ impl Simulation {
         target: usize,
         continents: &[usize],
     ) -> Option<WarObjective> {
-        let mut best: Option<((u8, i32, i32, u32, u32, i32, i32), WarObjective)> = None;
+        type NavalObjectiveKey = (u8, i32, i32, u32, u32, i32, i32);
+        let mut best: Option<(NavalObjectiveKey, WarObjective)> = None;
         for home in self.cities_owned_by(owner) {
             let Some(transport_kind) = self.available_naval_transport_kind(owner, home) else {
                 continue;
@@ -206,15 +207,15 @@ impl Simulation {
                     if !self.valid_war_objective(owner, target, objective) {
                         continue;
                     }
-                    let near_landing = self
-                        .map_wrap
-                        .tiles_within_steps(x, y, 2)
-                        .into_iter()
-                        .any(|(lx, ly, _)| {
-                            self.pf_native_tile(UnitKind::Warrior, lx, ly)
-                                && continents[self.map_wrap.index(lx, ly)] == city_continent
-                                && self.map_distance(lx, ly, city.x, city.y) <= 2
-                        });
+                    let near_landing =
+                        self.map_wrap
+                            .tiles_within_steps(x, y, 2)
+                            .into_iter()
+                            .any(|(lx, ly, _)| {
+                                self.pf_native_tile(UnitKind::Warrior, lx, ly)
+                                    && continents[self.map_wrap.index(lx, ly)] == city_continent
+                                    && self.map_distance(lx, ly, city.x, city.y) <= 2
+                            });
                     if near_landing {
                         water_candidates.push((dist, x, y, objective));
                     }

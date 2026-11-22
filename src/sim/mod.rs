@@ -67,10 +67,10 @@ pub(crate) use notifications::{Notification, NotificationPriority};
 mod combat_rules;
 mod commands;
 mod diplomacy;
-#[cfg(any(test, feature = "scenarios"))]
-pub(crate) use diplomacy::{VassalKind, WarObjectiveKind};
 #[cfg(feature = "desktop")]
 pub(crate) use diplomacy::VassalTerms;
+#[cfg(any(test, feature = "scenarios"))]
+pub(crate) use diplomacy::{VassalKind, WarObjectiveKind};
 mod tech_trade;
 mod trade_routes;
 pub(crate) use diplomacy::{EspionageMission, EspionageRisk, Pact, TreatyMap, TreatyOffer};

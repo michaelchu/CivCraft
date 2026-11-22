@@ -565,30 +565,26 @@ impl Simulation {
             .collect();
 
         if !attacking {
-            if offensive_cargo.is_empty() {
-                if (boat.x, boat.y) != port {
-                    self.unit_goto_tiles.insert(boat.id, port);
-                    self.ai_goto_unit(boat.id, port, GotoTask::None);
-                    board_at_port(self, boat.id);
-                    offensive_cargo = self
-                        .cargo_units_ordered(boat.id)
-                        .filter(|unit| {
-                            unit.owner == boat.owner
-                                && (Self::can_join_ground_offensive(unit.kind)
-                                    || Self::can_join_bombard_support(unit.kind))
-                        })
-                        .map(|unit| unit.id)
-                        .collect();
-                }
+            if offensive_cargo.is_empty() && (boat.x, boat.y) != port {
+                self.unit_goto_tiles.insert(boat.id, port);
+                self.ai_goto_unit(boat.id, port, GotoTask::None);
+                board_at_port(self, boat.id);
+                offensive_cargo = self
+                    .cargo_units_ordered(boat.id)
+                    .filter(|unit| {
+                        unit.owner == boat.owner
+                            && (Self::can_join_ground_offensive(unit.kind)
+                                || Self::can_join_bombard_support(unit.kind))
+                    })
+                    .map(|unit| unit.id)
+                    .collect();
             }
             let Some(current_boat) = self.unit_by_id(boat.id).cloned() else {
                 return true;
             };
             let full = self.cargo_count(boat.id) >= current_boat.kind.transport_capacity();
             let ready_to_stage = !offensive_cargo.is_empty()
-                && (full
-                    || offensive_cargo.len() >= 2
-                    || (current_boat.x, current_boat.y) != port);
+                && (full || offensive_cargo.len() >= 2 || (current_boat.x, current_boat.y) != port);
             if ready_to_stage && (current_boat.x, current_boat.y) != objective.staging {
                 self.unit_goto_tiles.insert(boat.id, objective.staging);
                 self.ai_goto_unit(boat.id, objective.staging, GotoTask::None);

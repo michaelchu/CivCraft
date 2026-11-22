@@ -783,8 +783,7 @@ impl Simulation {
                         .map(|home| regions[self.map_wrap.index(home.x, home.y)]);
                     objective.muster_city == city.id
                         || (self.war_muster_has_garrison(city)
-                            && muster_region
-                                == Some(regions[self.map_wrap.index(city.x, city.y)]))
+                            && muster_region == Some(regions[self.map_wrap.index(city.x, city.y)]))
                 }
                 && self.city_grave_danger(city) == 0
                 && !self.war_force_ready(city.owner, objective)
@@ -825,9 +824,9 @@ impl Simulation {
                     if need_transport && let Some(boat_kind) = transport_kind {
                         Some(boat_kind)
                     } else {
-                        let carrier = self.city_by_id(objective.muster_city).and_then(|home| {
-                            self.available_naval_transport_kind(city.owner, home)
-                        });
+                        let carrier = self
+                            .city_by_id(objective.muster_city)
+                            .and_then(|home| self.available_naval_transport_kind(city.owner, home));
                         let owned_offensive = self
                             .units_owned_by(city.owner)
                             .filter(|unit| Self::can_join_ground_offensive(unit.kind))
@@ -921,10 +920,7 @@ impl Simulation {
                     && self.player_alive(other)
                     && self.diplomatic_at_war(city.owner, other)
             });
-            if at_war
-                && self.city_grave_danger(city) == 0
-                && !pre_offensive_emergency
-            {
+            if at_war && self.city_grave_danger(city) == 0 && !pre_offensive_emergency {
                 let offensive_count = self
                     .units_owned_by(city.owner)
                     .filter(|unit| Self::can_join_ground_offensive(unit.kind))

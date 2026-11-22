@@ -546,7 +546,10 @@ impl Simulation {
 
     pub(in crate::sim) fn set_scenario_provocation(&mut self, victim: usize, offender: usize) {
         self.record_provocation(victim, offender);
-        if let Some(relation) = self.diplomacy.get_mut(&Self::relation_key(victim, offender)) {
+        if let Some(relation) = self
+            .diplomacy
+            .get_mut(&Self::relation_key(victim, offender))
+        {
             relation.cause_until[usize::from(victim > offender)] = self.turn + 3;
         }
     }

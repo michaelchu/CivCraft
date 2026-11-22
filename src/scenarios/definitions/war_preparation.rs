@@ -185,7 +185,10 @@ impl ScenarioRun for DistantOffensive {
             Check {
                 name: "distant_objective_selected",
                 passed: self.land_objective_seen,
-                detail: format!("Selected distant Land objective; staging {:?}", self.staging),
+                detail: format!(
+                    "Selected distant Land objective; staging {:?}",
+                    self.staging
+                ),
             },
             Check {
                 name: "distant_offensive_built_and_staged_before_declaration",
@@ -584,9 +587,7 @@ impl ScenarioRun for ProvokedRevenge {
             },
             Check {
                 name: "behavior_declared_within_bounded_timeout",
-                passed: self
-                    .first_war
-                    .is_some_and(|war| war <= REVENGE_DEADLINE),
+                passed: self.first_war.is_some_and(|war| war <= REVENGE_DEADLINE),
                 detail: format!(
                     "Declared revenge war on {:?} within {REVENGE_DEADLINE} turns",
                     self.first_war

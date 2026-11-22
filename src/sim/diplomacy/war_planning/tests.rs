@@ -439,10 +439,19 @@ fn overseas_naval_objective_builds_transports_stages_and_declares_when_ready() {
 
     // With transports loaded and staged at objective.staging, readiness passes and war declares.
     for _ in 0..4 {
-        let boat = game.spawn_unit(1, UnitKind::Galley, objective.staging.0, objective.staging.1);
+        let boat = game.spawn_unit(
+            1,
+            UnitKind::Galley,
+            objective.staging.0,
+            objective.staging.1,
+        );
         for _ in 0..2 {
-            let troop =
-                game.spawn_unit(1, UnitKind::Swordsman, objective.staging.0, objective.staging.1);
+            let troop = game.spawn_unit(
+                1,
+                UnitKind::Swordsman,
+                objective.staging.0,
+                objective.staging.1,
+            );
             assert!(game.board_specific_ship(troop, boat));
         }
     }
@@ -494,7 +503,10 @@ fn behavior_war_waits_for_readiness_up_to_timeout_then_declares() {
     for expected_wait in 1..=BEHAVIOR_READINESS_TIMEOUT {
         game.advance_ai_war_plans_for(1);
         assert!(!game.at_war(1, HUMAN));
-        assert_eq!(game.ai_war_plans[&(1, HUMAN)].readiness_waited, expected_wait);
+        assert_eq!(
+            game.ai_war_plans[&(1, HUMAN)].readiness_waited,
+            expected_wait
+        );
         assert!(game.coordinated_war_objective(1).is_some());
     }
     // Once timeout is reached, revenge war declares anyway.
@@ -592,7 +604,10 @@ fn overseas_naval_transport_boards_stages_and_lands_after_war_declaration() {
         let u = game.unit_by_id(id).unwrap();
         u.transport.is_none() && continents[game.map_wrap.index(u.x, u.y)] == target_continent
     });
-    assert!(landed, "staged troops should disembark onto target continent after war starts");
+    assert!(
+        landed,
+        "staged troops should disembark onto target continent after war starts"
+    );
 }
 
 #[test]
@@ -650,16 +665,8 @@ fn combined_arms_bombard_units_build_stage_and_bombard_objective() {
     assert_ne!((moved.x, moved.y), home);
 
     // Place the Catapult at staging, declare war, and verify it approaches & bombards the target city.
-    game.units
-        .iter_mut()
-        .find(|u| u.id == catapult)
-        .unwrap()
-        .x = objective.staging.0;
-    game.units
-        .iter_mut()
-        .find(|u| u.id == catapult)
-        .unwrap()
-        .y = objective.staging.1;
+    game.units.iter_mut().find(|u| u.id == catapult).unwrap().x = objective.staging.0;
+    game.units.iter_mut().find(|u| u.id == catapult).unwrap().y = objective.staging.1;
     assert_eq!(game.staged_bombard_units(1, objective).len(), 1);
     game.sign_pact(1, HUMAN, Pact::War);
     for _ in 0..3 {
@@ -678,6 +685,3 @@ fn combined_arms_bombard_units_build_stage_and_bombard_objective() {
         "staged Catapult should reach and bombard the objective city"
     );
 }
-
-
-

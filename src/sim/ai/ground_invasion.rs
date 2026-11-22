@@ -31,7 +31,11 @@ impl Simulation {
                 let goal = if attacking {
                     if bombard {
                         let range = Self::fixed_wing_bombard_range(actor.kind);
-                        if self.map_wrap.step_distance(actor.x, actor.y, city.x, city.y) <= range {
+                        if self
+                            .map_wrap
+                            .step_distance(actor.x, actor.y, city.x, city.y)
+                            <= range
+                        {
                             return false;
                         }
                         objective.staging
@@ -62,9 +66,7 @@ impl Simulation {
                 true
             }
             diplomacy::WarObjectiveKind::Naval => {
-                if attacking
-                    && actor_continent == continents[self.map_wrap.index(city.x, city.y)]
-                {
+                if attacking && actor_continent == continents[self.map_wrap.index(city.x, city.y)] {
                     if bombard {
                         return false;
                     }
@@ -86,7 +88,8 @@ impl Simulation {
                 }
                 let port = (muster.x, muster.y);
                 if (actor.x, actor.y) != port {
-                    let mut routes = normal_paths::NormalPaths::goto_map(self, actor, GotoTask::None);
+                    let mut routes =
+                        normal_paths::NormalPaths::goto_map(self, actor, GotoTask::None);
                     let Some((path, _)) = routes.path(self, port.0, port.1) else {
                         return false;
                     };
