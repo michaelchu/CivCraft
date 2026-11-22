@@ -15,6 +15,10 @@ pub(crate) struct NativeResource {
 }
 
 /// Who pays gold upkeep: each city, the nation, or a mix of both.
+#[allow(
+    dead_code,
+    reason = "complete Freeciv option set; the campaign data selects Mixed"
+)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum NativeGoldUpkeepStyle {
     City,

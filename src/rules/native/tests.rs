@@ -103,12 +103,12 @@ fn native_catalogs_have_expected_schema_and_campaign_coverage() {
         ]
     );
     assert_eq!(
-        governments().get("monarchy").unwrap().required_technology,
-        "TECH_Monarchy"
+        governments().get("monarchy").unwrap().technology,
+        Some(crate::rules::Tech::MONARCHY)
     );
     assert_eq!(
-        governments().get("republic").unwrap().required_technology,
-        "TECH_The_Republic"
+        governments().get("republic").unwrap().technology,
+        Some(crate::rules::Tech::THE_REPUBLIC)
     );
     assert_eq!(economy().resources.len(), 20);
     assert_eq!(experience().schema_version, 1);
@@ -208,6 +208,11 @@ fn unified_content_ruleset_loads_all_campaign_toml_files_from_directory() {
         loaded.technologies.technologies.len(),
         technologies().technologies.len()
     );
+    assert_eq!(
+        loaded.civilizations.civilizations.len(),
+        civilizations().civilizations.len()
+    );
+    assert_eq!(loaded.experience.levels.len(), experience().levels.len());
     assert_eq!(loaded.religion.faiths.len(), religion().faiths.len());
 }
 

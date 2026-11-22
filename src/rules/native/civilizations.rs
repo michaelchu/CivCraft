@@ -2,6 +2,10 @@
 
 use super::*;
 
+#[allow(
+    dead_code,
+    reason = "schema_version and source are required for strict TOML decoding but not read at runtime"
+)]
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct CivilizationCatalog {

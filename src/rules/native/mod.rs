@@ -6,13 +6,6 @@
 //! Each catalog lives in its own submodule with its schema, validation and
 //! cached accessor; this module re-exports them so callers keep one path.
 
-// Catalog structs mirror their TOML schemas under `deny_unknown_fields`, so
-// some decoded fields are never read, and `ContentRuleset` is built by tests.
-#![allow(
-    dead_code,
-    reason = "schema fields must exist for strict TOML decoding"
-)]
-
 use serde::Deserialize;
 use std::sync::OnceLock;
 
@@ -47,6 +40,7 @@ fn validate_ids<'a>(ids: impl Iterator<Item = &'a str>, kind: &str) -> Result<()
 }
 
 /// Unified native content package validating every editable TOML file together.
+#[cfg(test)]
 pub(crate) struct ContentRuleset {
     pub(crate) units: UnitCatalog,
     pub(crate) civilizations: CivilizationCatalog,
@@ -56,6 +50,7 @@ pub(crate) struct ContentRuleset {
     pub(crate) religion: ReligionCatalog,
 }
 
+#[cfg(test)]
 impl ContentRuleset {
     pub(crate) fn load_from_directory(content_dir: &std::path::Path) -> Result<Self, String> {
         let read = |name: &str| {
@@ -66,8 +61,7 @@ impl ContentRuleset {
         let units = parse_units(&read("units.toml")?, &technologies)?;
         let civilizations = parse_civilizations(&read("civilizations.toml")?)?;
         let buildings = parse_buildings(&read("buildings.toml")?, &technologies)?;
-        let experience: ExperienceCatalog =
-            toml::from_str(&read("experience_levels.toml")?).map_err(|error| error.to_string())?;
+        let experience = parse_experience(&read("experience_levels.toml")?)?;
         let religion = super::policies::parse_religion(&read("religion.toml")?, &technologies)?;
         Ok(Self {
             units,
