@@ -29,9 +29,10 @@ fn unit(sim: &mut Simulation, owner: usize, kind: UnitKind) -> Unit {
     sim.unit_by_id(id).unwrap().clone()
 }
 
-fn civ3_east(sim: &Simulation, point: (i32, i32), tiles: usize) -> (i32, i32) {
+/// Steps east on Civ III's eight-direction grid.
+fn east_by(sim: &Simulation, point: (i32, i32), tiles: usize) -> (i32, i32) {
     (0..tiles).fold(point, |(x, y), _| {
-        sim.map_wrap.civ3_neighbor(x, y, 2).unwrap()
+        sim.map_wrap.eight_way_neighbor(x, y, 2).unwrap()
     })
 }
 
@@ -74,8 +75,8 @@ fn native_risk_paths_can_spend_more_movement_to_avoid_a_vulnerable_stack() {
         tile.terrain = Terrain::Sea;
     }
     let actor = unit(&mut sim, 1, UnitKind::Caravel);
-    let stack = civ3_east(&sim, (10, 20), 1);
-    let target = civ3_east(&sim, (10, 20), 2);
+    let stack = east_by(&sim, (10, 20), 1);
+    let target = east_by(&sim, (10, 20), 2);
     for _ in 0..6 {
         sim.spawn_unit(1, UnitKind::Battleship, stack.0, stack.1);
     }
@@ -95,7 +96,7 @@ fn native_risk_paths_can_spend_more_movement_to_avoid_a_vulnerable_stack() {
     for step in path {
         position = sim
             .map_wrap
-            .civ3_offset(position.0, position.1, step.0, step.1)
+            .eight_way_offset(position.0, position.1, step.0, step.1)
             .unwrap();
         assert_ne!(position, stack);
     }
@@ -120,15 +121,15 @@ fn overlap_stops_after_one_nonnative_tile_and_sanity_still_checks_known_map() {
         tile.terrain = Terrain::Sea;
     }
     let actor = unit(&mut sim, 1, UnitKind::Caravel);
-    let center = civ3_east(&sim, (10, 20), 2);
+    let center = east_by(&sim, (10, 20), 2);
     for point in sim
         .map_wrap
-        .civ3_neighbors(center.0, center.1)
+        .eight_way_neighbors(center.0, center.1)
         .chain(std::iter::once(center))
     {
         sim.tile_mut(point.0, point.1).terrain = Terrain::Grassland;
     }
-    let outer = civ3_east(&sim, (10, 20), 1);
+    let outer = east_by(&sim, (10, 20), 1);
     let mut map = NormalPaths::new(
         &sim,
         &actor,
@@ -145,8 +146,9 @@ fn overlap_stops_after_one_nonnative_tile_and_sanity_still_checks_known_map() {
     assert!(sim.ai_goto_path(&actor, outer, GotoTask::None).is_none());
 }
 
+/// Mirrors the civ2civ3 ruleset behavior.
 #[test]
-fn c2c3_field_embark_scope_uses_selected_rules_even_when_carrier_is_full() {
+fn ruleset_field_embark_scope_uses_selected_rules_even_when_carrier_is_full() {
     let mut sim = world();
     let actor = unit(&mut sim, 1, UnitKind::Marine);
     let sea = offset_native_by_map(10, 20, 1, 0);
@@ -179,8 +181,9 @@ fn c2c3_field_embark_scope_uses_selected_rules_even_when_carrier_is_full() {
     assert_eq!(map.movement_cost(&sim, sea.0, sea.1), Some(MOVE_FRAGMENTS));
 }
 
+/// Mirrors the civ2civ3 ruleset behavior.
 #[test]
-fn c2c3_field_embark_scope_rejects_unlisted_passengers_at_sea() {
+fn ruleset_field_embark_scope_rejects_unlisted_passengers_at_sea() {
     let mut sim = world();
     let actor = unit(&mut sim, 1, UnitKind::Warrior);
     let sea = offset_native_by_map(10, 20, 1, 0);

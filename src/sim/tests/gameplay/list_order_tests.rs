@@ -123,7 +123,7 @@ impl Simulation {
             .collect();
         // Each city consumes the C2C3 conversion roll before city activity
         // selection, even though these cities have no foreign residents.
-        let mut reference_rng = crate::random::FreecivRng::new(2);
+        let mut reference_rng = crate::random::GameRng::new(2);
         for _ in &city_ids {
             reference_rng.draw(1000);
         }

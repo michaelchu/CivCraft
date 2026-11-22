@@ -328,8 +328,9 @@ mod tests {
     use super::super::movement_rules::{RoadMoveMode, RoadType};
     use super::*;
 
+    /// Mirrors the civ2civ3 ruleset behavior.
     #[test]
-    fn unit_zoc_exemptions_use_c2c3_flags_and_native_extras() {
+    fn unit_zoc_exemptions_use_ruleset_flags_and_native_extras() {
         for kind in [
             UnitKind::Chariot,
             UnitKind::Catapult,
@@ -413,7 +414,7 @@ mod tests {
         sim.units.clear();
         sim.cities.clear();
         let from = (10, 20);
-        let to = sim.map_wrap.civ3_neighbor(from.0, from.1, 1).unwrap();
+        let to = sim.map_wrap.eight_way_neighbor(from.0, from.1, 1).unwrap();
         sim.spawn_unit(HUMAN, UnitKind::Warrior, from.0, from.1);
         let actor = sim.units[0].clone();
 
@@ -452,8 +453,8 @@ mod tests {
         sim.units.clear();
         sim.cities.clear();
         let from = (10, 20);
-        let cardinal = sim.map_wrap.civ3_neighbor(from.0, from.1, 1).unwrap();
-        let diagonal = sim.map_wrap.civ3_neighbor(from.0, from.1, 2).unwrap();
+        let cardinal = sim.map_wrap.eight_way_neighbor(from.0, from.1, 1).unwrap();
+        let diagonal = sim.map_wrap.eight_way_neighbor(from.0, from.1, 2).unwrap();
         sim.spawn_unit(HUMAN, UnitKind::Warrior, from.0, from.1);
         let actor = sim.units[0].clone();
         let base_cost =
@@ -508,21 +509,22 @@ mod tests {
         let seam_from = (0, 20);
         let seam_cardinal = sim
             .map_wrap
-            .civ3_neighbor(seam_from.0, seam_from.1, 7)
+            .eight_way_neighbor(seam_from.0, seam_from.1, 7)
             .unwrap();
         let seam_diagonal = sim
             .map_wrap
-            .civ3_neighbor(seam_from.0, seam_from.1, 6)
+            .eight_way_neighbor(seam_from.0, seam_from.1, 6)
             .unwrap();
         assert_eq!(seam_cardinal.0, sim.map_wrap.width() - 1);
         assert_eq!(seam_diagonal.0, sim.map_wrap.width() - 1);
         assert!(sim.pf_move_is_cardinal(seam_from, seam_cardinal));
         assert!(!sim.pf_move_is_cardinal(seam_from, seam_diagonal));
-        assert!(sim.map_wrap.civ3_neighbor(10, 0, 0).is_none());
+        assert!(sim.map_wrap.eight_way_neighbor(10, 0, 0).is_none());
     }
 
+    /// Mirrors the civ2civ3 ruleset behavior.
     #[test]
-    fn attack_move_cost_uses_c2c3_one_attack_and_missile_rules() {
+    fn attack_move_cost_uses_ruleset_one_attack_and_missile_rules() {
         let fragments = MovementRules::campaign().move_fragments();
         let rate = 3 * fragments;
         assert_eq!(

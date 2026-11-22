@@ -4,7 +4,7 @@ use super::*;
 
 impl Simulation {
     pub(crate) fn native_unit_catalog_test(&self) -> (bool, bool, bool) {
-        let rules = crate::sim::civ3_unit_rules::all();
+        let rules = crate::sim::unit_rules::all();
         let roster = UnitKind::all_slice();
         let source_matches = roster.iter().zip(rules).all(|(kind, rule)| {
             kind.conquests_id() == Some(rule.id) && kind.name() == rule.name && {
@@ -26,7 +26,7 @@ impl Simulation {
         });
         let civ_rules_complete = roster.iter().all(|kind| {
             kind.conquests_id()
-                .and_then(crate::sim::civ3_unit_rules::get)
+                .and_then(crate::sim::unit_rules::get)
                 .is_some_and(|rule| {
                     rule.category == "wonder_created"
                         || !rule.available_to.is_empty()

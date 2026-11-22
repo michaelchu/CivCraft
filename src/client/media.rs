@@ -73,14 +73,15 @@ impl AssetRoots {
     }
 }
 
+/// Resolves installed Civ III media paths.
 #[derive(Clone, Debug)]
-pub(super) struct Civ3MediaResolver {
+pub(super) struct MediaResolver {
     roots: Vec<(PathBuf, MediaClass)>,
     boundaries: Vec<PathBuf>,
     origins: Vec<(PathBuf, MediaClass)>,
     trace: bool,
 }
-impl Civ3MediaResolver {
+impl MediaResolver {
     #[cfg(any(test, feature = "desktop-audio"))]
     pub fn new(roots: Vec<PathBuf>) -> Self {
         Self::classified(
@@ -376,7 +377,7 @@ mod tests {
     fn errors_preserve_missing_requests_and_io_causes() {
         use std::error::Error;
         let root = fixture("typed-errors");
-        let resolver = Civ3MediaResolver::new(vec![root.clone()]);
+        let resolver = MediaResolver::new(vec![root.clone()]);
         match resolver.resolve("absent").unwrap_err() {
             AssetError::Missing {
                 requested,
@@ -439,7 +440,7 @@ mod tests {
             packaged: vec![packaged.clone()],
             standalone: false,
         };
-        let resolver = Civ3MediaResolver::from_config(&config);
+        let resolver = MediaResolver::from_config(&config);
         for (class, folder) in [
             (MediaClass::Scenario, scenario.clone()),
             (MediaClass::Packaged, packaged.clone()),
@@ -454,7 +455,7 @@ mod tests {
         }
         fs::write(install.join("Art/installed-only.pcx"), "base").unwrap();
         fs::write(scenario.join("Art/scenario-only.pcx"), "scenario").unwrap();
-        let standalone = Civ3MediaResolver::from_config(&AssetRoots {
+        let standalone = MediaResolver::from_config(&AssetRoots {
             standalone: true,
             ..config
         });
@@ -480,7 +481,7 @@ mod tests {
         fs::write(outside.join("secret"), "outside").unwrap();
         std::os::unix::fs::symlink(&outside, root.join("escape")).unwrap();
         assert!(
-            Civ3MediaResolver::new(vec![root.clone()])
+            MediaResolver::new(vec![root.clone()])
                 .lookup("escape/secret")
                 .is_err()
         );
@@ -495,7 +496,7 @@ mod tests {
             fs::create_dir_all(&folder).unwrap();
             fs::write(folder.join("Fog.PCX"), edition).unwrap();
         }
-        let resolver = Civ3MediaResolver::installation(&root);
+        let resolver = MediaResolver::installation(&root);
         let name = "art\\terrain\\fog.pcx";
         assert_eq!(
             fs::read_to_string(resolver.resolve(name).unwrap()).unwrap(),

@@ -93,8 +93,9 @@ fn hunter_assigns_same_tile_missiles_only_when_a_real_hunt_begins() {
     );
 }
 
+/// Mirrors the civ2civ3 ruleset behavior.
 #[test]
-fn selected_c2c3_hunter_role_dispatches_existing_hunter_management() {
+fn selected_ruleset_hunter_role_dispatches_existing_hunter_management() {
     let mut sim = Simulation::new(crate::test_support::seeded_map());
     sim.units.clear();
     sim.cities.clear();
@@ -226,7 +227,7 @@ fn distant_ground_missions_do_not_assume_a_one_way_air_sortie_is_recoverable() {
     let unit = game.unit_by_id(infantry).unwrap();
     assert!(
         game.map_wrap
-            .civ3_distance(unit.x, unit.y, target.x, target.y)
+            .step_distance(unit.x, unit.y, target.x, target.y)
             > unit.kind.stats().moves
     );
     assert!(game.invasion_support(1, target, fighter).1 > 0);
@@ -238,10 +239,10 @@ fn distant_ground_missions_do_not_assume_a_one_way_air_sortie_is_recoverable() {
         .unwrap();
     let outbound = game
         .map_wrap
-        .civ3_distance(home.x, home.y, target.x, target.y);
+        .step_distance(home.x, home.y, target.x, target.y);
     let return_leg = game
         .map_wrap
-        .civ3_distance(target.x, target.y, home.x, home.y);
+        .step_distance(target.x, target.y, home.x, home.y);
     assert_eq!(plane.kind.operational_range(), 6);
     assert_eq!(outbound, 6);
     assert!(outbound + return_leg > i32::from(plane.kind.fuel_capacity()));

@@ -15,7 +15,8 @@ use crate::rules::engine_rules::{
 use super::action_rules::SimulationRequirementContext;
 use super::{City, Pact, Simulation};
 
-const FREECIV_MAX_TRADE_ROUTES: i32 = 20;
+/// Freeciv's trade route limit.
+const MAX_TRADE_ROUTES: i32 = 20;
 
 fn campaign_settings() -> &'static TradeRouteRulesetSettings {
     TradeRouteRulesetSettings::campaign()
@@ -218,7 +219,7 @@ impl Simulation {
 
         for index in 0..tile_count {
             let (x, y) = self.map_wrap.position(index);
-            for (nx, ny) in self.map_wrap.civ3_neighbors(x, y) {
+            for (nx, ny) in self.map_wrap.eight_way_neighbors(x, y) {
                 let neighbor = self.map_wrap.index(nx, ny);
                 if road_tiles[index] && road_tiles[neighbor] {
                     components.connect(index, neighbor);
@@ -235,7 +236,7 @@ impl Simulation {
             if road_tiles[center] {
                 components.connect(hub, center);
             }
-            for (nx, ny) in self.map_wrap.civ3_neighbors(city.x, city.y) {
+            for (nx, ny) in self.map_wrap.eight_way_neighbors(city.x, city.y) {
                 let neighbor = self.map_wrap.index(nx, ny);
                 if road_tiles[neighbor] {
                     components.connect(hub, neighbor);
@@ -376,7 +377,7 @@ impl Simulation {
             && (first.owner != second.owner
                 || self
                     .map_wrap
-                    .civ3_distance(first.x, first.y, second.x, second.y)
+                    .step_distance(first.x, first.y, second.x, second.y)
                     >= settings.minimum_city_distance)
             && route_type.trade_percent > 0
     }
@@ -427,7 +428,7 @@ impl Simulation {
     ) -> i32 {
         let distance = self
             .map_wrap
-            .civ3_distance(first.x, first.y, second.x, second.y);
+            .step_distance(first.x, first.y, second.x, second.y);
         let base = match settings.revenue_style {
             TradeRevenueStyle::Classic => {
                 let map_scale = self.map_wrap.width().max(self.map_wrap.height()).max(1);
@@ -463,7 +464,7 @@ impl Simulation {
             self.players[city.owner].government,
             None,
         )
-        .clamp(0, FREECIV_MAX_TRADE_ROUTES)
+        .clamp(0, MAX_TRADE_ROUTES)
     }
 
     fn city_provides_good(&self, city: &City, good: &TradeGoodRulesetRecord) -> bool {
@@ -751,8 +752,9 @@ mod tests {
         game
     }
 
+    /// Mirrors the civ2civ3 ruleset behavior.
     #[test]
-    fn c2c3_classic_route_income_uses_wrapped_map_scale_and_city_sizes() {
+    fn ruleset_classic_route_income_uses_wrapped_map_scale_and_city_sizes() {
         let mut game = route_test_game();
         let from = game.cities[0].id;
         let to = game.cities[1].id;
@@ -764,7 +766,7 @@ mod tests {
 
         // C2C3 uses world-relative 100: distance * 40 / max(36, 48), then
         // adds both sizes, applies the 100% IN route rate, then divides by 12.
-        let distance = game.map_wrap.civ3_distance(5, 20, 20, 20);
+        let distance = game.map_wrap.step_distance(5, 20, 20, 20);
         let expected = (distance * 40 / 48 + 10 + 10) / 12;
         assert_eq!(
             campaign_settings().revenue_style,
@@ -800,8 +802,9 @@ mod tests {
         assert!(!game.can_establish_trade_route(from, to, "Goods"));
     }
 
+    /// Mirrors the civ2civ3 ruleset behavior.
     #[test]
-    fn national_route_categories_are_disabled_by_c2c3_and_capacity_is_effect_driven() {
+    fn national_route_categories_are_disabled_by_ruleset_and_capacity_is_effect_driven() {
         let mut game = route_test_game();
         game.cities[1].owner = 0;
         let continents = game.continent_labels();

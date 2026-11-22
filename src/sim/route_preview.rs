@@ -27,7 +27,7 @@ impl Simulation {
             .units
             .iter()
             .find(|unit| unit.id == unit_id && unit.owner == HUMAN)?;
-        let (path, _) = self.search_civ3_route(unit, tx, ty, true, i32::MAX)?;
+        let (path, _) = self.search_grid_route(unit, tx, ty, true, i32::MAX)?;
         let allowance = self.unit_move_rate(unit).max(1);
         let profile = self.step_movement_profile(unit.kind);
         let mut actor = unit.clone();
@@ -45,7 +45,7 @@ impl Simulation {
                 remaining = allowance;
             }
             actor.moves_left = remaining;
-            let Some((x, y)) = self.map_wrap.civ3_offset(actor.x, actor.y, dx, dy) else {
+            let Some((x, y)) = self.map_wrap.eight_way_offset(actor.x, actor.y, dx, dy) else {
                 continue;
             };
             let remembered = self.observed_route_tile(x, y);

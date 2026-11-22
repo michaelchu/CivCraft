@@ -208,7 +208,7 @@ impl Simulation {
                 let mut known: BTreeMap<_, _> = p
                     .known
                     .iter()
-                    .filter(|t| t.is_civ3_advance())
+                    .filter(|t| t.is_researchable_advance())
                     .map(|t| (t.0, 1))
                     .collect();
                 if p.future_techs > 0 {
@@ -267,7 +267,7 @@ impl Simulation {
     }
     pub(crate) fn observe_research(&self) -> ResearchSnapshot {
         let ledger = self.trace.research.as_ref();
-        let valid = |t: Tech| (t.is_civ3_advance() || t == Tech::FUTURE).then_some(t.0);
+        let valid = |t: Tech| (t.is_researchable_advance() || t == Tech::FUTURE).then_some(t.0);
         ResearchSnapshot {
             history_available: ledger.is_some(),
             since_turn: ledger.map(|l| l.since_turn),
@@ -288,7 +288,7 @@ impl Simulation {
                     let known_technology_ids: Vec<_> = p
                         .known
                         .iter()
-                        .filter(|t| t.is_civ3_advance())
+                        .filter(|t| t.is_researchable_advance())
                         .map(|t| t.0)
                         .collect::<BTreeSet<_>>()
                         .into_iter()
@@ -313,7 +313,7 @@ impl Simulation {
         }
     }
     pub(crate) fn technology_catalog() -> serde_json::Value {
-        serde_json::to_value(Tech::all().filter(|t|t.is_civ3_advance()).chain(std::iter::once(Tech::FUTURE)).map(|t|serde_json::json!({"id":t.0,"name":t.name(),"era":if t==Tech::FUTURE {None} else {Some(t.era().name())},"prerequisites":t.prerequisites().iter().map(|t|t.0).collect::<Vec<_>>()})).collect::<Vec<_>>()).unwrap()
+        serde_json::to_value(Tech::all().filter(|t|t.is_researchable_advance()).chain(std::iter::once(Tech::FUTURE)).map(|t|serde_json::json!({"id":t.0,"name":t.name(),"era":if t==Tech::FUTURE {None} else {Some(t.era().name())},"prerequisites":t.prerequisites().iter().map(|t|t.0).collect::<Vec<_>>()})).collect::<Vec<_>>()).unwrap()
     }
 }
 

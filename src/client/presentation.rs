@@ -89,14 +89,14 @@ fn air_mission_phase(
     }
 }
 
-fn attack_action(round: usize) -> super::tileset::Civ3UnitAction {
-    use super::tileset::Civ3UnitAction::*;
+fn attack_action(round: usize) -> super::tileset::UnitArtAction {
+    use super::tileset::UnitArtAction::*;
     [Attack, Attack2, Attack3][round % 3]
 }
 
 pub(super) fn configure_combat_timing(
     events: &mut VecDeque<PresentationEventView>,
-    art: &super::tileset::Civ3,
+    art: &super::tileset::ArtTileset,
 ) {
     for event in events {
         configure_event_combat_timing(event, art);
@@ -105,9 +105,9 @@ pub(super) fn configure_combat_timing(
 
 pub(super) fn configure_event_combat_timing(
     event: &mut PresentationEventView,
-    art: &super::tileset::Civ3,
+    art: &super::tileset::ArtTileset,
 ) {
-    use super::tileset::Civ3UnitAction::*;
+    use super::tileset::UnitArtAction::*;
     match event {
         PresentationEventView::Combat(combat) => {
             combat.round_durations = (0..combat.hp.len().saturating_sub(1).max(1))
@@ -673,7 +673,7 @@ impl Game {
         let project = |x, y| view.project(self.sim.map_wrap(), x, y);
         let progress = self.playback.progress();
         if let PresentationEventView::AirMission(mission) = event {
-            use super::tileset::Civ3UnitAction as Action;
+            use super::tileset::UnitArtAction as Action;
             let elapsed = f64::from(progress) * mission.duration;
             let phase = air_mission_phase(mission, elapsed);
             let from_center = project(mission.from.0, mission.from.1);
@@ -691,7 +691,7 @@ impl Game {
                 let unit_zoom = view.zoom * WORLD_ART_SCALE;
                 match phase {
                     AirMissionPhase::Outbound(t) => {
-                        let _ = assets.civ3.draw_unit(
+                        let _ = assets.art_tileset.draw_unit(
                             mission.aircraft.kind,
                             mission.aircraft.owner,
                             palette_index,
@@ -706,7 +706,7 @@ impl Game {
                         );
                     }
                     AirMissionPhase::Action(t) => {
-                        let _ = assets.civ3.draw_unit(
+                        let _ = assets.art_tileset.draw_unit(
                             mission.aircraft.kind,
                             mission.aircraft.owner,
                             palette_index,
@@ -720,7 +720,9 @@ impl Game {
                             false,
                         );
                         if intercepted_by_sdi {
-                            let drawn = assets.civ3.draw_sdi_effect(0, t, to_center, view.zoom);
+                            let drawn = assets
+                                .art_tileset
+                                .draw_sdi_effect(0, t, to_center, view.zoom);
                             if !drawn {
                                 draw_line(
                                     to_center.x + 80.0 * view.zoom,
@@ -739,7 +741,7 @@ impl Game {
                         } else {
                             Action::Death
                         };
-                        let _ = assets.civ3.draw_unit(
+                        let _ = assets.art_tileset.draw_unit(
                             mission.aircraft.kind,
                             mission.aircraft.owner,
                             palette_index,
@@ -847,7 +849,7 @@ impl Game {
                             self.sim.player_team_palette_view(mission.aircraft.owner);
                         // Civ III stores each aircraft's dedicated bomb explosion
                         // clip (`BomberBomb.flc`, `FighterBomb.flc`, etc.) in VICTORY.
-                        let drawn = assets.civ3.draw_unit(
+                        let drawn = assets.art_tileset.draw_unit(
                             mission.aircraft.kind,
                             mission.aircraft.owner,
                             palette_index,
@@ -861,7 +863,7 @@ impl Game {
                             false,
                         );
                         if !drawn {
-                            let _ = assets.civ3.draw_bomb_effect(
+                            let _ = assets.art_tileset.draw_bomb_effect(
                                 mission.outbound_facing,
                                 t,
                                 to_center,
@@ -872,7 +874,7 @@ impl Game {
                     crate::sim::AirMissionPresentationKind::CruiseMissileStrike { .. } => {
                         let palette_index =
                             self.sim.player_team_palette_view(mission.aircraft.owner);
-                        let drawn = assets.civ3.draw_unit(
+                        let drawn = assets.art_tileset.draw_unit(
                             mission.aircraft.kind,
                             mission.aircraft.owner,
                             palette_index,
@@ -886,7 +888,7 @@ impl Game {
                             false,
                         );
                         if !drawn {
-                            let _ = assets.civ3.draw_bomb_effect(
+                            let _ = assets.art_tileset.draw_bomb_effect(
                                 mission.outbound_facing,
                                 t,
                                 to_center,
@@ -896,7 +898,7 @@ impl Game {
                         return;
                     }
                     crate::sim::AirMissionPresentationKind::SamIntercept { .. } => {
-                        let drawn = assets.civ3.draw_sam_effect(
+                        let drawn = assets.art_tileset.draw_sam_effect(
                             mission.outbound_facing,
                             t,
                             to_center,
@@ -980,7 +982,7 @@ impl Game {
                 }
                 _ => project(unit.x, unit.y),
             };
-            use super::tileset::Civ3UnitAction as Action;
+            use super::tileset::UnitArtAction as Action;
             let mut clip_progress = progress;
             let mut clip_duration = event.duration() as f32;
             let action = match event {
@@ -1046,7 +1048,7 @@ impl Game {
                 let center = project(combat.defender.x, combat.defender.y);
                 let effect_progress = ((elapsed - explosion_start) / impact_duration.max(0.001))
                     .clamp(0.0, 1.0) as f32;
-                if !assets.civ3.draw_bomb_effect(
+                if !assets.art_tileset.draw_bomb_effect(
                     combat.attacker.facing,
                     effect_progress,
                     center,
@@ -1092,7 +1094,7 @@ mod tests {
         let mut sim = Simulation::new(crate::mapgen::generate(42));
         let (id, target) = crate::sim::ui_review::ui_review_animation_setup(&mut sim, false);
         let before = sim.unit_by_id(id).unwrap().clone();
-        assert!(sim.apply(Command::move_civ3_by_offset(&sim, id, 1, 0)));
+        assert!(sim.apply(Command::move_by_offset(&sim, id, 1, 0)));
         let mut playback = Playback::default();
         playback.update(sim.take_presentation_event_views(), 10.0, Some(id));
         assert!(playback.pending());
@@ -1197,7 +1199,7 @@ mod tests {
     fn movement_sound_request_is_emitted_once_when_the_event_starts() {
         let mut sim = Simulation::new(crate::mapgen::generate(42));
         let (id, _) = crate::sim::ui_review::ui_review_animation_setup(&mut sim, false);
-        assert!(sim.apply(Command::move_civ3_by_offset(&sim, id, 1, 0)));
+        assert!(sim.apply(Command::move_by_offset(&sim, id, 1, 0)));
         let mut playback = Playback::default();
         playback.update(sim.take_presentation_event_views(), 10.0, Some(id));
         let requests = playback.take_sound_requests();
@@ -1424,7 +1426,7 @@ mod tests {
             let mut sim = Simulation::new(crate::mapgen::generate(42));
             let (actor, _, army) =
                 crate::sim::ui_review::ui_review_army_combat_setup(&mut sim, attacking);
-            assert!(sim.apply(Command::move_civ3_by_offset(&sim, actor, 1, 0)));
+            assert!(sim.apply(Command::move_by_offset(&sim, actor, 1, 0)));
             let mut playback = Playback {
                 review_progress: Some(0.0),
                 ..Default::default()
@@ -1478,8 +1480,9 @@ mod tests {
         }
     }
 
+    /// Mirrors Civ III behavior.
     #[test]
-    fn air_mission_playback_schedules_authentic_civ3_sounds_and_phases() {
+    fn air_mission_playback_schedules_authentic_native_sounds_and_phases() {
         let mut sim = Simulation::new(crate::mapgen::generate(42));
         let (bomber, (tx, ty)) = crate::sim::ui_review::ui_review_air_combat_setup(&mut sim, false);
         let bomber_unit = sim.unit_by_id(bomber).unwrap().clone();

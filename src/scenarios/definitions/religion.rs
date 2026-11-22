@@ -195,7 +195,7 @@ fn setup_unlocks(map: GeneratedMap) -> (Simulation, Box<dyn ScenarioRun>) {
         .unwrap();
     let b = game.cities().iter().find(|c| c.owner == 1).unwrap().id;
     let mut ancient: Vec<_> = Tech::all()
-        .filter(|t| t.is_civ3_advance() && t.era() == crate::rules::TechEra::Ancient)
+        .filter(|t| t.is_researchable_advance() && t.era() == crate::rules::TechEra::Ancient)
         .collect();
     ancient.retain(|t| *t != Tech::MEDITATION);
     ancient.extend([Tech::THEOLOGY, Tech::MONOTHEISM]);

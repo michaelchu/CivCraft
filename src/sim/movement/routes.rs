@@ -30,11 +30,12 @@ impl Simulation {
         ty: i32,
         observed: bool,
     ) -> Vec<(i32, i32)> {
-        self.search_civ3_route(unit, tx, ty, observed, i32::MAX)
+        self.search_grid_route(unit, tx, ty, observed, i32::MAX)
             .map_or_else(Vec::new, |(path, _)| path)
     }
 
-    pub(in crate::sim) fn search_civ3_route(
+    /// Searches Civ III's eight-direction grid.
+    pub(in crate::sim) fn search_grid_route(
         &self,
         unit: &Unit,
         tx: i32,
@@ -97,7 +98,7 @@ impl Simulation {
         observed: bool,
         limit: i32,
     ) -> Option<(Vec<(i32, i32)>, i32)> {
-        self.search_civ3_route(unit, tx, ty, observed, limit)
+        self.search_grid_route(unit, tx, ty, observed, limit)
     }
 
     fn search_route_graph(
@@ -176,8 +177,8 @@ impl Simulation {
             } else {
                 allowance - (spent - unit.moves_left.max(0)) % allowance
             };
-            for (dx, dy) in CIV3_DIRS {
-                let Some((nx, ny)) = self.map_wrap.civ3_offset(cx, cy, dx, dy) else {
+            for (dx, dy) in EIGHT_WAY_DIRS {
+                let Some((nx, ny)) = self.map_wrap.eight_way_offset(cx, cy, dx, dy) else {
                     continue;
                 };
                 let ni = self.map_wrap.index(nx, ny);

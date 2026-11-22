@@ -475,7 +475,7 @@ impl Simulation {
     ) -> [i32; 6] {
         // cm.c:compute_max_stats_heuristic combines maxima for six different
         // completions into a synthetic citizen_base, then set_city_production.
-        let (food, shield, trade) = self.c2c3_finalize_city_outputs_cached(
+        let (food, shield, trade) = self.finalize_city_outputs_cached(
             city,
             (raw[0] + center.0, raw[1] + center.1, raw[2] + center.2),
             output_rules,

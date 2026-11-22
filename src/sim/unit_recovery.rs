@@ -100,8 +100,9 @@ mod tests {
         game
     }
 
+    /// Mirrors the civ2civ3 ruleset behavior.
     #[test]
-    fn c2c3_air_hp_recovery_uses_airstrip_airbase_airport_and_city_effects() {
+    fn ruleset_air_hp_recovery_uses_airstrip_airbase_airport_and_city_effects() {
         let mut game = site_game();
         let airstrip = (10, 20);
         game.tile_mut(airstrip.0, airstrip.1).base = Some(Base::Airstrip);

@@ -17,7 +17,8 @@ fn selected_unit_class_flag(kind: UnitKind, flag: &str) -> Option<bool> {
     crate::sim::action_rules::unit_class_flag(kind, flag)
 }
 
-fn civ3_air_superiority_unit(kind: UnitKind) -> bool {
+/// Fighter-class air superiority per Civ III Conquests aircraft rules.
+fn is_air_superiority_unit(kind: UnitKind) -> bool {
     matches!(
         kind,
         UnitKind::Fighter | UnitKind::JetFighter | UnitKind::F15 | UnitKind::StealthFighter
@@ -119,8 +120,12 @@ const BOMBARD_BLOCKED_BY: &[&str] = &["Capture Units"];
 impl Simulation {
     /// Whether the Conquests BIQ gives this unit usable bombard strength,
     /// rate, and a tile or aircraft operational range.
-    pub(super) fn has_civ3_bombard_capability(&self, kind: UnitKind) -> bool {
-        kind.bombard_strength() > 0 && kind.bombard_rate() > 0 && Self::civ3_bombard_range(kind) > 0
+    ///
+    /// Civ III Conquests bombard capability.
+    pub(super) fn has_bombard_capability(&self, kind: UnitKind) -> bool {
+        kind.bombard_strength() > 0
+            && kind.bombard_rate() > 0
+            && Self::fixed_wing_bombard_range(kind) > 0
     }
 
     pub(crate) fn aircraft_on_base(&self, unit: &Unit) -> bool {
@@ -182,7 +187,7 @@ impl Simulation {
             && (0..self.map_wrap.width()).contains(&x)
             && (0..self.map_wrap.height()).contains(&y)
             && self.tile(x, y).known_by[unit.owner]
-            && self.map_wrap.civ3_distance(unit.x, unit.y, x, y) <= unit.kind.rebase_range()
+            && self.map_wrap.step_distance(unit.x, unit.y, x, y) <= unit.kind.rebase_range()
             && self.aircraft_base_at(unit, x, y)
     }
 
@@ -293,7 +298,7 @@ impl Simulation {
             && (x, y) != (unit.x, unit.y)
             && (0..self.map_wrap.width()).contains(&x)
             && (0..self.map_wrap.height()).contains(&y)
-            && self.map_wrap.civ3_distance(unit.x, unit.y, x, y) <= unit.kind.operational_range()
+            && self.map_wrap.step_distance(unit.x, unit.y, x, y) <= unit.kind.operational_range()
     }
 
     pub(crate) fn recon_targets_in_range(&self, id: u32) -> Vec<(i32, i32)> {
@@ -304,7 +309,7 @@ impl Simulation {
             return Vec::new();
         }
         self.map_wrap
-            .civ3_radius(unit.x, unit.y, unit.kind.operational_range())
+            .tiles_within_steps(unit.x, unit.y, unit.kind.operational_range())
             .into_iter()
             .filter_map(|(x, y, _)| self.can_recon_tile(unit, x, y).then_some((x, y)))
             .collect()
@@ -340,7 +345,7 @@ impl Simulation {
         self.reveal_map_circle(unit.owner, x, y, 1);
         let patch: Vec<(i32, i32)> = self
             .map_wrap
-            .civ3_radius(x, y, 1)
+            .tiles_within_steps(x, y, 1)
             .into_iter()
             .map(|(tx, ty, _)| (tx, ty))
             .collect();
@@ -394,7 +399,7 @@ impl Simulation {
     }
 
     pub(crate) fn can_set_air_superiority(&self, unit: &Unit) -> bool {
-        civ3_air_superiority_unit(unit.kind)
+        is_air_superiority_unit(unit.kind)
             && unit.kind.operational_range() >= 2
             && self.aircraft_on_base(unit)
     }
@@ -449,10 +454,10 @@ impl Simulation {
                 };
                 (self.at_war(unit.owner, incoming.owner)
                     && !unit.air_superiority_shot
-                    && civ3_air_superiority_unit(unit.kind)
+                    && is_air_superiority_unit(unit.kind)
                     && (unit.x, unit.y) == (x, y)
                     && self.can_set_air_superiority(unit)
-                    && self.map_wrap.civ3_distance(x, y, target.0, target.1)
+                    && self.map_wrap.step_distance(x, y, target.0, target.1)
                         <= unit.kind.operational_range() / 2)
                     .then_some((unit.id, unit.kind))
             })
@@ -489,9 +494,9 @@ impl Simulation {
             if self.visual_events.enabled {
                 let incoming_pos = self
                     .map_wrap
-                    .civ3_neighbors(target.0, target.1)
+                    .eight_way_neighbors(target.0, target.1)
                     .min_by_key(|&(nx, ny)| {
-                        self.map_wrap.civ3_distance(nx, ny, incoming.x, incoming.y)
+                        self.map_wrap.step_distance(nx, ny, incoming.x, incoming.y)
                     })
                     .unwrap_or(target);
                 self.relocate_last_combat_visual(
@@ -690,7 +695,8 @@ impl Simulation {
         None
     }
 
-    fn civ3_bombard_range(kind: UnitKind) -> i32 {
+    /// Civ III Conquests bombard range.
+    fn fixed_wing_bombard_range(kind: UnitKind) -> i32 {
         if kind.bombard_range() > 0 {
             kind.bombard_range()
         } else if kind.is_aircraft() {
@@ -725,7 +731,7 @@ impl Simulation {
 
     pub(crate) fn can_begin_bombard(&self, unit: &Unit) -> bool {
         (unit.owner == HUMAN || self.players.get(unit.owner).is_some_and(|player| player.ai))
-            && self.has_civ3_bombard_capability(unit.kind)
+            && self.has_bombard_capability(unit.kind)
             && unit.moves_left > 0
             && (unit.kind == UnitKind::CruiseMissile
                 || unit.kind.fuel_capacity() == 0
@@ -754,13 +760,13 @@ impl Simulation {
     }
 
     fn bombard_target_available_for_order(&self, unit: &Unit, x: i32, y: i32) -> bool {
-        if !self.has_civ3_bombard_capability(unit.kind)
+        if !self.has_bombard_capability(unit.kind)
             || (unit.transport.is_some() && !self.aboard_refueling_transport(unit))
             || !(0..self.map_wrap.width()).contains(&x)
             || !(0..self.map_wrap.height()).contains(&y)
             || (x, y) == (unit.x, unit.y)
-            || self.map_wrap.civ3_distance(unit.x, unit.y, x, y)
-                > Self::civ3_bombard_range(unit.kind)
+            || self.map_wrap.step_distance(unit.x, unit.y, x, y)
+                > Self::fixed_wing_bombard_range(unit.kind)
         {
             return false;
         }
@@ -816,7 +822,7 @@ impl Simulation {
             return Vec::new();
         }
         self.map_wrap
-            .civ3_radius(unit.x, unit.y, Self::civ3_bombard_range(unit.kind))
+            .tiles_within_steps(unit.x, unit.y, Self::fixed_wing_bombard_range(unit.kind))
             .into_iter()
             .filter_map(|(x, y, _)| self.can_bombard_tile(unit, x, y).then_some((x, y)))
             .collect()
@@ -851,7 +857,7 @@ impl Simulation {
             return Vec::new();
         }
         self.map_wrap
-            .civ3_radius(unit.x, unit.y, Self::civ3_bombard_range(unit.kind))
+            .tiles_within_steps(unit.x, unit.y, Self::fixed_wing_bombard_range(unit.kind))
             .into_iter()
             .filter_map(|(x, y, _)| self.can_precision_bomb_tile(unit, x, y).then_some((x, y)))
             .collect()
@@ -860,8 +866,8 @@ impl Simulation {
     fn can_precision_bomb_tile(&self, unit: &Unit, x: i32, y: i32) -> bool {
         if !self.can_precision_bomb(unit)
             || (unit.x, unit.y) == (x, y)
-            || self.map_wrap.civ3_distance(unit.x, unit.y, x, y)
-                > Self::civ3_bombard_range(unit.kind)
+            || self.map_wrap.step_distance(unit.x, unit.y, x, y)
+                > Self::fixed_wing_bombard_range(unit.kind)
             || !(0..self.map_wrap.width()).contains(&x)
             || !(0..self.map_wrap.height()).contains(&y)
             || !self.tile(x, y).known_by[unit.owner]
@@ -916,9 +922,9 @@ impl Simulation {
         {
             return false;
         }
-        let range = Self::civ3_bombard_range(unit.kind);
+        let range = Self::fixed_wing_bombard_range(unit.kind);
         let mut best: Option<(f64, i32, i32)> = None;
-        for (x, y, _) in self.map_wrap.civ3_radius(unit.x, unit.y, range) {
+        for (x, y, _) in self.map_wrap.tiles_within_steps(unit.x, unit.y, range) {
             let tile_owner_war = self.tile(x, y).owner.is_some_and(|owner| {
                 owner != unit.owner
                     && ((owner < 64 && ((war_mask >> owner) & 1) != 0)
@@ -990,7 +996,7 @@ impl Simulation {
             return false;
         }
         let blocked_by = BOMBARD_BLOCKED_BY;
-        let range = Self::civ3_bombard_range(unit.kind);
+        let range = Self::fixed_wing_bombard_range(unit.kind);
         let mut target_tiles = std::collections::BTreeSet::new();
         for city in self.cities.iter().filter(|city| {
             city.owner != unit.owner
@@ -1032,7 +1038,7 @@ impl Simulation {
         for (tx, ty) in target_tiles {
             let has_reachable_firing_component = self
                 .map_wrap
-                .civ3_radius(tx, ty, range)
+                .tiles_within_steps(tx, ty, range)
                 .into_iter()
                 .any(|(px, py, distance)| {
                     distance > 0
@@ -1066,7 +1072,7 @@ impl Simulation {
         }
         scored_targets.sort_by(|a, b| b.0.total_cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
 
-        // Tie-break exact (score, cost) matches identically to BTreeSet + civ3_radius order.
+        // Tie-break exact (score, cost) matches identically to BTreeSet + tiles_within_steps order.
         type ScoredFiringPosition = (f64, i32, (i32, i32), usize, (i32, i32));
         let mut best: Option<ScoredFiringPosition> = None;
         let mut maps = None;
@@ -1089,7 +1095,7 @@ impl Simulation {
             };
             for (radius_idx, (px, py, distance)) in self
                 .map_wrap
-                .civ3_radius(tx, ty, range)
+                .tiles_within_steps(tx, ty, range)
                 .into_iter()
                 .enumerate()
             {
@@ -1399,7 +1405,7 @@ impl Simulation {
             };
             if self
                 .map_wrap
-                .civ3_distance(carrier.x, carrier.y, boss.x, boss.y)
+                .step_distance(carrier.x, carrier.y, boss.x, boss.y)
                 > 1
             {
                 // Native temporarily abandons a distant boss and falls back

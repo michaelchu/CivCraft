@@ -7,7 +7,7 @@ impl Simulation {
         self.units.clear();
         self.cities.clear();
         let (x, y) = (10, 24);
-        for (nx, ny) in self.map_wrap.civ3_neighbors(x, y).chain([(x, y)]) {
+        for (nx, ny) in self.map_wrap.eight_way_neighbors(x, y).chain([(x, y)]) {
             self.tile_mut(nx, ny).terrain = Terrain::Grassland;
         }
         self.create_city(1, x, y);

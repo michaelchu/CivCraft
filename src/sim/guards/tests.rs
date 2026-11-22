@@ -263,7 +263,7 @@ fn movement_waits_for_guard_follows_it_and_attacks_before_waiting() {
         .unwrap()
         .moves_left = 0;
     assert_eq!(
-        game.try_move_unit_civ3_by_offset(charge, 1, 0),
+        game.try_move_unit_by_offset(charge, 1, 0),
         MoveResult::Blocked
     );
     game.units
@@ -272,7 +272,7 @@ fn movement_waits_for_guard_follows_it_and_attacks_before_waiting() {
         .unwrap()
         .moves_left = 6;
     assert_eq!(
-        game.try_move_unit_civ3_by_offset(charge, 1, 0),
+        game.try_move_unit_by_offset(charge, 1, 0),
         MoveResult::Moved
     );
     let actor = game.unit_by_id(charge).unwrap().clone();
@@ -291,7 +291,7 @@ fn movement_waits_for_guard_follows_it_and_attacks_before_waiting() {
     game.units.last_mut().unwrap().hp = 1;
     game.set_random_seed(1);
     assert_eq!(
-        game.try_move_unit_civ3_by_offset(charge, 1, 0),
+        game.try_move_unit_by_offset(charge, 1, 0),
         MoveResult::Fought
     );
     assert!(

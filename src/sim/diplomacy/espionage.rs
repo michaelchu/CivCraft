@@ -284,7 +284,7 @@ impl Simulation {
             }
             let mut missions = Vec::new();
             if Tech::all().any(|tech| {
-                tech.is_civ3_advance()
+                tech.is_researchable_advance()
                     && self.has_tech(opponent, tech)
                     && !self.has_tech(actor, tech)
             }) {
@@ -596,7 +596,7 @@ impl Simulation {
             EspionageMission::StealTechnology => {
                 let eligible: Vec<_> = Tech::all()
                     .filter(|&tech| {
-                        tech.is_civ3_advance()
+                        tech.is_researchable_advance()
                             && self.has_tech(opponent, tech)
                             && !self.has_tech(actor, tech)
                     })

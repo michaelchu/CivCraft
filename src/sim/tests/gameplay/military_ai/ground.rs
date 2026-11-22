@@ -175,7 +175,7 @@ impl Simulation {
         let (nx, ny) = offset_native_by_map(x, y, 1, 0);
         self.tile_mut(x, y).terrain = Terrain::Grassland;
         self.tile_mut(x, y).river = false;
-        for (adjacent_x, adjacent_y) in self.map_wrap.civ3_neighbors(x, y) {
+        for (adjacent_x, adjacent_y) in self.map_wrap.eight_way_neighbors(x, y) {
             let tile = self.tile_mut(adjacent_x, adjacent_y);
             tile.terrain = Terrain::Grassland;
             tile.river = false;

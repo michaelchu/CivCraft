@@ -41,9 +41,9 @@ fn execute(sim: &mut Simulation, checks: &mut Checks) {
         && relation.embassy == [false; 2];
     let trust = relation.trust[1];
     let direction = sim
-        .civ3_direction_for_unit_offset(actor, 1, 0)
+        .direction_for_unit_offset(actor, 1, 0)
         .expect("the defender is adjacent to the attacker");
-    let attack_blocked = sim.try_move_unit_civ3(actor, direction) == MoveResult::Blocked;
+    let attack_blocked = sim.try_move_unit(actor, direction) == MoveResult::Blocked;
 
     WorldBuilder::new(sim).treasury(HUMAN, 100);
     let mut offer = TreatyOffer::default();
@@ -59,7 +59,7 @@ fn execute(sim: &mut Simulation, checks: &mut Checks) {
         && sim.pact(HUMAN, 1) == Pact::Peace;
     let declared = sim.cancel_pact(HUMAN, 1)
         && sim.at_war(HUMAN, 1)
-        && sim.try_move_unit_civ3(actor, direction) == MoveResult::Fought;
+        && sim.try_move_unit(actor, direction) == MoveResult::Fought;
     sim.make_diplomatic_contact(1, HUMAN);
     let war_preserved = sim.at_war(HUMAN, 1);
 

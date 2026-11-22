@@ -40,10 +40,7 @@ impl<'a> WorldBuilder<'a> {
     /// Make the assembled world ready for the runner's initial snapshot.
     pub(crate) fn finish(self) {
         if self.river_edges_dirty {
-            crate::world::topology::rebuild_civ3_river_edges(
-                self.game.map_wrap,
-                &mut self.game.tiles,
-            );
+            crate::world::topology::rebuild_river_edges(self.game.map_wrap, &mut self.game.tiles);
         }
         self.game.refresh_visibility();
         self.game.refresh_score_snapshot();

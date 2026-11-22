@@ -183,10 +183,10 @@ impl Simulation {
         // unknown CENTER, not the known adjacent tile being iterated.
         let known = self
             .map_wrap
-            .civ3_neighbors(x, y)
+            .eight_way_neighbors(x, y)
             .filter(|&(nx, ny)| self.tile(nx, ny).known_by[owner])
             .count() as i32;
-        50 + (50 / CIV3_DIRS.len() as i32)
+        50 + (50 / EIGHT_WAY_DIRS.len() as i32)
             * known
             * if self.explorer_native(kind, x, y) {
                 1
@@ -210,7 +210,7 @@ impl Simulation {
         let radius = radius_sq.max(0).isqrt();
         let mut unknown = 0;
         let mut score = 0;
-        for (nx, ny, distance) in self.map_wrap.civ3_radius(x, y, radius) {
+        for (nx, ny, distance) in self.map_wrap.tiles_within_steps(x, y, radius) {
             if !self.within_vision_distance_sq(distance, radius_sq) {
                 continue;
             }
@@ -365,8 +365,8 @@ impl Simulation {
             } else {
                 rate - (spent - unit.moves_left.max(0)) % rate
             };
-            for (dx, dy) in CIV3_DIRS {
-                let Some((nx, ny)) = self.map_wrap.civ3_offset(x, y, dx, dy) else {
+            for (dx, dy) in EIGHT_WAY_DIRS {
+                let Some((nx, ny)) = self.map_wrap.eight_way_offset(x, y, dx, dy) else {
                     continue;
                 };
                 let index = self.map_wrap.index(nx, ny);
@@ -446,7 +446,7 @@ impl Simulation {
         let mut attack = 0_i64;
         for enemy in self
             .map_wrap
-            .civ3_neighbors(x, y)
+            .eight_way_neighbors(x, y)
             .flat_map(|(tx, ty)| self.tile_units_ordered(tx, ty))
         {
             if self.map_distance(x, y, enemy.x, enemy.y) != 1
@@ -502,7 +502,7 @@ impl Simulation {
             let Some(actor) = self.unit_by_id(id).cloned() else {
                 break;
             };
-            let Some((nx, ny)) = self.map_wrap.civ3_offset(actor.x, actor.y, dx, dy) else {
+            let Some((nx, ny)) = self.map_wrap.eight_way_offset(actor.x, actor.y, dx, dy) else {
                 continue;
             };
             let _profile = profiler.scope("exploration.follow_goal.legality");
@@ -529,11 +529,11 @@ impl Simulation {
                 break;
             }
             drop(_profile);
-            let Some(direction) = CIV3_DIRS.iter().position(|&step| step == (dx, dy)) else {
+            let Some(direction) = EIGHT_WAY_DIRS.iter().position(|&step| step == (dx, dy)) else {
                 break;
             };
             let _profile = profiler.scope("exploration.follow_goal.try_move");
-            if self.try_move_unit_civ3(id, direction) == MoveResult::Blocked {
+            if self.try_move_unit(id, direction) == MoveResult::Blocked {
                 break;
             }
         }
@@ -650,7 +650,10 @@ mod selected_unknown_cost_tests {
         let id = sim.spawn_unit(HUMAN, UnitKind::Explorer, 10, 20);
         let actor = sim.unit_by_id(id).unwrap().clone();
         sim.tile_mut(actor.x, actor.y).known_by.set(HUMAN, true);
-        let target = sim.map_wrap.civ3_neighbor(actor.x, actor.y, 2).unwrap();
+        let target = sim
+            .map_wrap
+            .eight_way_neighbor(actor.x, actor.y, 2)
+            .unwrap();
         let expected = MovementRules::campaign()
             .unknown_tile_move_cost(actor.kind)
             .unwrap();

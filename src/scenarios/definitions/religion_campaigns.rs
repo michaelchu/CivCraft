@@ -63,7 +63,7 @@ pub(super) const SPREAD: Scenario = Scenario::new(
 fn research(map: GeneratedMap, case: ResearchCase) -> (Simulation, Box<dyn ScenarioRun>) {
     let (mut g, ids) = super::religion_strategy::base(map);
     let known: Vec<_> = Tech::all()
-        .filter(|t| t.is_civ3_advance() && !FAITH_TECHS.contains(t))
+        .filter(|t| t.is_researchable_advance() && !FAITH_TECHS.contains(t))
         .collect();
     let mut w = WorldBuilder::new(&mut g);
     w.ai_control(2, false);

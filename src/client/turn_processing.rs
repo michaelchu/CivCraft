@@ -48,7 +48,7 @@ impl Game {
 
     pub(crate) fn poll_background_turn(&mut self, assets: &Assets) -> Result<bool, String> {
         self.poll_background_turn_with(|event| {
-            presentation::configure_event_combat_timing(event, &assets.civ3)
+            presentation::configure_event_combat_timing(event, &assets.art_tileset)
         })
     }
 

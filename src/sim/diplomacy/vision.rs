@@ -67,7 +67,7 @@ impl Simulation {
         let radius = (radius_sq as f64).sqrt().floor() as i32;
         let scope: std::collections::BTreeSet<_> = self
             .map_wrap
-            .freeciv_square_radius(city.x, city.y, radius)
+            .square_radius_in_source_order(city.x, city.y, radius)
             .into_iter()
             .map(|(x, y)| self.map_wrap.index(x, y))
             .collect();
@@ -168,7 +168,9 @@ mod tests {
                 building != crate::rules::Building::PALACE
                     && building != crate::rules::Building::ECCLESIASTICAL_PALACE
             });
-        let radius = game.map_wrap.freeciv_square_radius(city.x, city.y, 2);
+        let radius = game
+            .map_wrap
+            .square_radius_in_source_order(city.x, city.y, 2);
         let inside = *radius
             .iter()
             .find(|&&(x, y)| (x, y) != (city.x, city.y))

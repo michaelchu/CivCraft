@@ -90,7 +90,9 @@ impl Simulation {
     /// Calculate the Freeciv veteran level granted to a unit built in a city.
     /// This is separate from the retained Civ III rank, which continues to
     /// supply the Conquests hitpoint bonus and display identity.
-    pub(super) fn trained_c2c3_veteran(&self, city: &City, kind: UnitKind) -> usize {
+    ///
+    /// Uses the civ2civ3 veteran training rules.
+    pub(super) fn trained_veteran(&self, city: &City, kind: UnitKind) -> usize {
         let system = selected_veteran_system(kind);
         let unit = Unit::new(u32::MAX, city.owner, kind, city.x, city.y);
         let effect = self.city_rule_effect_for_unit(
@@ -182,7 +184,7 @@ impl Simulation {
     }
 
     pub(super) fn trained_rank(&self, city: &City, kind: UnitKind) -> usize {
-        let default_rank = crate::sim::civ3_unit_rules::default_experience_rank();
+        let default_rank = crate::sim::unit_rules::default_experience_rank();
         if kind.no_veteran() || kind.max_veteran_levels() <= 1 {
             return default_rank;
         }
@@ -202,8 +204,9 @@ impl Simulation {
 mod tests {
     use super::*;
 
+    /// Mirrors Civ III behavior.
     #[test]
-    fn civ3_rank_changes_hit_points_without_changing_combat_power() {
+    fn native_rank_changes_hit_points_without_changing_combat_power() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         game.create_city(HUMAN, 10, 20);
         game.cities[0]
@@ -224,10 +227,10 @@ mod tests {
             Simulation::attack_power(veteran),
             Simulation::attack_power(&regular)
         );
-        let mut freeciv_veteran = regular.clone();
-        freeciv_veteran.veteran_level = 1;
+        let mut ruleset_veteran = regular.clone();
+        ruleset_veteran.veteran_level = 1;
         assert_eq!(
-            Simulation::attack_power(&freeciv_veteran),
+            Simulation::attack_power(&ruleset_veteran),
             UnitKind::Warrior.stats().attack * POWER_FACTOR
         );
     }
@@ -241,7 +244,7 @@ mod tests {
         game.create_city(HUMAN, 10, 20);
         let (city, expected_rank) = game.veteran_fixture();
         let city_state = game.city_by_id(city).unwrap();
-        assert_eq!(game.trained_c2c3_veteran(city_state, UnitKind::Warrior), 1);
+        assert_eq!(game.trained_veteran(city_state, UnitKind::Warrior), 1);
         assert!(game.unit_buildable(city_state, UnitKind::Warrior));
         assert!(
             game.cities
@@ -271,8 +274,9 @@ mod tests {
         assert_eq!(combat_veterancy_chances(10, 30, false), (100, 100));
     }
 
+    /// Mirrors Civ III behavior.
     #[test]
-    fn a_real_combat_can_promote_both_survivors_without_changing_civ3_hp_rank() {
+    fn a_real_combat_can_promote_both_survivors_without_changing_native_hp_rank() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         game.units.clear();
         game.cities.clear();
@@ -384,8 +388,9 @@ mod tests {
         );
     }
 
+    /// Mirrors the civ2civ3 ruleset behavior.
     #[test]
-    fn powerless_fights_cannot_promote_under_selected_c2c3_setting() {
+    fn powerless_fights_cannot_promote_under_selected_ruleset_setting() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         game.units.clear();
         game.cities.clear();

@@ -3,8 +3,8 @@
 use super::*;
 use crate::sim::{Base, RenderTileView, RenderedUnitView, UnitState, WorkKind};
 
-fn unit_animation_action(unit: &RenderedUnitView) -> super::super::tileset::Civ3UnitAction {
-    use super::super::tileset::Civ3UnitAction as Action;
+fn unit_animation_action(unit: &RenderedUnitView) -> super::super::tileset::UnitArtAction {
+    use super::super::tileset::UnitArtAction as Action;
     if let Some(work) = unit.work_kind {
         let pause = get_time().rem_euclid(3.0) >= 2.0;
         return match work {
@@ -53,12 +53,12 @@ fn unit_animation_action(unit: &RenderedUnitView) -> super::super::tileset::Civ3
 }
 
 fn unit_animation_progress(
-    action: super::super::tileset::Civ3UnitAction,
+    action: super::super::tileset::UnitArtAction,
     selected: bool,
     pacing: super::super::unit_animation_pacing::FidgetPacing,
     fortify_started_at: Option<f64>,
-) -> (super::super::tileset::Civ3UnitAction, f32, Option<f32>) {
-    use super::super::tileset::Civ3UnitAction as Action;
+) -> (super::super::tileset::UnitArtAction, f32, Option<f32>) {
+    use super::super::tileset::UnitArtAction as Action;
 
     if action == Action::Fortify {
         return fortify_started_at.map_or((Action::FortifyHold, 0.0, None), |started_at| {
@@ -106,7 +106,7 @@ pub(in crate::client) struct WorldMapView {
 }
 impl WorldMapView {
     pub fn project(self, wrap: MapWrap, x: i32, y: i32) -> Vec2 {
-        super::civ3_world_screen_position(wrap, self.viewport, self.camera, self.zoom, x, y)
+        super::projected_screen_position(wrap, self.viewport, self.camera, self.zoom, x, y)
     }
     pub fn tiles(self, wrap: MapWrap) -> Vec<(i32, i32, Vec2)> {
         visible_world_tiles(wrap, self.viewport, self.camera, self.zoom)
@@ -118,7 +118,9 @@ impl WorldMapView {
 /// The map-layer primitives still live on `Game`; keeping the frame inputs in
 /// this renderer object gives the Civ III pass a concrete boundary while those
 /// primitives are migrated out of the shared world module.
-pub(in crate::client) struct Civ3WorldPainter<'a> {
+///
+/// Draws the map with Civ III art and its diamond projection.
+pub(in crate::client) struct WorldPainter<'a> {
     game: &'a Game,
     assets: &'a Assets,
 }
@@ -162,7 +164,7 @@ fn contamination_sprite_index(diagonal_neighbors: [bool; 4], variation: usize) -
     }
 }
 
-impl<'a> Civ3WorldPainter<'a> {
+impl<'a> WorldPainter<'a> {
     pub(in crate::client) fn new(game: &'a Game, assets: &'a Assets) -> Self {
         Self { game, assets }
     }
@@ -181,7 +183,7 @@ impl<'a> Civ3WorldPainter<'a> {
     pub(super) fn draw_map_base(&self, x: i32, y: i32, center: Vec2, width: f32, height: f32) {
         let game = self.game;
         self.assets
-            .civ3
+            .art_tileset
             .draw_base(game, x, y, center, vec2(width, height));
     }
 
@@ -204,7 +206,8 @@ impl<'a> Civ3WorldPainter<'a> {
                 // masks. Use Civ III's staggered-grid directions here: the
                 // legacy render_neighbor offsets resolve to different tiles.
                 for (bit, direction) in [7, 1, 5, 3].into_iter().enumerate() {
-                    let Some((nx, ny)) = self.game.sim.map_wrap().civ3_neighbor(x, y, direction)
+                    let Some((nx, ny)) =
+                        self.game.sim.map_wrap().eight_way_neighbor(x, y, direction)
                     else {
                         continue;
                     };
@@ -236,7 +239,7 @@ impl<'a> Civ3WorldPainter<'a> {
                 } else {
                     None
                 };
-                self.assets.civ3.draw_overlay(
+                self.assets.art_tileset.draw_overlay(
                     tile.terrain,
                     super::super::tileset::TerrainOverlayContext {
                         base_terrain: tile.base_terrain,
@@ -265,29 +268,33 @@ impl<'a> Civ3WorldPainter<'a> {
         let assets = self.assets;
         let tile = game.sim.render_tile_view(x, y);
         if matches!(tile.base, Some(Base::Fort | Base::Fortress)) {
-            assets.civ3.draw_terrain_building(
+            assets.art_tileset.draw_terrain_building(
                 TerrainBuilding::Fortress,
                 geometry.center,
                 geometry.size(),
             );
         }
         if tile.oil_platform {
-            assets
-                .civ3
-                .draw_optional_improvement("oil-platform", geometry.center, geometry.size());
+            assets.art_tileset.draw_optional_improvement(
+                "oil-platform",
+                geometry.center,
+                geometry.size(),
+            );
         } else if tile.oil_well {
-            assets
-                .civ3
-                .draw_optional_improvement("oil-well", geometry.center, geometry.size());
+            assets.art_tileset.draw_optional_improvement(
+                "oil-well",
+                geometry.center,
+                geometry.size(),
+            );
         } else if tile.mine {
-            assets.civ3.draw_terrain_building(
+            assets.art_tileset.draw_terrain_building(
                 TerrainBuilding::Mine,
                 geometry.center,
                 geometry.size(),
             );
         }
         if tile.hut {
-            assets.civ3.draw_terrain_building(
+            assets.art_tileset.draw_terrain_building(
                 TerrainBuilding::BarbarianCamp,
                 geometry.center,
                 geometry.size(),
@@ -295,7 +302,7 @@ impl<'a> Civ3WorldPainter<'a> {
         }
         if let Some(resource) = tile.resource {
             assets
-                .civ3
+                .art_tileset
                 .draw_resource(resource, geometry.center, geometry.size());
         }
         // Keep city buildings visible above fallout/pollution on a city center tile.
@@ -313,7 +320,7 @@ impl<'a> Civ3WorldPainter<'a> {
             let diagonals = diagonal_directions.map(|direction| {
                 game.sim
                     .map_wrap()
-                    .civ3_neighbor(x, y, direction)
+                    .eight_way_neighbor(x, y, direction)
                     .is_some_and(|(nx, ny)| {
                         let neighbor = game.sim.render_tile_view(nx, ny);
                         neighbor.seen
@@ -331,7 +338,7 @@ impl<'a> Civ3WorldPainter<'a> {
             contamination_sprite_index(diagonals, variation)
         };
         if tile.pollution || tile.fallout {
-            assets.civ3.draw_contamination(
+            assets.art_tileset.draw_contamination(
                 false,
                 contamination_index(true),
                 geometry.center,
@@ -339,7 +346,7 @@ impl<'a> Civ3WorldPainter<'a> {
             );
         }
         if tile.craters {
-            assets.civ3.draw_contamination(
+            assets.art_tileset.draw_contamination(
                 true,
                 contamination_index(false),
                 geometry.center,
@@ -360,14 +367,14 @@ impl<'a> Civ3WorldPainter<'a> {
                 "airbase"
             };
             assets
-                .civ3
+                .art_tileset
                 .draw_optional_improvement(role, geometry.center, geometry.size());
         }
         if !has_city {
             self.draw_tile_contamination(x, y, geometry);
         }
         if !tile.visible && matches!(tile.base, Some(Base::Fort | Base::Fortress)) {
-            assets.civ3.draw_terrain_building(
+            assets.art_tileset.draw_terrain_building(
                 TerrainBuilding::Fortress,
                 geometry.center,
                 geometry.size(),
@@ -381,32 +388,38 @@ impl<'a> Civ3WorldPainter<'a> {
         let tile = game.sim.render_tile_view(x, y);
         if !has_city {
             if tile.farmland {
-                self.assets
-                    .civ3
-                    .draw_optional_improvement("farmland", center, geometry.size());
+                self.assets.art_tileset.draw_optional_improvement(
+                    "farmland",
+                    center,
+                    geometry.size(),
+                );
             } else if tile.irrigation {
                 let wrap = game.sim.map_wrap();
                 let diagonal_directions = [7, 1, 5, 3]; // NW, NE, SW, SE
                 let diagonals = diagonal_directions.map(|direction| {
-                    wrap.civ3_neighbor(x, y, direction).is_some_and(|(nx, ny)| {
-                        let neighbor = game.sim.render_tile_view(nx, ny);
-                        neighbor.seen && neighbor.irrigation
-                    })
+                    wrap.eight_way_neighbor(x, y, direction)
+                        .is_some_and(|(nx, ny)| {
+                            let neighbor = game.sim.render_tile_view(nx, ny);
+                            neighbor.seen && neighbor.irrigation
+                        })
                 });
                 let index = irrigation_sprite_index(diagonals);
-                self.assets
-                    .civ3
-                    .draw_irrigation(tile.base_terrain, center, geometry.size(), index);
+                self.assets.art_tileset.draw_irrigation(
+                    tile.base_terrain,
+                    center,
+                    geometry.size(),
+                    index,
+                );
             }
         }
         self.assets
-            .civ3
+            .art_tileset
             .draw_river(game, x, y, center, geometry.size());
     }
 
     fn draw_road_layer(&self, x: i32, y: i32, geometry: TileGeometry) -> bool {
         let game = self.game;
-        let tileset = &self.assets.civ3;
+        let tileset = &self.assets.art_tileset;
         let tile = game.sim.render_tile_view(x, y);
         if !tile.road && !tile.railroad {
             return true;
@@ -414,7 +427,7 @@ impl<'a> Civ3WorldPainter<'a> {
         let neighbors: [Option<RenderTileView>; 8] = std::array::from_fn(|direction| {
             game.sim
                 .map_wrap()
-                .civ3_neighbor(x, y, direction)
+                .eight_way_neighbor(x, y, direction)
                 .map(|(nx, ny)| game.sim.render_tile_view(nx, ny))
         });
         let road_connections = std::array::from_fn(|direction| {
@@ -541,7 +554,7 @@ impl<'a> Civ3WorldPainter<'a> {
             let fog_fringe = game
                 .sim
                 .map_wrap()
-                .civ3_neighbors(x, y)
+                .eight_way_neighbors(x, y)
                 .any(|(nx, ny)| game.sim.render_tile_view(nx, ny).seen);
             if !tile.seen && !fog_fringe {
                 continue;
@@ -607,7 +620,7 @@ impl<'a> Civ3WorldPainter<'a> {
                         && game
                             .sim
                             .map_wrap()
-                            .civ3_neighbors(x, y)
+                            .eight_way_neighbors(x, y)
                             .any(|(nx, ny)| game.sim.render_tile_view(nx, ny).seen)
                     {
                         game.draw_grid_layer(
@@ -690,7 +703,7 @@ impl<'a> Civ3WorldPainter<'a> {
                     let (action, progress, duration) = unit_animation_progress(
                         action,
                         false,
-                        self.assets.civ3.fidget_pacing(unit.kind),
+                        self.assets.art_tileset.fidget_pacing(unit.kind),
                         self.game
                             .fortify_animation_started_at
                             .get(&unit.id)
@@ -714,7 +727,7 @@ impl<'a> Civ3WorldPainter<'a> {
                 let (action, progress, duration) = unit_animation_progress(
                     action,
                     true,
-                    self.assets.civ3.fidget_pacing(unit.kind),
+                    self.assets.art_tileset.fidget_pacing(unit.kind),
                     self.game
                         .fortify_animation_started_at
                         .get(&unit.id)
@@ -733,8 +746,9 @@ impl<'a> Civ3WorldPainter<'a> {
 }
 
 impl Game {
-    pub(in crate::client) fn draw_civ3_world_map(&self, assets: &Assets) {
-        Civ3WorldPainter::new(self, assets).draw();
+    /// Renders with Civ III art and its diamond map projection.
+    pub(in crate::client) fn draw_world_map(&self, assets: &Assets) {
+        WorldPainter::new(self, assets).draw();
     }
 }
 
@@ -745,7 +759,7 @@ mod tests {
     #[test]
     fn fortify_order_plays_once_then_holds_across_turns() {
         use super::{unit_animation_action, unit_animation_progress};
-        use crate::client::tileset::Civ3UnitAction::{Fortify, FortifyHold};
+        use crate::client::tileset::UnitArtAction::{Fortify, FortifyHold};
         use crate::sim::{ClientSimulation, Command, HUMAN, PresentationEventView, Simulation};
 
         let mut sim = ClientSimulation::new(Simulation::new(crate::test_support::seeded_map()));
@@ -795,8 +809,9 @@ mod tests {
         assert_eq!(irrigation_sprite_index([true; 4]), 15);
     }
 
+    /// Mirrors Civ III behavior.
     #[test]
-    fn road_indices_follow_all_eight_civ3_directions() {
+    fn road_indices_follow_all_eight_native_directions() {
         let mut neighbors = [false; 8];
         for (direction, expected) in [0x80, 0x1, 0x2, 0x4, 0x8, 0x10, 0x20, 0x40]
             .into_iter()

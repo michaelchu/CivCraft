@@ -19,7 +19,7 @@ pub(crate) struct UnitStats {
 impl UnitKind {
     pub(crate) fn hit_points_at_rank(self, rank: usize) -> i32 {
         let rule = self.conquests_rule();
-        crate::sim::civ3_unit_rules::experience_rank(rank).base_hit_points + rule.hit_point_bonus
+        crate::sim::unit_rules::experience_rank(rank).base_hit_points + rule.hit_point_bonus
     }
 
     pub(crate) fn stats(self) -> UnitStats {
@@ -30,7 +30,7 @@ impl UnitKind {
             pop_cost: rule.population_cost,
             attack: rule.attack,
             defense: rule.defense,
-            hp: self.hit_points_at_rank(crate::sim::civ3_unit_rules::default_experience_rank()),
+            hp: self.hit_points_at_rank(crate::sim::unit_rules::default_experience_rank()),
             // Conquests defines regular combat firepower as one hit point per
             // round; bombardment uses the separately imported rate-of-fire.
             firepower: 1,

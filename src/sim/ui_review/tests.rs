@@ -26,8 +26,9 @@ fn baseline_clones_preserve_rng_and_normal_campaign_results() {
     assert_eq!(initial.encode_campaign().unwrap(), original);
 }
 
+/// Mirrors Civ III behavior.
 #[test]
-fn resource_shadow_review_scene_contains_every_civ3_resource() {
+fn resource_shadow_review_scene_contains_every_native_resource() {
     use Resource::*;
 
     let mut sim = Simulation::new(crate::test_support::seeded_map());
@@ -85,8 +86,8 @@ fn resource_shadow_review_scene_contains_every_civ3_resource() {
 fn wrap_seam_review_unit_can_move_after_polar_edge_rejection() {
     let mut sim = Simulation::new(crate::test_support::seeded_map());
     let unit = ui_review_wrap_seam(&mut sim);
-    assert!(!sim.apply(Command::move_civ3_by_offset(&sim, unit, 0, -1)));
+    assert!(!sim.apply(Command::move_by_offset(&sim, unit, 0, -1)));
     assert_eq!(sim.unit_by_id(unit).unwrap().y, 0);
-    assert!(sim.apply(Command::move_civ3_by_offset(&sim, unit, 1, 0)));
+    assert!(sim.apply(Command::move_by_offset(&sim, unit, 1, 0)));
     assert_eq!(sim.unit_by_id(unit).unwrap().y, 1);
 }

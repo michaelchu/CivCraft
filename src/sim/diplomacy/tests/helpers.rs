@@ -313,8 +313,8 @@ impl Simulation {
         self.units.clear();
         self.sign_pact(HUMAN, 1, Pact::Ceasefire);
         let land = (18, 35);
-        let sea = self.map_wrap.civ3_neighbor(land.0, land.1, 2).unwrap();
-        let unexplored = self.map_wrap.civ3_neighbor(land.0, land.1, 3).unwrap();
+        let sea = self.map_wrap.eight_way_neighbor(land.0, land.1, 2).unwrap();
+        let unexplored = self.map_wrap.eight_way_neighbor(land.0, land.1, 3).unwrap();
         for (point, terrain, known) in [
             (land, Terrain::Grassland, true),
             (sea, Terrain::Sea, true),

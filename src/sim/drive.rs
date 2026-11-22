@@ -57,7 +57,8 @@ pub(crate) trait Drive {
     fn stage_city_culture(&mut self, city_id: u32, history: i32);
     fn transfer_traded_city(&mut self, index: usize, buyer: usize);
     fn transfer_treaty_technology(&mut self, donor: usize, receiver: usize, tech: Tech) -> bool;
-    fn try_move_unit_civ3(&mut self, unit_id: u32, direction: usize) -> MoveResult;
+    /// Moves along Civ III's eight-direction grid.
+    fn try_move_unit(&mut self, unit_id: u32, direction: usize) -> MoveResult;
 }
 
 impl Drive for Simulation {
@@ -166,7 +167,8 @@ impl Drive for Simulation {
     fn transfer_treaty_technology(&mut self, donor: usize, receiver: usize, tech: Tech) -> bool {
         Simulation::transfer_treaty_technology(self, donor, receiver, tech)
     }
-    fn try_move_unit_civ3(&mut self, unit_id: u32, direction: usize) -> MoveResult {
-        Simulation::try_move_unit_civ3(self, unit_id, direction)
+    /// Moves along Civ III's eight-direction grid.
+    fn try_move_unit(&mut self, unit_id: u32, direction: usize) -> MoveResult {
+        Simulation::try_move_unit(self, unit_id, direction)
     }
 }

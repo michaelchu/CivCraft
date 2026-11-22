@@ -134,7 +134,7 @@ impl Simulation {
         let target = self.unit_by_id(distant).unwrap();
         let skipped = self
             .map_wrap
-            .civ3_distance(home.0, home.1, target.x, target.y)
+            .step_distance(home.0, home.1, target.x, target.y)
             > plane.kind.operational_range()
             && !self.can_bombard_tile(plane, target.x, target.y);
 
@@ -210,8 +210,9 @@ impl Simulation {
 mod focused_p13_tests {
     use super::*;
 
+    /// Mirrors Civ III behavior.
     #[test]
-    fn requirements_use_civ3_paratrooper_tech_and_range() {
+    fn requirements_use_native_paratrooper_tech_and_range() {
         let mut sim = Simulation::new(crate::mapgen::generate(42));
         let (_, _, passed) = sim.paradrop_fixture();
         assert!(passed);

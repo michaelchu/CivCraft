@@ -38,7 +38,7 @@ of it is removed by this work.
    `can_produce` is true for every civ (verified) and the city screen offers
    it at 0 shields, which combined with the existing Help Wonder action lets
    a player finish any wonder for free. Fix: flag the Leader no-build in the
-   unit rules (where `NoBuild` is derived in `civ3_unit_rules.rs`) and cover
+   unit rules (where `NoBuild` is derived in `unit_rules.rs`) and cover
    it with a test that no civ's city can produce or queue one.
 6. Regression coverage: unit tests plus one registered headless scenario.
 
@@ -173,7 +173,7 @@ of it is removed by this work.
 
 Changes:
 - `Leader` gets the no-build flag (derived in
-  `src/sim/civ3_unit_rules.rs`, near `F::NoBuild`) and is no longer
+  `src/sim/unit_rules.rs`, near `F::NoBuild`) and is no longer
   capturable (it currently is, because the capturable rule is attack 0 and
   defense 0). Its veteran status stays "no veterancy" so it never rolls for a
   Leader itself.

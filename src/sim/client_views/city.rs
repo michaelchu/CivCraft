@@ -191,7 +191,7 @@ mod city_luxury_tests {
         }
         sim.create_city(HUMAN, 10, 20);
         let city_id = sim.cities[0].id;
-        let (x, y) = sim.map_wrap.civ3_neighbor(10, 20, 2).unwrap();
+        let (x, y) = sim.map_wrap.eight_way_neighbor(10, 20, 2).unwrap();
         let tile = sim.tile_mut(x, y);
         tile.terrain = Terrain::Grassland;
         tile.owner = Some(HUMAN);

@@ -97,7 +97,7 @@ impl Simulation {
             || self.players[donor]
                 .known
                 .iter()
-                .all(|&known| !known.civ3_prerequisites().unwrap_or(&[]).contains(&tech))
+                .all(|&known| !known.catalog_prerequisites().unwrap_or(&[]).contains(&tech))
     }
 
     fn technology_gold_equivalent(&self, buyer: usize, tech: Tech, include_advisor: bool) -> i32 {
@@ -176,7 +176,7 @@ impl Simulation {
     }
 
     fn technology_trade_receivable(&self, receiver: usize, tech: Tech, allow_holes: bool) -> bool {
-        if !tech.is_civ3_advance() || self.has_tech(receiver, tech) {
+        if !tech.is_researchable_advance() || self.has_tech(receiver, tech) {
             return false;
         }
         if allow_holes {
@@ -521,8 +521,9 @@ mod arithmetic_tests {
         assert!(sim.has_tech(HUMAN, Tech::ALPHABET));
     }
 
+    /// Mirrors Freeciv behavior.
     #[test]
-    fn treaty_donor_loss_preserves_suspended_research_like_freeciv() {
+    fn treaty_donor_loss_preserves_suspended_research_like_reference() {
         let mut sim = Simulation::new(crate::mapgen::generate(42));
         sim.players[HUMAN].known.clear();
         sim.players[1].known = vec![Tech::ALPHABET];

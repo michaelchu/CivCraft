@@ -8,7 +8,7 @@ impl Simulation {
         self.units.clear();
         self.cities.clear();
         let (sx, sy) = (10, 20);
-        let target = self.map_wrap.civ3_offset(sx, sy, 2, 0).unwrap();
+        let target = self.map_wrap.eight_way_offset(sx, sy, 2, 0).unwrap();
         for (x, y) in [(sx, sy), target] {
             let tile = self.tile_mut(x, y);
             tile.terrain = Terrain::Grassland;

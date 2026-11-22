@@ -282,19 +282,19 @@ impl Simulation {
         if guard.moves_left <= 0
             || self
                 .map_wrap
-                .civ3_distance(guard.x, guard.y, actor.x, actor.y)
+                .step_distance(guard.x, guard.y, actor.x, actor.y)
                 != 1
         {
             return;
         }
-        let direction = CIV3_DIRS.iter().position(|&(dx, dy)| {
-            self.map_wrap.civ3_offset(guard.x, guard.y, dx, dy) == Some((actor.x, actor.y))
+        let direction = EIGHT_WAY_DIRS.iter().position(|&(dx, dy)| {
+            self.map_wrap.eight_way_offset(guard.x, guard.y, dx, dy) == Some((actor.x, actor.y))
         });
         if let Some(unit) = self.units.iter_mut().find(|u| u.id == id) {
             unit.state = UnitState::Idle;
         }
         if let Some(direction) = direction {
-            self.try_move_unit_civ3(id, direction);
+            self.try_move_unit(id, direction);
         }
     }
 
@@ -376,7 +376,7 @@ impl Simulation {
             let from_no_zoc = ignores_zoc
                 || self.city_at_cached(actor.x, actor.y).is_some()
                 || Self::terrain_has_no_zoc(self.tiles[index].terrain);
-            for (x, y) in self.map_wrap.civ3_neighbors(actor.x, actor.y) {
+            for (x, y) in self.map_wrap.eight_way_neighbors(actor.x, actor.y) {
                 let next = self.map_wrap.index(x, y);
                 if costs[next] <= spent {
                     continue;
@@ -588,7 +588,7 @@ impl Simulation {
                 let desire = ((f64::from(benefit + loss) * chance - f64::from(loss)) * 17.0) as i32;
                 let threshold = if self
                     .map_wrap
-                    .civ3_distance(actor.x, actor.y, target.0, target.1)
+                    .step_distance(actor.x, actor.y, target.0, target.1)
                     == 1
                 {
                     adjacent_threshold
@@ -606,7 +606,7 @@ impl Simulation {
             else {
                 return true;
             };
-            self.follow_civ3_path(id, path);
+            self.follow_grid_path(id, path);
             if self.unit_by_id(id).is_none() {
                 return false;
             }
@@ -680,7 +680,7 @@ impl Simulation {
                 if !result.alive
                     || self.unit_by_id(id).is_none_or(|u| {
                         self.map_wrap
-                            .civ3_distance(u.x, u.y, destination.0, destination.1)
+                            .step_distance(u.x, u.y, destination.0, destination.1)
                             > 1
                     })
                 {

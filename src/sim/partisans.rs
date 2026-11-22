@@ -210,8 +210,9 @@ mod tests {
         ));
     }
 
+    /// Mirrors Civ III behavior.
     #[test]
-    fn selected_partisan_role_uses_the_explicit_civ3_guerilla_alias() {
+    fn selected_partisan_role_uses_the_explicit_native_guerilla_alias() {
         let kind = selected_partisan_unit();
         assert_eq!(kind, UnitKind::Guerilla);
         assert!(super::super::native_unit_rules::has_role(kind, "Partisan"));
@@ -237,8 +238,9 @@ mod tests {
         assert!(combat_score > virtual_score);
     }
 
+    /// Mirrors the civ2civ3 ruleset behavior.
     #[test]
-    fn c2c3_partisan_callback_spawns_only_when_selected_effects_match() {
+    fn ruleset_partisan_callback_spawns_only_when_selected_effects_match() {
         let (mut game, city) = captured_city_fixture();
         game.players[1].government = Government::COMMUNISM;
         game.players[1]

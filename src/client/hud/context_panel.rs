@@ -64,7 +64,7 @@ impl Game {
             let Some(view) = view else {
                 return;
             };
-            assets.civ3.draw_unit_icon(
+            assets.art_tileset.draw_unit_icon(
                 view.kind,
                 view.owner,
                 self.sim.player_team_palette_view(view.owner),

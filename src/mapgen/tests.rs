@@ -15,8 +15,9 @@ fn generate_opensimplex(seed: u64, wrap: MapWrap, settings: WorldSettings) -> Ge
     generate_with_map_generator(&OpenSimplexMapGenerator, request)
 }
 
+/// Mirrors Civ III behavior.
 #[test]
-fn civ3_map_sizes_select_their_rosters_and_generate_matching_starts() {
+fn native_map_sizes_select_their_rosters_and_generate_matching_starts() {
     for (size, expected) in [
         (MapSize::Tiny, 4),
         (MapSize::Small, 6),
@@ -45,12 +46,13 @@ fn civ3_map_sizes_select_their_rosters_and_generate_matching_starts() {
     }
 }
 
+/// Mirrors Freeciv behavior.
 #[test]
-fn map_rng_uses_the_shared_freeciv_primitive() {
+fn map_rng_uses_the_shared_reference_primitive() {
     for seed in [0, 42, u64::MAX] {
         let mut map = MapRng::new(seed);
         let folded_seed = seed as u32 ^ (seed >> 32) as u32;
-        let mut game = crate::random::FreecivRng::new(folded_seed);
+        let mut game = crate::random::GameRng::new(folded_seed);
         // Cross many ring boundaries and rejection-heavy ranges.
         for _ in 0..137 {
             assert_eq!(map.draw(2_147_483_649), game.draw(2_147_483_649));
@@ -65,7 +67,7 @@ fn map_rng_uses_the_shared_freeciv_primitive() {
 fn campaign_seed_draws_a_distinct_map_seed_and_preserves_game_rng_state() {
     for seed in [1, 42, 12345, u64::MAX] {
         let (map_seed, gameplay_rng) = campaign_randomness(seed);
-        let mut expected_rng = crate::random::FreecivRng::new(seed as u32);
+        let mut expected_rng = crate::random::GameRng::new(seed as u32);
         let mut expected_seed = expected_rng.draw(u32::MAX) & (u32::MAX >> 1);
         while expected_seed == 0 {
             expected_seed = expected_rng.draw(u32::MAX) & (u32::MAX >> 1);
@@ -76,14 +78,15 @@ fn campaign_seed_draws_a_distinct_map_seed_and_preserves_game_rng_state() {
     }
 }
 
+/// Mirrors Freeciv behavior.
 #[test]
-fn freeciv_mapgen_retries_draw_fresh_seeds_from_the_gameplay_stream() {
+fn reference_mapgen_retries_draw_fresh_seeds_from_the_gameplay_stream() {
     let seed = 42;
     let (first, mut gameplay_rng) = campaign_randomness(seed);
-    let second = draw_freeciv_map_seed(&mut gameplay_rng);
-    let third = draw_freeciv_map_seed(&mut gameplay_rng);
+    let second = draw_map_seed(&mut gameplay_rng);
+    let third = draw_map_seed(&mut gameplay_rng);
 
-    let mut source_rng = crate::random::FreecivRng::new(seed as u32);
+    let mut source_rng = crate::random::GameRng::new(seed as u32);
     let source_seeds = (0..3)
         .map(|_| {
             loop {
@@ -98,7 +101,7 @@ fn freeciv_mapgen_retries_draw_fresh_seeds_from_the_gameplay_stream() {
     assert_eq!([first, second, third], source_seeds.as_slice());
     assert_ne!(first, second);
     assert_ne!(second, third);
-    assert_eq!(FREECIV_MAPGEN_MAX_ATTEMPTS, 3);
+    assert_eq!(MAPGEN_MAX_ATTEMPTS, 3);
 }
 
 #[test]
@@ -111,34 +114,35 @@ fn generated_campaign_rng_is_restored_for_start_allocation() {
     assert_ne!(map.game_random, initial_gameplay_rng);
 }
 
+/// Mirrors Freeciv and the civ2civ3 ruleset behavior.
 #[test]
-fn c2c3_settings_change_freeciv_height_resolution_and_shore_mask() {
+fn ruleset_settings_change_reference_height_resolution_and_shore_mask() {
     let wrap = MapWrap::with_dimensions(36, 48).unwrap();
     let generator = Generator {
         wrap,
         settings: WorldSettings::default(),
         civilization_count: 8,
     };
-    let c2c3 = defaults::default_map_generation_settings();
+    let ruleset_defaults = defaults::default_map_generation_settings();
     let request = map_generation_request(42, wrap, WorldSettings::default(), 8);
-    assert_eq!(request.map_generation_settings, c2c3);
+    assert_eq!(request.map_generation_settings, ruleset_defaults);
 
     let mut default_rng = MapRng::new(123);
-    let default_field = generator.freeciv_fractal_height_field(
+    let default_field = generator.fractal_height_field(
         &mut default_rng,
-        c2c3.startpos.fractal_divisions(8),
-        c2c3.landmass_percent,
+        ruleset_defaults.startpos.fractal_divisions(8),
+        ruleset_defaults.landmass_percent,
         true,
     );
-    let default_land_tiles = freeciv_land_mask(&default_field, c2c3)
+    let default_land_tiles = fractal_land_mask(&default_field, ruleset_defaults)
         .into_iter()
         .filter(|is_land| *is_land)
         .count();
     let more_land = MapGenerationSettings {
         landmass_percent: 40,
-        ..c2c3
+        ..ruleset_defaults
     };
-    let more_land_tiles = freeciv_land_mask(&default_field, more_land)
+    let more_land_tiles = fractal_land_mask(&default_field, more_land)
         .into_iter()
         .filter(|is_land| *is_land)
         .count();
@@ -146,10 +150,10 @@ fn c2c3_settings_change_freeciv_height_resolution_and_shore_mask() {
 
     let more_divisions = MapGenerationSettings {
         startpos: defaults::StartPositionSetting::Single,
-        ..c2c3
+        ..ruleset_defaults
     };
     let mut single_start_rng = MapRng::new(123);
-    let single_start_field = generator.freeciv_fractal_height_field(
+    let single_start_field = generator.fractal_height_field(
         &mut single_start_rng,
         more_divisions.startpos.fractal_divisions(8),
         more_divisions.landmass_percent,
@@ -158,8 +162,9 @@ fn c2c3_settings_change_freeciv_height_resolution_and_shore_mask() {
     assert_ne!(default_field, single_start_field);
 }
 
+/// Mirrors Freeciv behavior.
 #[test]
-fn freeciv_fractal_height_consumes_jitter_for_shared_and_bounded_midpoints() {
+fn reference_fractal_height_consumes_jitter_for_shared_and_bounded_midpoints() {
     fn subdivision_calls(xl: i32, yt: i32, xr: i32, yb: i32) -> usize {
         if xr - xl <= 0 || yb - yt <= 0 || (xr - xl == 1 && yb - yt == 1) {
             return 0;
@@ -181,7 +186,7 @@ fn freeciv_fractal_height_consumes_jitter_for_shared_and_bounded_midpoints() {
     let settings = defaults::default_map_generation_settings();
     let divisions = settings.startpos.fractal_divisions(8);
     let step = wrap.width() + wrap.height();
-    let mut expected = crate::random::FreecivRng::new(123);
+    let mut expected = crate::random::GameRng::new(123);
 
     // Initial grid, five midpoint calculations per recursive call, then
     // Freeciv's final per-tile fuzz pass.
@@ -207,17 +212,13 @@ fn freeciv_fractal_height_consumes_jitter_for_shared_and_bounded_midpoints() {
     }
 
     let mut map_rng = MapRng::new(123);
-    generator.freeciv_fractal_height_field(
-        &mut map_rng,
-        divisions,
-        settings.landmass_percent,
-        true,
-    );
+    generator.fractal_height_field(&mut map_rng, divisions, settings.landmass_percent, true);
     assert_eq!(map_rng.draw(1000), expected.draw(1000));
 }
 
+/// Mirrors the civ2civ3 ruleset and Civ III behavior.
 #[test]
-fn c2c3_ocean_depths_are_parsed_and_mapped_to_civ3_water_labels() {
+fn ruleset_ocean_depths_are_parsed_and_mapped_to_native_water_labels() {
     let settings = defaults::default_map_generation_settings();
     let depths = settings.ocean_depths;
     assert_eq!(
@@ -233,11 +234,11 @@ fn c2c3_ocean_depths_are_parsed_and_mapped_to_civ3_water_labels() {
     );
     // Civ III Coast uses the shallow band below the C2C3 Ocean depth; Sea
     // covers the Ocean-to-Deep-Ocean band.
-    assert_eq!(depths.civ3_ocean_for_depth(34), Terrain::Coast);
-    assert_eq!(depths.civ3_ocean_for_depth(35), Terrain::Sea);
-    assert_eq!(depths.civ3_ocean_for_depth(52), Terrain::Sea);
-    assert_eq!(depths.civ3_ocean_for_depth(69), Terrain::Sea);
-    assert_eq!(depths.civ3_ocean_for_depth(70), Terrain::Ocean);
+    assert_eq!(depths.ocean_for_depth(34), Terrain::Coast);
+    assert_eq!(depths.ocean_for_depth(35), Terrain::Sea);
+    assert_eq!(depths.ocean_for_depth(52), Terrain::Sea);
+    assert_eq!(depths.ocean_for_depth(69), Terrain::Sea);
+    assert_eq!(depths.ocean_for_depth(70), Terrain::Ocean);
 
     let wrap = MapWrap::with_dimensions(16, 16).unwrap();
     let generator = Generator {
@@ -247,12 +248,13 @@ fn c2c3_ocean_depths_are_parsed_and_mapped_to_civ3_water_labels() {
     };
     let mut terrain = vec![Terrain::Grassland; wrap.tile_count()];
     terrain[wrap.index(8, 8)] = Terrain::Ocean;
-    generator.finish_freeciv_lakes(&mut terrain);
+    generator.finish_lake_pass(&mut terrain);
     assert_eq!(terrain[wrap.index(8, 8)], Terrain::Coast);
 }
 
+/// Mirrors Freeciv and Civ III behavior.
 #[test]
-fn freeciv_ocean_depth_stages_use_height_and_the_civ3_wrap_topology() {
+fn reference_ocean_depth_stages_use_height_and_the_native_wrap_topology() {
     let wrap = MapWrap::with_dimensions(16, 16).unwrap();
     let generator = Generator {
         wrap,
@@ -270,14 +272,14 @@ fn freeciv_ocean_depth_stages_use_height_and_the_civ3_wrap_topology() {
     let mut terrain = vec![Terrain::Ocean; wrap.tile_count()];
     terrain[land] = Terrain::Grassland;
 
-    generator.assign_freeciv_water_depths(&mut terrain, &heights, &land_mask, 700, depths);
+    generator.assign_water_depths(&mut terrain, &heights, &land_mask, 700, depths);
     assert_eq!(terrain[near_land], Terrain::Coast);
     assert_eq!(terrain[wrap.index(0, 0)], Terrain::Ocean);
 
     // Depth smoothing crosses the wrapped X seam, while Y remains bounded.
     let mut topology_terrain = vec![Terrain::Ocean; wrap.tile_count()];
     topology_terrain[wrap.index(0, 0)] = Terrain::Grassland;
-    generator.finish_freeciv_water_depths(&mut topology_terrain, depths, &mut MapRng::new(42));
+    generator.finish_water_depths(&mut topology_terrain, depths, &mut MapRng::new(42));
     assert_eq!(
         topology_terrain[wrap.index(wrap.width() - 1, 0)],
         Terrain::Coast
@@ -299,7 +301,7 @@ fn generated_rivers_reach_the_ocean_and_resources_are_spaced() {
         settings: WorldSettings::default(),
         civilization_count: crate::world::DEFAULT_CIVILIZATION_COUNT,
     };
-    let freeciv_settings = defaults::default_map_generation_settings();
+    let generation_rules = defaults::default_map_generation_settings();
     let terrain_properties = defaults::default_terrain_mapgen_properties();
     for seed in [0, 42, 12345] {
         let map = generate(seed);
@@ -339,13 +341,13 @@ fn generated_rivers_reach_the_ocean_and_resources_are_spaced() {
             assert!((0..=1000).contains(&tile.altitude));
             if tile.terrain.is_water() {
                 let (x, y) = map.map_wrap.position(index);
-                for direction in 0..CIV3_DIRS.len() {
+                for direction in 0..EIGHT_WAY_DIRS.len() {
                     if tile.river_edges & (1 << direction) == 0 {
                         continue;
                     }
                     let (nx, ny) = map
                         .map_wrap
-                        .civ3_neighbor(x, y, direction)
+                        .eight_way_neighbor(x, y, direction)
                         .expect("generated river mouth stays inside the map");
                     assert!(
                         !tiles[map.map_wrap.index(nx, ny)].terrain.is_water(),
@@ -383,9 +385,9 @@ fn generated_rivers_reach_the_ocean_and_resources_are_spaced() {
                             (
                                 near,
                                 tiles[near].terrain,
-                                placement::civ3_terrain_is_unsafe_coast(
+                                placement::terrain_is_unsafe_coast(
                                     tiles[near].terrain,
-                                    freeciv_settings.ocean_depths,
+                                    generation_rules.ocean_depths,
                                     &terrain_properties,
                                 ),
                             )
@@ -401,7 +403,7 @@ fn generated_rivers_reach_the_ocean_and_resources_are_spaced() {
                     assert!(
                         near_safe_tile || next_to_polar_override,
                         "aquatic resource at {index} has no safe tile within radius one for seed {seed}; C2C3 ocean_resources={} neighbors={neighborhood:?}",
-                        freeciv_settings.ocean_resources,
+                        generation_rules.ocean_resources,
                     );
                 }
             }
@@ -420,7 +422,7 @@ fn generated_rivers_reach_the_ocean_and_resources_are_spaced() {
                     settings: WorldSettings::default(),
                     civilization_count: crate::world::DEFAULT_CIVILIZATION_COUNT,
                 })
-                .civ3_neighbors(current)
+                .eight_way_neighbors(current)
                 {
                     has_outlet |= matches!(tiles[next].terrain, Terrain::Coast | Terrain::Sea);
                     if tiles[next].river && !visited[next] {
@@ -466,7 +468,8 @@ fn river_course_can_turn_toward_a_nearby_outlet() {
     assert_eq!(course, [spring, northeast, east]);
 }
 
-fn freeciv_river_test_map(
+/// Test map for Freeciv river generation behavior.
+fn river_test_map(
     wrap: MapWrap,
     terrain: Terrain,
 ) -> (Generator, Vec<GeneratedTile>, Vec<TerrainMapgenProperties>) {
@@ -491,15 +494,16 @@ fn freeciv_river_test_map(
     (generator, tiles, properties)
 }
 
+/// Mirrors Freeciv behavior.
 #[test]
-fn freeciv_river_ties_follow_ruleset_order_and_wrap_x_without_wrapping_y() {
+fn reference_river_ties_follow_ruleset_order_and_wrap_x_without_wrapping_y() {
     let wrap = MapWrap::X;
-    let (generator, tiles, properties) = freeciv_river_test_map(wrap, Terrain::Grassland);
+    let (generator, tiles, properties) = river_test_map(wrap, Terrain::Grassland);
     let current = wrap.index(0, 0);
     let candidates: Vec<_> = [1, 7, 3, 5]
         .into_iter()
         .filter_map(|direction| {
-            wrap.civ3_neighbor(0, 0, direction)
+            wrap.eight_way_neighbor(0, 0, direction)
                 .map(|(x, y)| wrap.index(x, y))
         })
         .collect();
@@ -518,7 +522,7 @@ fn freeciv_river_ties_follow_ruleset_order_and_wrap_x_without_wrapping_y() {
     let expected = candidates[expected_rng.below(candidates.len() as i32) as usize];
     let mut actual_rng = MapRng::new(seed);
     let selected = generator
-        .select_freeciv_river_step(
+        .select_river_step(
             &tiles,
             &vec![500; wrap.tile_count()],
             &properties,
@@ -533,32 +537,34 @@ fn freeciv_river_ties_follow_ruleset_order_and_wrap_x_without_wrapping_y() {
     assert_eq!(wrap.position(selected).1, 1);
 }
 
+/// Mirrors Freeciv and the civ2civ3 ruleset behavior.
 #[test]
-fn freeciv_river_density_and_spring_height_follow_c2c3_parameters() {
+fn reference_river_density_and_spring_height_follow_ruleset_parameters() {
     let settings = defaults::default_map_generation_settings();
 
     assert_eq!(
-        rivers::freeciv_river_parameters(settings, 36 * 48),
+        rivers::river_parameters(settings, 36 * 48),
         (6, 58, 784),
         "36x48 retains C2C3's current density and hmap lowland threshold"
     );
     assert_eq!(
-        rivers::freeciv_river_parameters(settings, 100 * 100),
+        rivers::river_parameters(settings, 100 * 100),
         (7, 394, 784),
         "larger-map polar scaling uses the default separate-poles branch"
     );
 }
 
+/// Mirrors Freeciv and the civ2civ3 ruleset behavior.
 #[test]
-fn freeciv_river_tests_use_c2c3_mountainous_and_wet_properties() {
+fn reference_river_tests_use_ruleset_mountainous_and_wet_properties() {
     let wrap = MapWrap::X;
-    let (generator, mut tiles, properties) = freeciv_river_test_map(wrap, Terrain::Grassland);
+    let (generator, mut tiles, properties) = river_test_map(wrap, Terrain::Grassland);
     let current = wrap.index(8, 10);
     let candidates: Vec<_> = [1, 7, 3, 5]
         .into_iter()
         .filter_map(|direction| {
             let (x, y) = wrap.position(current);
-            wrap.civ3_neighbor(x, y, direction)
+            wrap.eight_way_neighbor(x, y, direction)
                 .map(|(x, y)| wrap.index(x, y))
         })
         .collect();
@@ -570,7 +576,7 @@ fn freeciv_river_tests_use_c2c3_mountainous_and_wet_properties() {
     tiles[candidates[0]].terrain = Terrain::Mountains;
     let mut rng = MapRng::new(11);
     let selected = generator
-        .select_freeciv_river_step(&tiles, &heights, &properties, &blocked, current, &mut rng)
+        .select_river_step(&tiles, &heights, &properties, &blocked, current, &mut rng)
         .expect("a non-mountainous continuation remains");
     assert_ne!(selected, candidates[0]);
 
@@ -579,39 +585,34 @@ fn freeciv_river_tests_use_c2c3_mountainous_and_wet_properties() {
     tiles[candidates[0]].terrain = Terrain::Marsh;
     let mut rng = MapRng::new(12);
     let selected = generator
-        .select_freeciv_river_step(&tiles, &heights, &properties, &blocked, current, &mut rng)
+        .select_river_step(&tiles, &heights, &properties, &blocked, current, &mut rng)
         .expect("the wet terrain continuation remains");
     assert_eq!(selected, candidates[0]);
 }
 
+/// Mirrors Freeciv behavior.
 #[test]
-fn freeciv_spring_filters_apply_adjacent_and_relaxed_terrain_thresholds() {
+fn reference_spring_filters_apply_adjacent_and_relaxed_terrain_thresholds() {
     let wrap = MapWrap::X;
-    let (generator, mut tiles, properties) = freeciv_river_test_map(wrap, Terrain::Grassland);
+    let (generator, mut tiles, properties) = river_test_map(wrap, Terrain::Grassland);
     let spring = wrap.index(8, 10);
     let neighbors: Vec<_> = [1, 7, 3, 5]
         .into_iter()
         .filter_map(|direction| {
             let (x, y) = wrap.position(spring);
-            wrap.civ3_neighbor(x, y, direction)
+            wrap.eight_way_neighbor(x, y, direction)
                 .map(|(x, y)| wrap.index(x, y))
         })
         .collect();
     let max_tries = 32_767;
 
-    assert!(generator.freeciv_spring_is_acceptable(&tiles, spring, &properties, 0, max_tries,));
+    assert!(generator.spring_is_acceptable(&tiles, spring, &properties, 0, max_tries,));
 
     // The source permits at most one combined cardinal-adjacent river or
     // ocean tile, and does not relax this filter after repeated attempts.
     tiles[neighbors[0]].river = true;
     tiles[neighbors[1]].terrain = Terrain::Coast;
-    assert!(!generator.freeciv_spring_is_acceptable(
-        &tiles,
-        spring,
-        &properties,
-        max_tries,
-        max_tries,
-    ));
+    assert!(!generator.spring_is_acceptable(&tiles, spring, &properties, max_tries, max_tries,));
     tiles[neighbors[0]].river = false;
     tiles[neighbors[1]].terrain = Terrain::Grassland;
 
@@ -620,10 +621,10 @@ fn freeciv_spring_filters_apply_adjacent_and_relaxed_terrain_thresholds() {
     for &neighbor in &neighbors[..3] {
         tiles[neighbor].terrain = Terrain::Mountains;
     }
-    assert!(generator.freeciv_spring_is_acceptable(&tiles, spring, &properties, 0, max_tries,));
+    assert!(generator.spring_is_acceptable(&tiles, spring, &properties, 0, max_tries,));
     tiles[neighbors[3]].terrain = Terrain::Mountains;
-    assert!(!generator.freeciv_spring_is_acceptable(&tiles, spring, &properties, 0, max_tries,));
-    assert!(generator.freeciv_spring_is_acceptable(
+    assert!(!generator.spring_is_acceptable(&tiles, spring, &properties, 0, max_tries,));
+    assert!(generator.spring_is_acceptable(
         &tiles,
         spring,
         &properties,
@@ -638,14 +639,14 @@ fn freeciv_spring_filters_apply_adjacent_and_relaxed_terrain_thresholds() {
         tile.river = false;
     }
     tiles[spring].terrain = Terrain::Mountains;
-    assert!(!generator.freeciv_spring_is_acceptable(
+    assert!(!generator.spring_is_acceptable(
         &tiles,
         spring,
         &properties,
         max_tries / 10 * 5,
         max_tries,
     ));
-    assert!(generator.freeciv_spring_is_acceptable(
+    assert!(generator.spring_is_acceptable(
         &tiles,
         spring,
         &properties,
@@ -654,14 +655,14 @@ fn freeciv_spring_filters_apply_adjacent_and_relaxed_terrain_thresholds() {
     ));
 
     tiles[spring].terrain = Terrain::Glacier;
-    assert!(!generator.freeciv_spring_is_acceptable(
+    assert!(!generator.spring_is_acceptable(
         &tiles,
         spring,
         &properties,
         max_tries / 10 * 7,
         max_tries,
     ));
-    assert!(generator.freeciv_spring_is_acceptable(
+    assert!(generator.spring_is_acceptable(
         &tiles,
         spring,
         &properties,
@@ -670,14 +671,14 @@ fn freeciv_spring_filters_apply_adjacent_and_relaxed_terrain_thresholds() {
     ));
 
     tiles[spring].terrain = Terrain::Desert;
-    assert!(!generator.freeciv_spring_is_acceptable(
+    assert!(!generator.spring_is_acceptable(
         &tiles,
         spring,
         &properties,
         max_tries / 10 * 8,
         max_tries,
     ));
-    assert!(generator.freeciv_spring_is_acceptable(
+    assert!(generator.spring_is_acceptable(
         &tiles,
         spring,
         &properties,
@@ -686,15 +687,16 @@ fn freeciv_spring_filters_apply_adjacent_and_relaxed_terrain_thresholds() {
     ));
 }
 
+/// Mirrors Freeciv behavior.
 #[test]
-fn freeciv_river_blocking_is_fatal_and_rivers_continue_through_frozen_terrain() {
+fn reference_river_blocking_is_fatal_and_rivers_continue_through_frozen_terrain() {
     let wrap = MapWrap::X;
-    let (generator, mut tiles, properties) = freeciv_river_test_map(wrap, Terrain::Grassland);
+    let (generator, mut tiles, properties) = river_test_map(wrap, Terrain::Grassland);
     let current = wrap.index(8, 10);
     let heights = vec![500; wrap.tile_count()];
 
     assert_eq!(
-        generator.select_freeciv_river_step(
+        generator.select_river_step(
             &tiles,
             &heights,
             &properties,
@@ -708,7 +710,7 @@ fn freeciv_river_blocking_is_fatal_and_rivers_continue_through_frozen_terrain() 
 
     let spring = wrap.index(9, 10);
     let (x, y) = wrap.position(spring);
-    let (ocean_x, ocean_y) = wrap.civ3_neighbor(x, y, 1).unwrap();
+    let (ocean_x, ocean_y) = wrap.eight_way_neighbor(x, y, 1).unwrap();
     tiles[wrap.index(ocean_x, ocean_y)].terrain = Terrain::Coast;
     assert_eq!(
         generator.trace_river(
@@ -725,7 +727,7 @@ fn freeciv_river_blocking_is_fatal_and_rivers_continue_through_frozen_terrain() 
     tiles[wrap.index(ocean_x, ocean_y)].terrain = Terrain::Grassland;
     let polar_glacier = wrap.index(9, 0);
     tiles[polar_glacier].terrain = Terrain::Glacier;
-    let glacier_step = generator.select_freeciv_river_step(
+    let glacier_step = generator.select_river_step(
         &tiles,
         &heights,
         &properties,
@@ -739,9 +741,10 @@ fn freeciv_river_blocking_is_fatal_and_rivers_continue_through_frozen_terrain() 
     );
 }
 
+/// Mirrors Civ III behavior.
 #[cfg(test)]
 #[test]
-fn opensimplex_civ3_generation_does_not_emit_legacy_glacier_or_lake_terrains() {
+fn opensimplex_native_generation_does_not_emit_legacy_glacier_or_lake_terrains() {
     for wrap in [MapWrap::X] {
         for seed in [42, 12345] {
             let map = generate_opensimplex(seed, wrap, WorldSettings::default());
@@ -859,8 +862,9 @@ fn default_worlds_match_civcraft_resource_goldens() {
     }
 }
 
+/// Mirrors Civ III behavior.
 #[test]
-fn opensimplex_civ3_ocean_coverage_choices_change_water_fraction_deterministically() {
+fn opensimplex_native_ocean_coverage_choices_change_water_fraction_deterministically() {
     let wrap = MapWrap::X;
     let coverages = [
         OceanCoverage::Percent60,
@@ -977,8 +981,9 @@ fn generated_polar_coastlines_vary_across_longitudes() {
     }
 }
 
+/// Mirrors Civ III behavior.
 #[test]
-fn civ3_climate_choices_shift_biomes_in_the_expected_direction() {
+fn native_climate_choices_shift_biomes_in_the_expected_direction() {
     let wrap = MapWrap::X;
     let map_for = |climate| {
         generate_opensimplex(
@@ -1008,8 +1013,9 @@ fn civ3_climate_choices_shift_biomes_in_the_expected_direction() {
     // normal-versus-wet desert ordering.
 }
 
+/// Mirrors Civ III behavior.
 #[test]
-fn civ3_world_age_controls_relief_and_volcano_frequency() {
+fn native_world_age_controls_relief_and_volcano_frequency() {
     let generate_age = |age| {
         generate_opensimplex(
             42,
@@ -1048,8 +1054,9 @@ fn civ3_world_age_controls_relief_and_volcano_frequency() {
     assert!(volcano_count(&young) > volcano_count(&old));
 }
 
+/// Mirrors Civ III behavior.
 #[test]
-fn opensimplex_civ3_landform_choices_are_deterministic_and_change_landmass_scale() {
+fn opensimplex_native_landform_choices_are_deterministic_and_change_landmass_scale() {
     let forms = [
         Landform::Archipelago,
         Landform::Continents,
@@ -1097,16 +1104,18 @@ fn opensimplex_civ3_landform_choices_are_deterministic_and_change_landmass_scale
     // component count is the stable scale signal at this map size.
 }
 
+/// Mirrors Civ III behavior.
 #[test]
-fn landform_parser_accepts_civ3_world_setup_choices() {
+fn landform_parser_accepts_native_world_setup_choices() {
     assert_eq!("archipelago".parse(), Ok(Landform::Archipelago));
     assert_eq!("CONTINENTS".parse(), Ok(Landform::Continents));
     assert_eq!("pangaea".parse(), Ok(Landform::Pangaea));
     assert!("islands".parse::<Landform>().is_err());
 }
 
+/// Mirrors Civ III behavior.
 #[test]
-fn civ3_temperature_choices_shift_cold_and_dry_terrain() {
+fn native_temperature_choices_shift_cold_and_dry_terrain() {
     let generate_temperature = |temperature| {
         generate_opensimplex(
             42,
@@ -1134,32 +1143,36 @@ fn civ3_temperature_choices_shift_cold_and_dry_terrain() {
     );
 }
 
+/// Mirrors Civ III behavior.
 #[test]
-fn temperature_parser_accepts_civ3_world_setup_choices() {
+fn temperature_parser_accepts_native_world_setup_choices() {
     assert_eq!("cool".parse(), Ok(Temperature::Cool));
     assert_eq!("TEMPERATE".parse(), Ok(Temperature::Temperate));
     assert_eq!("warm".parse(), Ok(Temperature::Warm));
     assert!("hot".parse::<Temperature>().is_err());
 }
 
+/// Mirrors Civ III behavior.
 #[test]
-fn civ3_ocean_coverage_parser_accepts_documented_world_setup_values() {
+fn native_ocean_coverage_parser_accepts_documented_world_setup_values() {
     assert_eq!("60".parse(), Ok(OceanCoverage::Percent60));
     assert_eq!("70".parse(), Ok(OceanCoverage::Percent70));
     assert_eq!("80".parse(), Ok(OceanCoverage::Percent80));
     assert!("75".parse::<OceanCoverage>().is_err());
 }
 
+/// Mirrors Civ III behavior.
 #[test]
-fn civ3_climate_parser_accepts_documented_world_setup_values() {
+fn native_climate_parser_accepts_documented_world_setup_values() {
     assert_eq!("arid".parse(), Ok(Climate::Arid));
     assert_eq!("normal".parse(), Ok(Climate::Normal));
     assert_eq!("wet".parse(), Ok(Climate::Wet));
     assert!("humid".parse::<Climate>().is_err());
 }
 
+/// Mirrors Civ III behavior.
 #[test]
-fn civ3_world_age_parser_accepts_documented_world_setup_values() {
+fn native_world_age_parser_accepts_documented_world_setup_values() {
     assert_eq!("3".parse(), Ok(WorldAge::Billion3));
     assert_eq!("4".parse(), Ok(WorldAge::Billion4));
     assert_eq!("5".parse(), Ok(WorldAge::Billion5));
@@ -1170,8 +1183,9 @@ fn civ3_world_age_parser_accepts_documented_world_setup_values() {
 mod wrap_generation_tests {
     use super::*;
 
+    /// Mirrors Civ III behavior.
     #[test]
-    fn generated_terrain_neighbors_use_reciprocal_civ3_eight_way_topology() {
+    fn generated_terrain_neighbors_use_reciprocal_native_eight_way_topology() {
         for wrap in [MapWrap::X] {
             let generator = Generator {
                 wrap,
@@ -1188,7 +1202,7 @@ mod wrap_generation_tests {
                 for &neighbor in &neighbors {
                     assert!(
                         generator
-                            .civ3_neighbors(neighbor)
+                            .eight_way_neighbors(neighbor)
                             .any(|tile| tile == center)
                     );
                     assert_eq!(generator.distance(center, neighbor), 1);
@@ -1211,8 +1225,9 @@ mod wrap_generation_tests {
         }));
     }
 
+    /// Mirrors Civ III behavior.
     #[test]
-    fn civ3_cylinder_keeps_polar_edges_ocean_and_has_valid_starts() {
+    fn native_cylinder_keeps_polar_edges_ocean_and_has_valid_starts() {
         for seed in [0, 1, 42, 1337, 12345, 700001, 2147483647] {
             let a = generate_with_wrap(seed, MapWrap::X);
             let b = generate_with_wrap(seed, MapWrap::X);
@@ -1263,8 +1278,9 @@ mod wrap_generation_tests {
         }
     }
 
+    /// Mirrors Civ III behavior.
     #[test]
-    fn civ3_shelf_rules_put_coast_by_land_and_sea_by_coast() {
+    fn native_shelf_rules_put_coast_by_land_and_sea_by_coast() {
         for wrap in [MapWrap::X] {
             let generator = Generator {
                 wrap,
@@ -1340,7 +1356,7 @@ fn generated_worlds_match_civcraft_resource_goldens_for_each_wrap() {
 #[test]
 fn fractal_generator_applies_world_settings_deterministically() {
     let default_map = generate_for_map_size_with(
-        &FreecivFractalMapGenerator,
+        &FractalMapGenerator,
         42,
         MapSize::Tiny,
         WorldSettings::default(),
@@ -1351,7 +1367,7 @@ fn fractal_generator_applies_world_settings_deterministically() {
     );
 
     let custom_a = generate_for_map_size_with(
-        &FreecivFractalMapGenerator,
+        &FractalMapGenerator,
         42,
         MapSize::Tiny,
         WorldSettings {
@@ -1363,7 +1379,7 @@ fn fractal_generator_applies_world_settings_deterministically() {
         },
     );
     let custom_b = generate_for_map_size_with(
-        &FreecivFractalMapGenerator,
+        &FractalMapGenerator,
         42,
         MapSize::Tiny,
         WorldSettings {
@@ -1403,7 +1419,7 @@ fn terrain_biome_census() {
                     ..WorldSettings::default()
                 };
                 let map = generate_with_map_generator(
-                    &FreecivFractalMapGenerator,
+                    &FractalMapGenerator,
                     map_generation_request(
                         seed,
                         MapWrap::X,
@@ -1434,7 +1450,7 @@ fn fractal_feature_biomes_cover_cold_dry_and_temperate_art_without_changing_pole
     for seed in [42, 7, 99] {
         for temperature in [Temperature::Cool, Temperature::Temperate, Temperature::Warm] {
             let map = generate_with_map_generator(
-                &FreecivFractalMapGenerator,
+                &FractalMapGenerator,
                 map_generation_request(
                     seed,
                     MapWrap::X,

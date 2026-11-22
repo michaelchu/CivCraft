@@ -3,13 +3,13 @@
 use super::*;
 use super::{
     asset_error::AssetResult,
-    media::{AssetRoots, Civ3MediaResolver},
+    media::{AssetRoots, MediaResolver},
 };
 use std::sync::Arc;
 
 /// One startup configuration snapshot shared by every asset consumer.
 pub(crate) struct AssetContext {
-    pub(super) media: Arc<Civ3MediaResolver>,
+    pub(super) media: Arc<MediaResolver>,
     #[cfg(feature = "desktop-audio")]
     pub(super) audio: Option<Arc<super::audio_assets::AudioLibrary>>,
 }
@@ -22,7 +22,7 @@ impl AssetContext {
         )
     }
     pub(super) fn new(roots: AssetRoots, audio_enabled: bool, trace: bool) -> AssetResult<Self> {
-        let media = Arc::new(Civ3MediaResolver::from_config(&roots).tracing(trace));
+        let media = Arc::new(MediaResolver::from_config(&roots).tracing(trace));
         #[cfg(feature = "desktop-audio")]
         let audio = if audio_enabled {
             match super::audio_assets::AudioLibrary::new(media.clone()) {
@@ -97,7 +97,7 @@ pub(crate) fn window_conf() -> Conf {
 }
 
 pub(crate) struct Assets {
-    pub(super) civ3: super::tileset::Civ3,
+    pub(super) art_tileset: super::tileset::ArtTileset,
     pub(super) source_fog: Texture2D,
     pub(super) hut_sound: Option<std::path::PathBuf>,
     pub(super) bomb_sound: Option<std::path::PathBuf>,
@@ -124,14 +124,14 @@ impl Assets {
         if action.eq_ignore_ascii_case("SDI_EFFECT") {
             return self.sdi_sound.clone();
         }
-        self.civ3
+        self.art_tileset
             .unit_sound_source(kind, era, action)
             .map(|source| source.path.clone())
     }
 
     pub(crate) fn new(tileset: &super::Tileset, context: &AssetContext) -> AssetResult<Self> {
-        let civ3 = match tileset {
-            super::Tileset::Civ3(path) => super::tileset::Civ3::load(path, &context.media)?,
+        let art_tileset = match tileset {
+            super::Tileset::Art(path) => super::tileset::ArtTileset::load(path, &context.media)?,
         };
         let source_fog_image = super::tileset::load_source_fog_atlas(&context.media)?;
         let source_fog = Texture2D::from_image(&source_fog_image);
@@ -166,7 +166,7 @@ impl Assets {
             .lookup("Art/Animations/SDI/Laser.wav")?
             .map(|found| found.path);
         Ok(Self {
-            civ3,
+            art_tileset,
             source_fog,
             hut_sound,
             bomb_sound,
@@ -190,7 +190,7 @@ mod tests {
             ..Default::default()
         };
         let context = AssetContext::new(roots, false, false).unwrap();
-        let Tileset::Civ3(selected) = context.select_tileset("civ3").unwrap();
+        let Tileset::Art(selected) = context.select_tileset("civ3").unwrap();
         assert_eq!(selected, root.join("Conquests/Art").canonicalize().unwrap());
         assert_eq!(context.media.resolve("Art").unwrap(), selected);
         #[cfg(feature = "desktop-audio")]

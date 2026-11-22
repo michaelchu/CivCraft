@@ -110,8 +110,9 @@ mod city_output_tests {
         game
     }
 
+    /// Mirrors Freeciv behavior.
     #[test]
-    fn science_wonders_add_output_to_center_and_worked_tiles_in_freeciv_order() {
+    fn science_wonders_add_output_to_center_and_worked_tiles_in_reference_order() {
         let mut game = fixture();
         // The Great Library bonus has a World + survives requirement. Keep
         // every civilization below its obsolescence advance in this fixture.
@@ -217,8 +218,9 @@ mod city_output_tests {
         );
     }
 
+    /// Mirrors the civ2civ3 ruleset and Civ III behavior.
     #[test]
-    fn center_uses_civ2civ3_additive_shield_and_zero_minimum_outputs() {
+    fn center_uses_ruleset_additive_shield_and_zero_minimum_outputs() {
         let mut game = fixture();
         let city = game.cities[0].clone();
         game.tile_mut(city.x, city.y).terrain = Terrain::Forest;

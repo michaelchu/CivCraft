@@ -51,7 +51,7 @@ impl Simulation {
                             let t = by_id[id];
                             if *id != source
                                 && t.owner == c.owner
-                                && self.map_wrap.civ3_distance(c.x, c.y, t.x, t.y)
+                                && self.map_wrap.step_distance(c.x, c.y, t.x, t.y)
                                     <= r.local_distance
                             {
                                 targets.insert(*id, r.local_pressure + intrinsic.outgoing_pressure);

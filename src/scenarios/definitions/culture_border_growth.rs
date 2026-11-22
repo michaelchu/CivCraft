@@ -61,7 +61,7 @@ fn setup(map: GeneratedMap) -> (Simulation, Box<dyn ScenarioRun>) {
     let mut path = vec![weak_position];
     for _ in 0..4 {
         let previous = *path.last().unwrap();
-        path.push(wrap.civ3_neighbor(previous.0, previous.1, 3).unwrap());
+        path.push(wrap.eight_way_neighbor(previous.0, previous.1, 3).unwrap());
     }
     let weak = world.city(OWNER, path[0], 1);
     let strong = world.city(HUMAN, path[4], 8);
@@ -117,7 +117,7 @@ impl ScenarioRun for Audit {
             .push(strong_city == Some(self.strong));
         let ring: Vec<_> = game
             .map_wrap
-            .civ3_neighbors(self.weak_position.0, self.weak_position.1)
+            .eight_way_neighbors(self.weak_position.0, self.weak_position.1)
             .collect();
         // Tiles nearer the small city stay with it, whatever the other city's
         // size or culture; likewise on the large city's side.

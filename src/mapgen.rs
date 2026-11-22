@@ -13,7 +13,7 @@
 //! iteration and random-draw order, so seemingly harmless reordering can alter
 //! seeded output.
 
-use crate::random::FreecivRng;
+use crate::random::GameRng;
 pub(crate) use crate::world::{GeneratedMap, GeneratedTile};
 use crate::world::{Terrain, TerrainBase, topology::*};
 use defaults::{
@@ -327,15 +327,17 @@ pub(crate) fn random_seed() -> u64 {
 /// the separate map seed before the generator snapshots gameplay randomness.
 /// The full `u64` remains the CivCraft world identity; only its low 32 bits
 /// seed the Freeciv-compatible RNG.
-fn campaign_randomness(game_seed: u64) -> (u32, FreecivRng) {
-    let mut gameplay_rng = FreecivRng::new(game_seed as u32);
-    let map_seed = draw_freeciv_map_seed(&mut gameplay_rng);
+fn campaign_randomness(game_seed: u64) -> (u32, GameRng) {
+    let mut gameplay_rng = GameRng::new(game_seed as u32);
+    let map_seed = draw_map_seed(&mut gameplay_rng);
     (map_seed, gameplay_rng)
 }
 
 /// Matches `map_fractal_generate()` when the ruleset leaves `mapseed` unset.
 /// Each call consumes one gameplay draw and retries only for the zero seed.
-fn draw_freeciv_map_seed(gameplay_rng: &mut FreecivRng) -> u32 {
+///
+/// Follows Freeciv's map seed draw order.
+fn draw_map_seed(gameplay_rng: &mut GameRng) -> u32 {
     loop {
         let map_seed = gameplay_rng.draw(u32::MAX) & (u32::MAX >> 1);
         if map_seed != 0 {
@@ -345,12 +347,14 @@ fn draw_freeciv_map_seed(gameplay_rng: &mut FreecivRng) -> u32 {
 }
 
 /// `srv_main.c` retries an unsuitable random map at most three times.
-const FREECIV_MAPGEN_MAX_ATTEMPTS: usize = 3;
+///
+/// Freeciv retries map generation this many times.
+const MAPGEN_MAX_ATTEMPTS: usize = 3;
 
 // Keep map draws on the same tested Freeciv primitive while maintaining an
 // independent state from campaign/gameplay randomness.
 struct MapRng {
-    state: FreecivRng,
+    state: GameRng,
 }
 
 impl OceanDepthSettings {
@@ -358,7 +362,9 @@ impl OceanDepthSettings {
     /// The shallow band up to C2C3's Ocean depth becomes Civ III Coast, the
     /// next band becomes Sea, and deeper water becomes Ocean. Depth-zero lakes
     /// are still assigned separately by the small-basin pass.
-    fn civ3_ocean_for_depth(self, depth: i32) -> Terrain {
+    ///
+    /// Maps civ2civ3 ocean depth bands onto Civ III water terrains.
+    fn ocean_for_depth(self, depth: i32) -> Terrain {
         if depth < self.ocean {
             Terrain::Coast
         } else if depth < self.deep_ocean {
@@ -368,7 +374,8 @@ impl OceanDepthSettings {
         }
     }
 
-    fn unsafe_coast_for_civ3_terrain(self, terrain: Terrain) -> Option<bool> {
+    /// Uses the civ2civ3 unsafe-coast rule applied to Civ III terrain identities.
+    fn unsafe_coast_for_terrain(self, terrain: Terrain) -> Option<bool> {
         match terrain {
             Terrain::Coast | Terrain::Lake => Some(self.lake_unsafe_coast),
             Terrain::Sea => Some(self.ocean_unsafe_coast),
@@ -382,7 +389,7 @@ impl MapRng {
     fn new(seed: u64) -> Self {
         let folded_seed = seed as u32 ^ (seed >> 32) as u32;
         Self {
-            state: FreecivRng::new(folded_seed),
+            state: GameRng::new(folded_seed),
         }
     }
 
@@ -405,7 +412,7 @@ impl BoundedRandom for MapRng {
     }
 }
 
-impl BoundedRandom for FreecivRng {
+impl BoundedRandom for GameRng {
     fn below(&mut self, limit: i32) -> i32 {
         self.draw(limit as u32) as i32
     }
@@ -437,16 +444,18 @@ impl Generator {
 
 impl Generator {
     fn neighbors(&self, tile: usize) -> impl Iterator<Item = usize> {
-        self.civ3_neighbors(tile).collect::<Vec<_>>().into_iter()
+        self.eight_way_neighbors(tile)
+            .collect::<Vec<_>>()
+            .into_iter()
     }
 
     fn cardinal_neighbors(&self, tile: usize) -> impl Iterator<Item = usize> + '_ {
         let (x, y) = self.wrap.position(tile);
-        (0..CIV3_DIRS.len())
+        (0..EIGHT_WAY_DIRS.len())
             .step_by(2)
             .filter_map(move |direction| {
                 self.wrap
-                    .civ3_neighbor(x, y, direction)
+                    .eight_way_neighbor(x, y, direction)
                     .map(|(nx, ny)| self.wrap.index(nx, ny))
             })
     }
@@ -454,7 +463,7 @@ impl Generator {
     fn within(&self, tile: usize, radius: i32) -> impl Iterator<Item = usize> + use<> {
         let wrap = self.wrap;
         let (x, y) = wrap.position(tile);
-        wrap.civ3_radius(x, y, radius)
+        wrap.tiles_within_steps(x, y, radius)
             .into_iter()
             .map(move |(nx, ny, _)| wrap.index(nx, ny))
     }
@@ -462,7 +471,7 @@ impl Generator {
     fn distance(&self, a: usize, b: usize) -> i32 {
         let (ax, ay) = self.wrap.position(a);
         let (bx, by) = self.wrap.position(b);
-        self.wrap.civ3_distance(ax, ay, bx, by)
+        self.wrap.step_distance(ax, ay, bx, by)
     }
 }
 
@@ -633,7 +642,9 @@ fn random_tile<R: BoundedRandom>(
 /// Freeciv's `rand_map_pos_filtered` sampling contract, adapted to CivCraft's
 /// flattened X-wrap/bounded-Y tile array. After count/10 random probes, its
 /// fallback draws once from eligible positions in map order.
-fn freeciv_rand_map_pos_filtered<R: BoundedRandom>(
+///
+/// Follows Freeciv's filtered random map position draw.
+fn filtered_rand_map_pos<R: BoundedRandom>(
     count: usize,
     rng: &mut R,
     eligible: impl Fn(usize) -> bool,
@@ -667,7 +678,7 @@ impl Generator {
         &self,
         game_seed: u64,
         map_seed: u32,
-        gameplay_rng: FreecivRng,
+        gameplay_rng: GameRng,
     ) -> GeneratedMap {
         self.generate_with_landmass(
             game_seed,
@@ -683,7 +694,7 @@ impl Generator {
         &self,
         game_seed: u64,
         map_seed: u32,
-        gameplay_rng: FreecivRng,
+        gameplay_rng: GameRng,
         landmass_source: LandmassSource,
         terrain_properties: Option<&[TerrainMapgenProperties]>,
         start_scoring_settings: Option<StartPositionScoringSettings>,
@@ -699,7 +710,7 @@ impl Generator {
                     self.height_field(map_seed_u64.wrapping_add(0xdad), 0.4),
                 )
             }
-            LandmassSource::FreecivFractal(_, _, _) => {
+            LandmassSource::Fractal(_, _, _) => {
                 // The Freeciv terrain pass uses the actual height and
                 // temperature maps instead of CivCraft's separate relief and
                 // biome noise fields.
@@ -716,24 +727,24 @@ impl Generator {
         let mut attempt = 0_usize;
         let mut gameplay_rng = gameplay_rng;
         let mut current_map_seed = map_seed;
-        let freeciv_map_settings = match landmass_source {
+        let fractal_map_settings = match landmass_source {
             LandmassSource::OpenSimplex => None,
-            LandmassSource::FreecivFractal(settings, _, _) => Some(settings),
+            LandmassSource::Fractal(settings, _, _) => Some(settings),
         };
         let start_temperature = match landmass_source {
             LandmassSource::OpenSimplex => None,
-            LandmassSource::FreecivFractal(map_settings, _, _) => {
-                Some(self.freeciv_temperature_map(false, None, None, map_settings))
+            LandmassSource::Fractal(map_settings, _, _) => {
+                Some(self.generate_temperature_map(false, None, None, map_settings))
             }
         };
         loop {
-            let freeciv_mapgen = freeciv_map_settings.is_some();
-            if freeciv_mapgen && attempt > 0 {
+            let fractal_mapgen = fractal_map_settings.is_some();
+            if fractal_mapgen && attempt > 0 {
                 // Each native retry calls map_fractal_generate() again, which
                 // draws a new seed from the restored gameplay stream.
-                current_map_seed = draw_freeciv_map_seed(&mut gameplay_rng);
+                current_map_seed = draw_map_seed(&mut gameplay_rng);
             }
-            let water_seed = if freeciv_mapgen {
+            let water_seed = if fractal_mapgen {
                 u64::from(current_map_seed)
             } else {
                 map_seed_u64.wrapping_add(0x1234_u64.wrapping_mul(attempt as u64))
@@ -741,7 +752,7 @@ impl Generator {
             // Freeciv seeds one map-generation stream, then continues it
             // through height, relief, terrain, rivers, water depth, and extras.
             let mut rng = MapRng::new(water_seed);
-            let (water_heights, heights, freeciv_land_mask, ocean_coverage) = match landmass_source
+            let (water_heights, heights, fractal_land_mask, ocean_coverage) = match landmass_source
             {
                 LandmassSource::OpenSimplex => {
                     let mut field =
@@ -754,8 +765,8 @@ impl Generator {
                     rank_field(&mut heights, 1000);
                     (field, heights, None, self.settings.ocean_coverage.percent())
                 }
-                LandmassSource::FreecivFractal(map_settings, _water_depths, divisions) => {
-                    let mut field = self.freeciv_fractal_height_field(
+                LandmassSource::Fractal(map_settings, _water_depths, divisions) => {
+                    let mut field = self.fractal_height_field(
                         &mut rng,
                         divisions,
                         map_settings.landmass_percent,
@@ -763,7 +774,7 @@ impl Generator {
                     );
                     self.taper_polar_landmass(&mut field, water_seed);
                     rank_field(&mut field, 1000);
-                    let land_mask = freeciv_land_mask(&field, map_settings);
+                    let land_mask = fractal_land_mask(&field, map_settings);
                     (
                         field.clone(),
                         field,
@@ -772,33 +783,31 @@ impl Generator {
                     )
                 }
             };
-            let freeciv_temperature = match landmass_source {
+            let zone_temperature = match landmass_source {
                 LandmassSource::OpenSimplex => None,
-                LandmassSource::FreecivFractal(map_settings, _, _) => {
-                    Some(self.freeciv_temperature_map(
-                        true,
-                        Some(&heights),
-                        freeciv_land_mask.as_deref(),
-                        map_settings,
-                    ))
-                }
+                LandmassSource::Fractal(map_settings, _, _) => Some(self.generate_temperature_map(
+                    true,
+                    Some(&heights),
+                    fractal_land_mask.as_deref(),
+                    map_settings,
+                )),
             };
             let (mut terrain, mut base_terrain, temperature) = self.terrain_pass(
                 &heights,
                 &water_heights,
                 &relief,
                 &biome_field,
-                freeciv_land_mask.as_deref(),
-                freeciv_temperature.as_ref(),
+                fractal_land_mask.as_deref(),
+                zone_temperature.as_ref(),
                 terrain_properties,
                 ocean_coverage,
                 &mut rng,
             );
-            if let LandmassSource::FreecivFractal(map_settings, water_depths, _) = landmass_source {
-                self.assign_freeciv_water_depths(
+            if let LandmassSource::Fractal(map_settings, water_depths, _) = landmass_source {
+                self.assign_water_depths(
                     &mut terrain,
                     &water_heights,
-                    freeciv_land_mask
+                    fractal_land_mask
                         .as_deref()
                         .expect("Freeciv fractal generation has a land mask"),
                     map_settings.shore_level(),
@@ -826,8 +835,8 @@ impl Generator {
                 &mut tiles,
                 &river_heights,
                 &temperature,
-                freeciv_temperature.as_ref(),
-                if freeciv_temperature.is_some() {
+                zone_temperature.as_ref(),
+                if zone_temperature.is_some() {
                     terrain_properties
                 } else {
                     None
@@ -838,8 +847,8 @@ impl Generator {
                 LandmassSource::OpenSimplex => {
                     self.finish_water(&mut terrain, &mut rng);
                 }
-                LandmassSource::FreecivFractal(_, water_depths, _) => {
-                    self.finish_freeciv_water_depths(&mut terrain, water_depths, &mut rng);
+                LandmassSource::Fractal(_, water_depths, _) => {
+                    self.finish_water_depths(&mut terrain, water_depths, &mut rng);
                 }
             }
             for (index, (tile, &terrain)) in tiles.iter_mut().zip(&terrain).enumerate() {
@@ -863,17 +872,17 @@ impl Generator {
                     terrain[index] = Terrain::FloodPlains;
                 }
             }
-            prune_civ3_river_edges(self.wrap, &mut tiles);
+            prune_river_edges(self.wrap, &mut tiles);
             self.place_resources(
                 &mut tiles,
                 &mut rng,
-                freeciv_map_settings,
+                fractal_map_settings,
                 terrain_properties,
             );
             self.place_huts(
                 &mut tiles,
                 &mut rng,
-                freeciv_map_settings,
+                fractal_map_settings,
                 terrain_properties,
             );
             // Freeciv restores the game-seeded stream after map generation.
@@ -890,8 +899,8 @@ impl Generator {
                 self.civilization_count,
                 &mut start_rng,
             ) {
-                if freeciv_map_settings.is_some() {
-                    self.advance_c2c3_map_label_randomness(&tiles, &mut start_rng);
+                if fractal_map_settings.is_some() {
+                    self.advance_map_label_randomness(&tiles, &mut start_rng);
                 }
                 return GeneratedMap {
                     seed: game_seed,
@@ -903,14 +912,14 @@ impl Generator {
                     civilization_count: self.civilization_count,
                 };
             }
-            if freeciv_mapgen {
+            if fractal_mapgen {
                 // Start-position search uses the gameplay stream after native
                 // map generation restores it. A failed attempt therefore
                 // leaves those draws in place before the next map-seed draw.
                 gameplay_rng = start_rng;
-                if attempt + 1 >= FREECIV_MAPGEN_MAX_ATTEMPTS {
+                if attempt + 1 >= MAPGEN_MAX_ATTEMPTS {
                     panic!(
-                        "Freeciv-compatible map generation failed to allocate start positions in {FREECIV_MAPGEN_MAX_ATTEMPTS} attempts"
+                        "Freeciv-compatible map generation failed to allocate start positions in {MAPGEN_MAX_ATTEMPTS} attempts"
                     );
                 }
             }
@@ -927,7 +936,9 @@ impl Generator {
     /// C2C3 sets `flatpoles=0`; its latitude-sensitive pole-midpoint branch is
     /// not replicated because CivCraft applies its ocean-only edge afterward.
     /// Algorithm source: Freeciv `server/generator/height_map.c` (GPL-2.0-or-later).
-    fn freeciv_fractal_height_field(
+    ///
+    /// Follows Freeciv's fractal height generator.
+    fn fractal_height_field(
         &self,
         rng: &mut MapRng,
         divisions: i32,
@@ -963,7 +974,7 @@ impl Generator {
                 let yt = y_current * ymax / divisions;
                 let xr = (x_current + 1) * xmax / divisions;
                 let yb = (y_current + 1) * ymax / divisions;
-                self.freeciv_fractal_subdivide(&mut values, rng, step, xl, yt, xr, yb);
+                self.fractal_subdivide(&mut values, rng, step, xl, yt, xr, yb);
             }
         }
 
@@ -978,7 +989,8 @@ impl Generator {
         clippy::too_many_arguments,
         reason = "Recursive subdivision carries the height field, RNG, step, and rectangular bounds."
     )]
-    fn freeciv_fractal_subdivide(
+    /// Follows Freeciv's fractal midpoint subdivision.
+    fn fractal_subdivide(
         &self,
         values: &mut [i32],
         rng: &mut MapRng,
@@ -1021,10 +1033,10 @@ impl Generator {
             (top_left + top_right + bottom_left + bottom_right) / 4,
         );
 
-        self.freeciv_fractal_subdivide(values, rng, reduced_step, xl, yt, xmid, ymid);
-        self.freeciv_fractal_subdivide(values, rng, reduced_step, xl, ymid, xmid, yb);
-        self.freeciv_fractal_subdivide(values, rng, reduced_step, xmid, yt, xr, ymid);
-        self.freeciv_fractal_subdivide(values, rng, reduced_step, xmid, ymid, xr, yb);
+        self.fractal_subdivide(values, rng, reduced_step, xl, yt, xmid, ymid);
+        self.fractal_subdivide(values, rng, reduced_step, xl, ymid, xmid, yb);
+        self.fractal_subdivide(values, rng, reduced_step, xmid, yt, xr, ymid);
+        self.fractal_subdivide(values, rng, reduced_step, xmid, ymid, xr, yb);
     }
 
     fn fractal_value(&self, values: &[i32], x: i32, y: i32) -> i32 {
@@ -1060,16 +1072,18 @@ impl Generator {
 #[derive(Clone, Copy)]
 enum LandmassSource {
     OpenSimplex,
-    FreecivFractal(MapGenerationSettings, OceanDepthSettings, i32),
+    /// Landmass from Freeciv's fractal generator.
+    Fractal(MapGenerationSettings, OceanDepthSettings, i32),
 }
 
-fn freeciv_land_mask(heights: &[i32], settings: MapGenerationSettings) -> Vec<bool> {
+/// Follows Freeciv's land mask derivation.
+fn fractal_land_mask(heights: &[i32], settings: MapGenerationSettings) -> Vec<bool> {
     let shore = settings.shore_level();
     heights.iter().map(|&height| height >= shore).collect()
 }
 
 #[cfg(test)]
-mod civ3_base_terrain_tests {
+mod base_terrain_tests {
     use super::*;
 
     #[test]
@@ -1144,7 +1158,7 @@ pub(crate) struct MapGenerationRequest {
     pub(crate) seed: u64,
     pub(crate) map_seed: u32,
     /// Gameplay RNG after Freeciv's unconditional map-seed draw.
-    pub(crate) gameplay_rng: FreecivRng,
+    pub(crate) gameplay_rng: GameRng,
     pub(crate) wrap: MapWrap,
     pub(crate) settings: WorldSettings,
     pub(crate) map_generation_settings: MapGenerationSettings,
@@ -1205,9 +1219,11 @@ pub(crate) struct OpenSimplexMapGenerator;
 
 /// Freeciv-inspired recursive fractal landmass field with CivCraft's
 /// terrain, feature, river, resource, and starting-location passes.
-pub(crate) struct FreecivFractalMapGenerator;
+///
+/// Follows Freeciv's fractal map generator.
+pub(crate) struct FractalMapGenerator;
 
-static DEFAULT_MAP_GENERATOR: FreecivFractalMapGenerator = FreecivFractalMapGenerator;
+static DEFAULT_MAP_GENERATOR: FractalMapGenerator = FractalMapGenerator;
 
 fn default_map_generator() -> &'static dyn MapGenerator {
     &DEFAULT_MAP_GENERATOR
@@ -1315,7 +1331,7 @@ fn apply_world_settings_to_fractal(
     (base, divisions)
 }
 
-impl MapGenerator for FreecivFractalMapGenerator {
+impl MapGenerator for FractalMapGenerator {
     fn generate(&self, request: MapGenerationRequest) -> GeneratedMap {
         let MapGenerationRequest {
             seed,
@@ -1329,7 +1345,7 @@ impl MapGenerator for FreecivFractalMapGenerator {
             civilization_count,
         } = request;
         assert!((4..=16).contains(&civilization_count));
-        terrain::validate_freeciv_terrain_mappings(&terrain_properties)
+        terrain::validate_terrain_mappings(&terrain_properties)
             .expect("mapgen terrains must map to CivCraft terrain identities");
         let (map_generation_settings, divisions) =
             apply_world_settings_to_fractal(map_generation_settings, settings, civilization_count);
@@ -1344,7 +1360,7 @@ impl MapGenerator for FreecivFractalMapGenerator {
             seed,
             map_seed,
             gameplay_rng,
-            LandmassSource::FreecivFractal(map_generation_settings, water_depths, divisions),
+            LandmassSource::Fractal(map_generation_settings, water_depths, divisions),
             Some(&terrain_properties),
             Some(start_scoring_settings),
         );
@@ -1357,7 +1373,7 @@ fn finalize_polar_ocean_boundary(
     shore: i32,
     map_seed: u32,
     mut map: GeneratedMap,
-    freeciv_water_depths: Option<OceanDepthSettings>,
+    fractal_water_depths: Option<OceanDepthSettings>,
 ) -> GeneratedMap {
     let wrap = generator.wrap;
     // The polar cap is a visual boundary in Civ III, not generated land.
@@ -1374,8 +1390,8 @@ fn finalize_polar_ocean_boundary(
         tile.hut = false;
     }
     let mut terrain: Vec<_> = map.tiles.iter().map(|tile| tile.terrain).collect();
-    if let Some(_water_depths) = freeciv_water_depths {
-        generator.finish_freeciv_lakes(&mut terrain);
+    if let Some(_water_depths) = fractal_water_depths {
+        generator.finish_lake_pass(&mut terrain);
     } else {
         generator.finish_water(&mut terrain, &mut MapRng::new(u64::from(map_seed)));
     }
@@ -1400,7 +1416,7 @@ fn finalize_polar_ocean_boundary(
         tile.river = false;
         tile.hut = false;
     }
-    prune_civ3_river_edges(wrap, &mut map.tiles);
+    prune_river_edges(wrap, &mut map.tiles);
     map
 }
 

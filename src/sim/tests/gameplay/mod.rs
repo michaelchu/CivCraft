@@ -146,8 +146,9 @@ mod ai_integration_tests {
         }
     }
 
+    /// Mirrors the civ2civ3 ruleset and Civ III behavior.
     #[test]
-    fn selected_c2c3_obsolete_wonder_requirements_use_the_civ3_research_tree() {
+    fn selected_ruleset_obsolete_wonder_requirements_use_the_native_research_tree() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         let settler = game
             .units
@@ -159,8 +160,9 @@ mod ai_integration_tests {
         assert_eq!(game.obsolete_wonders_test(), (true, true, true));
     }
 
+    /// Mirrors the civ2civ3 ruleset behavior.
     #[test]
-    fn nuclear_ai_role_scenario_matches_the_selected_c2c3_record() {
+    fn nuclear_ai_role_scenario_matches_the_selected_ruleset_record() {
         let game = Simulation::new(crate::mapgen::generate(42));
         assert!(game.nuclear_ai_role_test());
     }

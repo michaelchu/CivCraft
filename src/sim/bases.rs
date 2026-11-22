@@ -114,8 +114,9 @@ mod tests {
         assert_eq!(game.tile(x, y).base, Some(Base::Fort));
     }
 
+    /// Mirrors the civ2civ3 ruleset behavior.
     #[test]
-    fn c2c3_airstrip_requirements_replace_a_conflicting_fort() {
+    fn ruleset_airstrip_requirements_replace_a_conflicting_fort() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         game.units.clear();
         let (x, y) = (10, 20);

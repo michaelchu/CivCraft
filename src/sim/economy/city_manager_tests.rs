@@ -104,8 +104,9 @@ fn city_manager_allocates_all_population_including_foreign_nationalities() {
     );
 }
 
+/// Mirrors the civ2civ3 ruleset behavior.
 #[test]
-fn martial_law_caps_follow_the_selected_c2c3_ruleset() {
+fn martial_law_caps_follow_the_selected_ruleset() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
@@ -141,8 +142,9 @@ fn martial_law_caps_follow_the_selected_c2c3_ruleset() {
     }
 }
 
+/// Mirrors Freeciv behavior.
 #[test]
-fn field_units_do_not_create_freeciv_unhappiness_or_military_police_from_airbases() {
+fn field_units_do_not_create_reference_unhappiness_or_military_police_from_airbases() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
@@ -251,8 +253,9 @@ fn unit_unrest_still_changes_city_feelings_without_martial_law() {
     }
 }
 
+/// Mirrors Civ III behavior.
 #[test]
-fn disorder_keeps_civ3_gold_support_out_of_food_and_shield_outputs() {
+fn disorder_keeps_native_gold_support_out_of_food_and_shield_outputs() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();

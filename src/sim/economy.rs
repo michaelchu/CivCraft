@@ -116,7 +116,7 @@ impl Simulation {
         // remain to produce a candidate forecast.
         let mut gross = raw;
         gross.2 += self.trade_route_income(city, None);
-        let yields = self.c2c3_finalize_city_outputs_cached(city, gross, output_rules);
+        let yields = self.finalize_city_outputs_cached(city, gross, output_rules);
         let [science, gold, luxury] = {
             let _profile = self
                 .trace

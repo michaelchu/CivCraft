@@ -636,7 +636,7 @@ impl Simulation {
         // should still replace routine unit advice when they would promote
         // that unit to Veteran; only an existing rank above the default
         // means the city already grants the training effect.
-        let default_rank = crate::sim::civ3_unit_rules::default_experience_rank();
+        let default_rank = crate::sim::unit_rules::default_experience_rank();
         if kind.is_civilian() || kind.no_veteran() || self.trained_rank(city, kind) > default_rank {
             return;
         }

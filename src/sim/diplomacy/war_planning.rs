@@ -43,7 +43,7 @@ impl Simulation {
                 {
                     continue;
                 }
-                for (x, y, _) in self.map_wrap.civ3_radius(city.x, city.y, 3) {
+                for (x, y, _) in self.map_wrap.tiles_within_steps(city.x, city.y, 3) {
                     let objective = WarObjective {
                         city: city.id,
                         muster_city: home.id,
@@ -164,7 +164,7 @@ impl Simulation {
         let mut expected = self.make_unit(0, city.owner, UnitKind::Spearman, city.x, city.y);
         expected.state = UnitState::Fortified;
         let mut defenders = vec![&expected];
-        for (x, y, distance) in self.map_wrap.civ3_radius(city.x, city.y, 3) {
+        for (x, y, distance) in self.map_wrap.tiles_within_steps(city.x, city.y, 3) {
             if distance == 0 {
                 continue;
             }
