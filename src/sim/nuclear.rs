@@ -1,5 +1,6 @@
-//! Implements nuclear behavior using the selected Freeciv action and effect
-//! rules.
+//! Implements Civilization III: Conquests nuclear weapon mechanics (3x3 blast
+//! and fallout, city population halving, 50% city improvement destruction, 50%
+//! unit kill with survivor HP halving, and empire-wide SDI Defense).
 
 use super::*;
 use crate::rules::engine_rules::RulesetData;
@@ -25,21 +26,6 @@ fn nuclear_action_consumes_weapon(action: &str) -> bool {
         "Nuke Units" => cached[2],
         _ => panic!("unsupported nuclear action {action:?}"),
     }
-}
-
-fn freeciv_map_offsets_within_radius(radius: i32) -> Vec<(i32, i32, i32)> {
-    let radius = radius.max(0);
-    let mut offsets = (-radius..=radius)
-        .flat_map(|dy| (-radius..=radius).map(move |dx| (dx, dy)))
-        .filter_map(|(dx, dy)| {
-            let distance = crate::world::topology::isohex_vector_distance(dx, dy);
-            (distance <= radius).then_some((distance, dx, dy))
-        })
-        .collect::<Vec<_>>();
-    // common/map.c:generate_map_indices and common/city.c:compare_iter_index
-    // sort Freeciv circle/square iteration by distance, then dx, then dy.
-    offsets.sort_unstable();
-    offsets
 }
 
 impl Simulation {
@@ -201,73 +187,96 @@ impl Simulation {
             .collect()
     }
 
-    fn nuke_proof_chance(
-        &self,
-        weapon: &Unit,
-        action: &str,
-        blast: (i32, i32),
-        city: &super::City,
-    ) -> i32 {
-        let context =
-            super::action_rules::SimulationRequirementContext::for_city_at(self, city, Some(blast))
-                .with_relation_target(Some(weapon.owner))
-                .with_action(action);
-        let value = context.effect(EffectKind::NukeProof);
-        i32::try_from(value).expect("selected C2C3 Nuke_Proof value fits in i32")
-    }
-
-    fn apply_nuclear_city_population_loss(&mut self, city_id: u32, loss_pct: i32) {
+    /// Civ III nuclear city strike: halves population (never razing a size-1
+    /// city) and destroys each non-wonder, non-Palace improvement with a 50%
+    /// chance. Returns the number of destroyed improvements.
+    fn apply_nuclear_city_damage(&mut self, city_id: u32) -> i32 {
         let Some(index) = self.city_index_by_id(city_id) else {
-            return;
+            return 0;
         };
         let size = self.cities[index].size;
-        let loss = ((i64::from(loss_pct) * i64::from(size) + 50) / 100) as i32;
-        if loss <= 0 {
-            return;
-        }
-        if loss >= size {
-            // cityturn.c:city_reduce_size removes a city when the requested
-            // population loss is at least its current size.
-            self.remove_city_because(city_id, lifecycle::CityRemoval::Nuclear, None);
-            return;
+        let loss = (size / 2).min((size - 1).max(0));
+        if loss > 0 {
+            self.cities[index].size -= loss;
+            self.cities[index].food = self.cities[index]
+                .food
+                .min(Self::growth_box(self.cities[index].size));
+            self.cities[index].remove_citizen_assignments(loss, self.map_wrap);
+            self.remove_citizen_nationalities(index, loss);
+            self.rebuild_city_ownership_for_city_event(city_id);
+            self.arrange_city_event_workers(city_id);
         }
 
-        // Match cityturn.c:city_reduce_size: reduce population, cap the
-        // granary, remove specialists before workers, update nationalities,
-        // then refresh borders and the worker allocation.
-        self.cities[index].size -= loss;
-        self.cities[index].food = self.cities[index]
-            .food
-            .min(Self::growth_box(self.cities[index].size));
-        self.cities[index].remove_citizen_assignments(loss, self.map_wrap);
-        self.remove_citizen_nationalities(index, loss);
-        self.rebuild_city_ownership_for_city_event(city_id);
-        self.arrange_city_event_workers(city_id);
+        let Some(index) = self.city_index_by_id(city_id) else {
+            return 0;
+        };
+        let candidates: Vec<Building> = self.cities[index]
+            .buildings
+            .iter()
+            .copied()
+            .filter(|&building| {
+                building != Building::PALACE
+                    && building.data().genus == crate::rules::Genus::Improvement
+            })
+            .collect();
+        let mut destroyed = Vec::new();
+        for building in candidates {
+            if self.rand_below(2) == 0 {
+                destroyed.push(building);
+            }
+        }
+        if !destroyed.is_empty()
+            && let Some(city) = self.cities.iter_mut().find(|city| city.id == city_id)
+        {
+            for &building in &destroyed {
+                city.buildings.retain(|&current| current != building);
+                city.forget_culture_building(building);
+            }
+        }
+        destroyed.len() as i32
     }
 
-    fn nuclear_sdi_intercepts(
-        &mut self,
-        weapon: &Unit,
-        action: &str,
-        x: i32,
-        y: i32,
-    ) -> Option<usize> {
-        // common/combat.c:sdi_try_defend uses square_iterate with radius 2,
-        // which walks in Freeciv distance order (rather than just checking
-        // the city on the detonated tile). CivCraft's campaign uses the
-        // selected ISO|HEX map distance on its horizontally wrapped grid.
-        for (_, dx, dy) in freeciv_map_offsets_within_radius(2) {
-            let Some((cx, cy)) = self.map_wrap.offset(x, y, dx, dy) else {
+    /// Civ III Small Wonder SDI Defense: protects the entire civilization
+    /// against incoming nuclear weapons targeting any of its cities, territory,
+    /// or units within the 3x3 blast zone. Interception rate is 75% against
+    /// ICBMs and 37.5% (75% detection with 50% tactical evasion) against
+    /// Tactical Nukes.
+    fn nuclear_sdi_intercepts(&mut self, weapon: &Unit, x: i32, y: i32) -> Option<usize> {
+        let affected = self.nuclear_blast_tiles(x, y);
+        let mut defenders = Vec::new();
+        for &(tx, ty) in &affected {
+            if let Some(city) = self.city_at(tx, ty)
+                && city.owner != weapon.owner
+                && !defenders.contains(&city.owner)
+            {
+                defenders.push(city.owner);
+            }
+            if let Some(owner) = self.tile(tx, ty).owner
+                && owner != weapon.owner
+                && !defenders.contains(&owner)
+            {
+                defenders.push(owner);
+            }
+            for unit in self.tile_units_ordered(tx, ty) {
+                if unit.owner != weapon.owner && !defenders.contains(&unit.owner) {
+                    defenders.push(unit.owner);
+                }
+            }
+        }
+        defenders.sort_unstable();
+        for defender in defenders {
+            let has_sdi = self
+                .cities
+                .iter()
+                .any(|city| city.owner == defender && city.has_building(Building::SDI_DEFENSE));
+            if !has_sdi {
                 continue;
-            };
-            let Some(city_index) = self.city_index_at(cx, cy) else {
-                continue;
-            };
-            let chance = self.nuke_proof_chance(weapon, action, (x, y), &self.cities[city_index]);
-            // The source calls fc_rand(100) for every city in the searched
-            // area even when Nuke_Proof is zero, and stops at the first hit.
-            if self.rand_below(100) < chance {
-                return Some(self.cities[city_index].owner);
+            }
+            if self.rand_below(100) < 75 {
+                let evaded = weapon.kind == UnitKind::TacticalNuke && self.rand_below(2) == 0;
+                if !evaded {
+                    return Some(defender);
+                }
             }
         }
         None
@@ -302,7 +311,7 @@ impl Simulation {
                     .find(|unit| unit.owner != weapon.owner)
                     .map(|unit| unit.owner)
             });
-        if let Some(defending_city_owner) = self.nuclear_sdi_intercepts(weapon, action, x, y) {
+        if let Some(defending_city_owner) = self.nuclear_sdi_intercepts(weapon, x, y) {
             self.publish_visual_event(VisualEvent::AirMission(Box::new(
                 presentation::AirMissionVisual {
                     aircraft: weapon.clone(),
@@ -361,15 +370,13 @@ impl Simulation {
         }
 
         let affected = self.nuclear_blast_tiles(x, y);
-        let combat_rules = RulesetData::campaign_default()
-            .combat_settings()
-            .expect("selected C2C3 nuclear combat settings are valid");
 
         let mut casualties = 0;
+        let mut units_damaged = 0;
         let mut cities_hit = 0;
+        let mut buildings_destroyed = 0;
         let mut fallout_tiles = 0;
         for &(tx, ty) in &affected {
-            let city_tile = self.city_at(tx, ty).is_some();
             let unit_ids = self
                 .units
                 .iter()
@@ -377,33 +384,35 @@ impl Simulation {
                 .map(|unit| unit.id)
                 .collect::<Vec<_>>();
             for unit_id in unit_ids {
-                // A previous carrier loss can unload or rescue this unit.
-                // Freeciv iterates the live tile list, so units moved off the
-                // blast tile are no longer casualties in this iteration.
                 if self
                     .unit_by_id(unit_id)
                     .is_none_or(|unit| (unit.x, unit.y) != (tx, ty))
                 {
                     continue;
                 }
-                if city_tile
-                    && self.rand_below(100) < combat_rules.nuke_defender_survival_chance_pct
-                {
-                    continue;
+                // Civ III nuclear blast: each unit in the 3x3 rolls 50% chance
+                // of destruction; survivors lose half their remaining HP
+                // (rounded up, floored at 1 HP).
+                if self.rand_below(2) == 0 {
+                    let before = self.units.len();
+                    self.remove_units_with_cargo_because(
+                        vec![unit_id],
+                        lifecycle::UnitRemoval::Nuclear,
+                    );
+                    let removed = before.saturating_sub(self.units.len()) as i32;
+                    casualties += removed;
+                    self.nation_scores[weapon.owner].units_killed += removed;
+                } else if let Some(unit) = self.units.iter_mut().find(|u| u.id == unit_id) {
+                    let damage = (unit.hp + 1) / 2;
+                    unit.hp = (unit.hp - damage).max(1);
+                    units_damaged += 1;
+                    self.sync_army_damage(unit_id);
                 }
-                let before = self.units.len();
-                self.remove_units_with_cargo_because(
-                    vec![unit_id],
-                    lifecycle::UnitRemoval::Nuclear,
-                );
-                let removed = before.saturating_sub(self.units.len()) as i32;
-                casualties += removed;
-                self.nation_scores[weapon.owner].units_killed += removed;
             }
             if let Some(index) = self.city_index_at(tx, ty) {
                 cities_hit += 1;
                 let city_id = self.cities[index].id;
-                self.apply_nuclear_city_population_loss(city_id, combat_rules.nuke_pop_loss_pct);
+                buildings_destroyed += self.apply_nuclear_city_damage(city_id);
             }
             let had_fallout = self.tile(tx, ty).fallout;
             self.place_nuclear_fallout(tx, ty);
@@ -418,9 +427,16 @@ impl Simulation {
         // Casus_Belli_Success effect determine whether a provocation is due.
         self.action_success_casus_belli(weapon, action, self.tile(x, y).owner, (x, y));
         self.check_game_over();
-        self.add_event(format!(
-            "A nuclear weapon detonated, destroying {casualties} units."
-        ));
+        let detail = if buildings_destroyed > 0 {
+            format!(
+                "A nuclear weapon detonated: {casualties} units destroyed, {units_damaged} damaged, {buildings_destroyed} improvements destroyed."
+            )
+        } else {
+            format!(
+                "A nuclear weapon detonated: {casualties} units destroyed, {units_damaged} damaged."
+            )
+        };
+        self.add_event(detail);
         if self
             .trace
             .wants::<military_observation::NuclearStrikeEvent>()
@@ -655,13 +671,29 @@ mod tests {
     }
 
     #[test]
-    fn civ3_nuke_pollutes_all_nonwater_noncity_land_in_three_by_three_and_clears_improvements() {
+    fn civ3_nuke_halves_population_kills_or_redlines_units_destroys_half_improvements_and_pollutes_3x3()
+     {
         let mut game = nuclear_game();
         let (x, y) = (10, 20);
         game.create_city(HUMAN, x, y);
         let city_index = game.city_index_at(x, y).unwrap();
         game.cities[city_index].size = 10;
         game.cities[city_index].food = 100;
+        // Palace, Great Wonder, Small Wonder must always survive; regular
+        // improvements each roll 50% destruction.
+        game.cities[city_index].buildings.extend([
+            Building::PALACE,
+            Building::GREAT_LIBRARY,
+            Building::PENTAGON,
+            Building::BARRACKS_III,
+            Building::TEMPLE,
+            Building::MARKETPLACE,
+            Building::LIBRARY,
+            Building::UNIVERSITY,
+            Building::BANK,
+            Building::FACTORY,
+            Building::CATHEDRAL,
+        ]);
         let nearby = game.map_wrap.civ3_neighbor(x, y, 2).unwrap();
         game.tile_mut(nearby.0, nearby.1).owner = Some(HUMAN);
         game.tile_mut(nearby.0, nearby.1).road = true;
@@ -671,29 +703,56 @@ mod tests {
         let coast = game.map_wrap.civ3_neighbor(x, y, 0).unwrap();
         game.tile_mut(coast.0, coast.1).terrain = Terrain::Coast;
         let nuke = make_nuke(&mut game, x, y);
-        let city_defender = game.spawn_unit(HUMAN, UnitKind::Warrior, x, y);
-        let exposed = game.spawn_unit(HUMAN, UnitKind::Warrior, nearby.0, nearby.1);
-        let carrier = game.spawn_unit(HUMAN, UnitKind::Carrier, x, y);
-        let passenger = game.spawn_unit(HUMAN, UnitKind::Fighter, x, y);
-        game.units
-            .iter_mut()
-            .find(|unit| unit.id == passenger)
-            .unwrap()
-            .transport = Some(carrier);
+        let mut tracked_units = Vec::new();
+        for _ in 0..10 {
+            let id = game.spawn_unit(HUMAN, UnitKind::Infantry, x, y);
+            game.units.iter_mut().find(|u| u.id == id).unwrap().hp = 4;
+            tracked_units.push(id);
+        }
+        let exposed = game.spawn_unit(HUMAN, UnitKind::Infantry, nearby.0, nearby.1);
+        game.units.iter_mut().find(|u| u.id == exposed).unwrap().hp = 4;
+        tracked_units.push(exposed);
         game.native_random = Some(FreecivRng::new(87));
 
         let blast_tiles = game.nuclear_blast_tiles(x, y);
         assert_eq!(blast_tiles.len(), 9);
         assert!(game.apply(Command::NuclearStrike(nuke, x, y)));
         assert_eq!(game.cities[city_index].size, 5);
-        assert!(game.unit_by_id(city_defender).is_none());
-        assert!(game.unit_by_id(carrier).is_none());
-        assert!(game.unit_by_id(passenger).is_none());
-        assert!(game.unit_by_id(exposed).is_none());
         assert_eq!(
             game.cities[city_index].food,
             Simulation::growth_box(5),
-            "cityturn.c caps food stock to the reduced granary"
+            "granary food stock is capped to the reduced city size"
+        );
+        // Palace, Great Wonder, and Small Wonder always survive.
+        let city = &game.cities[city_index];
+        assert!(city.has_building(Building::PALACE));
+        assert!(city.has_building(Building::GREAT_LIBRARY));
+        assert!(city.has_building(Building::PENTAGON));
+        let remaining_regular = city
+            .buildings
+            .iter()
+            .filter(|b| {
+                **b != Building::PALACE && b.data().genus == crate::rules::Genus::Improvement
+            })
+            .count();
+        assert!(
+            remaining_regular < 8,
+            "expected some regular improvements destroyed by 50% roll; remaining={remaining_regular}"
+        );
+        // Units roll 50% destruction; any survivor is halved from 4 HP -> 2 HP.
+        let mut killed = 0;
+        let mut survived = 0;
+        for id in tracked_units {
+            if let Some(u) = game.unit_by_id(id) {
+                survived += 1;
+                assert_eq!(u.hp, 2, "surviving 4-HP unit should lose half its HP");
+            } else {
+                killed += 1;
+            }
+        }
+        assert!(
+            killed > 0 && survived > 0,
+            "expected mixed unit kills ({killed}) and survivors ({survived})"
         );
         // Every non-water, non-city tile in the 3x3 gets fallout; water tiles
         // (both Coast and Ocean) and the surviving city center stay clear.
@@ -710,77 +769,72 @@ mod tests {
     }
 
     #[test]
-    fn nuclear_population_loss_removes_a_city_when_loss_reaches_its_size() {
+    fn civ3_nuclear_strike_never_razes_a_size_one_city() {
         let mut game = nuclear_game();
         game.create_city(HUMAN, 10, 20);
         let city_id = game.cities[0].id;
-        game.cities[0].size = 2;
+        game.cities[0].size = 1;
         game.players[HUMAN].gold = 0;
 
-        game.apply_nuclear_city_population_loss(city_id, 100);
+        game.apply_nuclear_city_damage(city_id);
 
-        assert!(game.city_index_by_id(city_id).is_none());
+        let city = game
+            .city_by_id(city_id)
+            .expect("Civ III nukes never raze cities");
+        assert_eq!(city.size, 1);
+    }
+
+    #[test]
+    fn civ3_sdi_small_wonder_protects_entire_empire_with_icbm_75_and_tactical_37_5_odds() {
+        // Place SDI Defense in a distant city (15 tiles away from the target)
+        // belonging to civ 1; it still protects civ 1's target city.
+        let mut icbm_intercepts = 0;
+        let mut tact_intercepts = 0;
+        let trials = 400;
+        for seed in 0..trials {
+            for (kind, counter) in [
+                (UnitKind::ICBM, &mut icbm_intercepts),
+                (UnitKind::TacticalNuke, &mut tact_intercepts),
+            ] {
+                let mut game = nuclear_game();
+                let target = (10, 20);
+                let distant_sdi = (25, 20);
+                game.sign_pact(HUMAN, 1, Pact::War);
+                game.create_city(1, target.0, target.1);
+                game.create_city(1, distant_sdi.0, distant_sdi.1);
+                let sdi_index = game.city_index_at(distant_sdi.0, distant_sdi.1).unwrap();
+                game.cities[sdi_index].buildings.push(Building::SDI_DEFENSE);
+                let weapon = Unit::new(99, HUMAN, kind, 10, 20);
+                game.native_random = Some(FreecivRng::new(seed + 1));
+                if game.nuclear_sdi_intercepts(&weapon, target.0, target.1) == Some(1) {
+                    *counter += 1;
+                }
+            }
+        }
+        // Expected: ~300/400 (75%) for ICBM and ~150/400 (37.5%) for Tactical Nuke.
         assert!(
-            game.units
-                .iter()
-                .all(|unit| unit.home_city != Some(city_id))
+            (250..=350).contains(&icbm_intercepts),
+            "ICBM SDI intercept count {icbm_intercepts}/{trials} out of 75% band"
+        );
+        assert!(
+            (105..=195).contains(&tact_intercepts),
+            "Tactical Nuke SDI intercept count {tact_intercepts}/{trials} out of 37.5% band"
         );
     }
 
     #[test]
-    fn sdi_uses_nuke_proof_effects_across_freeciv_square_radius_and_stops_rng() {
+    fn own_sdi_defense_does_not_intercept_own_nuclear_strike() {
         let mut game = nuclear_game();
         let (x, y) = (10, 20);
         game.sign_pact(HUMAN, 1, Pact::War);
         let nuke = make_nuke(&mut game, x, y);
-        let no_sdi = game.map_wrap.offset(x, y, 1, 0).unwrap();
-        game.create_city(1, no_sdi.0, no_sdi.1);
-        let sdi = game.map_wrap.offset(x, y, 2, 0).unwrap();
-        game.create_city(1, sdi.0, sdi.1);
-        let city_index = game.city_index_at(sdi.0, sdi.1).unwrap();
+        game.create_city(HUMAN, x, y);
+        let city_index = game.city_index_at(x, y).unwrap();
         game.cities[city_index]
             .buildings
             .push(Building::SDI_DEFENSE);
-        game.native_random = Some(FreecivRng::new(91));
-        let mut expected_random = game.native_random.clone().unwrap();
-        expected_random.draw(100); // Nearby city with zero Nuke_Proof.
-        expected_random.draw(100); // SDI city, guaranteed Nuke_Proof.
-
-        let intercepting_city = game.unit_by_id(nuke).unwrap().clone();
-        assert_eq!(
-            game.nuclear_sdi_intercepts(&intercepting_city, "Explode Nuclear", x, y),
-            Some(1),
-            "the first successful SDI city supplies the caught-action victim"
-        );
-        game.native_random = Some(FreecivRng::new(91));
-
+        game.native_random = Some(FreecivRng::new(32));
         assert!(game.apply(Command::NuclearStrike(nuke, x, y)));
-        assert!(game.unit_by_id(nuke).is_none());
-        assert!(
-            game.events
-                .iter()
-                .any(|event| event.contains("SDI Defense"))
-        );
-        assert!(!game.events.iter().any(|event| event.contains("detonated")));
-        assert_eq!(game.native_random, Some(expected_random));
-    }
-
-    #[test]
-    fn sdi_outside_freeciv_radius_and_nonforeign_sdi_do_not_intercept() {
-        for (owner, distance) in [(HUMAN, 1), (1, 3)] {
-            let mut game = nuclear_game();
-            let (x, y) = (10, 20);
-            game.sign_pact(HUMAN, 1, Pact::War);
-            let nuke = make_nuke(&mut game, x, y);
-            let position = game.map_wrap.offset(x, y, distance, 0).unwrap();
-            game.create_city(owner, position.0, position.1);
-            let city_index = game.city_index_at(position.0, position.1).unwrap();
-            game.cities[city_index]
-                .buildings
-                .push(Building::SDI_DEFENSE);
-            game.native_random = Some(FreecivRng::new(32));
-            assert!(game.apply(Command::NuclearStrike(nuke, x, y)));
-            assert!(game.events.iter().any(|event| event.contains("detonated")));
-        }
+        assert!(game.events.iter().any(|event| event.contains("detonated")));
     }
 }

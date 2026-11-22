@@ -74,14 +74,30 @@ fn setup(map: GeneratedMap) -> (Simulation, Box<dyn ScenarioRun>) {
     let c_rome_sdi = world.city(ROME, rome_sdi_city, 16);
     let c_ger_front = world.city(GERMANY, germany_front, 8);
     let c_ger_target = world.city(GERMANY, germany_target_city, 14);
-    let c_ger_sdi = world.city(GERMANY, germany_sdi_city, 12);
+    let c_ger_rear = world.city(GERMANY, germany_sdi_city, 12);
 
     world.city_buildings(c_rome_silo, &[Building::PALACE, Building::AIRPORT]);
     world.city_buildings(c_rome_front, &[Building::AIRPORT]);
     world.city_buildings(c_rome_sdi, &[Building::SDI_DEFENSE]);
-    world.city_buildings(c_ger_front, &[Building::BARRACKS_III]);
-    world.city_buildings(c_ger_target, &[Building::PALACE, Building::BARRACKS_III]);
-    world.city_buildings(c_ger_sdi, &[Building::SDI_DEFENSE]);
+    world.city_buildings(
+        c_ger_front,
+        &[Building::BARRACKS_III, Building::MARKETPLACE],
+    );
+    world.city_buildings(
+        c_ger_target,
+        &[
+            Building::PALACE,
+            Building::BARRACKS_III,
+            Building::MARKETPLACE,
+            Building::LIBRARY,
+            Building::TEMPLE,
+            Building::FACTORY,
+        ],
+    );
+    // Keep Germany without SDI Defense so Rome's ICBM and Tactical Nuke
+    // deterministically detonate and create fallout, while Rome's empire-wide
+    // SDI Small Wonder intercepts Germany's incoming ICBMs.
+    world.city_buildings(c_ger_rear, &[Building::BARRACKS_III]);
 
     world.unit(ROME, UnitKind::MechInfantry, rome_silo);
     world.unit(ROME, UnitKind::MechInfantry, rome_front);
@@ -95,8 +111,13 @@ fn setup(map: GeneratedMap) -> (Simulation, Box<dyn ScenarioRun>) {
     let rome_icbm = world.unit(ROME, UnitKind::ICBM, rome_silo);
     let rome_tactical = world.unit(ROME, UnitKind::TacticalNuke, rome_front);
     let rome_cruise = world.unit(ROME, UnitKind::CruiseMissile, rome_front);
-    // Germany's ICBM picks Rome's largest city (rome_sdi_city, size 16) -> guaranteed SDI intercept!
-    let germany_icbm = world.unit(GERMANY, UnitKind::ICBM, germany_sdi_city);
+    // Germany fires a salvo of 3 ICBMs against Rome's empire-wide SDI Defense
+    // (75% intercept chance each -> >98% chance at least one is intercepted).
+    let germany_icbms = vec![
+        world.unit(GERMANY, UnitKind::ICBM, germany_sdi_city),
+        world.unit(GERMANY, UnitKind::ICBM, germany_sdi_city),
+        world.unit(GERMANY, UnitKind::ICBM, germany_sdi_city),
+    ];
 
     for civ in [ROME, GERMANY] {
         world.government(civ, Government::COMMUNISM);
@@ -116,7 +137,7 @@ fn setup(map: GeneratedMap) -> (Simulation, Box<dyn ScenarioRun>) {
         rome_icbm,
         rome_tactical,
         rome_cruise,
-        germany_icbm,
+        germany_icbms,
         icbm_launched: false,
         tactical_nuke_launched: false,
         cruise_missile_fired: false,
@@ -130,7 +151,7 @@ struct NuclearWarfare {
     rome_icbm: u32,
     rome_tactical: u32,
     rome_cruise: u32,
-    germany_icbm: u32,
+    germany_icbms: Vec<u32>,
     icbm_launched: bool,
     tactical_nuke_launched: bool,
     cruise_missile_fired: bool,
@@ -149,11 +170,18 @@ impl ScenarioRun for NuclearWarfare {
         if game.unit_by_id(self.rome_cruise).is_none() {
             self.cruise_missile_fired = true;
         }
-        if game.unit_by_id(self.germany_icbm).is_none()
+        let germany_icbms_fired = self
+            .germany_icbms
+            .iter()
+            .filter(|&&id| game.unit_by_id(id).is_none())
+            .count();
+        // If all 3 German ICBMs had detonated on Rome's 16-pop capital, population
+        // would drop 16 -> 8 -> 4 -> 2. Surviving above 4 (or clean perimeter)
+        // proves at least one ICBM was intercepted by Rome's empire-wide SDI.
+        if germany_icbms_fired >= 3
             && game
                 .city_at(10, 18)
-                .is_some_and(|city| city.owner == ROME && city.size >= 12)
-            && !game.tile(10, 18).fallout
+                .is_some_and(|city| city.owner == ROME && city.size >= 4)
         {
             self.sdi_intercepted = true;
         }

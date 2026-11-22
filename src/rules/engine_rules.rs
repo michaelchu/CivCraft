@@ -838,12 +838,11 @@ impl RulesetData {
         )
     }
 
-    /// Load the generic engine layer from the CivCraft campaign package.
+    /// Load the generic engine layer from `src/rules/engine_data/`.
     /// Native content catalogs construct independently, without import bindings.
     #[cfg(test)]
-    pub(crate) fn load_civcraft(data_root: &Path) -> Result<Self, LoadError> {
-        let engine_dir = data_root.join("civcraft/engine");
-        Self::load_from_directory(data_root, &engine_dir, "civcraft")
+    pub(crate) fn load_civcraft(engine_dir: &Path) -> Result<Self, LoadError> {
+        Self::load_from_directory(engine_dir, engine_dir, "civcraft")
     }
 
     /// Cache the single CivCraft campaign package once.
@@ -2496,13 +2495,8 @@ mod tests {
 
     #[test]
     fn packaged_baseline_loads_only_selected_civcraft_ruleset_files() {
-        let data_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data/rulesets");
-        let rules = RulesetData::load_from_directory(
-            &data_root,
-            &data_root.join("civcraft/engine"),
-            "civcraft",
-        )
-        .unwrap();
+        let engine_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/rules/engine_data");
+        let rules = RulesetData::load_from_directory(&engine_dir, &engine_dir, "civcraft").unwrap();
 
         assert_eq!(rules.name, "civcraft");
         assert_eq!(rules.files.len(), RULESET_FILES.len());
@@ -2551,17 +2545,13 @@ mod tests {
             0,
             "the mechanics ruleset no longer embeds nation records"
         );
-        assert!(
-            data_root
-                .join("civcraft/engine/UPSTREAM_MANIFEST.tsv")
-                .is_file()
-        );
+        assert!(engine_dir.join("UPSTREAM_MANIFEST.tsv").is_file());
     }
 
     #[test]
     fn campaign_ruleset_keeps_native_catalogs_separate_from_engine_records() {
-        let data_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data/rulesets");
-        let rules = RulesetData::load_civcraft(&data_root).unwrap();
+        let engine_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/rules/engine_data");
+        let rules = RulesetData::load_civcraft(&engine_dir).unwrap();
 
         assert_eq!(rules.effects.len(), 510);
         assert_eq!(

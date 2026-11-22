@@ -243,20 +243,26 @@ fog peeking. Validate with `air-counter-defense` (6 turns), its parallel
 control `air-counter-defense-control` (6 turns), and `air-warfare` (10 turns)
 at seeds 42, 7 and 99, plus source-adjacent tests in `src/sim/aviation/tests.rs`.
 
-### Recorded exception: nuclear blast & fallout (Civ III)
+### Recorded exception: nuclear weapons & fallout (Civ III Conquests)
 
-The owner authorized Civilization III nuclear blast and fallout rules on
+The owner authorized Civilization III: Conquests nuclear weapon rules on
 2026-11-21. A nuclear detonation affects the full 3×3 square (ground zero plus
 all 8 Civ III compass neighbors, 9 tiles total) rather than Freeciv's 7-tile
 ISO|HEX radius. Every non-water, non-city land tile inside that 3×3 blast zone
 deterministically receives nuclear fallout (`tile.fallout = true`) and loses its
 terrain improvements (roads, railroads, mines, irrigation, farmland, oil wells,
-and bases). Water tiles (Coast, Sea, Ocean, Lake) and surviving city-center
-tiles do not receive tile fallout; if a city is destroyed by the blast, its
-former tile becomes bare land and receives fallout. SDI Defense interception
-and city/unit casualty resolution retain their existing engine rules. Validate
-with `nuclear-warfare` (3 turns at seeds 42, 7 and 99) and the tests in
-`src/sim/nuclear.rs`.
+and bases); water tiles (Coast, Sea, Ocean, Lake) and surviving city-center
+tiles do not receive tile fallout. A nuked city loses half its population
+(`size / 2`, minimum size 1; nukes never raze a city), caps food to its new
+granary, and rolls an independent 50% destruction chance for each regular city
+improvement (`Genus::Improvement`), preserving the Palace, Small Wonders, and
+Great Wonders. Every unit caught in the 3×3 blast zone rolls an independent 50%
+destruction chance; survivors lose half their remaining HP (`(hp + 1) / 2`,
+floored at 1 HP). `SDI_DEFENSE` is an empire-wide Small Wonder that intercepts
+enemy nuclear strikes targeting any city, tile, or unit of its owner inside the
+3×3 blast zone with a 75% chance against ICBMs and 37.5% (75% detection with
+50% tactical evasion) against Tactical Nukes. Validate with `nuclear-warfare`
+(3 turns at seeds 42, 7 and 99) and the tests in `src/sim/nuclear.rs`.
 
 ## Comparison source checkout
 

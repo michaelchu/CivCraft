@@ -20,9 +20,9 @@ macro_rules! campaign_files {
     ($($name:literal),+ $(,)?) => {
         pub(crate) const RULESET_FILES: &[&str] = &[$($name),+];
         fn embedded_ruleset_source(path: &Path) -> Option<&'static str> {
-            match path.strip_prefix("civcraft/engine").ok().and_then(Path::to_str) {
+            match path.strip_prefix("engine_data").ok().and_then(Path::to_str) {
                 $(Some($name) => Some(include_str!(
-                    concat!("../../../data/rulesets/civcraft/engine/", $name)
+                    concat!("../engine_data/", $name)
                 )),)+
                 _ => None,
             }
@@ -69,7 +69,7 @@ impl RulesetData {
     pub(super) fn load_bundled_campaign() -> Result<Self, LoadError> {
         let mut files = Vec::new();
         for &name in RULESET_FILES {
-            let path = Path::new("civcraft/engine").join(name);
+            let path = Path::new("engine_data").join(name);
             let parsed = load_embedded_section_file(&path, &mut Vec::new())?;
             files.push(LoadedRuleFile {
                 name: name.to_owned(),
@@ -1311,8 +1311,8 @@ mod bundle_tests {
 
     #[test]
     fn embedded_campaign_matches_the_filesystem_ruleset() {
-        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data/rulesets");
-        let disk = RulesetData::load_civcraft(&root).unwrap();
+        let engine_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/rules/engine_data");
+        let disk = RulesetData::load_civcraft(&engine_dir).unwrap();
         let bundled = RulesetData::campaign_default();
         assert_eq!(disk.files.len(), bundled.files.len());
         for (disk, bundled) in disk.files.iter().zip(&bundled.files) {

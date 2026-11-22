@@ -1280,7 +1280,32 @@ pub(crate) fn ui_review_nuclear_setup(sim: &mut Simulation, with_sdi: bool) -> (
     sim.spawn_unit(HUMAN, UnitKind::Explorer, 22, 27);
     sim.spawn_unit(1, UnitKind::Infantry, target.0, target.1);
     sim.native_random = None;
-    sim.rng = 42;
+    if with_sdi {
+        for seed in 0..40_u64 {
+            let mut probe = sim.clone();
+            probe.rng = seed;
+            probe.refresh_visibility();
+            probe.enable_visual_events();
+            let _ = probe.apply(Command::NuclearStrike(icbm, target.0, target.1));
+            if probe.take_visual_events().into_iter().any(|event| {
+                matches!(
+                    event,
+                    VisualEvent::AirMission(m)
+                        if matches!(
+                            m.kind,
+                            super::presentation::AirMissionVisualKind::NuclearStrike {
+                                intercepted_by_sdi: true
+                            }
+                        )
+                )
+            }) {
+                sim.rng = seed;
+                break;
+            }
+        }
+    } else {
+        sim.rng = 42;
+    }
     sim.refresh_visibility();
     ui_review_record_knowledge(sim);
     sim.enable_visual_events();

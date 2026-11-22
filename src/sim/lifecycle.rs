@@ -105,6 +105,7 @@ pub(crate) enum CityRemoval {
     Famine,
     Upkeep,
     Disaster,
+    #[allow(dead_code)] // Retained in lifecycle schema; Civ III nukes never raze cities.
     Nuclear,
     Migration,
     Unobserved,

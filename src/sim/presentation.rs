@@ -818,17 +818,31 @@ mod tests {
             .unwrap()
             .buildings
             .push(crate::rules::Building::SDI_DEFENSE);
-        let icbm_sdi = sim.spawn_unit(HUMAN, UnitKind::ICBM, base.0, base.1);
-        assert!(sim.apply(Command::NuclearStrike(icbm_sdi, target.0, target.1)));
-        assert!(matches!(
-            sim.take_visual_events().front(),
-            Some(VisualEvent::AirMission(m))
-                if matches!(
-                    m.kind,
-                    AirMissionVisualKind::NuclearStrike {
-                        intercepted_by_sdi: true
-                    }
+        let mut saw_sdi = false;
+        for seed in 0..40_u64 {
+            sim.native_random = None;
+            sim.rng = seed;
+            let icbm_sdi = sim.spawn_unit(HUMAN, UnitKind::ICBM, base.0, base.1);
+            assert!(sim.apply(Command::NuclearStrike(icbm_sdi, target.0, target.1)));
+            if sim.take_visual_events().into_iter().any(|event| {
+                matches!(
+                    event,
+                    VisualEvent::AirMission(m)
+                        if matches!(
+                            m.kind,
+                            AirMissionVisualKind::NuclearStrike {
+                                intercepted_by_sdi: true
+                            }
+                        )
                 )
-        ));
+            }) {
+                saw_sdi = true;
+                break;
+            }
+        }
+        assert!(
+            saw_sdi,
+            "expected SDI Defense to emit intercepted NuclearStrike visual"
+        );
     }
 }

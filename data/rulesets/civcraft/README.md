@@ -1,9 +1,9 @@
 # CivCraft campaign ruleset
 
-This directory is the single CivCraft campaign ruleset package for the
-Civilization III: Conquests campaign. Its editable layers are `content/`, which
-contains CivCraft-owned native TOML catalogs, while `engine/` contains the
-generic engine ruleset inputs (`actions`, `effects`, `game`, `terrain`, `units`).
+This directory is the CivCraft campaign content package. Its editable layer is
+`content/`, containing CivCraft-owned native TOML catalogs. Internal engine
+mechanics (`actions`, `effects`, `game`, `terrain`, `units`) live inside Rust at
+`src/rules/engine_data/`.
 
 The catalogs under `content/` are the runtime source for the migrated campaign systems.  The
 legacy extraction tables and one-time conversion tool have been removed after
@@ -27,11 +27,11 @@ Economy/resource overrides, settlement/Great Leader/village tables, AI strategy,
 diplomacy/vassalage policies, and the eight campaign governments live directly in
 Rust (`src/rules/native.rs` and `src/rules/policies.rs`).
 
-The campaign embeds its engine ruleset and native catalogs when built. The
+The campaign embeds its internal engine ruleset and native catalogs when built. The
 effect graph, including government rate caps, empire size and civil-war chance, comes from
-`engine/effects.ruleset`, and action enablers come from
-`engine/actions.ruleset`. Terrain yields, movement, activity timing, and climate
-live in `src/rules/terrain_catalog.rs`, while `engine/terrain.ruleset` retains
+`src/rules/engine_data/effects.ruleset`, and action enablers come from
+`src/rules/engine_data/actions.ruleset`. Terrain yields, movement, activity timing, and climate
+live in `src/rules/terrain_catalog.rs`, while `src/rules/engine_data/terrain.ruleset` retains
 extras, resources, and movement parameters.
 
 Unit shield costs are authoritative in `content/units.toml` (`cost_shields`). Production,

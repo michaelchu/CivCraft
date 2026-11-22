@@ -11,8 +11,8 @@ scope, status, and subsystem-difference ledger.
 - Freeciv engine behavior and the initial gameplay baseline come only from the
   pinned revision and its `civ2civ3` ruleset. The current pin is
   `9ff184b6eb128ca636c7ad6269e27aa959600006`.
-- Editable gameplay data belongs in
-  `data/rulesets/civcraft/engine/`. `classic` and other rulesets must not be
+- Editable engine mechanics data belongs in
+  `src/rules/engine_data/`. `classic` and other rulesets must not be
   used to fill gaps. The sibling `default/` and `nation/` files are dependencies
   in the selected ruleset's include closure, not alternate gameplay baselines.
 - Civ III: Conquests source records provide retained campaign identities,
@@ -25,7 +25,7 @@ scope, status, and subsystem-difference ledger.
 
 ## Change the CivCraft ruleset
 
-1. Edit the corresponding file under `data/rulesets/civcraft/engine/`.
+1. Edit the corresponding file under `src/rules/engine_data/`.
    `actions.ruleset` owns actions and enablers, `effects.ruleset` owns
    effects and their requirements, and `terrain.ruleset` owns
    `[parameters].move_fragments`. Record the reason and intended Freeciv
@@ -37,7 +37,7 @@ scope, status, and subsystem-difference ledger.
    update the owning adapter in `src/rules/` or `src/sim/` and its focused
    source-backed checks. Avoid adding a second subsystem-specific calculation.
 4. If copied upstream files change, update
-   `data/rulesets/civcraft/engine/UPSTREAM_MANIFEST.tsv` with the pinned
+   `src/rules/engine_data/UPSTREAM_MANIFEST.tsv` with the pinned
    source and destination SHA-256 values. Keep `identical` and `modified`
    statuses accurate; the modified destination is an intentional CivCraft
    override, not a new upstream source. Compute both values with
