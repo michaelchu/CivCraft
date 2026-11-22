@@ -23,6 +23,11 @@ Current catalogs:
   prerequisites, eras, and research metadata.
 - `content/religion.toml`: custom religion founding, spread, faith bonuses, and policy rules.
 
+Values that are not tuning knobs (unit art folders, technology save indices,
+civilization palette/city-style bindings, bombardment effect flags) live in
+`src/rules/native/bindings.rs`, not in these files. Default-valued fields are
+omitted, so a record lists only what differs from the default.
+
 Economy/resource overrides, settlement/Great Leader/village tables, AI strategy,
 diplomacy/vassalage policies, and the eight campaign governments live directly in
 Rust (`src/rules/native/` and `src/rules/policies.rs`).

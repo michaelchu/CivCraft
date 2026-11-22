@@ -234,11 +234,16 @@ indexes below cross-check the names and replacement mapping.
 | Conquests | Swiss Mercenary | Dutch | Pikeman |
 | Conquests | Three-Man Chariot | Hittites | Chariot |
 
-For every unit, not only unique units, store `available_to` from the BIQ.
-Defaulting all normal units to every civilization would be wrong for restricted
-starting units and unique replacements. Also store the replaced unit as
-metadata for production UI and upgrade/replacement logic; a unique unit remains
-its own identity with its own stats and art.
+Availability must come from the BIQ civilization masks, not a blanket default:
+that would be wrong for restricted starting units and unique replacements.
+The catalog now expresses those masks as `unique_civilization` (a unique unit
+belongs to one civilization and replaces the unit named by `replaces`), plus
+`restricted_to` (Scout) and `excluded_from` (Spearman, Pikeman, Medieval
+Infantry) for the remaining non-unique differences. The replaced unit is also
+stored as metadata for production UI and upgrade/replacement logic; a unique
+unit remains its own identity with its own stats and art.
+`tests/fixtures/unit_availability_v1.json` freezes the resulting per-civilization
+unit lists, and a test requires the catalog to reproduce them.
 
 ## Starting units by civilization
 
