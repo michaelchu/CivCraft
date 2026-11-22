@@ -230,7 +230,7 @@ Academy cities, at the owner's request. This deliberately differs from the
 installed Conquests Civilopedia, which also allows Military Academy production.
 The Pentagon's missing prerequisite is restored: three owned Armies in the
 field, as recorded under `BLDG_Pentagon` in the installed Civilopedia. Formation
-capacity lives in `content/settlements.toml`; the Pentagon requirement lives
+capacity lives in `settlements()` in `src/rules/native/settlements.rs`; the Pentagon requirement lives
 in `content/buildings.toml`.
 
 The owner subsequently authorized completing Army combat and the Pentagon

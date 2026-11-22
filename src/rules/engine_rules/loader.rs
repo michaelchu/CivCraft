@@ -70,16 +70,21 @@ fn resolve_tech(name: &str) -> Option<Tech> {
     }
 }
 
+/// Spelling variants Freeciv uses for buildings the Civ III catalog spells
+/// differently, as (variant, catalog name).
+const BUILDING_ALIASES: [(&str, &str); 2] = [
+    ("Harbour", "Harbor"),
+    ("Shakespeare's Theatre", "Shakespeare's Theater"),
+];
+
 fn resolve_building(name: &str) -> Option<Building> {
+    let canonical = BUILDING_ALIASES
+        .iter()
+        .find(|(variant, _)| variant.eq_ignore_ascii_case(name))
+        .map_or(name, |(_, catalog_name)| catalog_name);
     Building::all().find(|building| {
         building.data().name.eq_ignore_ascii_case(name)
-            || (building.data().name.eq_ignore_ascii_case("Harbor")
-                && name.eq_ignore_ascii_case("Harbour"))
-            || (building
-                .data()
-                .name
-                .eq_ignore_ascii_case("Shakespeare's Theater")
-                && name.eq_ignore_ascii_case("Shakespeare's Theatre"))
+            || building.data().name.eq_ignore_ascii_case(canonical)
     })
 }
 
@@ -316,13 +321,7 @@ fn integer_value(value: &str) -> Option<i64> {
 }
 
 fn building_name_exists(name: &str) -> bool {
-    crate::rules::native::buildings()
-        .rules
-        .iter()
-        .any(|building| building.name.eq_ignore_ascii_case(name))
-        || ["Harbour", "Shakespeare's Theatre"]
-            .iter()
-            .any(|alias| alias.eq_ignore_ascii_case(name))
+    resolve_building(name).is_some()
 }
 
 fn unit_name_exists(name: &str) -> bool {

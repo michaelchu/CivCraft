@@ -78,10 +78,10 @@ Base terrain yields, road/railroad bonuses, and movement costs live in
 `src/rules/terrain_catalog.rs`, paired with `src/rules/engine_rules/extras.rs` for Freeciv
 extras and roads. Civ III terrain/resource
 identities and artwork mappings stay in their existing Rust adapters, and city
-economy and resource yield overrides live directly in `src/rules/native.rs`.
+economy and resource yield overrides live directly in `src/rules/native/`.
 
 Government definitions, prerequisites, and unit-support rules live directly in Rust
-(`src/rules/native.rs` and `src/sim/government.rs`), while `src/rules/engine_rules/effect_table.rs`
+(`src/rules/native/` and `src/sim/government.rs`), while `src/rules/engine_rules/effect_table.rs`
 supplies the rate cap, empire size, and civil-war chance for every campaign
 government. Diplomacy policy parameters live directly in `src/rules/policies.rs`.
 
@@ -102,7 +102,7 @@ entities' current states continue to live in campaign saves.
 
 AI strategy, diplomacy, vassalage, settlement AI, Great Leader odds, village
 outcomes, and barbarian/partisan unit selections live directly in Rust
-(`src/rules/policies.rs` and `src/rules/native.rs`). Supported village reward
+(`src/rules/policies.rs` and `src/rules/native/`). Supported village reward
 kinds (`Gold`, `Technology`, `Reinforcements`, `Barbarians`, `Settlement`,
 `Map`) and their weights are validated alongside the unit catalog at
 initialization.
@@ -110,7 +110,7 @@ initialization.
 ## Compatibility and evidence
 
 Native catalogs load directly from `data/rulesets/civcraft/content/*.toml`
-via `src/rules/native.rs` and `src/rules/policies.rs`. Neither path joins
+via `src/rules/native/` and `src/rules/policies.rs`. Neither path joins
 source records or requires BIQ files, hashes, source indices, or raw flag
 encodings. Building obsolescence policy (`selected_obsolescence`) lives directly
 in `content/buildings.toml`. Existing unit and technology save identities remain

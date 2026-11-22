@@ -12,17 +12,8 @@ pub(super) fn builder_building_want_factor() -> f32 {
 }
 
 pub(super) fn trait_enabled(civ: &crate::rules::native::NativeCivilization, name: &str) -> bool {
-    match name {
-        "agricultural" => civ.agricultural,
-        "commercial" => civ.commercial,
-        "expansionist" => civ.expansionist,
-        "industrious" => civ.industrious,
-        "militaristic" => civ.militaristic,
-        "religious" => civ.religious,
-        "scientific" => civ.scientific,
-        "seafaring" => civ.seafaring,
-        _ => false,
-    }
+    use crate::rules::native::CivTrait;
+    CivTrait::from_name(name).is_some_and(|civ_trait| civ.has_trait(civ_trait))
 }
 
 impl super::Simulation {
@@ -31,10 +22,7 @@ impl super::Simulation {
         owner: usize,
     ) -> Option<&crate::rules::native::NativeCivilization> {
         let id = self.players[owner].civilization_id.as_deref()?;
-        crate::rules::native::civilizations()
-            .civilizations
-            .iter()
-            .find(|civ| civ.id == id)
+        crate::rules::native::civilization(id)
     }
 }
 

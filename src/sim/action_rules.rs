@@ -51,10 +51,22 @@ struct CampaignExtra {
 }
 
 impl CampaignExtra {
+    /// Case-insensitive FNV-1a over the name, without allocating a lowercase copy.
+    fn name_hash(name: &str) -> u64 {
+        name.bytes().fold(0xcbf2_9ce4_8422_2325, |hash, byte| {
+            (hash ^ u64::from(byte.to_ascii_lowercase())).wrapping_mul(0x0100_0000_01b3)
+        })
+    }
+
     fn find(name: &str) -> Option<&'static Self> {
-        static EXTRAS: std::sync::OnceLock<Vec<(String, CampaignExtra)>> =
-            std::sync::OnceLock::new();
-        let extras = EXTRAS.get_or_init(|| {
+        struct Index {
+            extras: Vec<(String, CampaignExtra)>,
+            /// Positions in `extras` per name hash; a bucket holds more than
+            /// one entry only on a hash collision.
+            by_hash: std::collections::HashMap<u64, Vec<usize>>,
+        }
+        static EXTRAS: std::sync::OnceLock<Index> = std::sync::OnceLock::new();
+        let index = EXTRAS.get_or_init(|| {
             let mut by_name = std::collections::BTreeMap::new();
             for record in campaign_extras() {
                 for alias in [record.name, record.id, record.display_name] {
@@ -64,15 +76,23 @@ impl CampaignExtra {
                     by_name.entry(name).or_insert(Self { record, present });
                 }
             }
-            by_name.into_iter().collect()
+            let extras: Vec<_> = by_name.into_iter().collect();
+            let mut by_hash: std::collections::HashMap<u64, Vec<usize>> = Default::default();
+            for (position, (key, _)) in extras.iter().enumerate() {
+                by_hash
+                    .entry(Self::name_hash(key))
+                    .or_default()
+                    .push(position);
+            }
+            Index { extras, by_hash }
         });
-        let index = extras
-            .binary_search_by(|(key, _)| {
-                key.bytes()
-                    .cmp(name.bytes().map(|byte| byte.to_ascii_lowercase()))
-            })
-            .ok()?;
-        Some(&extras[index].1)
+        index
+            .by_hash
+            .get(&Self::name_hash(name))?
+            .iter()
+            .map(|&position| &index.extras[position])
+            .find(|(key, _)| key.eq_ignore_ascii_case(name))
+            .map(|(_, extra)| extra)
     }
 
     fn tile_test(name: &str) -> fn(&Tile) -> bool {
@@ -826,7 +846,7 @@ pub(crate) fn selected_building_is_obsolete(
             let BuildingRequirement::Tech(index) = requirement else {
                 return None;
             };
-            Tech::all().find(|technology| technology.0 == *index)
+            Tech::from_index(*index)
         });
     Some(obsolete_technology.is_some_and(|technology| {
         granted == Some(technology) || simulation.has_tech(city.owner, technology)
@@ -918,43 +938,47 @@ impl RequirementContext for SimulationRequirementContext<'_> {
             }
             RequirementKind::CityStatus if requirement.range == RequirementRange::City => {
                 let name = Self::string_name(requirement)?;
-                match name.to_ascii_lowercase().as_str() {
-                    "celebration" => Ok(self.celebrating.unwrap_or(false)),
-                    "disorder" => Ok(self.disordered.unwrap_or(false)),
-                    _ => Err(unsupported()),
+                if name.eq_ignore_ascii_case("celebration") {
+                    Ok(self.celebrating.unwrap_or(false))
+                } else if name.eq_ignore_ascii_case("disorder") {
+                    Ok(self.disordered.unwrap_or(false))
+                } else {
+                    Err(unsupported())
                 }
             }
             RequirementKind::CityTile if requirement.range == RequirementRange::Tile => {
                 let name = Self::string_name(requirement)?;
                 let tile = self.tile.ok_or_else(unsupported)?;
-                match name.to_ascii_lowercase().as_str() {
-                    "center" => {
-                        if let Some((_, is_city_center)) = self
-                            .city_tile_center_override
-                            .filter(|(position, _)| *position == tile)
-                        {
-                            Ok(is_city_center)
-                        } else {
-                            let city = self
-                                .city
-                                .or_else(|| self.simulation.city_at(tile.0, tile.1));
-                            Ok(city.is_some_and(|city| (city.x, city.y) == tile))
-                        }
+                if name.eq_ignore_ascii_case("center") {
+                    if let Some((_, is_city_center)) = self
+                        .city_tile_center_override
+                        .filter(|(position, _)| *position == tile)
+                    {
+                        Ok(is_city_center)
+                    } else {
+                        let city = self
+                            .city
+                            .or_else(|| self.simulation.city_at(tile.0, tile.1));
+                        Ok(city.is_some_and(|city| (city.x, city.y) == tile))
                     }
+                } else if name.eq_ignore_ascii_case("claimed") {
                     // common/requirements.c::is_citytile_req_active defines
                     // CITYT_CLAIMED as tile ownership being present, including
                     // the negated/unclaimed form used by C2C3 paradrop.
-                    "claimed" => Ok(self.tile_state(tile).owner.is_some()),
-                    _ => Err(unsupported()),
+                    Ok(self.tile_state(tile).owner.is_some())
+                } else {
+                    Err(unsupported())
                 }
             }
             RequirementKind::Ai if requirement.range == RequirementRange::Player => {
                 let name = Self::string_name(requirement)?;
-                match name.to_ascii_lowercase().as_str() {
-                    // CivCraft has no difficulty tier; the campaign uses the
-                    // normal rules and does not enable these Freeciv cheats.
-                    "cheating" | "restricted" => Ok(false),
-                    _ => Err(unsupported()),
+                // CivCraft has no difficulty tier; the campaign uses the
+                // normal rules and does not enable these Freeciv cheats.
+                if name.eq_ignore_ascii_case("cheating") || name.eq_ignore_ascii_case("restricted")
+                {
+                    Ok(false)
+                } else {
+                    Err(unsupported())
                 }
             }
             RequirementKind::UnitType if requirement.range == RequirementRange::Local => {
@@ -1094,9 +1118,10 @@ impl RequirementContext for SimulationRequirementContext<'_> {
                 let Some(unit) = self.unit else {
                     return Ok(false);
                 };
-                match name.to_ascii_lowercase().as_str() {
-                    "fortified" => Ok(unit.state == UnitState::Fortified),
-                    _ => Err(unsupported()),
+                if name.eq_ignore_ascii_case("fortified") {
+                    Ok(unit.state == UnitState::Fortified)
+                } else {
+                    Err(unsupported())
                 }
             }
             RequirementKind::UnitState if requirement.range == RequirementRange::Local => {

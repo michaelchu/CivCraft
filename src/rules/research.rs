@@ -197,6 +197,13 @@ impl Tech {
             .map(Self)
     }
 
+    /// The advance with this stable index, if it is one of `Tech::all()`.
+    /// Constant-time equivalent of `Tech::all().find(|tech| tech.0 == index)`.
+    pub(crate) fn from_index(index: usize) -> Option<Self> {
+        let sentinel = STABLE_TECH_COUNT..STABLE_TECH_COUNT + 2;
+        (index < Self::storage_len() && !sentinel.contains(&index)).then_some(Self(index))
+    }
+
     pub(crate) fn data(self) -> Option<&'static Advance> {
         civ3_tech_catalog().get(self)
     }
@@ -547,5 +554,57 @@ mod sentinel_tests {
             Tech::IRONCLADS.data().map(|advance| advance.name),
             Some("Ironclads")
         );
+    }
+}
+
+#[cfg(test)]
+mod constant_tests {
+    use super::*;
+
+    fn normalized(text: &str) -> String {
+        text.chars()
+            .filter(char::is_ascii_alphanumeric)
+            .map(|c| c.to_ascii_lowercase())
+            .collect()
+    }
+
+    const RENAMED_IN_CIV3: [(&str, &str); 4] = [
+        ("UNIVERSITY", "Education"),
+        ("SUPERCONDUCTORS", "Superconductor"),
+        ("MOBILE_WARFARE", "Motorized Transportation"),
+        ("NUCLEAR_FISSION", "Fission"),
+    ];
+
+    /// Every `const NAME: Self = Self(N);` must still name the advance at
+    /// stable index N, so catalog edits cannot silently retarget a constant.
+    #[test]
+    fn index_constants_name_the_advance_at_their_index() {
+        let source = include_str!("research.rs");
+        let mut checked = 0;
+        for line in source.lines() {
+            let Some(rest) = line.trim().strip_prefix("pub(crate) const ") else {
+                continue;
+            };
+            let Some((name, tail)) = rest.split_once(": Self = Self(") else {
+                continue;
+            };
+            let Some(index) = tail
+                .strip_suffix(");")
+                .and_then(|n| n.parse::<usize>().ok())
+            else {
+                continue;
+            };
+            let actual = Tech(index).name();
+            // Freeciv-named constants whose advance carries a Civ III name.
+            let renamed = RENAMED_IN_CIV3
+                .iter()
+                .any(|(constant, civ3)| *constant == name && *civ3 == actual);
+            assert!(
+                renamed || normalized(name) == normalized(actual),
+                "{name} = Self({index}) but index {index} is {actual}"
+            );
+            checked += 1;
+        }
+        assert!(checked >= 70, "only checked {checked} technology constants");
     }
 }

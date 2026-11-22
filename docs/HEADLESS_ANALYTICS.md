@@ -368,7 +368,7 @@ reserves and the selected offer's gains for both sides. The named metrics
 decisions. Lean mode suppresses identical repeated unsuccessful decisions;
 verbose mode retains them all. Use `--scenario proactive-trade --turns 1` for
 focused coverage. The policy is intentionally independent of Freeciv's AI;
-parameters and trait interests are in `content/diplomacy.toml`.
+parameters and trait interests are in `default_diplomacy()` in `src/rules/policies.rs`.
 Directional `relationship_memory` rows expose decayed commerce, loyalty and
 grievance scores, their last credited actions, and derived attitude/trade effects.
 `diplomacy.relationship_memory` events record completed mutual technology
@@ -1044,8 +1044,8 @@ or `space_race`; crisis, war count, preparation and space-program flags expose
 the reasons. `projected_income` and `gold_reserve` are retained in full snapshots
 but omitted from lean changes to avoid routine financial noise. Strategy is a
 read-only current-state assessment, not a persisted commitment or a prediction
-of victory. Trait weights and pressure bonuses live in `content/strategy.toml`;
-both research and trade use the technology interests in `content/diplomacy.toml`.
+of victory. Trait weights and pressure bonuses live in `default_strategy()` in `src/rules/policies.rs`;
+both research and trade use the technology interests in `default_diplomacy()` in `src/rules/policies.rs`.
 
 For example, list posture changes from a lean report:
 
@@ -1077,7 +1077,7 @@ The report's general analytics and sidecars describe the Rome campaign.
 `economy.funding_decision` records native advice and selected `[science, tax,
 luxury]` rates, the saved-rate income, reserve/target, concrete military purchase
 costs, required net income and the selected-rate forecast. Normal cash targets
-refill over `strategy.toml`'s `reserve_refill_turns`; `upkeep_buffer_turns` keeps
+refill over `StrategyCatalog`'s `reserve_refill_turns`; `upkeep_buffer_turns` keeps
 operating cash behind discretionary purchases and trade. Routine preparation
 purchases include the cash floor enforced by spending. Only eligible selected
 purchases are quoted; an undefended city in grave danger can request the defense

@@ -11,7 +11,7 @@ use std::sync::OnceLock;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub(crate) struct Building(pub(crate) usize);
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Deserialize)]
 pub(crate) enum Genus {
     Improvement,
     SmallWonder,
@@ -179,14 +179,7 @@ fn native_building_data(rule: &crate::rules::native::NativeBuildingRule) -> Buil
     BuildingData {
         id: Box::leak(rule.id.clone().into_boxed_str()),
         name: Box::leak(rule.name.clone().into_boxed_str()),
-        genus: match rule.genus.as_str() {
-            "Improvement" => Genus::Improvement,
-            "SmallWonder" => Genus::SmallWonder,
-            "GreatWonder" => Genus::GreatWonder,
-            "Special" => Genus::Special,
-            "Convert" => Genus::Convert,
-            other => panic!("unknown native building genus {other:?}"),
-        },
+        genus: rule.genus,
         cost: rule.cost,
         upkeep: rule.upkeep,
         culture_per_turn: rule.culture_per_turn,
@@ -212,24 +205,24 @@ fn native_building_requirement(
 ) -> (Requirement, bool) {
     let value = usize::try_from(requirement.value)
         .unwrap_or_else(|_| panic!("native building requirement value is negative"));
-    let parsed = match requirement.kind.as_str() {
-        "Tech" => Requirement::Tech(value),
-        "Improvement" => Requirement::Improvement(value),
-        "River" => Requirement::River,
-        "Lake" => Requirement::Lake,
-        "Sea" => Requirement::Sea,
-        "Water" => Requirement::Water,
-        "MinSize" => Requirement::MinSize(requirement.value),
-        "OwnerCityCount" => Requirement::OwnerCityCount(value),
-        "OwnerArmyCount" => Requirement::OwnerArmyCount(value),
-        "OwnerBuildingCount" => Requirement::OwnerBuildingCount(
+    use crate::rules::native::NativeRequirementKind as Kind;
+    let parsed = match requirement.kind {
+        Kind::Tech => Requirement::Tech(value),
+        Kind::Improvement => Requirement::Improvement(value),
+        Kind::River => Requirement::River,
+        Kind::Lake => Requirement::Lake,
+        Kind::Sea => Requirement::Sea,
+        Kind::Water => Requirement::Water,
+        Kind::MinSize => Requirement::MinSize(requirement.value),
+        Kind::OwnerCityCount => Requirement::OwnerCityCount(value),
+        Kind::OwnerArmyCount => Requirement::OwnerArmyCount(value),
+        Kind::OwnerBuildingCount => Requirement::OwnerBuildingCount(
             value,
             usize::try_from(requirement.second_value)
                 .unwrap_or_else(|_| panic!("native building count is negative")),
         ),
-        "Resource" => Requirement::Resource(value),
-        "OwnerEliteUnit" => Requirement::OwnerEliteUnit,
-        other => panic!("unknown native building requirement {other:?}"),
+        Kind::Resource => Requirement::Resource(value),
+        Kind::OwnerEliteUnit => Requirement::OwnerEliteUnit,
     };
     (parsed, requirement.present)
 }
@@ -283,5 +276,51 @@ mod migration_tests {
             Some(Building::SECRET_POLICE_HQ)
         );
         assert_eq!(Building::from_id("building_nonexistent"), None);
+    }
+}
+
+#[cfg(test)]
+mod constant_tests {
+    use super::*;
+
+    fn normalized(text: &str) -> String {
+        text.chars()
+            .filter(char::is_ascii_alphanumeric)
+            .map(|c| c.to_ascii_lowercase())
+            .collect()
+    }
+
+    /// Every `const NAME: Self = Self(N);` must still name the entry that the
+    /// native catalog holds at index N, so reordering the TOML cannot silently
+    /// retarget a hand-written constant.
+    #[test]
+    fn index_constants_name_the_catalog_entry_at_their_index() {
+        let source = include_str!("buildings.rs");
+        let mut checked = 0;
+        for line in source.lines() {
+            let Some(rest) = line.trim().strip_prefix("pub(crate) const ") else {
+                continue;
+            };
+            let Some((name, tail)) = rest.split_once(": Self = Self(") else {
+                continue;
+            };
+            let Some(index) = tail
+                .strip_suffix(");")
+                .and_then(|n| n.parse::<usize>().ok())
+            else {
+                continue;
+            };
+            let data = Building(index).data();
+            let id = data.id.strip_prefix("building_").unwrap_or(data.id);
+            let expected = normalized(name);
+            assert!(
+                expected == normalized(data.name) || expected == normalized(id),
+                "{name} = Self({index}) but index {index} is {} ({})",
+                data.name,
+                data.id
+            );
+            checked += 1;
+        }
+        assert!(checked >= 80, "only checked {checked} building constants");
     }
 }

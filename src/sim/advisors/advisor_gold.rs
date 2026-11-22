@@ -5,6 +5,7 @@ use crate::rules::engine_rules::RequirementKind;
 use crate::rules::engine_rules::{
     EffectRecord, Requirement, RequirementContext, RequirementValue, RulesetData,
 };
+use crate::rules::native::NativeRequirementKind;
 
 impl Simulation {
     pub(crate) fn ai_gold_reserve(&self, owner: usize) -> i32 {
@@ -286,11 +287,11 @@ impl Simulation {
         };
         rule.obsolete.iter().any(|requirement| {
             requirement.present
-                && match requirement.kind.as_str() {
-                    "Tech" => Tech::all()
+                && match requirement.kind {
+                    NativeRequirementKind::Tech => Tech::all()
                         .find(|tech| tech.0 == requirement.value as usize)
                         .is_some_and(|tech| simulation.has_tech(city.owner, tech)),
-                    "Improvement" => usize::try_from(requirement.value)
+                    NativeRequirementKind::Improvement => usize::try_from(requirement.value)
                         .ok()
                         .is_some_and(|index| city.buildings.contains(&Building(index))),
                     _ => false,

@@ -313,7 +313,7 @@ fn rules() -> &'static [UnitRule] {
             parsed.push(UnitRule {
                 id: leak(&native.id),
                 name: leak(&native.name),
-                category: leak(&native.category),
+                category: native.category.as_str(),
                 required_technology: leak(&native.required_technology),
                 required_resources,
                 upgrade_to: leak(&native.upgrade_to),
@@ -513,7 +513,7 @@ mod tests {
                 .find(|unit| unit.id == source.id)
                 .unwrap_or_else(|| panic!("native TOML is missing {}", source.id));
             assert_eq!(migrated.name, source.name);
-            assert_eq!(migrated.category, source.category);
+            assert_eq!(migrated.category.as_str(), source.category);
             assert_eq!(migrated.cost_shields, source.cost);
             assert_eq!(migrated.population_cost, source.population_cost);
             assert_eq!(migrated.attack, source.attack);

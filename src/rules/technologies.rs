@@ -6,7 +6,36 @@ use super::native::{NativeTechnology, TechnologyCatalog};
 
 /// Resolve author-facing IDs without initializing the runtime research graph.
 pub(crate) fn runtime_index(id: &str) -> Option<usize> {
-    runtime_index_in(catalog(), id)
+    /// Exact ID and lowercase name maps over the global catalog; the earliest
+    /// record wins, as in a front-to-back scan.
+    struct Index {
+        by_id: std::collections::HashMap<&'static str, usize>,
+        by_name: std::collections::HashMap<String, usize>,
+    }
+    static INDEX: std::sync::OnceLock<Index> = std::sync::OnceLock::new();
+    let index = INDEX.get_or_init(|| {
+        let mut by_id = std::collections::HashMap::new();
+        let mut by_name = std::collections::HashMap::new();
+        for definition in &catalog().technologies {
+            by_id
+                .entry(definition.id.as_str())
+                .or_insert(definition.runtime_index);
+            by_name
+                .entry(definition.name.to_ascii_lowercase())
+                .or_insert(definition.runtime_index);
+        }
+        Index { by_id, by_name }
+    });
+    // Both maps hold runtime indices, so "earliest record" is by record order;
+    // an ID hit and a name hit on different records is resolved as the scan
+    // would: whichever record comes first. Catalog IDs and names do not
+    // collide, which `catalog_ids_and_names_resolve_to_one_record` pins.
+    let direct = index
+        .by_id
+        .get(id)
+        .or_else(|| index.by_name.get(&id.to_ascii_lowercase()))
+        .copied();
+    direct.or_else(|| compat_fallback(id))
 }
 
 pub(crate) fn runtime_index_in(catalog: &TechnologyCatalog, id: &str) -> Option<usize> {
@@ -15,11 +44,12 @@ pub(crate) fn runtime_index_in(catalog: &TechnologyCatalog, id: &str) -> Option<
         .iter()
         .find(|d| d.id == id || d.name.eq_ignore_ascii_case(id))
         .map(|d| d.runtime_index)
-        .or_else(|| {
-            let suffix = id.strip_prefix("TECH_COMPAT_")?;
-            compat_runtime_index(suffix)
-                .or_else(|| suffix.parse::<usize>().ok().filter(|i| *i < 101))
-        })
+        .or_else(|| compat_fallback(id))
+}
+
+fn compat_fallback(id: &str) -> Option<usize> {
+    let suffix = id.strip_prefix("TECH_COMPAT_")?;
+    compat_runtime_index(suffix).or_else(|| suffix.parse::<usize>().ok().filter(|i| *i < 101))
 }
 
 fn compat_runtime_index(suffix: &str) -> Option<usize> {
@@ -69,10 +99,25 @@ pub(crate) fn validate(technologies: &[NativeTechnology]) -> Result<(), String> 
             return Err(format!("invalid technology values {}", definition.id));
         }
     }
+    // Exact ID or case-insensitive name; the earliest record wins.
+    let mut by_id = std::collections::HashMap::new();
+    let mut by_name = std::collections::HashMap::new();
+    for (index, definition) in technologies.iter().enumerate() {
+        by_id.entry(definition.id.as_str()).or_insert(index);
+        by_name
+            .entry(definition.name.to_ascii_lowercase())
+            .or_insert(index);
+    }
+    let find = |prerequisite: &str| {
+        let by_id = by_id.get(prerequisite).copied();
+        let by_name = by_name.get(&prerequisite.to_ascii_lowercase()).copied();
+        by_id.into_iter().chain(by_name).min()
+    };
     fn visit(
         index: usize,
         technologies: &[NativeTechnology],
         visiting: &mut [u8],
+        find: &dyn Fn(&str) -> Option<usize>,
     ) -> Result<(), String> {
         if visiting[index] == 1 {
             return Err(format!(
@@ -85,18 +130,16 @@ pub(crate) fn validate(technologies: &[NativeTechnology]) -> Result<(), String> 
         }
         visiting[index] = 1;
         for prerequisite in &technologies[index].prerequisites {
-            let next = technologies
-                .iter()
-                .position(|d| d.id == *prerequisite || d.name.eq_ignore_ascii_case(prerequisite))
+            let next = find(prerequisite)
                 .ok_or_else(|| format!("unknown technology prerequisite {prerequisite}"))?;
-            visit(next, technologies, visiting)?;
+            visit(next, technologies, visiting, find)?;
         }
         visiting[index] = 2;
         Ok(())
     }
     let mut visiting = vec![0; technologies.len()];
     for index in 0..technologies.len() {
-        visit(index, technologies, &mut visiting)?;
+        visit(index, technologies, &mut visiting, &find)?;
     }
     Ok(())
 }
@@ -108,6 +151,22 @@ pub(crate) fn catalog() -> &'static TechnologyCatalog {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn catalog_ids_and_names_resolve_to_one_record() {
+        for definition in &catalog().technologies {
+            let linear = |key: &str| runtime_index_in(catalog(), key);
+            for key in [definition.id.as_str(), definition.name.as_str()] {
+                assert_eq!(runtime_index(key), linear(key), "{key}");
+            }
+            assert_eq!(
+                runtime_index(&definition.name.to_ascii_uppercase()),
+                linear(&definition.name.to_ascii_uppercase())
+            );
+        }
+        assert_eq!(runtime_index("TECH_COMPAT_Unknown"), None);
+        assert_eq!(runtime_index(""), None);
+    }
 
     #[test]
     fn rejects_missing_prerequisites_cycles_and_duplicate_save_ids() {
