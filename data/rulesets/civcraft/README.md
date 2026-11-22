@@ -25,7 +25,7 @@ Current catalogs:
 
 Economy/resource overrides, settlement/Great Leader/village tables, AI strategy,
 diplomacy/vassalage policies, and the eight campaign governments live directly in
-Rust (`src/rules/native.rs` and `src/rules/policies.rs`).
+Rust (`src/rules/native/` and `src/rules/policies.rs`).
 
 The campaign embeds its native catalogs when built. The
 effect graph, including government rate caps, empire size and civil-war chance, is
@@ -37,7 +37,7 @@ extras and roads.
 Unit shield costs are authoritative in `content/units.toml` (`cost_shields`). Production,
 settlement AI valuation, and shield-recovery base values share that cost.
 The unit-economics crosswalk has been removed. Capabilities and AI roles use named fields rather than raw PRTO masks; experience and government support use their native catalogs.
-Barbarian and partisan choices are configured in `src/rules/native.rs` alongside
+Barbarian and partisan choices are configured in `src/rules/native/` alongside
 the settlement rules.
 The generic engine's remaining algorithm notes live in docs; removal of inherited
 content does not claim full gameplay parity.

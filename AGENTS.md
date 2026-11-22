@@ -31,7 +31,7 @@ city's current improvement or wonder. This is not a Freeciv mechanic, and the
 Leader is not a `GameLoss` unit. The design is in
 [`docs/superpowers/specs/2026-11-17-great-leader-design.md`](docs/superpowers/specs/2026-11-17-great-leader-design.md);
 the odds are community-documented for Civ III patch 1.29f and live in
-`settlements()` in `src/rules/native.rs`. On 2026-11-20 the owner also
+`settlements()` in `src/rules/native/settlements.rs`. On 2026-11-20 the owner also
 authorized consuming a Great Leader in an owned city to form an Army, with one
 Army per four owned cities. Armies cannot be produced or queued by cities,
 including cities with a Military Academy, as an explicit owner preference.
