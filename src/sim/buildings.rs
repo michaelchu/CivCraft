@@ -3,6 +3,24 @@
 use super::*;
 use crate::rules::{Genus, Requirement};
 
+/// The resource a building `Resource` requirement index names; the order is
+/// `RESOURCE_TARGETS` in `rules/native/buildings.rs`.
+fn requirement_resource(id: usize) -> Option<Resource> {
+    [
+        Resource::Aluminum,
+        Resource::Coal,
+        Resource::Horses,
+        Resource::Iron,
+        Resource::Oil,
+        Resource::Rubber,
+        Resource::Saltpeter,
+        Resource::Uranium,
+        Resource::Ivory,
+    ]
+    .get(id)
+    .copied()
+}
+
 impl Simulation {
     pub(crate) fn great_wonder_available(&self, building: Building) -> bool {
         building.data().genus == Genus::GreatWonder && !self.completed_wonders.contains(&building)
@@ -305,20 +323,10 @@ impl Simulation {
                     >= count
             }
             Requirement::OwnerEliteUnit => self.owner_has_elite_unit(city.owner),
-            Requirement::Resource(id) => {
-                let resource = match id {
-                    0 => Resource::Aluminum,
-                    1 => Resource::Coal,
-                    2 => Resource::Horses,
-                    3 => Resource::Iron,
-                    4 => Resource::Oil,
-                    5 => Resource::Rubber,
-                    6 => Resource::Saltpeter,
-                    7 => Resource::Uranium,
-                    _ => return false,
-                };
-                nearby().any(|tile| tile.active_resource() == Some(resource))
-            }
+            // Civ III: a resource requirement is met by a resource connected to
+            // the city, the same test units use, not only by one in its radius.
+            Requirement::Resource(id) => requirement_resource(id)
+                .is_some_and(|resource| self.resource_connected_to_city(city, resource)),
         };
         matches == present
     }
@@ -469,18 +477,9 @@ fn requirement_name(requirement: Requirement) -> String {
             format!("{count} {} buildings", Building(id).data().name)
         }
         Requirement::Resource(id) => format!(
-            "{} in the city radius",
-            match id {
-                0 => "Aluminum",
-                1 => "Coal",
-                2 => "Horses",
-                3 => "Iron",
-                4 => "Oil",
-                5 => "Rubber",
-                6 => "Saltpeter",
-                7 => "Uranium",
-                _ => "resource",
-            }
+            "{} connected to the city",
+            requirement_resource(id)
+                .map_or_else(|| "resource".to_owned(), |resource| format!("{resource:?}"))
         ),
     }
 }

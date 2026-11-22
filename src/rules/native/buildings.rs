@@ -3,7 +3,7 @@
 use super::*;
 
 /// Resource names a building requirement may target, in resolved-index order.
-const RESOURCE_TARGETS: [&str; 8] = [
+const RESOURCE_TARGETS: [&str; 9] = [
     "Aluminum",
     "Coal",
     "Horses",
@@ -12,6 +12,7 @@ const RESOURCE_TARGETS: [&str; 8] = [
     "Rubber",
     "Saltpeter",
     "Uranium",
+    "Ivory",
 ];
 
 #[allow(
