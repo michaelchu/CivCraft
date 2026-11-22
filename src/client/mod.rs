@@ -45,6 +45,7 @@ mod civ3_geometry;
 mod civ3_projection;
 mod espionage_view;
 mod flc;
+mod font;
 mod fog;
 mod government_view;
 mod hud;
@@ -87,6 +88,7 @@ use crate::sim::{
 #[cfg(test)]
 use crate::sim::{CombatVisual, VisualEvent};
 use crate::world::topology::*;
+use font::draw_text;
 use macroquad::prelude::*;
 use research_tree::{NODE_SIZE, RESEARCH_AGES, ResearchTree};
 
