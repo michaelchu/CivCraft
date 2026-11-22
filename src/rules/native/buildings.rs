@@ -91,80 +91,63 @@ pub(crate) fn parse_buildings(
         .iter()
         .map(|rule| (rule.id.clone(), rule.legacy_runtime_index))
         .collect();
-    for rule in &catalog.rules {
-        for requirement in rule.requirements.iter().chain(&rule.obsolete) {
-            match requirement.kind {
-                NativeRequirementKind::Tech => {
-                    if requirement
-                        .target
-                        .as_deref()
-                        .and_then(|id| {
-                            crate::rules::technologies::runtime_index_in(technologies, id)
-                        })
-                        .is_none()
-                    {
-                        return Err(format!("unknown technology target in {}", rule.id));
-                    }
-                }
-                NativeRequirementKind::Improvement | NativeRequirementKind::OwnerBuildingCount => {
-                    if !requirement
-                        .target
-                        .as_deref()
-                        .is_some_and(|id| building_ids.contains_key(id))
-                    {
-                        return Err(format!("unknown building target in {}", rule.id));
-                    }
-                }
-                NativeRequirementKind::Resource => {
-                    if !requirement
-                        .target
-                        .as_deref()
-                        .is_some_and(|id| RESOURCE_TARGETS.contains(&id))
-                    {
-                        return Err(format!("unknown resource target in {}", rule.id));
-                    }
-                }
-                NativeRequirementKind::River
-                | NativeRequirementKind::Lake
-                | NativeRequirementKind::Sea
-                | NativeRequirementKind::Water
-                | NativeRequirementKind::MinSize
-                | NativeRequirementKind::OwnerCityCount
-                | NativeRequirementKind::OwnerEliteUnit
-                | NativeRequirementKind::OwnerArmyCount => {
-                    if requirement.target.is_some() {
-                        return Err(format!("unexpected named target in {}", rule.id));
-                    }
-                }
-            }
-            if requirement.value < 0 || requirement.second_value < 0 {
-                return Err(format!("negative building requirement in {}", rule.id));
-            }
-        }
-    }
-    // Resolve once for every consumer, including advisors that inspect the
+    // Validate each requirement and resolve its named target to a runtime
+    // index once, for every consumer including advisors that inspect the
     // native requirement records directly rather than BuildingData.
     for rule in &mut catalog.rules {
+        let rule_id = rule.id.clone();
         for requirement in rule.requirements.iter_mut().chain(&mut rule.obsolete) {
-            if let Some(id) = requirement.target.as_deref() {
-                let index = match requirement.kind {
-                    NativeRequirementKind::Tech => {
-                        crate::rules::technologies::runtime_index_in(technologies, id).unwrap()
-                    }
-                    NativeRequirementKind::Improvement
-                    | NativeRequirementKind::OwnerBuildingCount => building_ids[id],
-                    NativeRequirementKind::Resource => RESOURCE_TARGETS
-                        .iter()
-                        .position(|name| *name == id)
-                        .unwrap(),
-                    _ => unreachable!("named reference was validated above"),
-                };
-                requirement.value =
-                    i32::try_from(index).map_err(|_| "resolved rule index overflows i32")?;
-            }
+            resolve_requirement(&rule_id, requirement, technologies, &building_ids)?;
         }
     }
     Ok(catalog)
+}
+
+fn resolve_requirement(
+    rule_id: &str,
+    requirement: &mut NativeBuildingRequirement,
+    technologies: &TechnologyCatalog,
+    building_ids: &std::collections::HashMap<String, usize>,
+) -> Result<(), String> {
+    let target = requirement.target.as_deref();
+    let resolved = match requirement.kind {
+        NativeRequirementKind::Tech => Some(
+            target
+                .and_then(|id| crate::rules::technologies::runtime_index_in(technologies, id))
+                .ok_or_else(|| format!("unknown technology target in {rule_id}"))?,
+        ),
+        NativeRequirementKind::Improvement | NativeRequirementKind::OwnerBuildingCount => Some(
+            target
+                .and_then(|id| building_ids.get(id).copied())
+                .ok_or_else(|| format!("unknown building target in {rule_id}"))?,
+        ),
+        NativeRequirementKind::Resource => Some(
+            target
+                .and_then(|id| RESOURCE_TARGETS.iter().position(|name| *name == id))
+                .ok_or_else(|| format!("unknown resource target in {rule_id}"))?,
+        ),
+        NativeRequirementKind::River
+        | NativeRequirementKind::Lake
+        | NativeRequirementKind::Sea
+        | NativeRequirementKind::Water
+        | NativeRequirementKind::MinSize
+        | NativeRequirementKind::OwnerCityCount
+        | NativeRequirementKind::OwnerEliteUnit
+        | NativeRequirementKind::OwnerArmyCount => {
+            if target.is_some() {
+                return Err(format!("unexpected named target in {rule_id}"));
+            }
+            None
+        }
+    };
+    if requirement.value < 0 || requirement.second_value < 0 {
+        return Err(format!("negative building requirement in {rule_id}"));
+    }
+    if let Some(index) = resolved {
+        requirement.value =
+            i32::try_from(index).map_err(|_| "resolved rule index overflows i32")?;
+    }
+    Ok(())
 }
 
 pub(crate) fn buildings() -> &'static BuildingCatalog {
