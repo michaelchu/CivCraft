@@ -17,7 +17,6 @@ impl GovernmentCatalog {
 pub(crate) struct NativeGovernment {
     pub(crate) government: String,
     pub(crate) name: String,
-    pub(crate) required_technology: String,
     pub(crate) technology: Option<crate::rules::Tech>,
     pub(crate) preferred_government: Option<String>,
     pub(crate) flags: Vec<String>,
@@ -32,7 +31,6 @@ pub(crate) struct NativeGovernment {
 struct GovernmentSpec {
     government: &'static str,
     name: &'static str,
-    required_technology: &'static str,
     technology: Option<crate::rules::Tech>,
     preferred_government: Option<&'static str>,
     flags: &'static [&'static str],
@@ -47,7 +45,6 @@ const GOVERNMENTS: &[GovernmentSpec] = &[
     GovernmentSpec {
         government: "anarchy",
         name: "Anarchy",
-        required_technology: "",
         technology: None,
         preferred_government: None,
         flags: &[],
@@ -59,7 +56,6 @@ const GOVERNMENTS: &[GovernmentSpec] = &[
     GovernmentSpec {
         government: "despotism",
         name: "Despotism",
-        required_technology: "",
         technology: None,
         preferred_government: Some("monarchy"),
         flags: &["ShieldToGold"],
@@ -71,7 +67,6 @@ const GOVERNMENTS: &[GovernmentSpec] = &[
     GovernmentSpec {
         government: "monarchy",
         name: "Monarchy",
-        required_technology: "TECH_Monarchy",
         technology: Some(crate::rules::Tech::MONARCHY),
         preferred_government: None,
         flags: &["ShieldToGold"],
@@ -83,7 +78,6 @@ const GOVERNMENTS: &[GovernmentSpec] = &[
     GovernmentSpec {
         government: "communism",
         name: "Communism",
-        required_technology: "TECH_Communism",
         technology: Some(crate::rules::Tech::COMMUNISM),
         preferred_government: None,
         flags: &[],
@@ -95,7 +89,6 @@ const GOVERNMENTS: &[GovernmentSpec] = &[
     GovernmentSpec {
         government: "republic",
         name: "Republic",
-        required_technology: "TECH_The_Republic",
         technology: Some(crate::rules::Tech::THE_REPUBLIC),
         preferred_government: None,
         flags: &[],
@@ -107,7 +100,6 @@ const GOVERNMENTS: &[GovernmentSpec] = &[
     GovernmentSpec {
         government: "democracy",
         name: "Democracy",
-        required_technology: "TECH_Democracy",
         technology: Some(crate::rules::Tech::DEMOCRACY),
         preferred_government: None,
         flags: &["ShieldToGold"],
@@ -119,7 +111,6 @@ const GOVERNMENTS: &[GovernmentSpec] = &[
     GovernmentSpec {
         government: "fascism",
         name: "Fascism",
-        required_technology: "TECH_Fascism",
         technology: Some(crate::rules::Tech::FASCISM),
         preferred_government: None,
         flags: &[],
@@ -131,7 +122,6 @@ const GOVERNMENTS: &[GovernmentSpec] = &[
     GovernmentSpec {
         government: "feudalism",
         name: "Feudalism",
-        required_technology: "TECH_Feudalism",
         technology: Some(crate::rules::Tech::FEUDALISM),
         preferred_government: None,
         flags: &[],
@@ -147,7 +137,6 @@ impl From<&GovernmentSpec> for NativeGovernment {
         Self {
             government: spec.government.to_owned(),
             name: spec.name.to_owned(),
-            required_technology: spec.required_technology.to_owned(),
             technology: spec.technology,
             preferred_government: spec.preferred_government.map(str::to_owned),
             flags: spec.flags.iter().map(|flag| (*flag).to_owned()).collect(),
