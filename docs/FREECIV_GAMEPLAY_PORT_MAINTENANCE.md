@@ -36,17 +36,13 @@ scope, status, and subsystem-difference ledger.
 3. If a rule name, requirement, effect, action, or content universal changes,
    update the owning adapter in `src/rules/` or `src/sim/` and its focused
    source-backed checks. Avoid adding a second subsystem-specific calculation.
-4. If copied upstream files change, update
-   `src/rules/engine_rules/upstream/UPSTREAM_MANIFEST.tsv` with the pinned
-   source and destination SHA-256 values. Keep `identical` and `modified`
-   statuses accurate; the modified destination is an intentional CivCraft
-   override, not a new upstream source. Compute both values with
-   `shasum -a 256 <source-file> <destination-file>` from their respective
-   checkout roots and compare the output with the manifest row.
-5. Check that `RulesetData` still loads the selected baseline and its required
-   include closure. The `packaged_baseline_loads_only_selected_civcraft_ruleset_files`
-   check in `src/rules/engine_rules.rs` records the current selected-file and record
-   counts.
+4. Compare the change against the pinned Freeciv `civ2civ3` source in
+   `reference/freeciv`. The tables in `src/rules/engine_rules/` keep Freeciv's
+   rule names, but they are CivCraft's own code and are not checked against
+   upstream file hashes.
+5. Run the tests in `src/rules/engine_rules/` and the affected release
+   scenarios. `RulesetData::campaign_default()` validates every requirement
+   name in the tables when it is first used.
 
 When advancing Freeciv, use a clean checkout or detached worktree for the new
 full commit. Review changes to `data/civ2civ3/`, inherited `data/default/`
