@@ -26,7 +26,6 @@ use crate::world::{Resource, Terrain};
 /// projected movement or transport disembark.
 pub(crate) struct SimulationRequirementContext<'a> {
     simulation: &'a Simulation,
-    ruleset: &'static RulesetData,
     owner: usize,
     unit: Option<&'a Unit>,
     city: Option<&'a super::City>,
@@ -133,7 +132,6 @@ impl<'a> SimulationRequirementContext<'a> {
     ) -> Self {
         Self {
             simulation,
-            ruleset: RulesetData::campaign_default(),
             owner: unit.owner,
             unit: Some(unit),
             city: None,
@@ -161,7 +159,6 @@ impl<'a> SimulationRequirementContext<'a> {
     ) -> Self {
         Self {
             simulation,
-            ruleset: RulesetData::campaign_default(),
             owner,
             unit: None,
             city: None,
@@ -189,7 +186,6 @@ impl<'a> SimulationRequirementContext<'a> {
     ) -> Self {
         Self {
             simulation,
-            ruleset: RulesetData::campaign_default(),
             owner: city.owner,
             unit: None,
             city: Some(city),
@@ -288,7 +284,6 @@ impl<'a> SimulationRequirementContext<'a> {
     fn at_tile(&self, tile: (i32, i32)) -> Self {
         Self {
             simulation: self.simulation,
-            ruleset: self.ruleset,
             owner: self.owner,
             unit: self.unit,
             city: self.city,
@@ -386,7 +381,7 @@ impl<'a> SimulationRequirementContext<'a> {
         if terrain == Terrain::Volcano {
             return Ok(false);
         }
-        let times = super::movement_rules::MovementRules::new(self.ruleset)
+        let times = super::movement_rules::MovementRules::campaign()
             .terrain_activity_times(terrain)
             .map_err(|_| Self::unsupported(requirement))?;
         let time = match name.to_ascii_lowercase().as_str() {
@@ -1030,7 +1025,7 @@ impl RequirementContext for SimulationRequirementContext<'_> {
                 ) =>
             {
                 let name = Self::string_name(requirement)?;
-                let rules = super::movement_rules::MovementRules::new(self.ruleset);
+                let rules = super::movement_rules::MovementRules::campaign();
                 for tile in self.tile_positions(requirement)? {
                     let class = rules
                         .terrain_class(self.tile_state(tile).terrain)
@@ -1048,7 +1043,7 @@ impl RequirementContext for SimulationRequirementContext<'_> {
                 if terrain == Terrain::Volcano {
                     return Ok(false);
                 }
-                super::movement_rules::MovementRules::new(self.ruleset)
+                super::movement_rules::MovementRules::campaign()
                     .terrain_has_named_flag(terrain, Self::string_name(requirement)?)
                     .map_err(|_| unsupported())
             }

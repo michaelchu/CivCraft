@@ -8,34 +8,22 @@
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
-#[path = "engine_rules/action_enablers.rs"]
 mod action_enablers;
-#[path = "engine_rules/campaign.rs"]
 mod campaign;
-#[path = "engine_rules/civil_war.rs"]
-mod civil_war;
-#[path = "engine_rules/combat.rs"]
 mod combat;
-#[path = "engine_rules/disasters.rs"]
 mod disasters;
-#[path = "engine_rules/effect_table.rs"]
 mod effect_table;
-#[path = "engine_rules/extras.rs"]
 mod extras;
-#[path = "engine_rules/great_leader.rs"]
 mod great_leader;
-#[path = "engine_rules/identifiers.rs"]
 mod identifiers;
-#[path = "engine_rules/loader.rs"]
 mod loader;
-#[path = "engine_rules/settlement_ai.rs"]
 mod settlement_ai;
-#[path = "engine_rules/trade_routes.rs"]
 mod trade_routes;
-#[path = "engine_rules/veterancy.rs"]
 mod veterancy;
-pub(crate) use campaign::{DISASTER_FREQUENCY, INITIAL_CITY_RADIUS_SQ, MIGRATION_PML};
-pub(crate) use civil_war::CivilWarRulesetSettings;
+pub(crate) use campaign::{
+    CivilWarRulesetSettings, DISASTER_FREQUENCY, INITIAL_CITY_RADIUS_SQ, MIGRATION_PML,
+    VeterancySettings,
+};
 pub(crate) use combat::{
     CombatBonusKind, CombatRulesetSettings, TransportDefense, UnitCombatBonus,
 };
@@ -46,13 +34,12 @@ pub(crate) use extras::{
 pub(crate) use great_leader::GreatLeaderSettings;
 pub(crate) use identifiers::{EffectKind, RequirementKind};
 pub(crate) use settlement_ai::SettlementAiSettings;
-#[allow(unused_imports)]
 pub(crate) use trade_routes::{
     CaravanBonusStyle, GoodsSelection, TradeGoodFlag, TradeGoodRulesetRecord, TradeRevenueStyle,
     TradeRouteBonus, TradeRouteCancellation, TradeRouteRulesetSettings, TradeRouteType,
     TradeRouteTypeSettings,
 };
-pub(crate) use veterancy::{VeteranLevel, VeteranSystem, VeterancySettings};
+pub(crate) use veterancy::{VeteranLevel, VeteranSystem};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct RulesetData {
@@ -304,7 +291,7 @@ pub(crate) struct EffectSet {
 }
 
 impl EffectSet {
-    /// Effects of one engine type, in ruleset file order.
+    /// Effects of one engine type, in table order.
     pub(crate) fn of_kind(&self, kind: EffectKind) -> impl Iterator<Item = &EffectRecord> + '_ {
         self.by_kind
             .get(kind as usize)

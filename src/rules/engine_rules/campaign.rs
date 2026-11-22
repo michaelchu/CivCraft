@@ -1,18 +1,16 @@
 //! CivCraft's campaign engine settings, owned directly by the code.
 //!
-//! These values used to be parsed at startup from the embedded `game.ruleset`
-//! and `units.ruleset` text files. They are fixed for the campaign and never
-//! edited at runtime, so they are compile-time constants here. The comments
-//! name the pinned Freeciv `civ2civ3` ruleset section or server setting each
-//! value comes from, and the Freeciv engine default where the ruleset leaves a
-//! setting unspecified.
+//! The values are fixed for the campaign, so they are compile-time constants.
+//! Each comment names the pinned Freeciv `civ2civ3` ruleset section or server
+//! setting the value comes from, and the Freeciv engine default where the
+//! ruleset leaves a setting unspecified.
 
 use super::{
-    CalendarSettings, CaravanBonusStyle, CivilWarRulesetSettings, CombatRulesetSettings,
-    FreeTechnologyStyle, GoodsSelection, ResearchCostStyle, ResearchRulesetSettings,
-    RevolutionType, TechnologyLeakageStyle, TechnologyUpkeepStyle, TradeGoodRulesetRecord,
-    TradeRevenueStyle, TradeRouteBonus, TradeRouteCancellation, TradeRouteRulesetSettings,
-    TradeRouteType, TradeRouteTypeSettings, VeterancySettings, VictoryCondition,
+    CalendarSettings, CaravanBonusStyle, CombatRulesetSettings, FreeTechnologyStyle,
+    GoodsSelection, ResearchCostStyle, ResearchRulesetSettings, RevolutionType,
+    TechnologyLeakageStyle, TechnologyUpkeepStyle, TradeGoodRulesetRecord, TradeRevenueStyle,
+    TradeRouteBonus, TradeRouteCancellation, TradeRouteRulesetSettings, TradeRouteType,
+    TradeRouteTypeSettings, VictoryCondition,
 };
 use std::sync::OnceLock;
 
@@ -109,12 +107,26 @@ impl CombatRulesetSettings {
     };
 }
 
+/// Limits on civil-war creation when a capital falls.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct CivilWarRulesetSettings {
+    pub(crate) city_threshold: usize,
+    pub(crate) max_players: usize,
+}
+
 impl CivilWarRulesetSettings {
     /// `civilwarsize` and `maxplayers` server settings.
     pub(crate) const CAMPAIGN: Self = Self {
         city_threshold: 10,
         max_players: 500,
     };
+}
+
+/// How many veteran levels a unit loses when it is upgraded.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct VeterancySettings {
+    pub(crate) upgrade_veteran_loss: usize,
+    pub(crate) autoupgrade_veteran_loss: usize,
 }
 
 impl VeterancySettings {

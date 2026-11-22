@@ -1,13 +1,12 @@
 //! Ruleset-backed movement data adapted to Civ III runtime identities.
 //!
 //! CivCraft keeps its Civ III terrain and unit enums as stable simulation IDs.
-//! This module is the explicit crosswalk from those IDs to the selected C2C3
-//! ruleset records. It only reads data; movement callers can migrate to these
-//! validated accessors independently.
+//! This module is the explicit crosswalk from those IDs to the campaign's
+//! terrain, extra, road and unit class rules. It only reads data.
 
 use std::sync::OnceLock;
 
-use crate::rules::engine_rules::{ExtraRule, RoadRule, RulesetData, extra_by_name, road_by_name};
+use crate::rules::engine_rules::{ExtraRule, RoadRule, extra_by_name, road_by_name};
 
 use super::unit_catalog::UnitClass;
 use super::{Base, Terrain, UnitKind};
@@ -23,17 +22,11 @@ pub(super) const fn campaign_move_fragments() -> i32 {
 }
 
 #[derive(Clone, Copy)]
-pub(super) struct MovementRules<'a> {
-    rules: &'a RulesetData,
-}
+pub(super) struct MovementRules;
 
-impl<'a> MovementRules<'a> {
-    pub(super) fn new(rules: &'a RulesetData) -> Self {
-        Self { rules }
-    }
-
+impl MovementRules {
     pub(super) fn campaign() -> Self {
-        Self::new(RulesetData::campaign_default())
+        Self
     }
 
     pub(super) fn campaign_class_data(class: UnitClass) -> &'static UnitClassMovementData {
@@ -269,7 +262,10 @@ impl<'a> MovementRules<'a> {
         Ok(spec.has_flag(flag))
     }
 
-    pub(super) fn terrain_class(&self, terrain: Terrain) -> Result<&'a str, MovementRulesError> {
+    pub(super) fn terrain_class(
+        &self,
+        terrain: Terrain,
+    ) -> Result<&'static str, MovementRulesError> {
         let rule_name = terrain.engine_rugged_rule_name();
         let spec = crate::rules::terrain_catalog::terrain_spec(rule_name).ok_or_else(|| {
             MovementRulesError::MissingRecord {
@@ -1107,14 +1103,9 @@ mod tests {
         ("transform_time", |times| times.transform),
     ];
 
-    fn campaign_rules() -> &'static RulesetData {
-        RulesetData::campaign_default()
-    }
-
     #[test]
     fn full_civ3_terrain_adapter_reads_costs_and_activity_times_from_c2c3_records() {
-        let rules = campaign_rules();
-        let adapter = MovementRules::new(rules);
+        let adapter = MovementRules::campaign();
         for (terrain, source_name) in TERRAIN_ADAPTER {
             let Some(source_name) = source_name else {
                 assert_eq!(
@@ -1173,8 +1164,7 @@ mod tests {
 
     #[test]
     fn clean_and_pillage_times_follow_selected_terrain_extra_settings() {
-        let rules = campaign_rules();
-        let adapter = MovementRules::new(rules);
+        let adapter = MovementRules::campaign();
         for (terrain, source_name) in TERRAIN_ADAPTER {
             let Some(source_name) = source_name else {
                 assert!(matches!(
@@ -1242,7 +1232,7 @@ mod tests {
 
     #[test]
     fn unit_class_movement_data_matches_the_pinned_class_records() {
-        let adapter = MovementRules::new(campaign_rules());
+        let adapter = MovementRules::campaign();
         // class, min_speed, build_anywhere, occupy, kills_citizens, missile,
         // terrain_defense, terrain_speed, zoc, damage_slows
         let expected = [
@@ -1392,8 +1382,7 @@ mod tests {
 
     #[test]
     fn unknown_tile_costs_match_c2c3_terrain_class_and_igter_data() {
-        let rules = campaign_rules();
-        let adapter = MovementRules::new(rules);
+        let adapter = MovementRules::campaign();
         let fragments = adapter.move_fragments();
         let igter_cost = adapter.igter_cost();
         for kind in UnitKind::all() {
@@ -1451,8 +1440,7 @@ mod tests {
 
     #[test]
     fn full_terrain_and_extra_nativity_adapters_read_c2c3_lists() {
-        let rules = campaign_rules();
-        let adapter = MovementRules::new(rules);
+        let adapter = MovementRules::campaign();
         for (terrain, source_name) in TERRAIN_ADAPTER {
             let Some(source_name) = source_name else {
                 assert!(matches!(
@@ -1778,8 +1766,7 @@ mod tests {
 
     #[test]
     fn unsupported_or_incomplete_mappings_fail_instead_of_using_local_defaults() {
-        let rules = campaign_rules();
-        let adapter = MovementRules::new(rules);
+        let adapter = MovementRules::campaign();
         assert!(matches!(
             adapter.terrain_data(Terrain::Volcano),
             Err(MovementRulesError::UnsupportedTerrain(Terrain::Volcano))

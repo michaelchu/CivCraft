@@ -1,4 +1,4 @@
-//! Typed veterancy data from the selected Freeciv `units.ruleset`.
+//! Veteran level data as the simulation consumes it.
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct VeteranLevel {
@@ -12,12 +12,6 @@ pub(crate) struct VeteranLevel {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct VeteranSystem {
     pub(crate) levels: Vec<VeteranLevel>,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct VeterancySettings {
-    pub(crate) upgrade_veteran_loss: usize,
-    pub(crate) autoupgrade_veteran_loss: usize,
 }
 
 impl VeteranSystem {
