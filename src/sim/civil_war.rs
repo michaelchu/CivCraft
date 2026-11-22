@@ -65,17 +65,12 @@ impl Simulation {
         if !honour_server_option {
             return true;
         }
-        let settings: crate::rules::engine_rules::CivilWarRulesetSettings = rules
-            .civil_war_settings()
-            .expect("selected C2C3 civil-war settings are valid");
+        let settings = crate::rules::engine_rules::CivilWarRulesetSettings::CAMPAIGN;
         settings.city_threshold < 1000 && city_count >= settings.city_threshold
     }
 
     pub(super) fn split_civil_war(&mut self, owner: usize) {
-        let rules = RulesetData::campaign_default();
-        let settings = rules
-            .civil_war_settings()
-            .expect("selected C2C3 civil-war settings are valid");
+        let settings = crate::rules::engine_rules::CivilWarRulesetSettings::CAMPAIGN;
         let normal_player_count = self.players.len().saturating_sub(1);
         let playable_nations = crate::rules::civilizations::all().len();
         if normal_player_count >= settings.max_players

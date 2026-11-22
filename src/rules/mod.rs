@@ -21,7 +21,6 @@ pub(crate) mod native;
 
 // The shared model keeps engine mechanics data separate from Civ III source
 // content; simulation adapters bind source identities to stable wrappers.
-#[allow(dead_code)]
 pub(crate) mod engine_rules;
 mod section_file;
 

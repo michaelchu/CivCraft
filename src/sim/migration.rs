@@ -12,7 +12,6 @@
 
 use super::*;
 use crate::rules::Genus;
-use crate::rules::engine_rules::RulesetData;
 use std::collections::HashMap;
 
 /// Freeciv server settings that control the city migration pass.
@@ -515,12 +514,7 @@ fn add_one_citizen_nationality(city: &mut City, nationality: usize) {
 }
 
 fn selected_migration_pml() -> i32 {
-    static MIGRATION_PML: std::sync::OnceLock<i32> = std::sync::OnceLock::new();
-    *MIGRATION_PML.get_or_init(|| {
-        RulesetData::campaign_default()
-            .required_i32_parameter("game.ruleset", "culture", "migration_pml")
-            .unwrap_or_else(|error| panic!("{error}"))
-    })
+    crate::rules::engine_rules::MIGRATION_PML
 }
 
 pub(crate) const fn selected_citizen_nationality() -> bool {

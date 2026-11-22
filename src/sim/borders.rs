@@ -2,7 +2,6 @@
 
 use super::action_rules::SimulationRequirementContext;
 use super::*;
-use crate::rules::engine_rules::RulesetData;
 use crate::sim::culture::city_culture_border_radius;
 use std::collections::HashMap;
 
@@ -23,9 +22,7 @@ impl BorderRules {
     fn selected() -> Self {
         static RULES: std::sync::OnceLock<BorderRules> = std::sync::OnceLock::new();
         *RULES.get_or_init(|| Self {
-            initial_city_radius_sq: RulesetData::campaign_default()
-                .required_integer_parameter("game.ruleset", "civstyle", "init_city_radius_sq")
-                .unwrap_or_else(|error| panic!("{error}")),
+            initial_city_radius_sq: crate::rules::engine_rules::INITIAL_CITY_RADIUS_SQ,
         })
     }
 

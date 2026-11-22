@@ -10,9 +10,9 @@ use std::path::{Path, PathBuf};
 
 use super::super::section_file::{self, Entry, Section, SectionFile, Value};
 use super::{
-    ActionEnabler, ActionRecord, ContentKind, ContentRecord, EffectRecord, LoadError,
-    LoadedRuleFile, Requirement, RequirementRange, RequirementValue, ResolvedRequirementValue,
-    RuleFileSource, RuleParameter, RuleRecord, RuleSourceLocation, RulesetData, SettingRecord,
+    ActionEnabler, ContentKind, ContentRecord, EffectRecord, LoadError, LoadedRuleFile,
+    Requirement, RequirementRange, RequirementValue, ResolvedRequirementValue, RuleFileSource,
+    RuleParameter, RuleRecord, RuleSourceLocation, RulesetData,
 };
 
 // The bundle and the filesystem loader use the same file list and order.
@@ -39,12 +39,6 @@ campaign_files!(
 );
 
 impl RulesetData {
-    /// Load one named ruleset. Missing files use Freeciv's whole-file
-    /// `default/` fallback; no sections or keys are merged across files.
-    pub(crate) fn load(data_root: &Path, name: &str) -> Result<Self, LoadError> {
-        Self::load_from_directory(data_root, &data_root.join(name), name)
-    }
-
     /// Load a ruleset whose selected files live in a package subdirectory.
     /// Shared Freeciv fallback files remain rooted at `data_root`.
     pub(crate) fn load_from_directory(
@@ -90,10 +84,8 @@ impl RulesetData {
             }
         }
 
-        let mut settings = Vec::new();
         let mut parameters = Vec::new();
         let mut effects = Vec::new();
-        let mut actions = Vec::new();
         let mut action_enablers = Vec::new();
         let mut content = Vec::new();
         let mut rule_records = Vec::new();
@@ -102,12 +94,6 @@ impl RulesetData {
             let file_name = &loaded.name;
             for section in &loaded.parsed.sections {
                 for entry in &section.entries {
-                    if file_name == "game.ruleset"
-                        && section.name == "settings"
-                        && entry.key == "set"
-                    {
-                        settings.extend(parse_settings(&loaded.path, section, entry)?);
-                    }
                     if !is_record_section(&section.name) && entry.key != "*include" {
                         parameters.push(RuleParameter {
                             file: file_name.clone(),
@@ -120,9 +106,6 @@ impl RulesetData {
 
                 if file_name == "effects.ruleset" && section.name.starts_with("effect_") {
                     effects.push(parse_effect(&loaded.path, section)?);
-                }
-                if file_name == "actions.ruleset" && section.name.starts_with("action_") {
-                    actions.push(parse_action(&loaded.path, section)?);
                 }
                 if file_name == "actions.ruleset" && section.name.starts_with("enabler_") {
                     action_enablers.push(parse_action_enabler(&loaded.path, section)?);
@@ -143,10 +126,8 @@ impl RulesetData {
         let mut rules = Self {
             name: name.to_owned(),
             files,
-            settings,
             parameters,
             effects: effects.into(),
-            actions,
             action_enablers,
             action_index: Default::default(),
             content,
@@ -415,21 +396,6 @@ fn merge_repeated_sections(
     Ok(SectionFile { sections })
 }
 
-fn parse_settings(
-    file: &Path,
-    section: &Section,
-    entry: &Entry,
-) -> Result<Vec<SettingRecord>, LoadError> {
-    let rows = table_rows(file, section, entry)?;
-    rows.into_iter()
-        .map(|row| {
-            let name = row_string(file, section, entry, &row, "name")?;
-            let value = row_value(file, section, entry, &row, "value")?.clone();
-            Ok(SettingRecord { name, value })
-        })
-        .collect()
-}
-
 fn parse_effect(file: &Path, section: &Section) -> Result<EffectRecord, LoadError> {
     let kind = field_string(file, section, "type")?
         .ok_or_else(|| LoadError::in_section(file, section, "effect record is missing `type`"))?;
@@ -462,24 +428,6 @@ fn parse_effect(file: &Path, section: &Section) -> Result<EffectRecord, LoadErro
         value,
         multiplier,
         requirements,
-    })
-}
-
-fn parse_action(file: &Path, section: &Section) -> Result<ActionRecord, LoadError> {
-    let action = field_string(file, section, "action")?
-        .ok_or_else(|| LoadError::in_section(file, section, "action record is missing `action`"))?;
-    validate_identifier(
-        file,
-        section,
-        "action",
-        &action,
-        super::identifiers::ACTION_NAMES,
-        "action",
-    )?;
-    Ok(ActionRecord {
-        rule_name: section_suffix(section, "action_"),
-        action,
-        fields: section.entries.clone(),
     })
 }
 
@@ -906,10 +854,8 @@ fn requirement_value_is_valid(requirement: &Requirement, rules: &RulesetData) ->
             "road_flags",
             super::identifiers::ROAD_FLAG_NAMES,
         ),
-        RequirementKind::ServerSetting => rules
-            .settings
-            .iter()
-            .any(|setting| setting.name.eq_ignore_ascii_case(&name)),
+        // The campaign's server settings are code constants, not ruleset names.
+        RequirementKind::ServerSetting => false,
         RequirementKind::Site => building_name_exists(rules, &name),
         RequirementKind::Specialist => {
             record_name_exists(rules, "specialist", &name)

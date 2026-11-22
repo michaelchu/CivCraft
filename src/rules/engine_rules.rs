@@ -7,13 +7,12 @@
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
-const FREECIV_OCEAN_DEPTH_MINIMUM: i32 = 1;
-const FREECIV_OCEAN_DEPTH_MAXIMUM: i32 = 100;
-
 #[cfg(test)]
 use super::section_file;
 use super::section_file::{Entry, Section, SectionFile, Value};
 
+#[path = "engine_rules/campaign.rs"]
+mod campaign;
 #[path = "engine_rules/civil_war.rs"]
 mod civil_war;
 #[path = "engine_rules/combat.rs"]
@@ -30,6 +29,7 @@ mod settlement_ai;
 mod trade_routes;
 #[path = "engine_rules/veterancy.rs"]
 mod veterancy;
+pub(crate) use campaign::{DISASTER_FREQUENCY, INITIAL_CITY_RADIUS_SQ, MIGRATION_PML};
 pub(crate) use civil_war::CivilWarRulesetSettings;
 pub(crate) use combat::{
     CombatBonusKind, CombatRulesetSettings, TransportDefense, UnitCombatBonus,
@@ -67,10 +67,8 @@ pub(crate) struct RulesetData {
     pub(crate) name: String,
     /// The fixed Freeciv load order, with each file's original section order.
     pub(crate) files: Vec<LoadedRuleFile>,
-    pub(crate) settings: Vec<SettingRecord>,
     pub(crate) parameters: Vec<RuleParameter>,
     pub(crate) effects: EffectSet,
-    pub(crate) actions: Vec<ActionRecord>,
     pub(crate) action_enablers: Vec<ActionEnabler>,
     action_index: RuleNameIndex,
     pub(crate) content: Vec<ContentRecord>,
@@ -108,12 +106,6 @@ impl RuleNameIndex {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct SettingRecord {
-    pub(crate) name: String,
-    pub(crate) value: Value,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct RuleParameter {
     pub(crate) file: String,
     pub(crate) section: String,
@@ -129,67 +121,6 @@ impl RuleParameter {
             Value::Integer(value) => Ok(Some(*value)),
             other => Err(format!(
                 "{}.{} must be an integer, found {other:?}",
-                self.section, self.key
-            )),
-        }
-    }
-
-    pub(crate) fn integer_list_value(&self) -> Result<Option<Vec<i64>>, String> {
-        match &self.value {
-            Value::List(values) => values
-                .iter()
-                .map(|value| match value {
-                    Value::Integer(value) => Ok(*value),
-                    other => Err(format!(
-                        "{}.{} must be an integer list, found item {other:?}",
-                        self.section, self.key
-                    )),
-                })
-                .collect::<Result<Vec<_>, _>>()
-                .map(Some),
-            other => Err(format!(
-                "{}.{} must be an integer list, found {other:?}",
-                self.section, self.key
-            )),
-        }
-    }
-
-    pub(crate) fn string_value(&self) -> Result<Option<&str>, String> {
-        match &self.value {
-            Value::String(value) => Ok(Some(value)),
-            other => Err(format!(
-                "{}.{} must be a string, found {other:?}",
-                self.section, self.key
-            )),
-        }
-    }
-
-    pub(crate) fn string_list_value(&self) -> Result<Option<Vec<String>>, String> {
-        match &self.value {
-            Value::String(value) => Ok(Some(vec![value.clone()])),
-            Value::List(values) => values
-                .iter()
-                .map(|value| match value {
-                    Value::String(value) => Ok(value.clone()),
-                    other => Err(format!(
-                        "{}.{} must be a string list, found item {other:?}",
-                        self.section, self.key
-                    )),
-                })
-                .collect::<Result<Vec<_>, _>>()
-                .map(Some),
-            other => Err(format!(
-                "{}.{} must be a string list, found {other:?}",
-                self.section, self.key
-            )),
-        }
-    }
-
-    pub(crate) fn boolean_value(&self) -> Result<Option<bool>, String> {
-        match &self.value {
-            Value::Bool(value) => Ok(Some(*value)),
-            other => Err(format!(
-                "{}.{} must be a boolean, found {other:?}",
                 self.section, self.key
             )),
         }
@@ -231,28 +162,13 @@ pub(crate) enum RevolutionType {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum HappyBorders {
-    Disabled,
-    National,
-    Allied,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum UnitUpkeepOutput {
     Food,
     Shield,
     Gold,
 }
 
-impl UnitUpkeepOutput {
-    fn parameter_name(self) -> &'static str {
-        match self {
-            Self::Food => "food",
-            Self::Shield => "shield",
-            Self::Gold => "gold",
-        }
-    }
-}
+impl UnitUpkeepOutput {}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct MissingUnitUpkeepOutputSettings {
@@ -277,12 +193,6 @@ impl MissingUnitUpkeepSettings {
             UnitUpkeepOutput::Gold => &self.gold,
         }
     }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct UnitHappinessRulesetSettings {
-    pub(crate) borders_enabled: bool,
-    pub(crate) happy_borders: HappyBorders,
 }
 
 /// Effective C2C3 research and revolution inputs. The selected ruleset is the
@@ -314,6 +224,10 @@ pub(crate) struct ResearchRulesetSettings {
     pub(crate) revolution_length: i32,
 }
 
+#[allow(
+    dead_code,
+    reason = "complete Freeciv option set; the campaign selects a subset"
+)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum VictoryCondition {
     SpaceRace,
@@ -322,16 +236,7 @@ pub(crate) enum VictoryCondition {
     WorldPeace,
 }
 
-impl VictoryCondition {
-    fn rule_name(self) -> &'static str {
-        match self {
-            Self::SpaceRace => "SPACERACE",
-            Self::Allied => "ALLIED",
-            Self::Culture => "CULTURE",
-            Self::WorldPeace => "WORLDPEACE",
-        }
-    }
-}
+impl VictoryCondition {}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Requirement {
@@ -468,13 +373,6 @@ impl<'a> IntoIterator for &'a EffectSet {
     fn into_iter(self) -> Self::IntoIter {
         self.records.iter()
     }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct ActionRecord {
-    pub(crate) rule_name: String,
-    pub(crate) action: String,
-    pub(crate) fields: Vec<Entry>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -619,52 +517,6 @@ impl ContentRecord {
             })
             .collect::<Result<Vec<_>, _>>()
             .map(Some)
-    }
-}
-
-/// A selected-ruleset government, retaining stable ruleset identity and the
-/// requirements and effect attributes that define its behavior.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct GovernmentRulesetRecord {
-    /// Stable Freeciv rule name used by requirements and saves.
-    pub(crate) id: String,
-    pub(crate) name: String,
-    pub(crate) section: String,
-    pub(crate) requirements: Vec<Requirement>,
-    pub(crate) flags: Vec<String>,
-    pub(crate) ai_better: Option<String>,
-    /// Effects whose government requirements match this government. Other
-    /// requirements are preserved and evaluated by the shared effect engine.
-    pub(crate) attributes: EffectSet,
-}
-
-impl GovernmentRulesetRecord {
-    /// Evaluate an effect such as `Max_Rates` using Freeciv's shared evaluator.
-    /// The caller supplies the simulation-specific requirements and multiplier
-    /// context; this record supplies the selected ruleset's government-scoped
-    /// effect definitions.
-    pub(crate) fn effect_value(
-        &self,
-        kind: EffectKind,
-        context: &impl EffectContext,
-    ) -> Result<i64, EffectEvaluationError> {
-        effect_value(&self.attributes, kind, context)
-    }
-}
-
-/// Government records in selected ruleset order, plus the rule selected for
-/// Freeciv's temporary government during a revolution.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct GovernmentRulesetCatalog {
-    pub(crate) during_revolution_id: String,
-    pub(crate) governments: Vec<GovernmentRulesetRecord>,
-}
-
-impl GovernmentRulesetCatalog {
-    pub(crate) fn get(&self, id: &str) -> Option<&GovernmentRulesetRecord> {
-        self.governments
-            .iter()
-            .find(|government| government.id.eq_ignore_ascii_case(id))
     }
 }
 
@@ -877,492 +729,9 @@ impl RulesetData {
             })
             .expect("test unit section")
     }
-
-    pub(crate) fn optional_parameter(
-        &self,
-        file: &str,
-        section: &str,
-        key: &str,
-    ) -> Result<Option<&RuleParameter>, LoadError> {
-        let mut matches = self.parameters.iter().filter(|parameter| {
-            parameter.file.eq_ignore_ascii_case(file)
-                && parameter.section.eq_ignore_ascii_case(section)
-                && parameter.key.eq_ignore_ascii_case(key)
-        });
-        let parameter = matches.next();
-        if matches.next().is_some() {
-            return Err(LoadError::new(format!(
-                "selected ruleset repeats {file} [{section}].{key}"
-            )));
-        }
-        Ok(parameter)
-    }
-
-    pub(crate) fn optional_parameter_in_file(
-        &self,
-        file: &str,
-        key: &str,
-    ) -> Result<Option<&RuleParameter>, LoadError> {
-        let mut matches = self.parameters.iter().filter(|parameter| {
-            parameter.file.eq_ignore_ascii_case(file) && parameter.key.eq_ignore_ascii_case(key)
-        });
-        let parameter = matches.next();
-        if matches.next().is_some() {
-            return Err(LoadError::new(format!(
-                "selected ruleset repeats {file} {key}"
-            )));
-        }
-        Ok(parameter)
-    }
-
-    pub(crate) fn required_parameter(
-        &self,
-        file: &str,
-        section: &str,
-        key: &str,
-    ) -> Result<&RuleParameter, LoadError> {
-        self.optional_parameter(file, section, key)?.ok_or_else(|| {
-            LoadError::new(format!(
-                "selected ruleset is missing {file} [{section}].{key}"
-            ))
-        })
-    }
-
-    pub(crate) fn required_integer_parameter(
-        &self,
-        file: &str,
-        section: &str,
-        key: &str,
-    ) -> Result<i64, LoadError> {
-        let parameter = self.required_parameter(file, section, key)?;
-        parameter
-            .integer_value()
-            .map_err(|error| LoadError::new(format!("invalid {file} [{section}].{key}: {error}")))?
-            .ok_or_else(|| LoadError::new(format!("{file} [{section}].{key} has no integer value")))
-    }
-
-    pub(crate) fn required_i32_parameter(
-        &self,
-        file: &str,
-        section: &str,
-        key: &str,
-    ) -> Result<i32, LoadError> {
-        let value = self.required_integer_parameter(file, section, key)?;
-        i32::try_from(value).map_err(|_| {
-            LoadError::new(format!(
-                "{file} [{section}].{key} is outside the supported integer range"
-            ))
-        })
-    }
-
-    pub(crate) fn optional_i32_parameter(
-        &self,
-        file: &str,
-        section: &str,
-        key: &str,
-    ) -> Result<Option<i32>, LoadError> {
-        let Some(parameter) = self.optional_parameter(file, section, key)? else {
-            return Ok(None);
-        };
-        let value = parameter
-            .integer_value()
-            .map_err(|error| LoadError::new(format!("invalid {file} [{section}].{key}: {error}")))?
-            .ok_or_else(|| {
-                LoadError::new(format!("{file} [{section}].{key} has no integer value"))
-            })?;
-        i32::try_from(value).map(Some).map_err(|_| {
-            LoadError::new(format!(
-                "{file} [{section}].{key} is outside the supported integer range"
-            ))
-        })
-    }
-
-    pub(crate) fn required_boolean_parameter(
-        &self,
-        file: &str,
-        section: &str,
-        key: &str,
-    ) -> Result<bool, LoadError> {
-        let parameter = self.required_parameter(file, section, key)?;
-        parameter
-            .boolean_value()
-            .map_err(|error| LoadError::new(format!("invalid {file} [{section}].{key}: {error}")))?
-            .ok_or_else(|| LoadError::new(format!("{file} [{section}].{key} has no boolean value")))
-    }
-
-    pub(crate) fn optional_boolean_parameter(
-        &self,
-        file: &str,
-        section: &str,
-        key: &str,
-    ) -> Result<Option<bool>, LoadError> {
-        let Some(parameter) = self.optional_parameter(file, section, key)? else {
-            return Ok(None);
-        };
-        parameter
-            .boolean_value()
-            .map_err(|error| LoadError::new(format!("invalid {file} [{section}].{key}: {error}")))?
-            .map(Some)
-            .ok_or_else(|| LoadError::new(format!("{file} [{section}].{key} has no boolean value")))
-    }
-
-    /// Resolve the selected C2C3 research and revolution inputs. This method
-    /// intentionally rejects styles other than the ones used by the pinned
-    /// campaign ruleset rather than substituting a built-in fallback.
-    pub(crate) fn research_settings(&self) -> Result<ResearchRulesetSettings, LoadError> {
-        let parameter_string = |section: &str, key: &str| -> Result<String, LoadError> {
-            let parameter = required_parameter(self, "game.ruleset", section, key)?;
-            parameter
-                .string_value()
-                .map_err(|error| LoadError::new(format!("invalid research rules: {error}")))?
-                .map(str::to_owned)
-                .ok_or_else(|| {
-                    LoadError::new(format!(
-                        "game.ruleset [{section}].{key} has no string value"
-                    ))
-                })
-        };
-        let parameter_integer = |section: &str, key: &str| -> Result<i32, LoadError> {
-            let parameter = required_parameter(self, "game.ruleset", section, key)?;
-            let value = parameter
-                .integer_value()
-                .map_err(|error| LoadError::new(format!("invalid research rules: {error}")))?
-                .ok_or_else(|| {
-                    LoadError::new(format!(
-                        "game.ruleset [{section}].{key} has no integer value"
-                    ))
-                })?;
-            i32::try_from(value).map_err(|_| {
-                LoadError::new(format!(
-                    "game.ruleset [{section}].{key} is outside the supported integer range"
-                ))
-            })
-        };
-        let parameter_bool = |section: &str, key: &str| -> Result<bool, LoadError> {
-            let parameter = required_parameter(self, "game.ruleset", section, key)?;
-            match &parameter.value {
-                Value::Bool(value) => Ok(*value),
-                other => Err(LoadError::new(format!(
-                    "game.ruleset [{section}].{key} must be a boolean, found {other:?}"
-                ))),
-            }
-        };
-        let setting_integer = |name: &str| -> Result<i32, LoadError> {
-            let setting = required_setting(self, name)?;
-            let value = match &setting.value {
-                Value::Integer(value) => *value,
-                other => {
-                    return Err(LoadError::new(format!(
-                        "game setting `{name}` must be an integer, found {other:?}"
-                    )));
-                }
-            };
-            i32::try_from(value)
-                .map_err(|_| LoadError::new(format!("game setting `{name}` is outside i32 range")))
-        };
-        let setting_string = |name: &str| -> Result<String, LoadError> {
-            let setting = required_setting(self, name)?;
-            match &setting.value {
-                Value::String(value) => Ok(value.clone()),
-                other => Err(LoadError::new(format!(
-                    "game setting `{name}` must be a string, found {other:?}"
-                ))),
-            }
-        };
-        let checked_setting_integer =
-            |name: &str, minimum: i32, maximum: i32| -> Result<i32, LoadError> {
-                let value = setting_integer(name)?;
-                if !(minimum..=maximum).contains(&value) {
-                    return Err(LoadError::new(format!(
-                        "game setting `{name}` must be in {minimum}..={maximum}, found {value}"
-                    )));
-                }
-                Ok(value)
-            };
-
-        let cost_style = match parameter_string("research", "tech_cost_style")?
-            .to_ascii_lowercase()
-            .as_str()
-        {
-            "linear" => ResearchCostStyle::Linear,
-            value => {
-                return Err(LoadError::new(format!(
-                    "unsupported campaign tech_cost_style {value:?}"
-                )));
-            }
-        };
-        let leakage_style = match parameter_string("research", "tech_leakage")?
-            .to_ascii_lowercase()
-            .as_str()
-        {
-            "embassies" => TechnologyLeakageStyle::Embassies,
-            value => {
-                return Err(LoadError::new(format!(
-                    "unsupported campaign tech_leakage {value:?}"
-                )));
-            }
-        };
-        let upkeep_style = match parameter_string("research", "tech_upkeep_style")?
-            .to_ascii_lowercase()
-            .as_str()
-        {
-            "cities" => TechnologyUpkeepStyle::Cities,
-            value => {
-                return Err(LoadError::new(format!(
-                    "unsupported campaign tech_upkeep_style {value:?}"
-                )));
-            }
-        };
-        let free_technology_style = match parameter_string("research", "free_tech_method")?
-            .to_ascii_lowercase()
-            .as_str()
-        {
-            "cheapest" => FreeTechnologyStyle::Cheapest,
-            value => {
-                return Err(LoadError::new(format!(
-                    "unsupported campaign free_tech_method {value:?}"
-                )));
-            }
-        };
-        let revolution_type = match setting_string("revolentype")?.to_ascii_uppercase().as_str() {
-            "RANDQUICK" => RevolutionType::RandomQuick,
-            value => {
-                return Err(LoadError::new(format!(
-                    "unsupported campaign revolentype {value:?}"
-                )));
-            }
-        };
-
-        Ok(ResearchRulesetSettings {
-            cost_style,
-            base_tech_cost: parameter_integer("research", "base_tech_cost")?,
-            min_tech_cost: parameter_integer("research", "min_tech_cost")?,
-            leakage_style,
-            upkeep_style,
-            upkeep_divider: parameter_integer("research", "tech_upkeep_divider")?,
-            free_technology_style,
-            tech_steal_allow_holes: parameter_bool("civstyle", "tech_steal_allow_holes")?,
-            tech_trade_allow_holes: parameter_bool("civstyle", "tech_trade_allow_holes")?,
-            tech_trade_loss_allow_holes: parameter_bool("civstyle", "tech_trade_loss_allow_holes")?,
-            tech_parasite_allow_holes: parameter_bool("civstyle", "tech_parasite_allow_holes")?,
-            tech_loss_allow_holes: parameter_bool("civstyle", "tech_loss_allow_holes")?,
-            sciencebox_percent: checked_setting_integer("sciencebox", 1, 10_000)?,
-            tech_penalty_percent: checked_setting_integer("techpenalty", 0, 100)?,
-            tech_leak_percent: checked_setting_integer("techleak", 0, 300)?,
-            tech_loss_forgiveness_percent: checked_setting_integer("techlossforgiveness", -1, 200)?,
-            tech_loss_restore_percent: checked_setting_integer("techlossrestore", -1, 100)?,
-            tech_lost_recv_percent: checked_setting_integer("techlost_recv", 0, 100)?,
-            tech_lost_donor_percent: checked_setting_integer("techlost_donor", 0, 100)?,
-            diplomatic_bulb_cost_percent: checked_setting_integer("diplbulbcost", 0, 100)?,
-            revolution_type,
-            revolution_length: checked_setting_integer("revolen", 1, 20)?,
-        })
-    }
-
-    pub(crate) fn calendar_settings(&self) -> Result<CalendarSettings, LoadError> {
-        let read = |key: &str| {
-            self.parameters
-                .iter()
-                .find(|parameter| {
-                    parameter.file == "game.ruleset"
-                        && parameter.section == "calendar"
-                        && parameter.key == key
-                })
-                .map(|parameter| &parameter.value)
-                .ok_or_else(|| LoadError::new(format!("calendar is missing `{key}`")))
-        };
-        let start_year = match read("start_year")? {
-            Value::Integer(value) => i32::try_from(*value)
-                .map_err(|_| LoadError::new("calendar start_year is outside i32 range"))?,
-            other => {
-                return Err(LoadError::new(format!(
-                    "calendar start_year must be an integer, found {other:?}"
-                )));
-            }
-        };
-        let skip_year_0 = match read("skip_year_0")? {
-            Value::Bool(value) => *value,
-            other => {
-                return Err(LoadError::new(format!(
-                    "calendar skip_year_0 must be a boolean, found {other:?}"
-                )));
-            }
-        };
-        let fragments_per_year = match read("fragments")? {
-            Value::Integer(value) => u32::try_from(*value)
-                .map_err(|_| LoadError::new("calendar fragments must be nonnegative"))?,
-            other => {
-                return Err(LoadError::new(format!(
-                    "calendar fragments must be an integer, found {other:?}"
-                )));
-            }
-        };
-        let label = |key: &str| -> Result<String, LoadError> {
-            match read(key)? {
-                Value::String(value) => Ok(value.clone()),
-                other => Err(LoadError::new(format!(
-                    "calendar {key} must be a string, found {other:?}"
-                ))),
-            }
-        };
-        Ok(CalendarSettings {
-            start_year,
-            skip_year_0,
-            fragments_per_year,
-            positive_label: label("positive_label")?,
-            negative_label: label("negative_label")?,
-        })
-    }
-
-    /// Read a named integer server setting from the selected ruleset's
-    /// explicit campaign defaults. Reject absent, duplicate, malformed, or
-    /// out-of-range values instead of falling back to an engine constant.
-    pub(crate) fn integer_setting_value(&self, name: &str) -> Result<i32, LoadError> {
-        let setting = required_setting(self, name)?;
-        let Value::Integer(value) = &setting.value else {
-            return Err(LoadError::new(format!(
-                "campaign `{name}` setting must be an integer, found {:?}",
-                setting.value
-            )));
-        };
-        i32::try_from(*value).map_err(|_| {
-            LoadError::new(format!(
-                "campaign `{name}` setting is outside the supported integer range"
-            ))
-        })
-    }
-
-    /// Read Freeciv's bitwise `victories` server setting from the selected
-    /// ruleset's explicit campaign defaults. The engine default is not a
-    /// ruleset value, so the CivCraft derivative records it instead of
-    /// inheriting it implicitly.
-    pub(crate) fn victory_enabled(&self, condition: VictoryCondition) -> Result<bool, LoadError> {
-        let value = self
-            .settings
-            .iter()
-            .find(|setting| setting.name.eq_ignore_ascii_case("victories"))
-            .map(|setting| &setting.value)
-            .ok_or_else(|| LoadError::new("campaign ruleset is missing `victories` setting"))?;
-        let Value::String(value) = value else {
-            return Err(LoadError::new(format!(
-                "campaign `victories` setting must be a string, found {value:?}"
-            )));
-        };
-
-        let mut seen = std::collections::BTreeSet::new();
-        let mut enabled = false;
-        for name in value.split('|').map(str::trim) {
-            if name.is_empty() {
-                if value.trim().is_empty() {
-                    continue;
-                }
-                return Err(LoadError::new(
-                    "campaign `victories` setting contains an empty condition",
-                ));
-            }
-            let canonical = match name.to_ascii_uppercase().as_str() {
-                "SPACERACE" => "SPACERACE",
-                "ALLIED" => "ALLIED",
-                "CULTURE" => "CULTURE",
-                "WORLDPEACE" => "WORLDPEACE",
-                _ => {
-                    return Err(LoadError::new(format!(
-                        "campaign `victories` setting contains unknown condition {name:?}"
-                    )));
-                }
-            };
-            if !seen.insert(canonical) {
-                return Err(LoadError::new(format!(
-                    "campaign `victories` setting repeats condition {name:?}"
-                )));
-            }
-            enabled |= canonical == condition.rule_name();
-        }
-        Ok(enabled)
-    }
-}
-
-fn required_parameter<'a>(
-    rules: &'a RulesetData,
-    file: &str,
-    section: &str,
-    key: &str,
-) -> Result<&'a RuleParameter, LoadError> {
-    rules.required_parameter(file, section, key)
-}
-
-fn optional_parameter<'a>(
-    rules: &'a RulesetData,
-    file: &str,
-    section: &str,
-    key: &str,
-) -> Result<Option<&'a RuleParameter>, LoadError> {
-    rules.optional_parameter(file, section, key)
-}
-
-fn required_setting<'a>(
-    rules: &'a RulesetData,
-    name: &str,
-) -> Result<&'a SettingRecord, LoadError> {
-    let mut matches = rules
-        .settings
-        .iter()
-        .filter(|setting| setting.name.eq_ignore_ascii_case(name));
-    let setting = matches
-        .next()
-        .ok_or_else(|| LoadError::new(format!("selected ruleset is missing `{name}` setting")))?;
-    if matches.next().is_some() {
-        return Err(LoadError::new(format!(
-            "selected ruleset repeats `{name}` setting"
-        )));
-    }
-    Ok(setting)
 }
 
 impl RulesetData {
-    /// Resolve the border settings used by Freeciv's `unit_being_aggressive`.
-    /// The engine defaults are explicit in the CivCraft-owned derivative.
-    pub(crate) fn unit_happiness_settings(
-        &self,
-    ) -> Result<UnitHappinessRulesetSettings, LoadError> {
-        let string_setting = |name: &str| -> Result<String, LoadError> {
-            let setting = required_setting(self, name)?;
-            match &setting.value {
-                Value::String(value) => Ok(value.clone()),
-                other => Err(LoadError::new(format!(
-                    "game setting `{name}` must be a string, found {other:?}"
-                ))),
-            }
-        };
-
-        let borders_enabled = match string_setting("borders")?.to_ascii_uppercase().as_str() {
-            "DISABLED" => false,
-            "ENABLED" | "SEE_INSIDE" | "EXPAND" => true,
-            value => {
-                return Err(LoadError::new(format!(
-                    "unsupported borders setting {value:?}"
-                )));
-            }
-        };
-        let happy_borders = match string_setting("happyborders")?
-            .to_ascii_uppercase()
-            .as_str()
-        {
-            "DISABLED" => HappyBorders::Disabled,
-            "NATIONAL" => HappyBorders::National,
-            "ALLIED" => HappyBorders::Allied,
-            value => {
-                return Err(LoadError::new(format!(
-                    "unsupported happyborders setting {value:?}"
-                )));
-            }
-        };
-        Ok(UnitHappinessRulesetSettings {
-            borders_enabled,
-            happy_borders,
-        })
-    }
-
     /// The government-only contribution. Contextual effects remain part of
     /// the full evaluator for callers that supply a player or city.
     pub(crate) fn government_base_effect(&self, government: &str, kind: EffectKind) -> i64 {
@@ -1383,186 +752,6 @@ impl RulesetData {
                 effect.value
             })
             .sum()
-    }
-
-    /// Decode the CivCraft-native governments and their government-scoped
-    /// effects. The selected Freeciv government records are deliberately not
-    /// consulted: the native catalog supplies campaign government identities.
-    pub(crate) fn government_catalog(&self) -> Result<GovernmentRulesetCatalog, LoadError> {
-        let native = crate::rules::native::governments();
-        if native.governments.is_empty() {
-            return Err(LoadError::new("native government catalog is empty"));
-        }
-
-        let governments = native
-            .governments
-            .iter()
-            .map(|source| {
-                let id = source.government.trim();
-                if id.is_empty() || source.name.trim().is_empty() {
-                    return Err(LoadError::new(
-                        "native governments must have non-empty identities and names",
-                    ));
-                }
-                if let Some(preferred) = source.preferred_government.as_deref()
-                    && native.get(preferred).is_none()
-                {
-                    return Err(LoadError::new(format!(
-                        "native government {id:?} references unknown preferred government {preferred:?}"
-                    )));
-                }
-
-                let requirements = source.technology
-                    .map(|tech| Requirement {
-                        kind: RequirementKind::Tech,
-                        name: RequirementValue::String(source.required_technology.clone()),
-                        resolved: Some(ResolvedRequirementValue::Tech(tech)),
-                        range: RequirementRange::Player,
-                        present: true,
-                        survives: false,
-                        quiet: false,
-                        source: RuleSourceLocation {
-                            file: PathBuf::from("builtin:governments"),
-                            section: format!("government_{id}"),
-                            key: "required_technology".to_owned(),
-                            line: 0,
-                        },
-                    })
-                    .into_iter()
-                    .collect();
-                let attributes = self
-                    .effects
-                    .iter()
-                    .filter(|effect| government_effect_applies_to(effect, id))
-                    .cloned()
-                    .collect::<Vec<_>>()
-                    .into();
-
-                Ok(GovernmentRulesetRecord {
-                    id: id.to_owned(),
-                    name: source.name.clone(),
-                    section: format!("government_{id}"),
-                    requirements,
-                    flags: source.flags.clone(),
-                    ai_better: source.preferred_government.clone(),
-                    attributes,
-                })
-            })
-            .collect::<Result<Vec<_>, LoadError>>()?;
-
-        let during_revolution_id = native
-            .get("anarchy")
-            .map(|government| government.government.clone())
-            .ok_or_else(|| LoadError::new("native government catalog has no Anarchy"))?;
-        Ok(GovernmentRulesetCatalog {
-            during_revolution_id,
-            governments,
-        })
-    }
-}
-
-fn government_effect_applies_to(effect: &EffectRecord, government_id: &str) -> bool {
-    let mut found_government_requirement = false;
-    for requirement in effect
-        .requirements
-        .iter()
-        .filter(|requirement| requirement.kind == RequirementKind::Gov)
-    {
-        found_government_requirement = true;
-        let matches = matches!(
-            &requirement.name,
-            RequirementValue::String(name) if name.eq_ignore_ascii_case(government_id)
-        );
-        if requirement.present != matches {
-            return false;
-        }
-    }
-    found_government_requirement
-}
-
-fn terrain_content_error(
-    source_file: Option<&LoadedRuleFile>,
-    record: &ContentRecord,
-    key: &str,
-    message: impl Into<String>,
-) -> LoadError {
-    LoadError {
-        file: source_file.map(|file| file.path.clone()),
-        section: Some(record.section.clone()),
-        key: Some(key.to_owned()),
-        line: record
-            .fields
-            .iter()
-            .find(|entry| entry.key == key)
-            .map(|entry| entry.line),
-        message: message.into(),
-    }
-}
-
-fn terrain_flag_is_set(
-    record: &ContentRecord,
-    source_file: Option<&LoadedRuleFile>,
-    flag_name: &str,
-) -> Result<bool, LoadError> {
-    let Some(entry) = record
-        .fields
-        .iter()
-        .find(|entry| entry.key.eq_ignore_ascii_case("flags"))
-    else {
-        return Ok(false);
-    };
-    match &entry.value {
-        Value::List(flags) => flags.iter().try_fold(false, |found, flag| match flag {
-            Value::String(name) => Ok(found || name.eq_ignore_ascii_case(flag_name)),
-            other => Err(terrain_content_error(
-                source_file,
-                record,
-                "flags",
-                format!("terrain flags must be strings, found {other:?}"),
-            )),
-        }),
-        Value::String(flag) => Ok(flag.eq_ignore_ascii_case(flag_name)),
-        Value::Empty => Ok(false),
-        other => Err(terrain_content_error(
-            source_file,
-            record,
-            "flags",
-            format!("terrain flags must be a string list, found {other:?}"),
-        )),
-    }
-}
-
-fn rule_record_integer(
-    rules: &RulesetData,
-    record: &RuleRecord,
-    key: &str,
-) -> Result<i32, LoadError> {
-    let Some(entry) = record.fields.iter().find(|entry| entry.key == key) else {
-        return Ok(0);
-    };
-    match &entry.value {
-        Value::Integer(value) => i32::try_from(*value).map_err(|_| LoadError {
-            file: rules
-                .files
-                .iter()
-                .find(|file| file.name == record.file)
-                .map(|file| file.path.clone()),
-            section: Some(record.section.clone()),
-            key: Some(key.to_owned()),
-            line: Some(entry.line),
-            message: format!("road output value is outside i32 range: {value}"),
-        }),
-        other => Err(LoadError {
-            file: rules
-                .files
-                .iter()
-                .find(|file| file.name == record.file)
-                .map(|file| file.path.clone()),
-            section: Some(record.section.clone()),
-            key: Some(key.to_owned()),
-            line: Some(entry.line),
-            message: format!("road output value must be an integer, found {other:?}"),
-        }),
     }
 }
 
@@ -1777,212 +966,12 @@ impl LoadError {
 mod tests {
     use super::section_file::{Entry, Value};
     use super::{
-        ActionEnabler, ActionRecord, ContentKind, EffectContext, EffectKind, EffectRecord,
-        EffectSet, FreeTechnologyStyle, HappyBorders, LoadedRuleFile, RULESET_FILES, Requirement,
-        RequirementContext, RequirementEvaluationError, RequirementKind, RequirementRange,
-        RequirementValue, ResearchCostStyle, ResearchRulesetSettings, RevolutionType,
-        RuleFileSource, RuleSourceLocation, RulesetData, TechnologyLeakageStyle,
-        TechnologyUpkeepStyle, UnitHappinessRulesetSettings, VictoryCondition, action_enabled,
-        effect_value, requirements_met,
+        ActionEnabler, ContentKind, EffectContext, EffectKind, EffectRecord, EffectSet,
+        LoadedRuleFile, RULESET_FILES, Requirement, RequirementContext, RequirementEvaluationError,
+        RequirementKind, RequirementRange, RequirementValue, RuleFileSource, RuleSourceLocation,
+        RulesetData, action_enabled, effect_value, requirements_met,
     };
-    use std::fs;
     use std::path::PathBuf;
-
-    #[test]
-    fn campaign_victory_conditions_are_explicit_and_validated() {
-        let mut rules = RulesetData::campaign_default().clone();
-        assert!(rules.victory_enabled(VictoryCondition::SpaceRace).unwrap());
-        assert!(rules.victory_enabled(VictoryCondition::Allied).unwrap());
-        assert!(rules.victory_enabled(VictoryCondition::Culture).unwrap());
-
-        let index = rules
-            .settings
-            .iter()
-            .position(|setting| setting.name == "victories")
-            .unwrap();
-        rules.settings[index].value = super::Value::String("ALLIED".to_owned());
-        assert!(rules.victory_enabled(VictoryCondition::Allied).unwrap());
-        assert!(!rules.victory_enabled(VictoryCondition::SpaceRace).unwrap());
-        assert!(!rules.victory_enabled(VictoryCondition::Culture).unwrap());
-
-        rules.settings[index].value = super::Value::String("ALLIED|UNKNOWN".to_owned());
-        assert!(rules.victory_enabled(VictoryCondition::Allied).is_err());
-        rules.settings[index].value = super::Value::String("ALLIED|ALLIED".to_owned());
-        assert!(rules.victory_enabled(VictoryCondition::Allied).is_err());
-    }
-
-    #[test]
-    fn campaign_disaster_frequency_is_read_from_the_selected_ruleset_setting() {
-        let mut rules = RulesetData::campaign_default().clone();
-        assert_eq!(rules.integer_setting_value("disasters").unwrap(), 100);
-
-        let index = rules
-            .settings
-            .iter()
-            .position(|setting| setting.name.eq_ignore_ascii_case("disasters"))
-            .unwrap();
-        rules.settings[index].value = Value::String("100".to_owned());
-        assert!(rules.integer_setting_value("disasters").is_err());
-
-        rules.settings[index].value = Value::Integer(0);
-        assert_eq!(rules.integer_setting_value("DISASTERS").unwrap(), 0);
-        rules.settings.push(rules.settings[index].clone());
-        assert!(rules.integer_setting_value("disasters").is_err());
-    }
-
-    #[test]
-    fn campaign_research_settings_are_ruleset_owned_and_typed() {
-        let rules = RulesetData::campaign_default();
-        let settings = rules.research_settings().unwrap();
-        assert_eq!(
-            settings,
-            ResearchRulesetSettings {
-                cost_style: ResearchCostStyle::Linear,
-                base_tech_cost: 10,
-                min_tech_cost: 10,
-                leakage_style: TechnologyLeakageStyle::Embassies,
-                upkeep_style: TechnologyUpkeepStyle::Cities,
-                upkeep_divider: 6000,
-                free_technology_style: FreeTechnologyStyle::Cheapest,
-                tech_steal_allow_holes: false,
-                tech_trade_allow_holes: false,
-                tech_trade_loss_allow_holes: false,
-                tech_parasite_allow_holes: false,
-                tech_loss_allow_holes: false,
-                sciencebox_percent: 100,
-                tech_penalty_percent: 100,
-                tech_leak_percent: 100,
-                tech_loss_forgiveness_percent: 0,
-                tech_loss_restore_percent: 50,
-                tech_lost_recv_percent: 0,
-                tech_lost_donor_percent: 0,
-                diplomatic_bulb_cost_percent: 0,
-                revolution_type: RevolutionType::RandomQuick,
-                revolution_length: 5,
-            }
-        );
-    }
-
-    #[test]
-    fn campaign_unit_happiness_settings_are_ruleset_owned_and_typed() {
-        let rules = RulesetData::campaign_default();
-        assert_eq!(
-            rules.unit_happiness_settings().unwrap(),
-            UnitHappinessRulesetSettings {
-                borders_enabled: true,
-                happy_borders: HappyBorders::National,
-            }
-        );
-
-        let mut rules = rules.clone();
-        rules
-            .settings
-            .iter_mut()
-            .find(|setting| setting.name == "happyborders")
-            .unwrap()
-            .value = Value::String("ALLIED".to_owned());
-        assert_eq!(
-            rules.unit_happiness_settings().unwrap().happy_borders,
-            HappyBorders::Allied
-        );
-
-        rules
-            .settings
-            .iter_mut()
-            .find(|setting| setting.name == "happyborders")
-            .unwrap()
-            .value = Value::String("unknown".to_owned());
-        assert!(rules.unit_happiness_settings().is_err());
-    }
-
-    #[test]
-    fn campaign_research_settings_reject_missing_duplicate_and_malformed_inputs() {
-        let mut rules = RulesetData::campaign_default().clone();
-        rules
-            .settings
-            .retain(|setting| setting.name != "sciencebox");
-        assert!(rules.research_settings().is_err());
-
-        let mut rules = RulesetData::campaign_default().clone();
-        let setting = rules
-            .settings
-            .iter()
-            .find(|setting| setting.name == "sciencebox")
-            .unwrap()
-            .clone();
-        rules.settings.push(setting);
-        assert!(rules.research_settings().is_err());
-
-        let mut rules = RulesetData::campaign_default().clone();
-        rules
-            .parameters
-            .iter_mut()
-            .find(|parameter| parameter.key == "tech_cost_style")
-            .unwrap()
-            .value = super::Value::String("Classic".to_owned());
-        assert!(rules.research_settings().is_err());
-
-        let mut rules = RulesetData::campaign_default().clone();
-        rules
-            .parameters
-            .iter_mut()
-            .find(|parameter| parameter.key == "tech_trade_allow_holes")
-            .unwrap()
-            .value = super::Value::String("FALSE".to_owned());
-        assert!(rules.research_settings().is_err());
-
-        let mut rules = RulesetData::campaign_default().clone();
-        rules
-            .parameters
-            .iter_mut()
-            .find(|parameter| parameter.key == "base_tech_cost")
-            .unwrap()
-            .value = super::Value::String("10".to_owned());
-        assert!(rules.research_settings().is_err());
-
-        let mut rules = RulesetData::campaign_default().clone();
-        rules
-            .settings
-            .iter_mut()
-            .find(|setting| setting.name == "techpenalty")
-            .unwrap()
-            .value = super::Value::String("100".to_owned());
-        assert!(rules.research_settings().is_err());
-
-        let mut rules = RulesetData::campaign_default().clone();
-        rules
-            .settings
-            .iter_mut()
-            .find(|setting| setting.name == "techpenalty")
-            .unwrap()
-            .value = super::Value::Integer(101);
-        assert!(rules.research_settings().is_err());
-
-        let mut rules = RulesetData::campaign_default().clone();
-        rules
-            .settings
-            .iter_mut()
-            .find(|setting| setting.name == "revolen")
-            .unwrap()
-            .value = super::Value::Integer(21);
-        assert!(rules.research_settings().is_err());
-
-        let mut rules = RulesetData::campaign_default().clone();
-        rules
-            .parameters
-            .retain(|parameter| parameter.key != "min_tech_cost");
-        assert!(rules.research_settings().is_err());
-
-        let mut rules = RulesetData::campaign_default().clone();
-        let parameter = rules
-            .parameters
-            .iter()
-            .find(|parameter| parameter.key == "base_tech_cost")
-            .unwrap()
-            .clone();
-        rules.parameters.push(parameter);
-        assert!(rules.research_settings().is_err());
-    }
 
     fn parsed_file(name: &str, source: &str) -> LoadedRuleFile {
         LoadedRuleFile {
@@ -2227,13 +1216,7 @@ mod tests {
             obsolete_by: vec![],
             fields: vec![],
         };
-        let action = ActionRecord {
-            rule_name: "build_city".to_owned(),
-            action: "Found City".to_owned(),
-            fields: vec![],
-        };
         assert_eq!(record.rule_name, "mobile_warfare");
-        assert_eq!(action.action, "Found City");
     }
 
     #[test]
@@ -2324,7 +1307,6 @@ mod tests {
         ]);
         let rules = RulesetData::from_files("fixture", files).unwrap();
 
-        assert_eq!(rules.settings.len(), 2);
         assert!(
             rules
                 .rule_records
@@ -2336,7 +1318,6 @@ mod tests {
             rules.effects[0].requirements[0].range,
             RequirementRange::City
         );
-        assert_eq!(rules.actions.len(), 1);
         assert_eq!(rules.action_enablers.len(), 1);
         assert!(rules.action_enablers[0].actor_requirements[0].present);
         assert_eq!(
@@ -2390,7 +1371,7 @@ mod tests {
             ),
             (
                 "actions.ruleset",
-                "[action_test]\naction = \"Not An Action\"\n",
+                "[enabler_test]\naction = \"Not An Action\"\n",
                 "unknown Freeciv action",
             ),
             (
@@ -2419,306 +1400,5 @@ mod tests {
         let error = RulesetData::from_files("fixture", files).unwrap_err();
         assert!(error.message.contains("unknown or unsupported value"));
         assert_eq!(error.section.as_deref(), Some("building_library"));
-    }
-
-    #[test]
-    fn file_loader_uses_whole_file_defaults_and_expands_includes() {
-        let root = std::env::temp_dir().join(format!(
-            "civcraft-ruleset-loader-{}-{}",
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        ));
-        let ruleset_dir = root.join("fixture");
-        let default_dir = root.join("default");
-        fs::create_dir_all(&ruleset_dir).unwrap();
-        fs::create_dir_all(&default_dir).unwrap();
-
-        for name in RULESET_FILES {
-            if *name == "units.ruleset" {
-                continue;
-            }
-            let contents = if *name == "game.ruleset" {
-                "[compatibility]\nfirst = \"parent\"\n*include \"default/extra.ruleset\"\n"
-            } else {
-                "[datafile]\nformat_version = 1\n"
-            };
-            fs::write(ruleset_dir.join(name), contents).unwrap();
-        }
-        fs::write(
-            default_dir.join("units.ruleset"),
-            "[unit_from_default]\nname = \"Default Unit\"\n",
-        )
-        .unwrap();
-        fs::write(
-            default_dir.join("extra.ruleset"),
-            "[compatibility]\nsecond = \"included\"\n",
-        )
-        .unwrap();
-
-        let rules = RulesetData::load(&root, "fixture").unwrap();
-        assert_eq!(
-            rules
-                .files
-                .iter()
-                .find(|file| file.name == "units.ruleset")
-                .unwrap()
-                .source,
-            RuleFileSource::DefaultRuleset
-        );
-        let game = rules
-            .files
-            .iter()
-            .find(|file| file.name == "game.ruleset")
-            .unwrap();
-        let compatibility = game
-            .parsed
-            .sections
-            .iter()
-            .filter(|section| section.name == "compatibility")
-            .collect::<Vec<_>>();
-        assert_eq!(compatibility.len(), 1);
-        assert_eq!(compatibility[0].entries.len(), 2);
-
-        fs::write(
-            default_dir.join("extra.ruleset"),
-            "[compatibility]\nfirst = \"duplicate\"\n",
-        )
-        .unwrap();
-        let duplicate_error = RulesetData::load(&root, "fixture").unwrap_err();
-        assert!(duplicate_error.message.contains("duplicate ruleset entry"));
-
-        fs::remove_dir_all(root).unwrap();
-    }
-
-    #[test]
-    fn packaged_baseline_loads_only_selected_civcraft_ruleset_files() {
-        let engine_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/rules/engine_data");
-        let rules = RulesetData::load_from_directory(&engine_dir, &engine_dir, "civcraft").unwrap();
-
-        assert_eq!(rules.name, "civcraft");
-        assert_eq!(rules.files.len(), RULESET_FILES.len());
-        assert!(
-            rules
-                .files
-                .iter()
-                .all(|file| file.source == RuleFileSource::SelectedRuleset)
-        );
-        assert_eq!(rules.effects.len(), 510);
-        assert_eq!(rules.actions.len(), 19);
-        assert_eq!(rules.action_enablers.len(), 89);
-        assert_eq!(
-            rules
-                .content
-                .iter()
-                .filter(|record| record.kind == ContentKind::Unit)
-                .count(),
-            0,
-            "the mechanics ruleset no longer embeds unit records"
-        );
-        assert_eq!(
-            rules
-                .content
-                .iter()
-                .filter(|record| record.kind == ContentKind::Building)
-                .count(),
-            0,
-            "the mechanics ruleset no longer embeds building records"
-        );
-        assert_eq!(
-            rules
-                .content
-                .iter()
-                .filter(|record| record.kind == ContentKind::Technology)
-                .count(),
-            0,
-            "the mechanics ruleset no longer embeds technology records"
-        );
-        assert_eq!(
-            rules
-                .content
-                .iter()
-                .filter(|record| record.kind == ContentKind::Nation)
-                .count(),
-            0,
-            "the mechanics ruleset no longer embeds nation records"
-        );
-        assert!(engine_dir.join("UPSTREAM_MANIFEST.tsv").is_file());
-    }
-
-    #[test]
-    fn campaign_ruleset_keeps_native_catalogs_separate_from_engine_records() {
-        let engine_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/rules/engine_data");
-        let rules = RulesetData::load_civcraft(&engine_dir).unwrap();
-
-        assert_eq!(rules.effects.len(), 510);
-        assert_eq!(
-            rules
-                .content
-                .iter()
-                .filter(|r| r.kind == ContentKind::Unit)
-                .count(),
-            0
-        );
-        assert_eq!(
-            rules
-                .content
-                .iter()
-                .filter(|r| r.kind == ContentKind::Building)
-                .count(),
-            0
-        );
-        assert_eq!(
-            rules
-                .content
-                .iter()
-                .filter(|r| r.kind == ContentKind::Technology)
-                .count(),
-            0
-        );
-        assert_eq!(crate::rules::native::units().units.len(), 92);
-        assert_eq!(crate::rules::native::buildings().rules.len(), 91);
-        assert_eq!(crate::rules::native::technologies().technologies.len(), 85);
-        assert_eq!(
-            crate::rules::native::civilizations().civilizations.len(),
-            31
-        );
-    }
-}
-
-#[cfg(test)]
-mod government_catalog_tests {
-    use super::{
-        ContentKind, EffectKind, GovernmentRulesetCatalog, Requirement, RequirementContext,
-        RequirementEvaluationError, RequirementKind, RequirementRange, RequirementValue,
-        RulesetData,
-    };
-
-    struct GovernmentContext {
-        government: String,
-    }
-
-    impl RequirementContext for GovernmentContext {
-        fn is_present(
-            &self,
-            requirement: &Requirement,
-        ) -> Result<bool, RequirementEvaluationError> {
-            Ok(requirement.kind == RequirementKind::Gov
-                && requirement.range == RequirementRange::Player
-                && matches!(
-                    &requirement.name,
-                    RequirementValue::String(name)
-                        if name.eq_ignore_ascii_case(&self.government)
-                ))
-        }
-    }
-
-    impl super::EffectContext for GovernmentContext {
-        fn multiplier_percent(&self, _multiplier: &str) -> Option<i64> {
-            None
-        }
-    }
-
-    fn campaign_governments() -> GovernmentRulesetCatalog {
-        RulesetData::campaign_default()
-            .government_catalog()
-            .unwrap()
-    }
-
-    #[test]
-    fn campaign_government_catalog_exposes_order_requirements_flags_and_rates() {
-        let catalog = campaign_governments();
-        assert_eq!(
-            catalog.during_revolution_id, "anarchy",
-            "native catalog selects Anarchy during revolution"
-        );
-        assert_eq!(
-            catalog
-                .governments
-                .iter()
-                .map(|government| government.id.as_str())
-                .collect::<Vec<_>>(),
-            [
-                "anarchy",
-                "despotism",
-                "monarchy",
-                "communism",
-                "republic",
-                "democracy",
-                "fascism",
-                "feudalism",
-            ],
-            "records preserve native TOML order"
-        );
-
-        let anarchy = catalog.get("anarchy").unwrap();
-        assert_eq!(anarchy.name, "Anarchy");
-        assert!(anarchy.requirements.is_empty());
-
-        let monarchy = catalog.get("Monarchy").unwrap();
-        assert_eq!(monarchy.requirements.len(), 1);
-        assert_eq!(monarchy.requirements[0].kind, RequirementKind::Tech);
-        assert_eq!(
-            monarchy.requirements[0].name,
-            RequirementValue::String("TECH_Monarchy".to_owned())
-        );
-        assert_eq!(monarchy.requirements[0].range, RequirementRange::Player);
-        assert_eq!(
-            catalog.get("Despotism").unwrap().ai_better.as_deref(),
-            Some("monarchy")
-        );
-        assert!(
-            catalog
-                .get("Despotism")
-                .unwrap()
-                .flags
-                .iter()
-                .any(|flag| flag == "ShieldToGold")
-        );
-
-        let despotism = catalog.get("Despotism").unwrap();
-        let rate = despotism
-            .effect_value(
-                EffectKind::MaxRates,
-                &GovernmentContext {
-                    government: "Despotism".to_owned(),
-                },
-            )
-            .unwrap();
-        assert_eq!(rate, 60, "the rate comes from the selected effects.ruleset");
-    }
-
-    #[test]
-    fn government_catalog_ignores_selected_freeciv_government_records() {
-        let mut rules = RulesetData::campaign_default().clone();
-        rules.parameters.push(super::RuleParameter {
-            file: "governments.ruleset".to_owned(),
-            section: "governments".to_owned(),
-            key: "during_revolution".to_owned(),
-            value: super::Value::String("MissingGovernment".to_owned()),
-        });
-        rules.content.push(super::ContentRecord {
-            kind: ContentKind::Government,
-            section: "government_despotism".to_owned(),
-            rule_name: "Despotism".to_owned(),
-            display_name: None,
-            requirements: Vec::new(),
-            obsolete_by: Vec::new(),
-            fields: vec![super::Entry {
-                key: "ai_better".to_owned(),
-                value: super::Value::String("MissingGovernment".to_owned()),
-                line: 1,
-            }],
-        });
-
-        let catalog = rules.government_catalog().unwrap();
-        assert_eq!(catalog.during_revolution_id, "anarchy");
-        assert_eq!(catalog.governments.len(), 8);
-        assert_eq!(
-            catalog.get("Despotism").unwrap().ai_better.as_deref(),
-            Some("monarchy")
-        );
     }
 }

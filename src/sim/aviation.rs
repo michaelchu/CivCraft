@@ -113,18 +113,8 @@ fn city_object_bombard_defense(sim: &Simulation, city: &City, attacker: &Unit) -
     defense
 }
 
-fn selected_bombard_blocking_actions() -> Option<&'static [String]> {
-    static BLOCKED_BY: std::sync::OnceLock<Option<Vec<String>>> = std::sync::OnceLock::new();
-    BLOCKED_BY
-        .get_or_init(|| {
-            let parameter = crate::rules::engine_rules::RulesetData::campaign_default()
-                .optional_parameter("actions.ruleset", "actions", "bombard_blocked_by")
-                .ok()??;
-            let actions = parameter.string_list_value().ok()??;
-            (!actions.is_empty()).then_some(actions)
-        })
-        .as_deref()
-}
+/// Actions that take precedence over a bombardment of the same tile.
+const BOMBARD_BLOCKED_BY: &[&str] = &["Capture Units"];
 
 impl Simulation {
     /// Whether the Conquests BIQ gives this unit usable bombard strength,
@@ -710,13 +700,7 @@ impl Simulation {
         }
     }
 
-    fn bombard_blocked_by_action(
-        &self,
-        actor: &Unit,
-        x: i32,
-        y: i32,
-        blocked_by: &[String],
-    ) -> bool {
+    fn bombard_blocked_by_action(&self, actor: &Unit, x: i32, y: i32, blocked_by: &[&str]) -> bool {
         self.tile_units_ordered(x, y).any(|target| {
             if !self.unit_visible_to(actor.owner, target) {
                 return false;
@@ -780,10 +764,7 @@ impl Simulation {
         {
             return false;
         }
-        let Some(blocked_by) = selected_bombard_blocking_actions() else {
-            return false;
-        };
-        !self.bombard_blocked_by_action(unit, x, y, blocked_by)
+        !self.bombard_blocked_by_action(unit, x, y, BOMBARD_BLOCKED_BY)
             && self.bombard_action_available_at_tile(unit, x, y)
     }
 
@@ -1008,9 +989,7 @@ impl Simulation {
         {
             return false;
         }
-        let Some(blocked_by) = selected_bombard_blocking_actions() else {
-            return false;
-        };
+        let blocked_by = BOMBARD_BLOCKED_BY;
         let range = Self::civ3_bombard_range(unit.kind);
         let mut target_tiles = std::collections::BTreeSet::new();
         for city in self.cities.iter().filter(|city| {

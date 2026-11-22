@@ -9,13 +9,7 @@ use crate::rules::engine_rules::{RuleRecord, RulesetData, requirements_met};
 impl Simulation {
     pub(super) fn check_disasters(&mut self) {
         let rules = RulesetData::campaign_default();
-        let frequency = rules
-            .integer_setting_value("disasters")
-            .unwrap_or_else(|error| panic!("invalid C2C3 disasters setting: {error}"));
-        assert!(
-            frequency >= 0,
-            "C2C3 disasters setting must not be negative"
-        );
+        let frequency = crate::rules::engine_rules::DISASTER_FREQUENCY;
         if frequency == 0 {
             return;
         }

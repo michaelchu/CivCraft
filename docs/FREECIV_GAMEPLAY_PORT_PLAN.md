@@ -262,7 +262,7 @@ that code has been added.
 
 ### P3 evidence
 
-- Created `data/rulesets/civcraft/engine/` from only the pinned C2C3 ruleset.
+- Created the engine layer (now `src/rules/engine_data/`) from only the pinned C2C3 ruleset.
   The original recursive Freeciv nation include tree was later replaced by
   three embedded special-player records because CivCraft uses its source-backed
   Civ III civilization catalog. The eleven required gameplay ruleset files

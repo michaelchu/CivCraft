@@ -247,9 +247,8 @@ impl Simulation {
         let players = self.players.len();
         let topology = MapWrap::with_dimensions(self.map_wrap.width(), self.map_wrap.height())
             .map_err(invalid)?;
-        let trade_route_settings = crate::rules::engine_rules::RulesetData::campaign_default()
-            .trade_route_settings()
-            .map_err(|error| invalid(format!("Invalid C2C3 trade-route rules: {error}")))?;
+        let trade_route_settings =
+            crate::rules::engine_rules::TradeRouteRulesetSettings::campaign();
         let position = |x, y| {
             (0..self.map_wrap.width()).contains(&x) && (0..self.map_wrap.height()).contains(&y)
         };

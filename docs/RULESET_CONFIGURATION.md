@@ -75,13 +75,13 @@ directly from `content/buildings.toml` via data-driven `Building` handles.
 ## Terrain and governments
 
 Base terrain yields, road/railroad bonuses, and movement costs live in
-`src/rules/terrain_catalog.rs`, paired with `engine/terrain.ruleset` for Freeciv
+`src/rules/terrain_catalog.rs`, paired with `src/rules/engine_data/terrain.ruleset` for Freeciv
 extras, resources, and worker activity parameters. Civ III terrain/resource
 identities and artwork mappings stay in their existing Rust adapters, and city
 economy and resource yield overrides live directly in `src/rules/native.rs`.
 
 Government definitions, prerequisites, and unit-support rules live directly in Rust
-(`src/rules/native.rs` and `src/sim/government.rs`), while `engine/effects.ruleset`
+(`src/rules/native.rs` and `src/sim/government.rs`), while `src/rules/engine_data/effects.ruleset`
 supplies the rate cap, empire size, and civil-war chance for every campaign
 government. Diplomacy policy parameters live directly in `src/rules/policies.rs`.
 

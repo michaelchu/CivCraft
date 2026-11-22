@@ -508,9 +508,7 @@ impl Simulation {
             }
         }
 
-        let calendar = crate::rules::engine_rules::RulesetData::campaign_default()
-            .calendar_settings()
-            .unwrap_or_else(|error| panic!("invalid campaign calendar: {error}"));
+        let calendar = crate::rules::engine_rules::CalendarSettings::campaign();
         let start_year = calendar.start_year;
 
         let mut game = Self {
@@ -835,9 +833,7 @@ impl Simulation {
 
 /// Formats an in-game year using the selected ruleset's calendar labels.
 pub(crate) fn year_label(year: i32) -> String {
-    let calendar = crate::rules::engine_rules::RulesetData::campaign_default()
-        .calendar_settings()
-        .unwrap_or_else(|error| panic!("invalid campaign calendar: {error}"));
+    let calendar = crate::rules::engine_rules::CalendarSettings::campaign();
     if year < 0 {
         format!("{} {}", -year, calendar.negative_label)
     } else {

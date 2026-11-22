@@ -1,100 +1,51 @@
 # CivCraft engine layer
 
-This directory is the engine-compatibility layer inside the CivCraft campaign
-package. It is derived from Freeciv's `civ2civ3` ruleset. Its sole Freeciv source is revision
-`9ff184b6eb128ca636c7ad6269e27aa959600006`.
+This directory holds the Freeciv-format rule data that CivCraft still parses at
+startup. It is derived from Freeciv's `civ2civ3` ruleset, revision
+`9ff184b6eb128ca636c7ad6269e27aa959600006`. The files are embedded in the
+binary with `include_str!` (`src/rules/engine_rules/loader.rs`); nothing is read
+from disk at runtime, and they are not a player-editable layer. Player-tuneable
+content lives in [`../../../data/rulesets/civcraft/content/`](../../../data/rulesets/civcraft/content/).
 
-## Contents and source
+The layer is being moved into Rust. What remains here:
 
-- The eleven `*.ruleset` files come from Freeciv's
-  `data/civ2civ3/` directory.
-- `README.civ2civ3` is retained because `game.ruleset` references it for the
-  Freeciv ruleset editor.
-- `script.lua` and `../../default/default.lua` are retained as source references.
-  CivCraft does not execute the Lua files; their gameplay hooks still need
-  Rust implementations under the later campaign-system milestones.
-- The top-level `default/` and `override/` files are shared C2C3 include and
-  script dependencies, not another gameplay ruleset. CivCraft intentionally
-  omits Freeciv's general nation catalog: `nations.ruleset` embeds only the
-  Barbarian, Pirate, and Animal Kingdom records needed by C2C3 mechanics,
-  while playable civilizations come from the Civ III source catalog.
+| File | Still used for |
+| --- | --- |
+| `effects.ruleset` | The effect graph: government rate caps, vision, empire size, civil war and similar effects |
+| `actions.ruleset` | Action enablers only |
+| `terrain.ruleset` | Extras, roads, resources and movement parameters |
+| `units.ruleset` | Unit class records, plus the flag names used to validate requirements |
+| `game.ruleset` | `[disaster_*]` and `[achievement_*]` records |
+
+## What moved to code
+
+The campaign's game, research, combat, trade, calendar and veterancy settings
+are Rust constants in
+[`src/rules/engine_rules/campaign.rs`](../engine_rules/campaign.rs). Each one
+names the Freeciv section or server setting it comes from, and the pinned
+engine default where the ruleset leaves the value unset. Economy, settlement,
+strategy, diplomacy, vassalage and government data are in
+`src/rules/native.rs` and `src/rules/policies.rs`. Terrain yields and climate
+are in `src/rules/terrain_catalog.rs`.
+
+A few action parameters that were in `actions.ruleset` are constants next to
+the code that uses them: the bombard block list in `src/sim/aviation.rs`, the
+airlift settings in `src/sim/aviation/paradrop.rs`, and the nuclear
+weapon-consumption rule in `src/sim/nuclear.rs`.
+
+## Provenance
+
 - `COPYING` preserves the upstream Freeciv license text. The upstream ruleset
   text does not carry a separate per-file licensing statement in this source
   checkout; do not infer one from this manifest.
-- `UPSTREAM_MANIFEST.tsv` records the original upstream import. It intentionally
-  retains provenance rows for the general Freeciv nation catalog that CivCraft
-  later removed from its runtime data tree. `identical` and `modified` describe
-  the imported copy at the time recorded, not necessarily the current file.
-
-The `game.ruleset` copy has intentional changes: its ruledit description
-paths point to `civcraft/engine/README.civ2civ3`, and its `[settings]` table
-records `victories = "SPACERACE|ALLIED|CULTURE"`, `landmass = 30`,
-`startpos = "DEFAULT"`, `specials = 250`, and `huts = 15` explicitly. These
-settings make defaults explicit where the upstream C2C3 table omits them.
-The campaign adds `CULTURE` to the victory defaults in
-`common/game.h::GAME_DEFAULT_VICTORY_CONDITIONS`. For map generation,
-`landmass` and `startpos` use `common/map.h::MAP_DEFAULT_LANDMASS` and
-`MAP_DEFAULT_STARTPOS`. The `specials` and `huts` settings use
-`MAP_DEFAULT_RICHES` and `MAP_DEFAULT_HUTS`. The ruleset model validates the pinned ranges and typed
-values. Recording these inputs makes terrain, resource, and hut generation
-editable without relying on implicit server defaults. The `ocean_resources`
-parameter remains selected from C2C3 `terrain.ruleset` (default `FALSE`), where
-it controls whether resource extras may appear away from safe coastline. No
-files or values are sourced from `classic` or another Freeciv gameplay ruleset.
-All eleven required gameplay files are present in this engine layer; the
-top-level `default/` folder contains include and script data only.
-
-For P8, the same `[settings]` table also records eight pinned Freeciv engine
-defaults that C2C3 does not set itself: `sciencebox = 100`, `techpenalty = 100`,
-`techleak = 100`, `techlost_recv = 0`, `techlost_donor = 0`,
-`diplbulbcost = 0`, `revolen = 5`, and `shieldbox = 100`. It also records
-`happyborders = "NATIONAL"` so unit unrest follows an editable, explicit
-setting rather than a hidden engine default.
-Their values come from `common/game.h` (`GAME_DEFAULT_SCIENCEBOX`,
-`GAME_DEFAULT_TECHPENALTY`, `GAME_DEFAULT_TECHLEAK`,
-`GAME_DEFAULT_TECHLOST_RECV`, `GAME_DEFAULT_TECHLOST_DONOR`, and
-`GAME_DEFAULT_DIPLBULBCOST`, `GAME_DEFAULT_REVOLUTION_LENGTH`,
-`GAME_DEFAULT_SHIELDBOX`, and
-`GAME_DEFAULT_HAPPYBORDERS`) in revision
-`9ff184b6eb128ca636c7ad6269e27aa959600006`. C2C3's explicit
-`techlossforgiveness = 0`, `techlossrestore = 50`, and
-`revolentype = "RANDQUICK"` remain unchanged. This keeps the effective P8
-inputs editable in the selected derivative instead of depending on implicit
-server defaults.
-
-The former P8 unit-economics crosswalk has been removed. Unit capabilities,
-statistics, and support eligibility now come from native Conquests rules;
-unit support allowances come from the native government catalog.
-
-For P9, the selected C2C3 `[combat_rules]` values are loaded as required typed
-inputs. Its explicit `occupychance = 100` is retained. `killstack = TRUE` and
-`killcitizen = TRUE` are recorded in the derivative using the pinned engine
-defaults `common/game.h::GAME_DEFAULT_KILLSTACK` and
-`common/game.h::GAME_DEFAULT_KILLCITIZEN`; no combat value is borrowed from
-another Freeciv ruleset. `unreachableprotects = ENABLED` records
-`common/game.h::GAME_DEFAULT_UNRPROTECTS` so a unit that cannot reach one
-member of a stack prevents an attack unless that unit has `NeverProtects`.
-`razechance = 10` is the C2C3 value;
-`savepalace = TRUE` and `homecaughtunits = TRUE` are explicit pinned engine
-defaults. The `units.ruleset` derivative also records
-`non_native_def_pct = 100` for each unit class, preserving the pinned
-`server/ruleset/ruleload.c` engine default as editable selected-ruleset data.
-Airlift source and destination capacity overrides remain explicit in
-`game.ruleset`: `airlift_from_always_enabled = FALSE` and
-`airlift_to_always_enabled = TRUE`; the action adapter reads both settings
-alongside the selected `Airlift` effect and action range.
-
-CivCraft's playable civilization roster is the Civ III catalog in
-`../content/civilizations.toml`. The selected ruleset keeps only three
-embedded special non-player nation records for barbarian and animal mechanics.
-
-Settlement AI tuning is defined only by the `[ai]` table in
-[`../content/settlements.toml`](../content/settlements.toml). It combines
-Freeciv-derived advisor weights with explicit CivCraft expansion-balance
-settings. Edit that TOML to change settlement AI tuning. The algorithm
-reference is the `reference/freeciv`
-checkout at `3efab1385e792dd367e955aee538bafd5ccadd05`; the selected C2C3 ruleset
-data remains the separately pinned revision recorded above.
+- `UPSTREAM_MANIFEST.tsv` records the original upstream import, including rows
+  for files and nation records CivCraft later removed. `identical` and
+  `modified` describe the imported copy at the time recorded, not necessarily
+  the current file. Its destination paths use the layout the files had when
+  they were imported (`data/rulesets/civcraft/engine/`).
+- No file or value is sourced from `classic` or another Freeciv gameplay
+  ruleset. CivCraft's playable civilizations come from the Civ III catalog in
+  `../../../data/rulesets/civcraft/content/civilizations.toml`.
 
 ## License and distribution note
 

@@ -5,17 +5,11 @@ pub(in crate::sim) use cache::ResearchCache;
 
 use super::*;
 use crate::rules::TechEra;
-use crate::rules::engine_rules::{ResearchRulesetSettings, RulesetData};
+use crate::rules::engine_rules::ResearchRulesetSettings;
 use crate::sim::action_rules::SimulationRequirementContext;
-use std::sync::OnceLock;
 
 pub(super) fn campaign_research_settings() -> &'static ResearchRulesetSettings {
-    static SETTINGS: OnceLock<ResearchRulesetSettings> = OnceLock::new();
-    SETTINGS.get_or_init(|| {
-        RulesetData::campaign_default()
-            .research_settings()
-            .unwrap_or_else(|error| panic!("invalid C2C3 research settings: {error}"))
-    })
+    &ResearchRulesetSettings::CAMPAIGN
 }
 
 impl Simulation {
