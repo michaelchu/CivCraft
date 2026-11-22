@@ -66,6 +66,7 @@ pub(crate) const UI_REVIEW_SCENES: &[&str] = &[
     "air-sam-intercept",
     "nuke-detonation",
     "nuke-sdi-intercept",
+    "nuke-fallout",
 ];
 /// Cloning preserves the complete RNG and campaign state. Fixtures are built
 /// once and kept immutable; every scenario receives an independent clone.
@@ -344,7 +345,7 @@ impl Game {
                 self.focus_camera_on((20 + target.0) / 2, target.1);
                 return;
             }
-            59 | 60 => {
+            59..=61 => {
                 let (unit, target) = self.sim.review_fixture().nuclear_setup(scene == 60);
                 self.select_unit_group(vec![unit], Some(unit));
                 self.playback.review_progress = Some(0.0);
@@ -850,7 +851,7 @@ impl Game {
             }
             return Ok(false);
         }
-        if matches!(scene, 59 | 60) {
+        if matches!(scene, 59..=61) {
             if phase == 1 {
                 let id = self.selected_unit.unwrap();
                 sequence.check(
@@ -859,6 +860,21 @@ impl Game {
                 )?;
             }
             if phase == 6 {
+                if scene == 61 {
+                    self.playback.finish();
+                    let fallout_tiles = self
+                        .sim
+                        .map_wrap()
+                        .civ3_radius(22, 24, 1)
+                        .into_iter()
+                        .filter(|&(x, y, _)| self.sim.render_tile_view(x, y).fallout)
+                        .count();
+                    sequence.check(
+                        "nuclear_fallout_spread_visible",
+                        fallout_tiles == 8 && !self.sim.render_tile_view(22, 24).fallout,
+                    )?;
+                    return Ok(true);
+                }
                 // Scene 59 captures the mushroom cloud (`Crash` phase) with fallout
                 // tiles visible around the city; scene 60 captures the SDI orbital laser
                 // (`Action` phase) intersecting the descending ICBM trail.

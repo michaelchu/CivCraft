@@ -2,8 +2,7 @@
 //! rules.
 
 use super::*;
-use crate::rules::engine_rules::{RulesetData, requirements_met};
-use std::collections::HashSet;
+use crate::rules::engine_rules::RulesetData;
 
 fn nuclear_action_consumes_weapon(action: &str) -> bool {
     static CONSUMES: std::sync::OnceLock<[bool; 3]> = std::sync::OnceLock::new();
@@ -192,21 +191,13 @@ impl Simulation {
         true
     }
 
-    fn nuclear_blast_radius_sq(&self, weapon: &Unit, action: &str, x: i32, y: i32) -> i32 {
-        let context =
-            super::action_rules::SimulationRequirementContext::for_unit_at(self, weapon, (x, y))
-                .with_action(action);
-        context.effect_i32(EffectKind::NukeBlastRadius1Sq)
-    }
-
-    fn nuclear_blast_tiles(&self, x: i32, y: i32, radius_sq: i32) -> Vec<(i32, i32)> {
-        let search_radius = (radius_sq.max(0) as f64).sqrt() as i32;
-        let mut seen = HashSet::new();
-        freeciv_map_offsets_within_radius(search_radius)
+    fn nuclear_blast_tiles(&self, x: i32, y: i32) -> Vec<(i32, i32)> {
+        // Recorded owner exception (Civ III): nuclear detonations affect the
+        // full 3x3 square (ground zero plus all 8 Civ III compass neighbors).
+        self.map_wrap
+            .civ3_radius(x, y, 1)
             .into_iter()
-            .filter(|(distance, _, _)| distance * distance <= radius_sq)
-            .filter_map(|(_, dx, dy)| self.map_wrap.offset(x, y, dx, dy))
-            .filter(|position| seen.insert(*position))
+            .map(|(tx, ty, _)| (tx, ty))
             .collect()
     }
 
@@ -282,47 +273,23 @@ impl Simulation {
         None
     }
 
-    fn place_nuclear_fallout(&mut self, owner: usize, x: i32, y: i32) {
-        // server/unittools.c:do_nuke_tile gates the extra selection with
-        // fc_rand(2). rand_extra_for_tile then chooses among selected C2C3
-        // extras native to the tile; a one-option list consumes no RNG.
-        if self.rand_below(2) != 1 {
+    fn place_nuclear_fallout(&mut self, x: i32, y: i32) {
+        // Recorded owner exception (Civ III): every non-water, non-city land
+        // tile inside the 3x3 blast radius receives nuclear fallout and loses
+        // its terrain improvements. Water tiles and surviving city centers do
+        // not receive tile fallout.
+        if self.tile(x, y).terrain.is_water() || self.city_at(x, y).is_some() {
             return;
         }
-        let rules = RulesetData::campaign_default();
-        let context = super::action_rules::SimulationRequirementContext::for_player_at(
-            self,
-            owner,
-            Some((x, y)),
-        );
-        let potential = rules
-            .rule_records
-            .iter()
-            .filter(|record| record.namespace.eq_ignore_ascii_case("extra"))
-            .filter(|record| {
-                record
-                    .string_list_field("causes")
-                    .expect("selected C2C3 extra causes are valid")
-                    .unwrap_or_default()
-                    .iter()
-                    .any(|cause| cause.eq_ignore_ascii_case("Fallout"))
-            })
-            .filter(|record| {
-                requirements_met(&record.requirements, &context)
-                    .expect("selected C2C3 Fallout extra requirements are supported")
-            })
-            .collect::<Vec<_>>();
-        if potential.is_empty() {
-            return;
-        }
-        let selected = self.rand_below(potential.len() as i32) as usize;
-        if potential[selected]
-            .rule_name
-            .eq_ignore_ascii_case("Fallout")
-            && !self.tile(x, y).fallout
-        {
-            self.tile_mut(x, y).fallout = true;
-        }
+        let tile = self.tile_mut(x, y);
+        tile.fallout = true;
+        tile.road = false;
+        tile.railroad = false;
+        tile.mine = false;
+        tile.irrigation = false;
+        tile.farmland = false;
+        tile.oil_well = false;
+        tile.base = None;
     }
 
     pub(super) fn nuclear_strike(&mut self, weapon: &Unit, action: &str, x: i32, y: i32) {
@@ -393,8 +360,7 @@ impl Simulation {
             self.remove_units_with_cargo_because(vec![weapon.id], lifecycle::UnitRemoval::Expended);
         }
 
-        let radius_sq = self.nuclear_blast_radius_sq(weapon, action, x, y);
-        let affected = self.nuclear_blast_tiles(x, y, radius_sq);
+        let affected = self.nuclear_blast_tiles(x, y);
         let combat_rules = RulesetData::campaign_default()
             .combat_settings()
             .expect("selected C2C3 nuclear combat settings are valid");
@@ -440,7 +406,7 @@ impl Simulation {
                 self.apply_nuclear_city_population_loss(city_id, combat_rules.nuke_pop_loss_pct);
             }
             let had_fallout = self.tile(tx, ty).fallout;
-            self.place_nuclear_fallout(weapon.owner, tx, ty);
+            self.place_nuclear_fallout(tx, ty);
             if !had_fallout && self.tile(tx, ty).fallout {
                 fallout_tiles += 1;
             }
@@ -675,15 +641,11 @@ mod tests {
     }
 
     #[test]
-    fn c2c3_nuclear_effect_radius_maps_squared_radius_to_hex_neighbors() {
-        let mut game = nuclear_game();
+    fn civ3_nuclear_blast_covers_full_three_by_three_square() {
+        let game = nuclear_game();
         let (x, y) = (10, 20);
-        let nuke = make_nuke(&mut game, x, y);
-        let unit = game.unit_by_id(nuke).unwrap().clone();
-        let radius = game.nuclear_blast_radius_sq(&unit, "Explode Nuclear", x, y);
-        assert_eq!(radius, 2);
-        let affected = game.nuclear_blast_tiles(x, y, radius);
-        assert_eq!(affected.len(), 7);
+        let affected = game.nuclear_blast_tiles(x, y);
+        assert_eq!(affected.len(), 9);
         assert!(affected.contains(&(x, y)));
         assert!(
             affected
@@ -693,17 +655,21 @@ mod tests {
     }
 
     #[test]
-    fn c2c3_nuke_survival_population_loss_and_rng_order_match_source() {
+    fn civ3_nuke_pollutes_all_nonwater_noncity_land_in_three_by_three_and_clears_improvements() {
         let mut game = nuclear_game();
         let (x, y) = (10, 20);
         game.create_city(HUMAN, x, y);
         let city_index = game.city_index_at(x, y).unwrap();
         game.cities[city_index].size = 10;
         game.cities[city_index].food = 100;
-        let nearby = game.map_wrap.offset(x, y, 1, 0).unwrap();
+        let nearby = game.map_wrap.civ3_neighbor(x, y, 2).unwrap();
         game.tile_mut(nearby.0, nearby.1).owner = Some(HUMAN);
-        let no_pollution = game.map_wrap.offset(x, y, -1, 0).unwrap();
-        game.tile_mut(no_pollution.0, no_pollution.1).terrain = Terrain::Ocean;
+        game.tile_mut(nearby.0, nearby.1).road = true;
+        game.tile_mut(nearby.0, nearby.1).mine = true;
+        let ocean = game.map_wrap.civ3_neighbor(x, y, 6).unwrap();
+        game.tile_mut(ocean.0, ocean.1).terrain = Terrain::Ocean;
+        let coast = game.map_wrap.civ3_neighbor(x, y, 0).unwrap();
+        game.tile_mut(coast.0, coast.1).terrain = Terrain::Coast;
         let nuke = make_nuke(&mut game, x, y);
         let city_defender = game.spawn_unit(HUMAN, UnitKind::Warrior, x, y);
         let exposed = game.spawn_unit(HUMAN, UnitKind::Warrior, nearby.0, nearby.1);
@@ -714,26 +680,10 @@ mod tests {
             .find(|unit| unit.id == passenger)
             .unwrap()
             .transport = Some(carrier);
-        let preexisting_fallout = game.map_wrap.offset(x, y, 0, 1).unwrap();
-        game.tile_mut(preexisting_fallout.0, preexisting_fallout.1)
-            .fallout = true;
         game.native_random = Some(FreecivRng::new(87));
-        let mut expected_random = game.native_random.clone().unwrap();
-        // sdi_try_defend rolls once for the city even with no Nuke_Proof;
-        // do_nuke_tile rolls survival for each unit inside the city,
-        // including a passenger after its carrier has been destroyed;
-        // each tile rolls the Fallout gate. Eligible non-ocean tiles each
-        // have one extra, so fc_rand(1) consumes no additional state.
-        expected_random.draw(100);
-        expected_random.draw(100);
-        expected_random.draw(100);
-        expected_random.draw(100);
-        let blast_tiles = game.nuclear_blast_tiles(x, y, 2);
-        let fallout_rolls = blast_tiles
-            .iter()
-            .map(|_| expected_random.draw(2) == 1)
-            .collect::<Vec<_>>();
 
+        let blast_tiles = game.nuclear_blast_tiles(x, y);
+        assert_eq!(blast_tiles.len(), 9);
         assert!(game.apply(Command::NuclearStrike(nuke, x, y)));
         assert_eq!(game.cities[city_index].size, 5);
         assert!(game.unit_by_id(city_defender).is_none());
@@ -745,13 +695,18 @@ mod tests {
             Simulation::growth_box(5),
             "cityturn.c caps food stock to the reduced granary"
         );
-        for ((tx, ty), fallout_roll) in blast_tiles.into_iter().zip(fallout_rolls) {
+        // Every non-water, non-city tile in the 3x3 gets fallout; water tiles
+        // (both Coast and Ocean) and the surviving city center stay clear.
+        for (tx, ty) in blast_tiles {
+            let expected_fallout = (tx, ty) != (x, y) && (tx, ty) != ocean && (tx, ty) != coast;
             assert_eq!(
                 game.tile(tx, ty).fallout,
-                (tx, ty) == preexisting_fallout || ((tx, ty) != no_pollution && fallout_roll)
+                expected_fallout,
+                "tile ({tx}, {ty}) fallout mismatch"
             );
         }
-        assert_eq!(game.native_random, Some(expected_random));
+        assert!(!game.tile(nearby.0, nearby.1).road);
+        assert!(!game.tile(nearby.0, nearby.1).mine);
     }
 
     #[test]

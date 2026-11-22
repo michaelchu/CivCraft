@@ -243,6 +243,21 @@ fog peeking. Validate with `air-counter-defense` (6 turns), its parallel
 control `air-counter-defense-control` (6 turns), and `air-warfare` (10 turns)
 at seeds 42, 7 and 99, plus source-adjacent tests in `src/sim/aviation/tests.rs`.
 
+### Recorded exception: nuclear blast & fallout (Civ III)
+
+The owner authorized Civilization III nuclear blast and fallout rules on
+2026-11-21. A nuclear detonation affects the full 3×3 square (ground zero plus
+all 8 Civ III compass neighbors, 9 tiles total) rather than Freeciv's 7-tile
+ISO|HEX radius. Every non-water, non-city land tile inside that 3×3 blast zone
+deterministically receives nuclear fallout (`tile.fallout = true`) and loses its
+terrain improvements (roads, railroads, mines, irrigation, farmland, oil wells,
+and bases). Water tiles (Coast, Sea, Ocean, Lake) and surviving city-center
+tiles do not receive tile fallout; if a city is destroyed by the blast, its
+former tile becomes bare land and receives fallout. SDI Defense interception
+and city/unit casualty resolution retain their existing engine rules. Validate
+with `nuclear-warfare` (3 turns at seeds 42, 7 and 99) and the tests in
+`src/sim/nuclear.rs`.
+
 ## Comparison source checkout
 
 The Freeciv source submodule at `reference/freeciv` tracks the public upstream

@@ -1273,6 +1273,11 @@ pub(crate) fn ui_review_nuclear_setup(sim: &mut Simulation, with_sdi: bool) -> (
         }
     }
     let icbm = sim.spawn_unit(HUMAN, UnitKind::ICBM, base.0, base.1);
+    // Place friendly observers outside the 3x3 blast radius so the entire blast
+    // zone stays brightly visible before and after detonation.
+    sim.spawn_unit(HUMAN, UnitKind::Explorer, 24, 24);
+    sim.spawn_unit(HUMAN, UnitKind::Explorer, 22, 21);
+    sim.spawn_unit(HUMAN, UnitKind::Explorer, 22, 27);
     sim.spawn_unit(1, UnitKind::Infantry, target.0, target.1);
     sim.native_random = None;
     sim.rng = 42;

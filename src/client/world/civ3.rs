@@ -251,14 +251,14 @@ impl<'a> Civ3WorldPainter<'a> {
             map_layers::MapLayer::Roads => {
                 self.draw_road_layer(x, y, geometry);
             }
-            map_layers::MapLayer::Special1 => self.draw_special1(x, y, geometry),
-            map_layers::MapLayer::Special2 => self.draw_special2(x, y, geometry),
+            map_layers::MapLayer::Special1 => self.draw_special1(x, y, geometry, has_city),
+            map_layers::MapLayer::Special2 => self.draw_special2(x, y, geometry, has_city),
             map_layers::MapLayer::Grid => self.game.draw_grid_layer(self.assets, x, y, geometry),
             map_layers::MapLayer::City => {}
         }
     }
 
-    fn draw_special1(&self, x: i32, y: i32, geometry: TileGeometry) {
+    fn draw_special1(&self, x: i32, y: i32, geometry: TileGeometry, has_city: bool) {
         use super::super::tileset::TerrainBuilding;
         let game = self.game;
         let assets = self.assets;
@@ -297,23 +297,16 @@ impl<'a> Civ3WorldPainter<'a> {
                 .civ3
                 .draw_resource(resource, geometry.center, geometry.size());
         }
+        // Keep city buildings visible above fallout/pollution on a city center tile.
+        if has_city {
+            self.draw_tile_contamination(x, y, geometry);
+        }
     }
 
-    fn draw_special2(&self, x: i32, y: i32, geometry: TileGeometry) {
-        use super::super::tileset::TerrainBuilding;
+    fn draw_tile_contamination(&self, x: i32, y: i32, geometry: TileGeometry) {
         let game = self.game;
         let assets = self.assets;
         let tile = game.sim.render_tile_view(x, y);
-        if let Some(Base::Airstrip | Base::Airbase) = tile.base {
-            let role = if tile.base == Some(Base::Airstrip) {
-                "airstrip"
-            } else {
-                "airbase"
-            };
-            assets
-                .civ3
-                .draw_optional_improvement(role, geometry.center, geometry.size());
-        }
         let contamination_index = |pollution: bool| {
             let diagonal_directions = [7, 1, 3, 5]; // NW, NE, SE, SW
             let diagonals = diagonal_directions.map(|direction| {
@@ -351,6 +344,26 @@ impl<'a> Civ3WorldPainter<'a> {
                 geometry.center,
                 geometry.size(),
             );
+        }
+    }
+
+    fn draw_special2(&self, x: i32, y: i32, geometry: TileGeometry, has_city: bool) {
+        use super::super::tileset::TerrainBuilding;
+        let game = self.game;
+        let assets = self.assets;
+        let tile = game.sim.render_tile_view(x, y);
+        if let Some(Base::Airstrip | Base::Airbase) = tile.base {
+            let role = if tile.base == Some(Base::Airstrip) {
+                "airstrip"
+            } else {
+                "airbase"
+            };
+            assets
+                .civ3
+                .draw_optional_improvement(role, geometry.center, geometry.size());
+        }
+        if !has_city {
+            self.draw_tile_contamination(x, y, geometry);
         }
         if !tile.visible && matches!(tile.base, Some(Base::Fort | Base::Fortress)) {
             assets.civ3.draw_terrain_building(
