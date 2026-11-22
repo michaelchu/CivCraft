@@ -69,10 +69,25 @@ pub(crate) fn validate(technologies: &[NativeTechnology]) -> Result<(), String> 
             return Err(format!("invalid technology values {}", definition.id));
         }
     }
+    // Exact ID or case-insensitive name; the earliest record wins.
+    let mut by_id = std::collections::HashMap::new();
+    let mut by_name = std::collections::HashMap::new();
+    for (index, definition) in technologies.iter().enumerate() {
+        by_id.entry(definition.id.as_str()).or_insert(index);
+        by_name
+            .entry(definition.name.to_ascii_lowercase())
+            .or_insert(index);
+    }
+    let find = |prerequisite: &str| {
+        let by_id = by_id.get(prerequisite).copied();
+        let by_name = by_name.get(&prerequisite.to_ascii_lowercase()).copied();
+        by_id.into_iter().chain(by_name).min()
+    };
     fn visit(
         index: usize,
         technologies: &[NativeTechnology],
         visiting: &mut [u8],
+        find: &dyn Fn(&str) -> Option<usize>,
     ) -> Result<(), String> {
         if visiting[index] == 1 {
             return Err(format!(
@@ -85,18 +100,16 @@ pub(crate) fn validate(technologies: &[NativeTechnology]) -> Result<(), String> 
         }
         visiting[index] = 1;
         for prerequisite in &technologies[index].prerequisites {
-            let next = technologies
-                .iter()
-                .position(|d| d.id == *prerequisite || d.name.eq_ignore_ascii_case(prerequisite))
+            let next = find(prerequisite)
                 .ok_or_else(|| format!("unknown technology prerequisite {prerequisite}"))?;
-            visit(next, technologies, visiting)?;
+            visit(next, technologies, visiting, find)?;
         }
         visiting[index] = 2;
         Ok(())
     }
     let mut visiting = vec![0; technologies.len()];
     for index in 0..technologies.len() {
-        visit(index, technologies, &mut visiting)?;
+        visit(index, technologies, &mut visiting, &find)?;
     }
     Ok(())
 }

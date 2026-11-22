@@ -2,6 +2,18 @@
 
 use super::*;
 
+/// Resource names a building requirement may target, in resolved-index order.
+const RESOURCE_TARGETS: [&str; 8] = [
+    "Aluminum",
+    "Coal",
+    "Horses",
+    "Iron",
+    "Oil",
+    "Rubber",
+    "Saltpeter",
+    "Uranium",
+];
+
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct BuildingCatalog {
@@ -56,6 +68,11 @@ pub(crate) fn parse_buildings(
     for (index, rule) in catalog.rules.iter_mut().enumerate() {
         rule.legacy_runtime_index = index;
     }
+    let building_ids: std::collections::HashMap<String, usize> = catalog
+        .rules
+        .iter()
+        .map(|rule| (rule.id.clone(), rule.legacy_runtime_index))
+        .collect();
     for rule in &catalog.rules {
         for requirement in rule.requirements.iter().chain(&rule.obsolete) {
             match requirement.kind.as_str() {
@@ -75,25 +92,17 @@ pub(crate) fn parse_buildings(
                     if !requirement
                         .target
                         .as_deref()
-                        .is_some_and(|id| catalog.rules.iter().any(|candidate| candidate.id == id))
+                        .is_some_and(|id| building_ids.contains_key(id))
                     {
                         return Err(format!("unknown building target in {}", rule.id));
                     }
                 }
                 "Resource" => {
-                    if !requirement.target.as_deref().is_some_and(|id| {
-                        [
-                            "Aluminum",
-                            "Coal",
-                            "Horses",
-                            "Iron",
-                            "Oil",
-                            "Rubber",
-                            "Saltpeter",
-                            "Uranium",
-                        ]
-                        .contains(&id)
-                    }) {
+                    if !requirement
+                        .target
+                        .as_deref()
+                        .is_some_and(|id| RESOURCE_TARGETS.contains(&id))
+                    {
                         return Err(format!("unknown resource target in {}", rule.id));
                     }
                 }
@@ -112,11 +121,6 @@ pub(crate) fn parse_buildings(
     }
     // Resolve once for every consumer, including advisors that inspect the
     // native requirement records directly rather than BuildingData.
-    let building_ids: std::collections::HashMap<_, _> = catalog
-        .rules
-        .iter()
-        .map(|rule| (rule.id.clone(), rule.legacy_runtime_index))
-        .collect();
     for rule in &mut catalog.rules {
         for requirement in rule.requirements.iter_mut().chain(&mut rule.obsolete) {
             if let Some(id) = requirement.target.as_deref() {
@@ -125,19 +129,10 @@ pub(crate) fn parse_buildings(
                         crate::rules::technologies::runtime_index_in(technologies, id).unwrap()
                     }
                     "Improvement" | "OwnerBuildingCount" => building_ids[id],
-                    "Resource" => [
-                        "Aluminum",
-                        "Coal",
-                        "Horses",
-                        "Iron",
-                        "Oil",
-                        "Rubber",
-                        "Saltpeter",
-                        "Uranium",
-                    ]
-                    .iter()
-                    .position(|name| *name == id)
-                    .unwrap(),
+                    "Resource" => RESOURCE_TARGETS
+                        .iter()
+                        .position(|name| *name == id)
+                        .unwrap(),
                     _ => unreachable!("named reference was validated above"),
                 };
                 requirement.value =

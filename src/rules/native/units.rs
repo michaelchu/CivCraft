@@ -72,6 +72,8 @@ pub(crate) fn parse_units(
 ) -> Result<UnitCatalog, String> {
     let catalog: UnitCatalog = toml::from_str(source).map_err(|error| error.to_string())?;
     validate_ids(catalog.units.iter().map(|unit| unit.id.as_str()), "unit")?;
+    let unit_ids: std::collections::HashSet<&str> =
+        catalog.units.iter().map(|unit| unit.id.as_str()).collect();
     for unit in &catalog.units {
         if !unit.required_technology.is_empty()
             && crate::rules::technologies::runtime_index_in(technologies, &unit.required_technology)
@@ -80,12 +82,7 @@ pub(crate) fn parse_units(
             return Err(format!("unknown technology ID for {}", unit.id));
         }
         for target in [&unit.upgrade_to, &unit.replaces, &unit.enslave_result] {
-            if !target.is_empty()
-                && !catalog
-                    .units
-                    .iter()
-                    .any(|candidate| &candidate.id == target)
-            {
+            if !target.is_empty() && !unit_ids.contains(target.as_str()) {
                 return Err(format!("unknown unit ID {target}"));
             }
         }
