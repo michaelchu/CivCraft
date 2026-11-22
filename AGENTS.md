@@ -286,6 +286,10 @@ newer offensive units do not raise that floor. Against aircraft or missiles it c
 only anti-air units (`UnitKind::can_counter_air`: `AttackAir` or
 `air_defense > 0`), never ground units. With no anti-air unit available there
 is no counter.
+Technologies are Civ III only: there are no Freeciv-only advances or
+compatibility aliases. Engine rule tables name Civ III advances directly
+(`Tech::from_name`), and retired tech indices stay reserved so saved games keep
+their meaning. Freeciv rules with no Civ III counterpart (Plastics) are dropped.
 Derive new unit properties the same way, once on `UnitRule`, rather than
 re-deriving them per consumer. This narrows the aircraft exception's statement
 that helicopters retain their existing rules; their capture rule follows Civ III.

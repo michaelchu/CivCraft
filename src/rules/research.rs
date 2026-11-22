@@ -11,6 +11,9 @@
 
 use std::sync::OnceLock;
 
+/// Persisted tech indices are permanent. Slots 0..101 were the original
+/// numbering; indices not claimed by a Civ III advance are retired and never
+/// reused, so existing saves keep their meaning. 101/102 are Future/Unset.
 const STABLE_TECH_COUNT: usize = 101;
 
 fn tech_storage_len_for(catalog: &crate::rules::native::TechnologyCatalog) -> usize {
@@ -108,29 +111,22 @@ impl Tech {
     pub(crate) const SMART_WEAPONS: Self = Self(98);
 
     // Civ III names for existing CivCraft advances with close equivalents.
-    pub(crate) const EDUCATION: Self = Self::UNIVERSITY;
     pub(crate) const NATIONALISM: Self = Self(17);
-    pub(crate) const MOTORIZED_TRANSPORTATION: Self = Self::MOBILE_WARFARE;
     pub(crate) const ECOLOGY: Self = Self(25);
-    pub(crate) const FISSION: Self = Self::NUCLEAR_FISSION;
     pub(crate) const THE_LASER: Self = Self(39);
-    pub(crate) const SUPERCONDUCTOR: Self = Self::SUPERCONDUCTORS;
     pub(crate) const SYNTHETIC_FIBERS: Self = Self(60);
 
     pub(crate) const STEALTH: Self = Self(73);
     pub(crate) const COMBUSTION: Self = Self(14);
-    pub(crate) const COMBINED_ARMS: Self = Self(13);
     pub(crate) const MASS_PRODUCTION: Self = Self(46);
     pub(crate) const STEEL: Self = Self(75);
     pub(crate) const FLIGHT: Self = Self(29);
     pub(crate) const ADVANCED_FLIGHT: Self = Self(0);
     pub(crate) const ASTRONOMY: Self = Self(3);
     pub(crate) const CONSTRUCTION: Self = Self(18);
-    pub(crate) const RADIO: Self = Self(63);
     pub(crate) const ELECTRONICS: Self = Self(23);
     pub(crate) const AMPHIBIOUS_WARFARE: Self = Self(2);
     pub(crate) const ALPHABET: Self = Self(1);
-    pub(crate) const BRIDGE_BUILDING: Self = Self(7);
     pub(crate) const BRONZE_WORKING: Self = Self(8);
     pub(crate) const CEREMONIAL_BURIAL: Self = Self(9);
     pub(crate) const WARRIOR_CODE: Self = Self(85);
@@ -145,15 +141,11 @@ impl Tech {
     pub(crate) const NAVIGATION: Self = Self(55);
     pub(crate) const MEDICINE: Self = Self(48);
     pub(crate) const MATHEMATICS: Self = Self(47);
-    pub(crate) const UNIVERSITY: Self = Self(84);
-    pub(crate) const RAILROAD: Self = Self(64);
-    pub(crate) const AUTOMOBILE: Self = Self(5);
+    pub(crate) const EDUCATION: Self = Self(84);
     pub(crate) const ROCKETRY: Self = Self(69);
-    pub(crate) const SUPERCONDUCTORS: Self = Self(76);
+    pub(crate) const SUPERCONDUCTOR: Self = Self(76);
     pub(crate) const CHIVALRY: Self = Self(11);
     pub(crate) const GUNPOWDER: Self = Self(33);
-    pub(crate) const GUERILLA_WARFARE: Self = Self(32);
-    pub(crate) const MACHINE_TOOLS: Self = Self(42);
     pub(crate) const METALLURGY: Self = Self(49);
     pub(crate) const FUTURE: Self = Self(STABLE_TECH_COUNT);
     // Keep all persisted real/Future indices stable. A_UNSET is a goal state,
@@ -163,27 +155,22 @@ impl Tech {
     pub(crate) const COMPUTERS: Self = Self(16);
     pub(crate) const COMMUNISM: Self = Self(15);
     pub(crate) const DEMOCRACY: Self = Self(20);
-    pub(crate) const MOBILE_WARFARE: Self = Self(51);
+    pub(crate) const MOTORIZED_TRANSPORTATION: Self = Self(51);
     pub(crate) const MINIATURIZATION: Self = Self(50);
     pub(crate) const REFINING: Self = Self(66);
-    pub(crate) const STEAM_ENGINE: Self = Self(74);
     pub(crate) const ENGINEERING: Self = Self(24);
     pub(crate) const INVENTION: Self = Self(36);
     pub(crate) const ESPIONAGE: Self = Self(26);
-    pub(crate) const EXPLOSIVES: Self = Self(27);
-    pub(crate) const FUSION_POWER: Self = Self(30);
     pub(crate) const ELECTRICITY: Self = Self(22);
-    pub(crate) const REFRIGERATION: Self = Self(67);
     pub(crate) const ECONOMICS: Self = Self(21);
     pub(crate) const MONARCHY: Self = Self(52);
     pub(crate) const MYSTICISM: Self = Self(54);
     pub(crate) const NUCLEAR_POWER: Self = Self(57);
     pub(crate) const SANITATION: Self = Self(70);
-    pub(crate) const NUCLEAR_FISSION: Self = Self(56);
+    pub(crate) const FISSION: Self = Self(56);
     pub(crate) const THE_CORPORATION: Self = Self(78);
     pub(crate) const THE_REPUBLIC: Self = Self(79);
     pub(crate) const THEOLOGY: Self = Self(81);
-    pub(crate) const TRADE: Self = Self(83);
     pub(crate) const FEUDALISM: Self = Self(28);
     pub(crate) const FASCISM: Self = Self(99);
     pub(crate) const IRONCLADS: Self = Self(100);
@@ -192,17 +179,22 @@ impl Tech {
         tech_catalog().advances.len()
     }
 
+    /// Every researchable Civ III advance, in stable-index order. Unused slots
+    /// (retired Freeciv-only indices) and the Future/Unset sentinels are skipped.
     pub(crate) fn all() -> impl Iterator<Item = Self> {
-        (0..STABLE_TECH_COUNT)
-            .chain((STABLE_TECH_COUNT + 2)..Self::storage_len())
-            .map(Self)
+        (0..Self::storage_len()).filter_map(Self::from_index)
     }
 
     /// The advance with this stable index, if it is one of `Tech::all()`.
-    /// Constant-time equivalent of `Tech::all().find(|tech| tech.0 == index)`.
     pub(crate) fn from_index(index: usize) -> Option<Self> {
-        let sentinel = STABLE_TECH_COUNT..STABLE_TECH_COUNT + 2;
-        (index < Self::storage_len() && !sentinel.contains(&index)).then_some(Self(index))
+        tech_catalog()
+            .is_researchable(Self(index))
+            .then_some(Self(index))
+    }
+
+    /// Resolve a native catalog ID or display name (case-insensitive).
+    pub(crate) fn from_name(name: &str) -> Option<Self> {
+        crate::rules::technologies::runtime_index(name).and_then(Self::from_index)
     }
 
     pub(crate) fn data(self) -> Option<&'static Advance> {
@@ -213,8 +205,7 @@ impl Tech {
         if self == Self::UNSET {
             "No goal"
         } else {
-            self.data()
-                .map_or_else(|| compatibility_name(self), |advance| advance.name)
+            self.data().map_or("Future Tech", |advance| advance.name)
         }
     }
 
@@ -223,7 +214,7 @@ impl Tech {
     }
 
     /// True when this stable runtime ID names a researchable native campaign
-    /// technology. Radio and Freeciv-only aliases are intentionally excluded.
+    /// technology. Retired indices and the sentinels are excluded.
     ///
     /// Based on the Civ III technology catalog.
     pub(crate) fn is_researchable_advance(self) -> bool {
@@ -231,7 +222,7 @@ impl Tech {
     }
 
     /// Direct native prerequisites, preserving the order of the four historical
-    /// prerequisite slots. Returns `None` for a Freeciv-only technology ID.
+    /// prerequisite slots. Returns `None` for a retired index or a sentinel.
     ///
     /// Based on the Civ III technology catalog.
     pub(crate) fn catalog_prerequisites(self) -> Option<&'static [Self]> {
@@ -261,32 +252,6 @@ impl Tech {
         self.data().map_or(TechEra::Ancient, |advance| advance.era)
     }
 
-    /// CivCraft-only advances retained for current ruleset effects. Their
-    /// effects now ride on the closest Civ III advance and
-    /// they are not separate research choices.
-    ///
-    /// Maps a retained CivCraft advance to its closest Civ III advance.
-    pub(crate) fn catalog_equivalent(self) -> Option<Self> {
-        match self {
-            Self::AUTOMOBILE => Some(Self::MOTORIZED_TRANSPORTATION),
-            Self::BRIDGE_BUILDING | Self::EXPLOSIVES => Some(Self::ENGINEERING),
-            Self::COMBINED_ARMS => Some(Self::ADVANCED_FLIGHT),
-            Self::FUSION_POWER => Some(Self::NUCLEAR_POWER),
-            Self(31) => Some(Self::GENETICS), // Genetic Engineering
-            Self::GUERILLA_WARFARE => Some(Self::NATIONALISM),
-            Self(38) => Some(Self::REPLACEABLE_PARTS), // Labor Union
-            Self(40) => Some(Self::MILITARY_TRADITION), // Leadership
-            Self(41) => Some(Self::LITERATURE),        // Literacy
-            Self::MACHINE_TOOLS => Some(Self::ROBOTICS),
-            Self::RAILROAD | Self::STEAM_ENGINE => Some(Self::STEAM_POWER),
-            Self::REFRIGERATION => Some(Self::SANITATION),
-            Self(71) => Some(Self::NAVIGATION), // Seafaring
-            Self(77) => Some(Self::MILITARY_TRADITION), // Tactics
-            Self::TRADE => Some(Self::ECONOMICS),
-            _ => None,
-        }
-    }
-
     /// Civ III marks some advances optional for era advancement.
     pub(crate) fn optional_for_era(self) -> bool {
         self.data().is_some_and(|advance| !advance.required_for_era)
@@ -299,32 +264,6 @@ impl Tech {
 
     pub(crate) fn era_gate(self) -> Option<TechEra> {
         self.data().and_then(|advance| advance.era_gate)
-    }
-}
-
-fn compatibility_name(tech: Tech) -> &'static str {
-    // Names for Freeciv-only stable IDs. Researchable identities and labels
-    // come from the native Civ III catalog below.
-    match tech.0 {
-        5 => "Automobile",
-        7 => "Bridge Building",
-        13 => "Combined Arms",
-        27 => "Explosives",
-        30 => "Fusion Power",
-        31 => "Genetic Engineering",
-        32 => "Guerilla Warfare",
-        38 => "Labor Union",
-        40 => "Leadership",
-        41 => "Literacy",
-        42 => "Machine Tools",
-        63 => "Radio",
-        64 => "Railroad",
-        67 => "Refrigeration",
-        71 => "Seafaring",
-        74 => "Steam Engine",
-        77 => "Tactics",
-        83 => "Trade",
-        _ => "Future Tech",
     }
 }
 
@@ -471,7 +410,11 @@ mod sentinel_tests {
 
     #[test]
     fn adding_unset_preserves_every_existing_persisted_advance_index() {
-        assert_eq!(Tech::all().count(), 103);
+        // Only the 85 Civ III advances are enumerated; retired Freeciv-only
+        // indices stay reserved so persisted indices never change meaning.
+        assert_eq!(Tech::all().count(), 85);
+        assert!(Tech::all().all(|tech| tech.is_researchable_advance()));
+        assert!(Tech::from_index(5).is_none());
         assert_eq!(Tech::IRONCLADS.0, 100);
         assert_eq!(Tech::IRONCLADS.name(), "Ironclads");
         assert_eq!(Tech::FUTURE.0, 101);
@@ -512,7 +455,7 @@ mod sentinel_tests {
                 .count(),
             85
         );
-        assert!(!Tech::RADIO.is_researchable_advance());
+        assert_eq!(Tech::from_name("Radio"), None);
         assert!(Tech::IRONCLADS.is_researchable_advance());
         assert!(Tech::IRONCLADS.linear_requirement_count().is_some());
         assert_eq!(
@@ -576,51 +519,14 @@ mod sentinel_tests {
 mod constant_tests {
     use super::*;
 
-    fn normalized(text: &str) -> String {
-        text.chars()
-            .filter(char::is_ascii_alphanumeric)
-            .map(|c| c.to_ascii_lowercase())
-            .collect()
-    }
-
-    /// Technologies Civ III renamed relative to the legacy names.
-    const RENAMED_IN_CATALOG: [(&str, &str); 4] = [
-        ("UNIVERSITY", "Education"),
-        ("SUPERCONDUCTORS", "Superconductor"),
-        ("MOBILE_WARFARE", "Motorized Transportation"),
-        ("NUCLEAR_FISSION", "Fission"),
-    ];
-
     /// Every `const NAME: Self = Self(N);` must still name the advance at
     /// stable index N, so catalog edits cannot silently retarget a constant.
     #[test]
     fn index_constants_name_the_advance_at_their_index() {
-        let source = include_str!("research.rs");
-        let mut checked = 0;
-        for line in source.lines() {
-            let Some(rest) = line.trim().strip_prefix("pub(crate) const ") else {
-                continue;
-            };
-            let Some((name, tail)) = rest.split_once(": Self = Self(") else {
-                continue;
-            };
-            let Some(index) = tail
-                .strip_suffix(");")
-                .and_then(|n| n.parse::<usize>().ok())
-            else {
-                continue;
-            };
-            let actual = Tech(index).name();
-            // Freeciv-named constants whose advance carries a Civ III name.
-            let renamed = RENAMED_IN_CATALOG
-                .iter()
-                .any(|(constant, catalog_name)| *constant == name && *catalog_name == actual);
-            assert!(
-                renamed || normalized(name) == normalized(actual),
-                "{name} = Self({index}) but index {index} is {actual}"
-            );
-            checked += 1;
-        }
-        assert!(checked >= 70, "only checked {checked} technology constants");
+        crate::test_support::assert_index_constants_match_catalog(
+            include_str!("research.rs"),
+            |index| vec![Tech(index).name().to_owned()],
+            70,
+        );
     }
 }

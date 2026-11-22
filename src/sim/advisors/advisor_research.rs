@@ -2,7 +2,6 @@
 
 use super::super::action_rules::SimulationRequirementContext;
 use super::*;
-use crate::rules::content_adapter::{EngineTechBinding, bind_engine_technology};
 use crate::rules::engine_rules::RequirementKind;
 use crate::rules::engine_rules::{
     EffectRecord, Requirement as EngineRequirement, RequirementContext, RequirementRange,
@@ -239,9 +238,7 @@ impl Simulation {
 
     fn city_tech_effect_want_with_baseline(&self, city: &City, tech: Tech, baseline: i32) -> i32 {
         let direct = match tech {
-            Tech::RAILROAD | Tech::TRADE | Tech::THE_CORPORATION => {
-                self.advisor_city_output(city, Some(tech)) - baseline
-            }
+            Tech::THE_CORPORATION => self.advisor_city_output(city, Some(tech)) - baseline,
             _ => 0,
         };
         // daitech.c adds each supported effect's raw value to the per-city
@@ -598,7 +595,7 @@ fn city_effect_techs() -> &'static [Tech] {
         let ruleset = RulesetData::campaign_default();
         Tech::all()
             .filter(|&tech| {
-                matches!(tech, Tech::RAILROAD | Tech::TRADE | Tech::THE_CORPORATION)
+                tech == Tech::THE_CORPORATION
                     || tech.is_researchable_advance()
                         && ruleset.effects.iter().any(|effect| {
                             effect.multiplier.is_none()
@@ -634,10 +631,7 @@ fn bound_player_tech(requirement: &EngineRequirement) -> Option<(Tech, bool)> {
     let tech = match requirement.resolved {
         Some(crate::rules::engine_rules::ResolvedRequirementValue::Tech(tech)) => tech,
         _ => match &requirement.name {
-            RequirementValue::String(name) => match bind_engine_technology(name).ok()? {
-                EngineTechBinding::Bound(tech) => tech,
-                EngineTechBinding::MissingFromCatalog => return None,
-            },
+            RequirementValue::String(name) => Tech::from_name(name)?,
             _ => return None,
         },
     };

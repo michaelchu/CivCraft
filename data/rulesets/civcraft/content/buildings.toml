@@ -433,7 +433,7 @@ genus = "Improvement"
 cost = 120
 upkeep = 3
 culture_per_turn = 0
-requirements = [{ kind = "Tech", present = true, target = "TECH_COMPAT_Automobile" }]
+requirements = [{ kind = "Tech", present = true, target = "TECH_Motorized_Transportation" }]
 obsolete = []
 flags = []
 id = "building_super_highways"
@@ -539,7 +539,7 @@ genus = "GreatWonder"
 cost = 300
 upkeep = 0
 culture_per_turn = 0
-requirements = [{ kind = "Tech", present = true, target = "TECH_COMPAT_Steam_Engine" }]
+requirements = [{ kind = "Tech", present = true, target = "TECH_Steam_Power" }]
 obsolete = []
 flags = []
 id = "building_darwin_s_voyage"
@@ -550,7 +550,7 @@ genus = "GreatWonder"
 cost = 300
 upkeep = 0
 culture_per_turn = 0
-requirements = [{ kind = "Tech", present = true, target = "TECH_COMPAT_Railroad" }]
+requirements = [{ kind = "Tech", present = true, target = "TECH_Steam_Power" }]
 obsolete = []
 flags = []
 id = "building_eiffel_tower"
@@ -692,7 +692,7 @@ genus = "GreatWonder"
 cost = 200
 upkeep = 0
 culture_per_turn = 0
-requirements = [{ kind = "Tech", present = true, target = "TECH_COMPAT_Trade" }]
+requirements = [{ kind = "Tech", present = true, target = "TECH_Economics" }]
 obsolete = [{ kind = "Tech", present = true, target = "TECH_Democracy" }]
 flags = []
 id = "building_marco_polo_s_embassy"

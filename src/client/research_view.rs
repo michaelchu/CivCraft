@@ -324,7 +324,7 @@ fn research_unlock_detail(tech: Tech) -> String {
         Tech::STEAM_POWER => Some("Industrial"),
         Tech::MOTORIZED_TRANSPORTATION => Some("Electric Age"),
         Tech::ROCKETRY => Some("Modern"),
-        Tech::SUPERCONDUCTORS => Some("Postmodern"),
+        Tech::SUPERCONDUCTOR => Some("Postmodern"),
         _ => None,
     };
     let mut detail = if unlocks.is_empty() {

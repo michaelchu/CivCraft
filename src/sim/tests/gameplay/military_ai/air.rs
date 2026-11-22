@@ -16,7 +16,7 @@ impl Simulation {
         }
         let home = (10, 24);
         let target = offset_native_by_map(home.0, home.1, 6, 0);
-        self.players[1].known.push(Tech::COMBINED_ARMS);
+        self.players[1].known.push(Tech::ADVANCED_FLIGHT);
         self.create_city(1, home.0, home.1);
         self.spawn_unit(1, UnitKind::Warrior, home.0, home.1);
         let paratrooper = self.spawn_unit(1, UnitKind::Paratrooper, home.0, home.1);

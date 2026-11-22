@@ -705,7 +705,7 @@ static ENABLERS: &[Enabler] = &[
         "transform_terrain",
         "Transform Terrain",
         &[
-            is(Tech, "Fusion Power", Player),
+            is(Tech, "Nuclear Power", Player),
             is(UnitTypeFlag, "Transform", Local),
             is(UnitTypeFlag, "Workers", Local),
         ],

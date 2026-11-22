@@ -136,7 +136,7 @@ fn current_campaign_round_trip_preserves_gameplay_and_topology_state() {
             scores: government_scores,
         },
     );
-    game.global_advances = vec![Tech::SPACE_FLIGHT, Tech::SUPERCONDUCTORS];
+    game.global_advances = vec![Tech::SPACE_FLIGHT, Tech::SUPERCONDUCTOR];
     game.year = 1;
     game.year_0_hack = true;
     game.set_random_seed(42);

@@ -17,7 +17,7 @@ impl Resource {
             Self::Oil => Some(Tech::REFINING),
             Self::Rubber => Some(Tech::REPLACEABLE_PARTS),
             Self::Saltpeter => Some(Tech::GUNPOWDER),
-            Self::Uranium => Some(Tech::NUCLEAR_FISSION),
+            Self::Uranium => Some(Tech::FISSION),
             Self::Dyes
             | Self::Furs
             | Self::Gems

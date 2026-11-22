@@ -926,7 +926,7 @@ mod tests {
         good.requirements
             .push(crate::rules::engine_rules::Requirement {
                 kind: crate::rules::engine_rules::RequirementKind::Tech,
-                name: crate::rules::engine_rules::RequirementValue::String("Trade".to_owned()),
+                name: crate::rules::engine_rules::RequirementValue::String("Economics".to_owned()),
                 resolved: None,
                 range: crate::rules::engine_rules::RequirementRange::Player,
                 present: true,

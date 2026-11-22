@@ -22,9 +22,6 @@ impl Simulation {
 
     pub(crate) fn has_tech(&self, owner: usize, tech: Tech) -> bool {
         self.players[owner].known.contains(&tech)
-            || tech
-                .catalog_equivalent()
-                .is_some_and(|equivalent| self.players[owner].known.contains(&equivalent))
     }
 
     pub(crate) fn resource_visible_to(&self, owner: usize, resource: Resource) -> bool {
@@ -679,7 +676,7 @@ impl Simulation {
             if !self.global_advances.contains(&tech) {
                 self.global_advances.push(tech);
             }
-            if matches!(tech, Tech::RAILROAD | Tech::STEAM_POWER) {
+            if tech == Tech::STEAM_POWER {
                 let centers: Vec<_> = self
                     .cities
                     .iter()

@@ -1088,9 +1088,7 @@ fn senate_enforces_treaties_unless_provoked_or_waived() {
     game.cities[0].buildings.push(find("United Nations"));
     game.completed_wonders.push(find("United Nations"));
     game.completed_wonders.push(find("Manhattan Project"));
-    let fission = Tech::all()
-        .find(|tech| *tech == Tech::NUCLEAR_FISSION)
-        .unwrap();
+    let fission = Tech::all().find(|tech| *tech == Tech::FISSION).unwrap();
     game.players[HUMAN].known.push(fission);
     assert!(game.has_senate(HUMAN));
     game.apollo_completed = true;

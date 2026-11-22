@@ -342,8 +342,8 @@ pub(crate) fn ui_review_fixture(sim: &mut Simulation) -> (u32, u32) {
     sim.cities.clear();
     sim.players[HUMAN].known = Tech::all().collect();
     sim.players[HUMAN].gold = 12_345_678;
-    sim.players[HUMAN].researching = Tech::NUCLEAR_FISSION;
-    sim.players[HUMAN].research_goal = Tech::SUPERCONDUCTORS;
+    sim.players[HUMAN].researching = Tech::FISSION;
+    sim.players[HUMAN].research_goal = Tech::SUPERCONDUCTOR;
     for tile in &mut sim.tiles {
         tile.seen = true;
         tile.known_by.fill(true);
@@ -669,7 +669,7 @@ pub(crate) fn ui_review_city_appearance(sim: &mut Simulation) {
             27,
             17,
             "Modern disorder",
-            Some(Tech::SUPERCONDUCTORS),
+            Some(Tech::SUPERCONDUCTOR),
             true,
         ),
     ] {

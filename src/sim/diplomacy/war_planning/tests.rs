@@ -265,7 +265,7 @@ fn spaceship_warnings_repeat_only_after_the_reference_cooldown() {
 fn senate_in_anarchy_aborts_revolution_and_war_tantrum_uses_native_love() {
     let mut game = war_planning_game();
     game.players[1].government = Government::DEMOCRACY;
-    game.players[1].known.push(Tech::NUCLEAR_FISSION);
+    game.players[1].known.push(Tech::FISSION);
     game.cities[0].buildings.push(Building::UNITED_NATIONS);
     game.completed_wonders.push(Building::UNITED_NATIONS);
     game.completed_wonders.push(Building::MANHATTAN_PROJECT);

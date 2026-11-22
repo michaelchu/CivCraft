@@ -64,10 +64,10 @@ obsolete = [{ kind = "Tech", present = true, target = "TECH_Motorized_Transporta
 targets use strategic resource names. `OwnerBuildingCount` uses `count` for its
 threshold; scalar requirements such as `MinSize` retain `value`.
 
-Some inherited requirements refer to nonresearchable compatibility identities
-using readable `TECH_COMPAT_<Name>` IDs (for example `TECH_COMPAT_Steam_Engine`
-or `TECH_COMPAT_Railroad`). They preserve historical engine gates without adding
-technologies to the research tree.
+Technology targets and every `Tech` requirement in the engine rule tables name
+Civ III advances only (by catalog ID or display name). There are no Freeciv
+compatibility identities; an unknown name is a load error. Retired tech indices
+stay reserved so saved games keep their meaning.
 
 Building IDs, counts, and obsolescence policy (`selected_obsolescence`) resolve
 directly from `content/buildings.toml` via data-driven `Building` handles.
