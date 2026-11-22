@@ -61,3 +61,64 @@ pub(crate) fn civilizations() -> &'static CivilizationCatalog {
         .unwrap_or_else(|error| panic!("invalid native civilizations TOML: {error}"))
     })
 }
+
+/// The eight Conquests civilization traits, named as in `civilizations.toml`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum CivTrait {
+    Agricultural,
+    Commercial,
+    Expansionist,
+    Industrious,
+    Militaristic,
+    Religious,
+    Scientific,
+    Seafaring,
+}
+
+impl CivTrait {
+    pub(crate) const ALL: [Self; 8] = [
+        Self::Agricultural,
+        Self::Commercial,
+        Self::Expansionist,
+        Self::Industrious,
+        Self::Militaristic,
+        Self::Religious,
+        Self::Scientific,
+        Self::Seafaring,
+    ];
+
+    pub(crate) fn name(self) -> &'static str {
+        match self {
+            Self::Agricultural => "agricultural",
+            Self::Commercial => "commercial",
+            Self::Expansionist => "expansionist",
+            Self::Industrious => "industrious",
+            Self::Militaristic => "militaristic",
+            Self::Religious => "religious",
+            Self::Scientific => "scientific",
+            Self::Seafaring => "seafaring",
+        }
+    }
+
+    /// Exact lowercase trait name; unknown names are not traits.
+    pub(crate) fn from_name(name: &str) -> Option<Self> {
+        Self::ALL
+            .into_iter()
+            .find(|candidate| candidate.name() == name)
+    }
+}
+
+impl NativeCivilization {
+    pub(crate) fn has_trait(&self, civ_trait: CivTrait) -> bool {
+        match civ_trait {
+            CivTrait::Agricultural => self.agricultural,
+            CivTrait::Commercial => self.commercial,
+            CivTrait::Expansionist => self.expansionist,
+            CivTrait::Industrious => self.industrious,
+            CivTrait::Militaristic => self.militaristic,
+            CivTrait::Religious => self.religious,
+            CivTrait::Scientific => self.scientific,
+            CivTrait::Seafaring => self.seafaring,
+        }
+    }
+}

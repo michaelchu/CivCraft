@@ -230,3 +230,25 @@ fn indexed_lookups_match_linear_scans() {
         );
     }
 }
+
+#[test]
+fn civilization_trait_names_round_trip_and_match_the_toml_fields() {
+    for civ_trait in CivTrait::ALL {
+        assert_eq!(CivTrait::from_name(civ_trait.name()), Some(civ_trait));
+    }
+    assert_eq!(CivTrait::from_name("Scientific"), None);
+    assert_eq!(CivTrait::from_name("builder"), None);
+    let scientific = civilizations()
+        .civilizations
+        .iter()
+        .filter(|civ| civ.has_trait(CivTrait::Scientific))
+        .count();
+    assert_eq!(
+        scientific,
+        civilizations()
+            .civilizations
+            .iter()
+            .filter(|civ| civ.scientific)
+            .count()
+    );
+}
