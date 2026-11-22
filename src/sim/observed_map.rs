@@ -275,16 +275,12 @@ impl Simulation {
                 }
             }
         }
-        if !requires_detection
+        !requires_detection
             && self.recon_revealed_tiles.iter().any(|(&owner, tiles)| {
                 owner < 64
                     && ((givers_mask >> owner) & 1) != 0
                     && tiles.contains(&(target.x, target.y))
             })
-        {
-            return true;
-        }
-        false
     }
 
     /// Use the Civ III grid's shortest step count as Freeciv's hex real
