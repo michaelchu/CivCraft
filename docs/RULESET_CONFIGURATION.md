@@ -27,6 +27,13 @@ The migration does not introduce another gameplay scripting language.
 statistics, movement, capacity, range, support and worker values, and
 availability. `domain` is `Land`, `Sea`, or `Air`.
 
+Only non-default values are written. Omitted fields mean `0`, `0.0`, `""` or
+`[]`, except `require_support`, which defaults to `1`. `cost_shields`, `attack`,
+`defense`, `moves`, `category` and `domain` are always listed. An omitted
+`available_to` means the unit's own civilization for a unique unit, otherwise
+every civilization except those whose unique unit `replaces` it; list it only
+for a different roster (an empty list makes a unit unbuildable).
+
 `required_technology` references a compiled technology ID, such as
 `TECH_Bronze_Working`; `upgrade_to` and `replaces` reference unit IDs, such as
 `swordsman`. Empty strings mean no reference. Resource requirements retain their

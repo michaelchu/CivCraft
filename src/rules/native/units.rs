@@ -21,36 +21,87 @@ pub(crate) struct NativeUnit {
     pub(crate) name: String,
     pub(crate) category: UnitCategory,
     pub(crate) cost_shields: i32,
+    #[serde(default)]
     pub(crate) population_cost: i32,
     pub(crate) attack: i32,
     pub(crate) defense: i32,
     pub(crate) moves: i32,
+    #[serde(default)]
     pub(crate) bombard_strength: i32,
+    #[serde(default)]
     pub(crate) bombard_range: i32,
+    #[serde(default)]
     pub(crate) rate_of_fire: i32,
+    #[serde(default)]
     pub(crate) operational_range: i32,
+    #[serde(default)]
     pub(crate) capacity: usize,
+    #[serde(default)]
     pub(crate) required_technology: String,
+    #[serde(default)]
     pub(crate) required_resources: Vec<String>,
+    #[serde(default)]
     pub(crate) upgrade_to: String,
+    /// Explicit roster. When omitted it is derived by [`default_availability`].
+    #[serde(default, rename = "available_to")]
+    available_to_override: Option<Vec<String>>,
+    #[serde(skip)]
     pub(crate) available_to: Vec<String>,
+    #[serde(default)]
     pub(crate) unique_civilization: String,
+    #[serde(default)]
     pub(crate) replaces: String,
     pub(crate) domain: UnitDomain,
+    #[serde(default)]
     pub(crate) enslave_result: String,
+    #[serde(default)]
     pub(crate) capabilities: Vec<String>,
+    #[serde(default)]
     pub(crate) ai_roles: Vec<String>,
+    #[serde(default)]
     pub(crate) hit_point_bonus: i32,
     #[serde(skip)]
     pub(crate) art_folder: String,
     #[serde(skip)]
     pub(crate) art_root: String,
+    #[serde(default)]
     pub(crate) zone_of_control: i32,
     #[serde(skip)]
     pub(crate) bombard_effects: i32,
+    #[serde(default = "default_require_support")]
     pub(crate) require_support: i32,
+    #[serde(default)]
     pub(crate) worker_strength: f32,
+    #[serde(default)]
     pub(crate) air_defense: i32,
+}
+
+fn default_require_support() -> i32 {
+    1
+}
+
+/// Roster for a unit that does not list `available_to`: its own civilization
+/// for a unique unit, otherwise every civilization except those whose unique
+/// unit replaces it.
+fn default_availability(
+    unit: &NativeUnit,
+    units: &[NativeUnit],
+    civilizations: &CivilizationCatalog,
+) -> Vec<String> {
+    if !unit.unique_civilization.is_empty() {
+        return vec![unit.unique_civilization.clone()];
+    }
+    civilizations
+        .civilizations
+        .iter()
+        .map(|civilization| &civilization.noun)
+        .filter(|noun| {
+            !units
+                .iter()
+                .any(|other| other.replaces == unit.id && &other.unique_civilization == *noun)
+        })
+        .cloned()
+        .collect()
 }
 
 /// How a unit relates to civilization rosters and wonder creation.
@@ -92,6 +143,7 @@ impl UnitDomain {
 pub(crate) fn parse_units(
     source: &str,
     technologies: &TechnologyCatalog,
+    civilizations: &CivilizationCatalog,
 ) -> Result<UnitCatalog, String> {
     let mut catalog: UnitCatalog = toml::from_str(source).map_err(|error| error.to_string())?;
     for unit in &mut catalog.units {
@@ -99,6 +151,18 @@ pub(crate) fn parse_units(
         unit.bombard_effects = i32::from(super::bindings::has_bombard_effects(&unit.id));
     }
     validate_ids(catalog.units.iter().map(|unit| unit.id.as_str()), "unit")?;
+    let rosters: Vec<Vec<String>> = catalog
+        .units
+        .iter()
+        .map(|unit| {
+            unit.available_to_override
+                .clone()
+                .unwrap_or_else(|| default_availability(unit, &catalog.units, civilizations))
+        })
+        .collect();
+    for (unit, roster) in catalog.units.iter_mut().zip(rosters) {
+        unit.available_to = roster;
+    }
     let unit_ids: std::collections::HashSet<&str> =
         catalog.units.iter().map(|unit| unit.id.as_str()).collect();
     for unit in &catalog.units {
@@ -139,6 +203,7 @@ pub(crate) fn units() -> &'static UnitCatalog {
         parse_units(
             include_str!("../../../data/rulesets/civcraft/content/units.toml"),
             technologies(),
+            civilizations(),
         )
         .unwrap_or_else(|error| panic!("invalid native units TOML: {error}"))
     })

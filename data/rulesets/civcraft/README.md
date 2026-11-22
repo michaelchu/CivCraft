@@ -13,7 +13,7 @@ See [the configuration contract](../../../docs/RULESET_CONFIGURATION.md).
 
 Current catalogs:
 
-- `content/units.toml`: 92 native unit identities and tuneable source values.
+- `content/units.toml`: 92 native unit identities and tuneable values (defaults omitted).
 - `content/experience_levels.toml`: Conquests experience ranks, hit points, and promotion values.
 - `content/civilizations.toml`: 31 civilizations, city lists, starting technologies,
   and starting-unit profiles.

@@ -59,8 +59,8 @@ impl ContentRuleset {
                 .map_err(|error| format!("failed to read {name}: {error}"))
         };
         let technologies = parse_technologies(&read("technologies.toml")?)?;
-        let units = parse_units(&read("units.toml")?, &technologies)?;
         let civilizations = parse_civilizations(&read("civilizations.toml")?)?;
+        let units = parse_units(&read("units.toml")?, &technologies, &civilizations)?;
         let buildings = parse_buildings(&read("buildings.toml")?, &technologies)?;
         let experience = parse_experience(&read("experience_levels.toml")?)?;
         let religion = super::policies::parse_religion(&read("religion.toml")?, &technologies)?;
