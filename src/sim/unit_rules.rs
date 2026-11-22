@@ -38,7 +38,8 @@ pub(super) struct UnitRule {
     pub(super) worker_strength: f32,
     #[allow(dead_code)]
     pub(super) air_defense: i32,
-    pub(super) available_to: &'static str,
+    /// `;`-joined civilization nouns; empty means no extra limit.
+    pub(super) restricted_to: &'static str,
     #[allow(dead_code)]
     pub(super) unique_civilization: &'static str,
     #[allow(dead_code)]
@@ -168,9 +169,7 @@ impl UnitRule {
         set_flag(
             F::NoBuild,
             // Leaders come from combat; Armies can only be formed by consuming one.
-            self.available_to.is_empty()
-                || self.category == "wonder_created"
-                || matches!(self.id, "leader" | "army"),
+            self.category == "wonder_created" || matches!(self.id, "leader" | "army"),
         );
         set_flag(F::Unique, self.category == "unique");
         set_flag(F::Cities, self.has_capability("FoundCity"));
@@ -216,9 +215,11 @@ impl UnitRule {
     }
 
     fn civilization_mask_allows(&self, source_noun: &str) -> bool {
-        self.available_to
-            .split(';')
-            .any(|available| available == source_noun)
+        self.restricted_to.is_empty()
+            || self
+                .restricted_to
+                .split(';')
+                .any(|allowed| allowed == source_noun)
     }
 
     /// Resolve a stable civilization ID to the canonical Civ III noun used by
@@ -301,7 +302,7 @@ fn rules() -> &'static [UnitRule] {
             for (slot, resource) in native.required_resources.iter().take(3).enumerate() {
                 required_resources[slot] = leak(resource);
             }
-            let available_to = leak(&native.available_to.join(";"));
+            let restricted_to = leak(&native.restricted_to.join(";"));
             let unique_civilization = leak(&native.unique_civilization);
             let replaces = leak(&native.replaces);
             parsed.push(UnitRule {
@@ -337,7 +338,7 @@ fn rules() -> &'static [UnitRule] {
                 enslave_result: leak(&native.enslave_result),
                 worker_strength: native.worker_strength,
                 air_defense: native.air_defense,
-                available_to,
+                restricted_to,
                 unique_civilization,
                 replaces,
             });
@@ -526,15 +527,7 @@ mod tests {
                     .collect::<Vec<_>>()
             );
             assert_eq!(migrated.upgrade_to, source.upgrade_to);
-            assert_eq!(
-                migrated.available_to,
-                source
-                    .available_to
-                    .split(';')
-                    .filter(|civilization| !civilization.is_empty())
-                    .map(str::to_owned)
-                    .collect::<Vec<_>>()
-            );
+            assert_eq!(migrated.restricted_to.join(";"), source.restricted_to);
             assert_eq!(migrated.unique_civilization, source.unique_civilization);
             assert_eq!(migrated.replaces, source.replaces);
             assert_eq!(migrated.domain.index(), source.unit_type);

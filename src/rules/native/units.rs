@@ -42,11 +42,10 @@ pub(crate) struct NativeUnit {
     pub(crate) required_resources: Vec<String>,
     #[serde(default)]
     pub(crate) upgrade_to: String,
-    /// Explicit roster. When omitted it is derived by [`default_availability`].
-    #[serde(default, rename = "available_to")]
-    available_to_override: Option<Vec<String>>,
-    #[serde(skip)]
-    pub(crate) available_to: Vec<String>,
+    /// Optional extra roster limit for a non-unique unit, as civilization
+    /// nouns. Unique units use `unique_civilization` instead.
+    #[serde(default)]
+    pub(crate) restricted_to: Vec<String>,
     #[serde(default)]
     pub(crate) unique_civilization: String,
     #[serde(default)]
@@ -78,30 +77,6 @@ pub(crate) struct NativeUnit {
 
 fn default_require_support() -> i32 {
     1
-}
-
-/// Roster for a unit that does not list `available_to`: its own civilization
-/// for a unique unit, otherwise every civilization except those whose unique
-/// unit replaces it.
-fn default_availability(
-    unit: &NativeUnit,
-    units: &[NativeUnit],
-    civilizations: &CivilizationCatalog,
-) -> Vec<String> {
-    if !unit.unique_civilization.is_empty() {
-        return vec![unit.unique_civilization.clone()];
-    }
-    civilizations
-        .civilizations
-        .iter()
-        .map(|civilization| &civilization.noun)
-        .filter(|noun| {
-            !units
-                .iter()
-                .any(|other| other.replaces == unit.id && &other.unique_civilization == *noun)
-        })
-        .cloned()
-        .collect()
 }
 
 /// How a unit relates to civilization rosters and wonder creation.
@@ -151,21 +126,29 @@ pub(crate) fn parse_units(
         unit.bombard_effects = i32::from(super::bindings::has_bombard_effects(&unit.id));
     }
     validate_ids(catalog.units.iter().map(|unit| unit.id.as_str()), "unit")?;
-    let rosters: Vec<Vec<String>> = catalog
-        .units
-        .iter()
-        .map(|unit| {
-            unit.available_to_override
-                .clone()
-                .unwrap_or_else(|| default_availability(unit, &catalog.units, civilizations))
-        })
-        .collect();
-    for (unit, roster) in catalog.units.iter_mut().zip(rosters) {
-        unit.available_to = roster;
-    }
     let unit_ids: std::collections::HashSet<&str> =
         catalog.units.iter().map(|unit| unit.id.as_str()).collect();
     for unit in &catalog.units {
+        let nouns: Vec<&str> = civilizations
+            .civilizations
+            .iter()
+            .map(|civilization| civilization.noun.as_str())
+            .collect();
+        for noun in unit
+            .restricted_to
+            .iter()
+            .chain((!unit.unique_civilization.is_empty()).then_some(&unit.unique_civilization))
+        {
+            if !nouns.contains(&noun.as_str()) {
+                return Err(format!("unknown civilization {noun} for {}", unit.id));
+            }
+        }
+        if !unit.restricted_to.is_empty() && !unit.unique_civilization.is_empty() {
+            return Err(format!(
+                "{} cannot set both unique_civilization and restricted_to",
+                unit.id
+            ));
+        }
         if !unit.required_technology.is_empty()
             && crate::rules::technologies::runtime_index_in(technologies, &unit.required_technology)
                 .is_none()
