@@ -74,6 +74,9 @@ Each has a stable `id`, display name, genus, cost, upkeep, requirements,
 obsolescence, and flags. The original source records and import mappings have been
 removed.
 
+`requirements`, `obsolete`, `flags` and `culture_per_turn` are omitted when empty
+or zero. `cost` and `upkeep` are always listed.
+
 Named requirement targets replace numeric references:
 
 ```toml
@@ -92,6 +95,12 @@ technologies to the research tree.
 
 Building IDs, counts, and obsolescence policy (`selected_obsolescence`) resolve
 directly from `content/buildings.toml` via data-driven `Building` handles.
+
+## Technologies and civilizations
+
+Technologies omit empty `prerequisites` and `flags`, and `required_for_era`
+unless it is `false`. Civilizations list only the traits they have
+(`militaristic = true`); an omitted trait is `false`.
 
 ## Terrain and governments
 

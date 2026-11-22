@@ -15,14 +15,8 @@ adjective = "Roman"
 leader = "Caesar"
 starting_techs = ["Warrior Code", "Alphabet"]
 cities = ["Rome", "Veii", "Antium", "Cumae", "Neapolis", "Pompeii", "Pisae", "Ravenna", "Hispalis", "Viroconium", "Lugdunum", "Lutetia", "Byzantium", "Brundisium", "Syracuse", "Caesaraugusta", "Palmyra", "Jerusalem", "Caesarea", "Tarentum", "Nicomedia", "Seleucia", "Artaxata", "Aurelianorum", "Hippo Regius", "Nicopolis", "Londinium", "Eburacum", "Arretium", "Gordion", "Agrippina", "Cyrene", "Tyrus", "Verona", "Corfinium", "Mediolanum", "Treveri", "Sirmium", "Augustadorum", "Trapezus", "Bagacum", "Lauriacum", "Teurnia", "Curia"]
-agricultural = false
 commercial = true
-expansionist = false
-industrious = false
 militaristic = true
-religious = false
-scientific = false
-seafaring = false
 
 [[civilizations.starting_units]]
 id = "Settler"
@@ -40,14 +34,8 @@ adjective = "Egyptian"
 leader = "Cleopatra"
 starting_techs = ["Ceremonial Burial", "Masonry"]
 cities = ["Thebes", "Memphis", "Heliopolis", "Elephantine", "Alexandria", "Pi-Ramesses", "Giza", "Byblos", "El-Amarna", "Hieraconpolis", "Abydos", "Asyut", "Avaris", "Lisht", "Buto", "Edfu", "Pithom", "Busiris", "Kahun", "Athribis", "Mendes", "El-Ashmunein", "Tanis", "Buhen", "Bubastis", "This", "Oryx", "Sebennytus", "Cairo"]
-agricultural = false
-commercial = false
-expansionist = false
 industrious = true
-militaristic = false
 religious = true
-scientific = false
-seafaring = false
 
 [[civilizations.starting_units]]
 id = "Settler"
@@ -65,14 +53,8 @@ adjective = "Greek"
 leader = "Alexander"
 starting_techs = ["Alphabet", "Bronze Working"]
 cities = ["Athens", "Sparta", "Thermopylae", "Corinth", "Delphi", "Pharsalos", "Knossos", "Argos", "Mycenae", "Herakleia", "Ephesus", "Thessalonica", "Rhodes", "Eretria", "Troy", "Marathon", "Halicarnassus", "Pergamon", "Miletos", "Artemisium", "Megara", "Phocaea", "Sicyon", "Gortyn", "Mytilene", "Tegea", "Syracuse", "Apollonia", "Apolyton"]
-agricultural = false
 commercial = true
-expansionist = false
-industrious = false
-militaristic = false
-religious = false
 scientific = true
-seafaring = false
 
 [[civilizations.starting_units]]
 id = "Settler"
@@ -90,14 +72,8 @@ adjective = "Babylonian"
 leader = "Hammurabi"
 starting_techs = ["Bronze Working", "Ceremonial Burial"]
 cities = ["Babylon", "Nineveh", "Ashur", "Ellipi", "Akkad", "Uruk", "Eridu", "Samarra", "Eulbar", "Nippur", "Shuruppak", "Zariqum", "Sippar", "Izibia", "Carchemish", "Mari", "Larsa", "Nimrud", "Zamua", "Khorsabad", "Hindana", "Tell Wilaya", "Karana", "Adab", "Telloh", "Nina", "Ebla"]
-agricultural = false
-commercial = false
-expansionist = false
-industrious = false
-militaristic = false
 religious = true
 scientific = true
-seafaring = false
 
 [[civilizations.starting_units]]
 id = "Settler"
@@ -115,14 +91,8 @@ adjective = "German"
 leader = "Bismarck"
 starting_techs = ["Warrior Code", "Bronze Working"]
 cities = ["Berlin", "Leipzig", "Hamburg", "Konigsberg", "Frankfurt", "Munich", "Heidelburg", "Nuremberg", "Cologne", "Hannover", "Bremen", "Stuttgart", "Bonn", "Salzburg", "Dortmund", "Brandenburg"]
-agricultural = false
-commercial = false
-expansionist = false
-industrious = false
 militaristic = true
-religious = false
 scientific = true
-seafaring = false
 
 [[civilizations.starting_units]]
 id = "Settler"
@@ -140,14 +110,8 @@ adjective = "Russian"
 leader = "Catherine"
 starting_techs = ["Pottery", "Bronze Working"]
 cities = ["Moscow", "St. Petersburg", "Novgorod", "Rostov", "Yaroslavl'", "Yekaterinburg", "Yakutsk", "Vladivostok", "Smolensk", "Orenburg", "Krasnoyarsk", "Khabarovsk", "Bryansk", "Tver'", "Kazan'", "Novosibirsk", "Magadan", "Murmansk", "Irkutsk", "Chita", "Samara", "Arkhangel'sk", "Chelyabinsk", "Tobol'sk", "Vologda", "Omsk", "Astrakhan'", "Kursk", "Saratov", "Tula", "Vladimir", "Perm'", "Voronezh", "Pskov", "Staraya Russa", "Kostroma", "Nizhniy Novgorod", "Suzdal'", "Magnitogorsk"]
-agricultural = false
-commercial = false
 expansionist = true
-industrious = false
-militaristic = false
-religious = false
 scientific = true
-seafaring = false
 
 [[civilizations.starting_units]]
 id = "Settler"
@@ -169,14 +133,8 @@ adjective = "Chinese"
 leader = "Mao"
 starting_techs = ["Warrior Code", "Masonry"]
 cities = ["Beijing", "Shanghai", "Canton", "Nanking", "Tsingtao", "Xinjian", "Chengdu", "Hangchow", "Tientsin", "Tatung", "Macao", "Anyang", "Shantung", "Chinan", "Kaifeng", "Ningpo", "Paoting", "Yangchow"]
-agricultural = false
-commercial = false
-expansionist = false
 industrious = true
 militaristic = true
-religious = false
-scientific = false
-seafaring = false
 
 [[civilizations.starting_units]]
 id = "Settler"
@@ -194,14 +152,8 @@ adjective = "American"
 leader = "Lincoln"
 starting_techs = ["Pottery", "Masonry"]
 cities = ["Washington", "New York", "Boston", "Philadelphia", "Atlanta", "Chicago", "Seattle", "San Francisco", "Miami", "Houston", "Buffalo", "St. Louis", "Detroit", "New Orleans", "Baltimore", "Denver", "Cincinnati", "Dallas", "Memphis", "Los Angeles", "Cleveland", "Kansas City", "San Diego", "Richmond", "Las Vegas", "Phoenix", "Albuquerque", "Portland", "Minneapolis", "Pittsburgh", "Oakland", "Tampa Bay", "Orlando", "Tacoma", "Santa Fe", "Olympia", "Hunt Valley", "Springfield", "Palo Alto", "Spokane"]
-agricultural = false
-commercial = false
 expansionist = true
 industrious = true
-militaristic = false
-religious = false
-scientific = false
-seafaring = false
 
 [[civilizations.starting_units]]
 id = "Settler"
@@ -223,14 +175,8 @@ adjective = "Japanese"
 leader = "Tokugawa"
 starting_techs = ["The Wheel", "Ceremonial Burial"]
 cities = ["Kyoto", "Osaka", "Tokyo", "Edo", "Satsuma", "Kagoshima", "Nara", "Nagoya", "Izumo", "Nagasaki", "Yokohama", "Shimonoseki", "Matsuyama", "Sapporo", "Hakodate", "Ise", "Toyama", "Fukushima", "Suo", "Bizen", "Echizen", "Izumi", "Omi", "Echigo", "Kozuke", "Sado"]
-agricultural = false
-commercial = false
-expansionist = false
-industrious = false
 militaristic = true
 religious = true
-scientific = false
-seafaring = false
 
 [[civilizations.starting_units]]
 id = "Settler"
@@ -248,14 +194,8 @@ adjective = "French"
 leader = "Joan d'Arc"
 starting_techs = ["Alphabet", "Masonry"]
 cities = ["Paris", "Orleans", "Lyons", "Rheims", "Tours", "Marseilles", "Chartres", "Avignon", "Besancon", "Rouen", "Grenoble", "Dijon", "Amiens", "Cherbourg", "Poitiers", "Toulouse", "Bayonne", "Strasbourg", "Brest", "Bordeaux", "Rennes"]
-agricultural = false
 commercial = true
-expansionist = false
 industrious = true
-militaristic = false
-religious = false
-scientific = false
-seafaring = false
 
 [[civilizations.starting_units]]
 id = "Settler"
@@ -273,14 +213,8 @@ adjective = "Indian"
 leader = "Gandhi"
 starting_techs = ["Alphabet", "Ceremonial Burial"]
 cities = ["Delhi", "Bombay", "Madras", "Bangalore", "Calcutta", "Lahore", "Karachi", "Kolhapur", "Jaipur", "Hyderabad", "Bengal", "Chittagong", "Punjab", "Dacca", "Indus", "Ganges", "Pune"]
-agricultural = false
 commercial = true
-expansionist = false
-industrious = false
-militaristic = false
 religious = true
-scientific = false
-seafaring = false
 
 [[civilizations.starting_units]]
 id = "Settler"
@@ -298,14 +232,8 @@ adjective = "Persian"
 leader = "Xerxes"
 starting_techs = ["Bronze Working", "Masonry"]
 cities = ["Persepolis", "Pasargadae", "Arbela", "Antioch", "Gordium", "Bactra", "Sidon", "Tyre", "Sardis", "Samaria", "Hamadan", "Ergili", "Dariush Kabir", "Ghulaman", "Zohak", "Istakhr", "Jinjan", "Borazjan", "Herat", "Dakyanus", "Bampur", "Tureng Tepe", "Merv", "Behistun", "Kandahar", "Altin Tepe", "Bunyan", "Charsadda", "Ura Tyube"]
-agricultural = false
-commercial = false
-expansionist = false
 industrious = true
-militaristic = false
-religious = false
 scientific = true
-seafaring = false
 
 [[civilizations.starting_units]]
 id = "Settler"
@@ -324,13 +252,7 @@ leader = "Montezuma"
 starting_techs = ["Warrior Code", "Pottery"]
 cities = ["Tenochtitlan", "Teotihuacan", "Tlatelolco", "Texcoco", "Tlaxcala", "Calixtlahuaca", "Xochicalco", "Tlacopan", "Atzcapotzalco", "Tzintzuntzen", "Malinalco", "Tula", "Tamuin", "Teayo", "Cempoala", "Chalco", "Tlalmanalco", "Ixtapaluca", "Huexotla", "Tepexpan", "Tepetlaoxtoc", "Chiconautla", "Zitlaltepec", "Coyotepec", "Tequixquiac", "Jilotzingo", "Tlapanaloya", "Tultitlan", "Ecatepec", "Coatepec", "Chalchihuites", "Chiauhtia", "Chapultepec", "Itzapalapa", "Ayotzinco", "Iztapam"]
 agricultural = true
-commercial = false
-expansionist = false
-industrious = false
 militaristic = true
-religious = false
-scientific = false
-seafaring = false
 
 [[civilizations.starting_units]]
 id = "Settler"
@@ -348,14 +270,8 @@ adjective = "Zulu"
 leader = "Shaka"
 starting_techs = ["Warrior Code", "Pottery"]
 cities = ["Zimbabwe", "Ulundi", "Bapedi", "Hlobane", "Isandhlwana", "Intombe", "Mpondo", "Ngome", "Swazi", "Tugela", "Umtata", "Umfolozi", "Ibabanago", "Isipezi", "Amatikulu", "Zunguin"]
-agricultural = false
-commercial = false
 expansionist = true
-industrious = false
 militaristic = true
-religious = false
-scientific = false
-seafaring = false
 
 [[civilizations.starting_units]]
 id = "Settler"
@@ -379,12 +295,6 @@ starting_techs = ["Pottery", "Alphabet"]
 cities = ["Salamanca", "Niagara Falls", "Grand River", "Allegheny", "Cattaraugus", "Oil Springs", "Tonawanda", "Mauch Chunk", "St. Regis", "Centralia", "Akwesasne", "Tyendenaga", "Kahnawake", "Caughnawaga", "Oka", "Chondote", "Gandasetaigon", "Ganogeh", "Gayagaahe", "Gewauga", "Goigouen", "Kawauka", "Kente", "Kiohero", "Owego", "Neodakheat", "Oiogouen", "Skannayutenate", "Onnontare"]
 agricultural = true
 commercial = true
-expansionist = false
-industrious = false
-militaristic = false
-religious = false
-scientific = false
-seafaring = false
 
 [[civilizations.starting_units]]
 id = "Settler"
@@ -402,13 +312,7 @@ adjective = "English"
 leader = "Elizabeth"
 starting_techs = ["Alphabet", "Pottery"]
 cities = ["London", "York", "Nottingham", "Hastings", "Canterbury", "Coventry", "Warwick", "Newcastle", "Oxford", "Liverpool", "Dover", "Brighton", "Norwich", "Leeds", "Reading", "Birmingham", "Richmond", "Exeter", "Cambridge", "Gloucester", "Manchester", "Bristol", "Leicester", "Carlisle", "Ipswich", "Portsmouth", "Berwick", "Bath", "The Mumbles"]
-agricultural = false
 commercial = true
-expansionist = false
-industrious = false
-militaristic = false
-religious = false
-scientific = false
 seafaring = true
 
 [[civilizations.starting_units]]
@@ -427,14 +331,8 @@ adjective = "Mongol"
 leader = "Temujin"
 starting_techs = ["Warrior Code", "Pottery"]
 cities = ["Karakorum", "Ta-Tu", "Kazan", "Almarikh", "Tabriz", "Ulaanbaatar", "Hovd", "Darhan", "Dalandzadgad", "Mandalgovi", "Choybalsan", "Erdenet", "Tsetserleg", "Baruun-Urt", "Ereen", "Batshireet", "Choyr", "Ulaangom", "Tosontsengel", "Atlay", "Uliastay", "Bayanhongor", "Har-Ayrag", "Nalayh", "Tes", "Hutag", "Arvayheer", "Ondorhaan", "Saynshand", "Tumentsogt"]
-agricultural = false
-commercial = false
 expansionist = true
-industrious = false
 militaristic = true
-religious = false
-scientific = false
-seafaring = false
 
 [[civilizations.starting_units]]
 id = "Settler"
@@ -456,13 +354,7 @@ adjective = "Spanish"
 leader = "Isabella"
 starting_techs = ["Alphabet", "Ceremonial Burial"]
 cities = ["Madrid", "Barcelona", "Seville", "Toledo", "Santiago", "Salamanca", "Murcia", "Valencia", "Zaragoza", "Pamplona", "Vitoria", "Santander", "Asturias", "Jaen", "Logrono", "Valladolid", "Palma", "Cordoba", "Teruel", "Almeria", "Leon", "Zamora", "Mérida", "Lugo", "Alicante", "Cadiz", "Elche", "Alcorcon", "Burgos", "Vigo", "Badajoz"]
-agricultural = false
-commercial = false
-expansionist = false
-industrious = false
-militaristic = false
 religious = true
-scientific = false
 seafaring = true
 
 [[civilizations.starting_units]]
@@ -481,13 +373,7 @@ adjective = "Viking"
 leader = "Ragnar Lodbrok"
 starting_techs = ["Warrior Code", "Alphabet"]
 cities = ["Trondheim", "Bergen", "Copenhagen", "Reykjavik", "Oslo", "Stockholm", "Birka", "Aarhus", "Stavanger", "Odense", "Hareid", "Molde", "Alesund", "Bodo", "Karasjok", "Tromso", "Vadso", "Farsund", "Risor", "Fauske", "Karistad", "Batsfjord", "Hammerfest", "Honningsvag", "Svolvaer", "Haugesund", "Sarpsborg", "Lillehammer", "Elverurn", "Falun", "Helsinki", "Keflavik", "Thunderfall"]
-agricultural = false
-commercial = false
-expansionist = false
-industrious = false
 militaristic = true
-religious = false
-scientific = false
 seafaring = true
 
 [[civilizations.starting_units]]
@@ -506,14 +392,8 @@ adjective = "Ottoman"
 leader = "Osman"
 starting_techs = ["Bronze Working", "Masonry"]
 cities = ["Istanbul", "Edrine", "Bursa", "Iznik", "Uskudar", "Izmit", "Aydin", "Antalya", "Konya", "Sinop", "Kafa", "Ankara", "Salonika", "Mugla", "Denizli", "Bolu", "Urfa", "Bingol", "Riza", "Zonguldak", "Kirklareli", "Karabuk", "Cankiri", "Iskenderun", "Tunceli", "Sivas", "Yozgat", "Tokat", "Van"]
-agricultural = false
-commercial = false
-expansionist = false
 industrious = true
-militaristic = false
-religious = false
 scientific = true
-seafaring = false
 
 [[civilizations.starting_units]]
 id = "Settler"
@@ -532,13 +412,7 @@ leader = "Brennus"
 starting_techs = ["Pottery", "Ceremonial Burial"]
 cities = ["Entremont", "Alesia", "Lugdunum", "Camulodunum", "Richborough", "Verulamium", "Gergovia", "Augustodurum", "Agedincum", "Eboracum", "Burdigala", "Cataractonium", "Lapurdum", "Ratae Coritanorum", "Tolosa", "Lindum", "Nemausus", "Curovernum", "Glanum", "Isca", "Segusio", "Rutupiae", "Monguntiacum", "Glevum", "Axima", "Deva", "Lezoux", "Noviomagus", "Arausio", "Durocortorum"]
 agricultural = true
-commercial = false
-expansionist = false
-industrious = false
-militaristic = false
 religious = true
-scientific = false
-seafaring = false
 
 [[civilizations.starting_units]]
 id = "Settler"
@@ -556,14 +430,8 @@ adjective = "Arabic"
 leader = "Abu Bakr"
 starting_techs = ["Pottery", "Ceremonial Burial"]
 cities = ["Mecca", "Medina", "Damascus", "Baghdad", "Najran", "Kufah", "Basra", "Khurasan", "Anjar", "Fustat", "Aden", "Yamama", "Muscat", "Mansura", "Bukhara", "Fez", "Shiraz", "Merw", "Balkh", "Mosul", "Aydab", "Bayt Ras", "Suhar", "Taif", "Hama", "Tabuk", "Sana'a", "Shihr"]
-agricultural = false
-commercial = false
 expansionist = true
-industrious = false
-militaristic = false
 religious = true
-scientific = false
-seafaring = false
 
 [[civilizations.starting_units]]
 id = "Settler"
@@ -585,13 +453,7 @@ adjective = "Carthaginian"
 leader = "Hannibal"
 starting_techs = ["Alphabet", "Masonry"]
 cities = ["Carthage", "Utica", "Leptis Magna", "Theveste", "Hippo", "Leptis Minor", "Sabratha", "Rusicade", "Oea", "Hadrumetum", "Cadiz", "Cirta", "Nora", "Rusaddir", "Sulcis", "Saldae", "Carthago Novo", "Malaca", "Gades", "Calaris", "Tingis", "Iol", "Rusguniae", "Thaenae", "Rusuccuru", "al-Kaf", "Zouchis", "Gigthis", "Tacape", "Zama"]
-agricultural = false
-commercial = false
-expansionist = false
 industrious = true
-militaristic = false
-religious = false
-scientific = false
 seafaring = true
 
 [[civilizations.starting_units]]
@@ -610,14 +472,8 @@ adjective = "Korean"
 leader = "Wang Kon"
 starting_techs = ["Bronze Working", "Alphabet"]
 cities = ["Seoul", "P'yongyang", "Wonsan", "Pusan", "Namp'o", "Cheju", "Hyangsan", "Ulsan", "Inch'on", "Pyongsong", "Taejon", "Paegam", "Manp'o", "Kaesong", "Chonju", "Sariwon", "Suwon", "Haeju", "Taegu", "Chinje", "Tokch'on", "Ch'ongfu", "Taegwon", "Sokch'o", "Hamhung", "Iri", "Huich'on", "Namwon", "Kumgang", "Oijongbu"]
-agricultural = false
 commercial = true
-expansionist = false
-industrious = false
-militaristic = false
-religious = false
 scientific = true
-seafaring = false
 
 [[civilizations.starting_units]]
 id = "Settler"
@@ -636,13 +492,7 @@ leader = "Gilgamesh"
 starting_techs = ["Pottery", "Bronze Working"]
 cities = ["Ur", "Sumer", "Lagash", "Kish", "Umma", "Bad-tibira", "Agade", "Erech", "Isin", "Akshak", "Zabalam", "Kisurra", "Der", "Kua", "Marad", "Kuara", "Kutha", "Nagsu", "Susa", "Tutub", "Kutallu", "Anshan", "Babil", "Apisala", "Dabrum"]
 agricultural = true
-commercial = false
-expansionist = false
-industrious = false
-militaristic = false
-religious = false
 scientific = true
-seafaring = false
 
 [[civilizations.starting_units]]
 id = "Settler"
@@ -660,14 +510,8 @@ adjective = "Hittite"
 leader = "Mursilis"
 starting_techs = ["Pottery", "Alphabet"]
 cities = ["Hattusas", "Tarsus", "Ugarit", "Harran", "Hattusha", "Tyrana", "Aleppo", "Ankuwa", "Kadesh", "Adana", "Hubishna", "Alaca Huyuk", "Emar", "Alalah", "Ivriz", "Kanesh", "Karhuyuk", "Karatepe", "Kummanni", "Malatya", "Samuha", "Yalburt", "Katna", "Kultepe", "Alisar Huyuk"]
-agricultural = false
 commercial = true
 expansionist = true
-industrious = false
-militaristic = false
-religious = false
-scientific = false
-seafaring = false
 
 [[civilizations.starting_units]]
 id = "Settler"
@@ -690,12 +534,6 @@ leader = "William"
 starting_techs = ["Pottery", "Alphabet"]
 cities = ["Amsterdam", "Rotterdam", "The Hague", "Utrecht", "Groningen", "Eindhoven", "Arnhem", "Maastricht", "Haarlem", "Holwerd", "Middelburg", "Delft", "Breda", "Leiden", "Den Helder", "Harlingen", "Lauwersoog", "Enschede", "Tilburg", "Zwolle", "Gouda", "Dordrecht", "Leerdam", "Hilversum", "Roosendaal"]
 agricultural = true
-commercial = false
-expansionist = false
-industrious = false
-militaristic = false
-religious = false
-scientific = false
 seafaring = true
 
 [[civilizations.starting_units]]
@@ -714,13 +552,7 @@ adjective = "Portuguese"
 leader = "Henry"
 starting_techs = ["Alphabet", "Pottery"]
 cities = ["Lisbon", "Oporto", "Guimarães", "Lagos", "Emerita", "Sagres", "Coimbra", "Leiria", "Évora", "Braga", "Faro", "Rio Janeiro", "São Paulo", "Luanda", "Alcácer do Sal", "Guarda", "Castelo Branco", "Badajoz", "Lourenço Marques", "Viseu", "São Mamede", "Ourique", "Goa", "Diu", "Tavira", "Cacela", "Alcobaça", "Bissau", "Óbidos", "Nazaré", "Avis", "Praia", "Tomar", "Atoleiros", "Mina", "Pederneira"]
-agricultural = false
-commercial = false
 expansionist = true
-industrious = false
-militaristic = false
-religious = false
-scientific = false
 seafaring = true
 
 [[civilizations.starting_units]]
@@ -743,12 +575,6 @@ adjective = "Byzantine"
 leader = "Theodora"
 starting_techs = ["Bronze Working", "Alphabet"]
 cities = ["Constantinople", "Adrianople", "Caesarea", "Nicaea", "Varna", "Smyrna", "Heraclea", "Trebizond", "Chalcedon", "Sardica", "Naissus", "Dyrrachium", "Septum", "Nicomedia", "Amorium", "Ancyra", "Brusa", "Iconium", "Prilep", "Ohrid", "Vidin", "Samosata", "Ani", "Edessa", "Taormina"]
-agricultural = false
-commercial = false
-expansionist = false
-industrious = false
-militaristic = false
-religious = false
 scientific = true
 seafaring = true
 
@@ -769,13 +595,7 @@ leader = "Pachacuti"
 starting_techs = ["Pottery", "Masonry"]
 cities = ["Cuzco", "Tiwanaku", "Machu Picchu", "Ollantaytambo", "Corihuayrachina", "Huamanga", "Vilcas", "Vilcabamba", "Vitcos", "Andahuaylas", "Ica", "Arequipa", "Nasca", "Atico", "Juli", "Chuito", "Chuquiapo", "Huanuco Pampa", "Tamboccocha", "Huaras", "Riobamba", "Caxamalca", "Sausa", "Tambo Colorado", "Huaca"]
 agricultural = true
-commercial = false
 expansionist = true
-industrious = false
-militaristic = false
-religious = false
-scientific = false
-seafaring = false
 
 [[civilizations.starting_units]]
 id = "Settler"
@@ -798,13 +618,7 @@ leader = "Smoke-Jaguar"
 starting_techs = ["Masonry", "Pottery"]
 cities = ["Chichén Itza", "Copán", "Palenque", "Tikal", "Yaxchilán", "Bonampak", "Lagartero", "Quiriguá", "Calakmul", "Lazapa", "Kaminaljuyú", "Piedras Negras", "Uaxactún", "Cuello", "Tulúm", "Cobá", "Dzibilchaltun", "Uxmal", "Mayapán", "Kabáh", "Aké", "Xcalumkin", "Ek Balam", "Tazumal", "Cozumel"]
 agricultural = true
-commercial = false
-expansionist = false
 industrious = true
-militaristic = false
-religious = false
-scientific = false
-seafaring = false
 
 [[civilizations.starting_units]]
 id = "Settler"

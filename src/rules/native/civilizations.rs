@@ -32,13 +32,21 @@ pub(crate) struct NativeCivilization {
     pub(crate) cities: Vec<String>,
     #[serde(skip)]
     pub(crate) culture_group_index: i32,
+    #[serde(default)]
     pub(crate) agricultural: bool,
+    #[serde(default)]
     pub(crate) commercial: bool,
+    #[serde(default)]
     pub(crate) expansionist: bool,
+    #[serde(default)]
     pub(crate) industrious: bool,
+    #[serde(default)]
     pub(crate) militaristic: bool,
+    #[serde(default)]
     pub(crate) religious: bool,
+    #[serde(default)]
     pub(crate) scientific: bool,
+    #[serde(default)]
     pub(crate) seafaring: bool,
     pub(crate) starting_units: Vec<NativeUnitStack>,
     #[serde(default)]

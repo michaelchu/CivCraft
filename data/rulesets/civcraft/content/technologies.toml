@@ -7,63 +7,42 @@ id = "TECH_Bronze_Working"
 name = "Bronze Working"
 cost = 3
 era = 0
-prerequisites = []
-flags = []
-required_for_era = true
 
 [[technologies]]
 id = "TECH_Masonry"
 name = "Masonry"
 cost = 4
 era = 0
-prerequisites = []
-flags = []
-required_for_era = true
 
 [[technologies]]
 id = "TECH_Alphabet"
 name = "Alphabet"
 cost = 5
 era = 0
-prerequisites = []
-flags = []
-required_for_era = true
 
 [[technologies]]
 id = "TECH_Pottery"
 name = "Pottery"
 cost = 2
 era = 0
-prerequisites = []
-flags = []
-required_for_era = true
 
 [[technologies]]
 id = "TECH_The_Wheel"
 name = "The Wheel"
 cost = 4
 era = 0
-prerequisites = []
-flags = []
-required_for_era = true
 
 [[technologies]]
 id = "TECH_Warrior_Code"
 name = "Warrior Code"
 cost = 3
 era = 0
-prerequisites = []
-flags = []
-required_for_era = true
 
 [[technologies]]
 id = "TECH_Ceremonial_Burial"
 name = "Ceremonial Burial"
 cost = 2
 era = 0
-prerequisites = []
-flags = []
-required_for_era = true
 
 [[technologies]]
 id = "TECH_Iron_Working"
@@ -71,8 +50,6 @@ name = "Iron Working"
 cost = 6
 era = 0
 prerequisites = ["TECH_Bronze_Working"]
-flags = []
-required_for_era = true
 
 [[technologies]]
 id = "TECH_Writing"
@@ -80,8 +57,6 @@ name = "Writing"
 cost = 8
 era = 0
 prerequisites = ["TECH_Alphabet"]
-flags = []
-required_for_era = true
 
 [[technologies]]
 id = "TECH_Mysticism"
@@ -89,8 +64,6 @@ name = "Mysticism"
 cost = 4
 era = 0
 prerequisites = ["TECH_Ceremonial_Burial"]
-flags = []
-required_for_era = true
 
 [[technologies]]
 id = "TECH_Mathematics"
@@ -98,8 +71,6 @@ name = "Mathematics"
 cost = 8
 era = 0
 prerequisites = ["TECH_Masonry", "TECH_Alphabet"]
-flags = []
-required_for_era = true
 
 [[technologies]]
 id = "TECH_Philosophy"
@@ -108,7 +79,6 @@ cost = 6
 era = 0
 prerequisites = ["TECH_Writing"]
 flags = ["Bonus_Tech"]
-required_for_era = true
 
 [[technologies]]
 id = "TECH_Code_of_Laws"
@@ -116,8 +86,6 @@ name = "Code of Laws"
 cost = 10
 era = 0
 prerequisites = ["TECH_Writing"]
-flags = []
-required_for_era = true
 
 [[technologies]]
 id = "TECH_Literature"
@@ -125,7 +93,6 @@ name = "Literature"
 cost = 10
 era = 0
 prerequisites = ["TECH_Writing"]
-flags = []
 required_for_era = false
 
 [[technologies]]
@@ -134,8 +101,6 @@ name = "Map Making"
 cost = 12
 era = 0
 prerequisites = ["TECH_Writing", "TECH_Pottery"]
-flags = []
-required_for_era = true
 
 [[technologies]]
 id = "TECH_Horseback_Riding"
@@ -143,7 +108,6 @@ name = "Horseback Riding"
 cost = 5
 era = 0
 prerequisites = ["TECH_The_Wheel", "TECH_Warrior_Code"]
-flags = []
 required_for_era = false
 
 [[technologies]]
@@ -152,8 +116,6 @@ name = "Polytheism"
 cost = 12
 era = 0
 prerequisites = ["TECH_Mysticism"]
-flags = []
-required_for_era = true
 
 [[technologies]]
 id = "TECH_Currency"
@@ -161,8 +123,6 @@ name = "Currency"
 cost = 16
 era = 0
 prerequisites = ["TECH_Mathematics"]
-flags = []
-required_for_era = true
 
 [[technologies]]
 id = "TECH_The_Republic"
@@ -170,7 +130,6 @@ name = "The Republic"
 cost = 28
 era = 0
 prerequisites = ["TECH_Philosophy", "TECH_Code_of_Laws"]
-flags = []
 required_for_era = false
 
 [[technologies]]
@@ -179,7 +138,6 @@ name = "Monarchy"
 cost = 24
 era = 0
 prerequisites = ["TECH_Warrior_Code", "TECH_Polytheism"]
-flags = []
 required_for_era = false
 
 [[technologies]]
@@ -188,17 +146,12 @@ name = "Construction"
 cost = 20
 era = 0
 prerequisites = ["TECH_Iron_Working", "TECH_Mathematics"]
-flags = []
-required_for_era = true
 
 [[technologies]]
 id = "TECH_Monotheism"
 name = "Monotheism"
 cost = 36
 era = 1
-prerequisites = []
-flags = []
-required_for_era = true
 era_gate = 0
 
 [[technologies]]
@@ -206,8 +159,6 @@ id = "TECH_Feudalism"
 name = "Feudalism"
 cost = 32
 era = 1
-prerequisites = []
-flags = []
 required_for_era = false
 era_gate = 0
 
@@ -216,9 +167,7 @@ id = "TECH_Engineering"
 name = "Engineering"
 cost = 36
 era = 1
-prerequisites = []
 flags = ["Bridge"]
-required_for_era = true
 era_gate = 0
 
 [[technologies]]
@@ -227,8 +176,6 @@ name = "Theology"
 cost = 40
 era = 1
 prerequisites = ["TECH_Monotheism"]
-flags = []
-required_for_era = true
 
 [[technologies]]
 id = "TECH_Chivalry"
@@ -236,7 +183,6 @@ name = "Chivalry"
 cost = 32
 era = 1
 prerequisites = ["TECH_Monotheism", "TECH_Feudalism"]
-flags = []
 required_for_era = false
 
 [[technologies]]
@@ -245,8 +191,6 @@ name = "Invention"
 cost = 44
 era = 1
 prerequisites = ["TECH_Feudalism", "TECH_Engineering"]
-flags = []
-required_for_era = true
 
 [[technologies]]
 id = "TECH_Printing_Press"
@@ -254,7 +198,6 @@ name = "Printing Press"
 cost = 36
 era = 1
 prerequisites = ["TECH_Theology"]
-flags = []
 required_for_era = false
 
 [[technologies]]
@@ -263,7 +206,6 @@ name = "Music Theory"
 cost = 40
 era = 1
 prerequisites = ["TECH_Education"]
-flags = []
 required_for_era = false
 
 [[technologies]]
@@ -272,8 +214,6 @@ name = "Education"
 cost = 44
 era = 1
 prerequisites = ["TECH_Theology"]
-flags = []
-required_for_era = true
 
 [[technologies]]
 id = "TECH_Gunpowder"
@@ -281,8 +221,6 @@ name = "Gunpowder"
 cost = 48
 era = 1
 prerequisites = ["TECH_Invention"]
-flags = []
-required_for_era = true
 
 [[technologies]]
 id = "TECH_Banking"
@@ -290,8 +228,6 @@ name = "Banking"
 cost = 52
 era = 1
 prerequisites = ["TECH_Education"]
-flags = []
-required_for_era = true
 
 [[technologies]]
 id = "TECH_Astronomy"
@@ -299,8 +235,6 @@ name = "Astronomy"
 cost = 56
 era = 1
 prerequisites = ["TECH_Education"]
-flags = []
-required_for_era = true
 
 [[technologies]]
 id = "TECH_Chemistry"
@@ -308,8 +242,6 @@ name = "Chemistry"
 cost = 60
 era = 1
 prerequisites = ["TECH_Gunpowder"]
-flags = []
-required_for_era = true
 
 [[technologies]]
 id = "TECH_Democracy"
@@ -317,7 +249,6 @@ name = "Democracy"
 cost = 68
 era = 1
 prerequisites = ["TECH_Printing_Press", "TECH_Banking"]
-flags = []
 required_for_era = false
 
 [[technologies]]
@@ -326,7 +257,6 @@ name = "Economics"
 cost = 56
 era = 1
 prerequisites = ["TECH_Banking"]
-flags = []
 required_for_era = false
 
 [[technologies]]
@@ -335,7 +265,6 @@ name = "Navigation"
 cost = 56
 era = 1
 prerequisites = ["TECH_Astronomy"]
-flags = []
 required_for_era = false
 
 [[technologies]]
@@ -344,8 +273,6 @@ name = "Physics"
 cost = 64
 era = 1
 prerequisites = ["TECH_Astronomy", "TECH_Chemistry"]
-flags = []
-required_for_era = true
 
 [[technologies]]
 id = "TECH_Metallurgy"
@@ -353,8 +280,6 @@ name = "Metallurgy"
 cost = 64
 era = 1
 prerequisites = ["TECH_Chemistry"]
-flags = []
-required_for_era = true
 
 [[technologies]]
 id = "TECH_Free_Artistry"
@@ -362,7 +287,6 @@ name = "Free Artistry"
 cost = 52
 era = 1
 prerequisites = ["TECH_Democracy"]
-flags = []
 required_for_era = false
 
 [[technologies]]
@@ -371,8 +295,6 @@ name = "Theory of Gravity"
 cost = 68
 era = 1
 prerequisites = ["TECH_Physics"]
-flags = []
-required_for_era = true
 
 [[technologies]]
 id = "TECH_Magnetism"
@@ -380,8 +302,6 @@ name = "Magnetism"
 cost = 68
 era = 1
 prerequisites = ["TECH_Physics"]
-flags = []
-required_for_era = true
 
 [[technologies]]
 id = "TECH_Military_Tradition"
@@ -389,7 +309,6 @@ name = "Military Tradition"
 cost = 64
 era = 1
 prerequisites = ["TECH_Metallurgy"]
-flags = []
 required_for_era = false
 
 [[technologies]]
@@ -397,8 +316,6 @@ id = "TECH_Nationalism"
 name = "Nationalism"
 cost = 120
 era = 2
-prerequisites = []
-flags = []
 required_for_era = false
 era_gate = 1
 
@@ -407,9 +324,6 @@ id = "TECH_Steam_Power"
 name = "Steam Power"
 cost = 120
 era = 2
-prerequisites = []
-flags = []
-required_for_era = true
 era_gate = 1
 
 [[technologies]]
@@ -417,9 +331,6 @@ id = "TECH_Medicine"
 name = "Medicine"
 cost = 100
 era = 2
-prerequisites = []
-flags = []
-required_for_era = true
 era_gate = 1
 
 [[technologies]]
@@ -428,7 +339,6 @@ name = "Communism"
 cost = 120
 era = 2
 prerequisites = ["TECH_Nationalism"]
-flags = []
 required_for_era = false
 
 [[technologies]]
@@ -437,8 +347,6 @@ name = "Industrialization"
 cost = 120
 era = 2
 prerequisites = ["TECH_Steam_Power"]
-flags = []
-required_for_era = true
 
 [[technologies]]
 id = "TECH_Electricity"
@@ -446,8 +354,6 @@ name = "Electricity"
 cost = 140
 era = 2
 prerequisites = ["TECH_Steam_Power"]
-flags = []
-required_for_era = true
 
 [[technologies]]
 id = "TECH_Scientific_Method"
@@ -455,8 +361,6 @@ name = "Scientific Method"
 cost = 100
 era = 2
 prerequisites = ["TECH_Medicine", "TECH_Electricity"]
-flags = []
-required_for_era = true
 
 [[technologies]]
 id = "TECH_Sanitation"
@@ -464,7 +368,6 @@ name = "Sanitation"
 cost = 90
 era = 2
 prerequisites = ["TECH_Medicine"]
-flags = []
 required_for_era = false
 
 [[technologies]]
@@ -473,7 +376,6 @@ name = "Espionage"
 cost = 90
 era = 2
 prerequisites = ["TECH_Nationalism", "TECH_Industrialization"]
-flags = []
 required_for_era = false
 
 [[technologies]]
@@ -482,8 +384,6 @@ name = "The Corporation"
 cost = 100
 era = 2
 prerequisites = ["TECH_Industrialization"]
-flags = []
-required_for_era = true
 
 [[technologies]]
 id = "TECH_Refining"
@@ -491,8 +391,6 @@ name = "Refining"
 cost = 160
 era = 2
 prerequisites = ["TECH_The_Corporation"]
-flags = []
-required_for_era = true
 
 [[technologies]]
 id = "TECH_Steel"
@@ -500,8 +398,6 @@ name = "Steel"
 cost = 140
 era = 2
 prerequisites = ["TECH_The_Corporation"]
-flags = []
-required_for_era = true
 
 [[technologies]]
 id = "TECH_Atomic_Theory"
@@ -509,8 +405,6 @@ name = "Atomic Theory"
 cost = 200
 era = 2
 prerequisites = ["TECH_Scientific_Method"]
-flags = []
-required_for_era = true
 
 [[technologies]]
 id = "TECH_Combustion"
@@ -518,8 +412,6 @@ name = "Combustion"
 cost = 160
 era = 2
 prerequisites = ["TECH_Refining", "TECH_Steel"]
-flags = []
-required_for_era = true
 
 [[technologies]]
 id = "TECH_Replaceable_Parts"
@@ -527,8 +419,6 @@ name = "Replaceable Parts"
 cost = 140
 era = 2
 prerequisites = ["TECH_Electricity"]
-flags = []
-required_for_era = true
 
 [[technologies]]
 id = "TECH_Flight"
@@ -537,7 +427,6 @@ cost = 180
 era = 2
 prerequisites = ["TECH_Combustion"]
 flags = ["Build_Airborne"]
-required_for_era = true
 
 [[technologies]]
 id = "TECH_Amphibious_Warfare"
@@ -546,7 +435,6 @@ display_name = "Amphibious Warfare"
 cost = 120
 era = 2
 prerequisites = ["TECH_Mass_Production"]
-flags = []
 required_for_era = false
 
 [[technologies]]
@@ -555,8 +443,6 @@ name = "Mass Production"
 cost = 140
 era = 2
 prerequisites = ["TECH_Combustion", "TECH_Replaceable_Parts"]
-flags = []
-required_for_era = true
 
 [[technologies]]
 id = "TECH_Electronics"
@@ -564,8 +450,6 @@ name = "Electronics"
 cost = 180
 era = 2
 prerequisites = ["TECH_Atomic_Theory"]
-flags = []
-required_for_era = true
 
 [[technologies]]
 id = "TECH_Motorized_Transportation"
@@ -573,8 +457,6 @@ name = "Motorized Transportation"
 cost = 140
 era = 2
 prerequisites = ["TECH_Mass_Production"]
-flags = []
-required_for_era = true
 
 [[technologies]]
 id = "TECH_Advanced_Flight"
@@ -582,7 +464,6 @@ name = "Advanced Flight"
 cost = 180
 era = 2
 prerequisites = [ "TECH_Flight", "TECH_Electronics", "TECH_Motorized_Transportation"]
-flags = []
 required_for_era = false
 
 [[technologies]]
@@ -590,9 +471,6 @@ id = "TECH_Rocketry"
 name = "Rocketry"
 cost = 240
 era = 3
-prerequisites = []
-flags = []
-required_for_era = true
 era_gate = 2
 
 [[technologies]]
@@ -600,9 +478,6 @@ id = "TECH_Fission"
 name = "Fission"
 cost = 280
 era = 3
-prerequisites = []
-flags = []
-required_for_era = true
 era_gate = 2
 
 [[technologies]]
@@ -610,9 +485,6 @@ id = "TECH_Computers"
 name = "Computers"
 cost = 260
 era = 3
-prerequisites = []
-flags = []
-required_for_era = true
 era_gate = 2
 
 [[technologies]]
@@ -621,8 +493,6 @@ name = "Recycling"
 cost = 240
 era = 3
 prerequisites = ["TECH_Ecology"]
-flags = []
-required_for_era = true
 
 [[technologies]]
 id = "TECH_Space_Flight"
@@ -630,8 +500,6 @@ name = "Space Flight"
 cost = 300
 era = 3
 prerequisites = ["TECH_Rocketry"]
-flags = []
-required_for_era = true
 
 [[technologies]]
 id = "TECH_Nuclear_Power"
@@ -639,8 +507,6 @@ name = "Nuclear Power"
 cost = 280
 era = 3
 prerequisites = ["TECH_Fission"]
-flags = []
-required_for_era = true
 
 [[technologies]]
 id = "TECH_Superconductor"
@@ -648,8 +514,6 @@ name = "Superconductor"
 cost = 300
 era = 3
 prerequisites = ["TECH_Fission", "TECH_Space_Flight"]
-flags = []
-required_for_era = true
 
 [[technologies]]
 id = "TECH_Miniaturization"
@@ -657,17 +521,12 @@ name = "Miniaturization"
 cost = 320
 era = 3
 prerequisites = ["TECH_Computers"]
-flags = []
-required_for_era = true
 
 [[technologies]]
 id = "TECH_Ecology"
 name = "Ecology"
 cost = 260
 era = 3
-prerequisites = []
-flags = []
-required_for_era = true
 era_gate = 2
 
 [[technologies]]
@@ -676,8 +535,6 @@ name = "Synthetic Fibers"
 cost = 280
 era = 3
 prerequisites = ["TECH_Ecology"]
-flags = []
-required_for_era = true
 
 [[technologies]]
 id = "TECH_Satellites"
@@ -685,8 +542,6 @@ name = "Satellites"
 cost = 260
 era = 3
 prerequisites = ["TECH_Space_Flight"]
-flags = []
-required_for_era = true
 
 [[technologies]]
 id = "TECH_The_Laser"
@@ -694,8 +549,6 @@ name = "The Laser"
 cost = 280
 era = 3
 prerequisites = ["TECH_Nuclear_Power", "TECH_Computers"]
-flags = []
-required_for_era = true
 
 [[technologies]]
 id = "TECH_Genetics"
@@ -703,8 +556,6 @@ name = "Genetics"
 cost = 320
 era = 3
 prerequisites = ["TECH_Miniaturization"]
-flags = []
-required_for_era = true
 
 [[technologies]]
 id = "TECH_Stealth"
@@ -712,8 +563,6 @@ name = "Stealth"
 cost = 300
 era = 3
 prerequisites = ["TECH_Synthetic_Fibers"]
-flags = []
-required_for_era = true
 
 [[technologies]]
 id = "TECH_Smart_Weapons"
@@ -721,8 +570,6 @@ name = "Smart Weapons"
 cost = 280
 era = 3
 prerequisites = ["TECH_Satellites", "TECH_The_Laser"]
-flags = []
-required_for_era = true
 
 [[technologies]]
 id = "TECH_Robotics"
@@ -730,8 +577,6 @@ name = "Robotics"
 cost = 320
 era = 3
 prerequisites = ["TECH_The_Laser", "TECH_Miniaturization"]
-flags = []
-required_for_era = true
 
 [[technologies]]
 id = "TECH_Integrated_Defense"
@@ -739,8 +584,6 @@ name = "Integrated Defense"
 cost = 360
 era = 3
 prerequisites = [ "TECH_Superconductor", "TECH_Satellites", "TECH_Smart_Weapons"]
-flags = []
-required_for_era = true
 
 [[technologies]]
 id = "TECH_Ironclads"
@@ -748,8 +591,6 @@ name = "Ironclads"
 cost = 100
 era = 2
 prerequisites = ["TECH_Steam_Power"]
-flags = []
-required_for_era = true
 
 [[technologies]]
 id = "TECH_Fascism"
@@ -757,7 +598,6 @@ name = "Fascism"
 cost = 130
 era = 2
 prerequisites = ["TECH_Nationalism"]
-flags = []
 required_for_era = false
 
 [[technologies]]
@@ -766,7 +606,6 @@ name = "Meditation"
 cost = 6
 era = 0
 prerequisites = ["TECH_Mysticism"]
-flags = []
 required_for_era = false
 
 [[technologies]]
@@ -775,5 +614,4 @@ name = "Divine Right"
 cost = 48
 era = 1
 prerequisites = ["TECH_Theology", "TECH_Monarchy"]
-flags = []
 required_for_era = false

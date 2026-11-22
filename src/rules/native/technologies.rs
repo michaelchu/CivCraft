@@ -26,6 +26,7 @@ pub(crate) struct NativeTechnology {
     pub(crate) display_name: Option<String>,
     pub(crate) cost: i32,
     pub(crate) era: i32,
+    #[serde(default)]
     pub(crate) prerequisites: Vec<String>,
     #[serde(default)]
     pub(crate) flags: Vec<String>,
