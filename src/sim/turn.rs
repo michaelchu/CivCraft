@@ -24,9 +24,7 @@ impl Simulation {
         if condition == VictoryCondition::Culture {
             return true;
         }
-        RulesetData::campaign_default()
-            .victory_enabled(condition)
-            .unwrap_or_else(|error| panic!("invalid campaign victories setting: {error}"))
+        condition.enabled_in_campaign()
     }
 
     fn advance_calendar(&mut self) {
@@ -282,9 +280,7 @@ fn next_calendar_state(
     global_advances: &[Tech],
     ruleset: &RulesetData,
 ) -> Result<(i32, bool), EffectEvaluationError> {
-    let settings = ruleset
-        .calendar_settings()
-        .unwrap_or_else(|error| panic!("invalid campaign calendar: {error}"));
+    let settings = crate::rules::engine_rules::CalendarSettings::campaign();
     assert_eq!(
         settings.fragments_per_year, 0,
         "calendar fragments need persistent fragment-count state"
@@ -300,10 +296,7 @@ fn next_calendar_state(
     )?)
     .map_err(|_| EffectEvaluationError::Overflow)?;
 
-    if ruleset
-        .victory_enabled(VictoryCondition::SpaceRace)
-        .unwrap_or_else(|error| panic!("invalid campaign victories setting: {error}"))
-    {
+    if VictoryCondition::SpaceRace.enabled_in_campaign() {
         let slowdown = effect_value(&ruleset.effects, EffectKind::SlowDownTimeline, &context)?;
         if slowdown >= 3 {
             increase = increase.min(1);

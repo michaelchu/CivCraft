@@ -318,9 +318,7 @@ impl Simulation {
 
     fn start_government_revolution(&mut self, owner: usize, target: Government) -> bool {
         self.invalidate_stable_city_advice_for_owner(owner);
-        let settings = RulesetData::campaign_default()
-            .research_settings()
-            .expect("valid C2C3 revolution settings");
+        let settings = crate::rules::engine_rules::ResearchRulesetSettings::CAMPAIGN;
         let no_anarchy = self.player_effect(owner, EffectKind::NoAnarchy) > 0;
         let already_revolting = self.players[owner].revolution_turn;
         let mut anarchy = !no_anarchy;

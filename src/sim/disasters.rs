@@ -4,29 +4,15 @@
 use super::terrain_work::neighbors;
 use super::*;
 use crate::rules::Genus;
-use crate::rules::engine_rules::{RuleRecord, RulesetData, requirements_met};
+use crate::rules::engine_rules::{Disaster, DisasterEffect, campaign_disasters, requirements_met};
 
 impl Simulation {
     pub(super) fn check_disasters(&mut self) {
-        let rules = RulesetData::campaign_default();
-        let frequency = rules
-            .integer_setting_value("disasters")
-            .unwrap_or_else(|error| panic!("invalid C2C3 disasters setting: {error}"));
-        assert!(
-            frequency >= 0,
-            "C2C3 disasters setting must not be negative"
-        );
+        let frequency = crate::rules::engine_rules::DISASTER_FREQUENCY;
         if frequency == 0 {
             return;
         }
-        let disasters: Vec<_> = rules
-            .rule_records
-            .iter()
-            .filter(|record| {
-                record.file.eq_ignore_ascii_case("game.ruleset")
-                    && record.namespace.eq_ignore_ascii_case("disaster")
-            })
-            .collect();
+        let disasters = campaign_disasters();
         // Freeciv iterates players and each player's live city list, not the
         // global city vector. Preserve that order and re-resolve ids so a
         // disaster that removes a city cannot invalidate later indices.
@@ -34,23 +20,11 @@ impl Simulation {
             .flat_map(|owner| self.player_cities_ordered(owner).map(|city| city.id))
             .collect();
         for city_id in city_ids {
-            for disaster in &disasters {
+            for disaster in disasters {
                 let Some(index) = self.city_index_by_id(city_id) else {
                     break;
                 };
-                let disaster_frequency = disaster
-                    .integer_field("frequency")
-                    .unwrap_or_else(|error| {
-                        panic!("invalid {}.frequency: {error}", disaster.section)
-                    })
-                    .unwrap_or_else(|| {
-                        panic!("{} is missing its required frequency", disaster.section)
-                    });
-                assert!(
-                    disaster_frequency >= 0,
-                    "{} has a negative disaster frequency",
-                    disaster.section
-                );
+                let disaster_frequency = i64::from(disaster.frequency);
                 let probability = i64::from(frequency) * disaster_frequency;
                 // Freeciv consumes the frequency roll before checking the
                 // disaster's requirements, even when the city cannot qualify.
@@ -63,7 +37,7 @@ impl Simulation {
         }
     }
 
-    fn disaster_possible(&self, index: usize, disaster: &RuleRecord) -> bool {
+    fn disaster_possible(&self, index: usize, disaster: &Disaster) -> bool {
         let city = &self.cities[index];
         let context = super::action_rules::SimulationRequirementContext::for_city_at(
             self,
@@ -73,46 +47,20 @@ impl Simulation {
         requirements_met(&disaster.requirements, &context).unwrap_or_else(|error| {
             panic!(
                 "could not evaluate {} disaster requirements: {error:?}",
-                disaster.section
+                disaster.id
             )
         })
     }
 
-    fn apply_disaster(&mut self, index: usize, disaster: &RuleRecord) {
+    fn apply_disaster(&mut self, index: usize, disaster: &Disaster) {
         let city = self.cities[index].clone();
-        let effects = disaster
-            .string_list_field("effects")
-            .unwrap_or_else(|error| panic!("invalid {}.effects: {error}", disaster.section))
-            .unwrap_or_default();
-        for effect in &effects {
-            assert!(
-                [
-                    "Robbery",
-                    "Pollution",
-                    "Fallout",
-                    "ReducePopulation",
-                    "ReducePopDestroy",
-                    "DestroyBuilding",
-                    "EmptyFoodStock",
-                    "EmptyProdStock",
-                ]
-                .iter()
-                .any(|supported| effect.eq_ignore_ascii_case(supported)),
-                "unsupported {} disaster effect `{effect}`",
-                disaster.section
-            );
-        }
-        let has_effect = |name: &str| {
-            effects
-                .iter()
-                .any(|effect| effect.eq_ignore_ascii_case(name))
-        };
+        let has_effect = |effect: DisasterEffect| disaster.effects.contains(&effect);
         let mut details = Vec::new();
 
         // Keep Freeciv cityturn.c::apply_disaster's effect order. The selected
         // ruleset supplies the effect set; this adapter implements each native
         // effect against the preserved Civ III city and tile state.
-        if has_effect("Robbery") {
+        if has_effect(DisasterEffect::Robbery) {
             let gold = self.players[city.owner].gold;
             let trade = self.city_forecast(&city).trade;
             if gold > 0 && trade > 0 {
@@ -122,27 +70,22 @@ impl Simulation {
             }
         }
         for (effect, contamination) in [
-            ("Pollution", Contamination::Pollution),
-            ("Fallout", Contamination::Fallout),
+            (DisasterEffect::Pollution, Contamination::Pollution),
+            (DisasterEffect::Fallout, Contamination::Fallout),
         ] {
             if has_effect(effect) && self.place_contamination(&city, contamination) {
                 details.push(format!("{} appeared nearby.", contamination.name()));
             }
         }
 
-        if has_effect("ReducePopulation") || has_effect("ReducePopDestroy") {
-            if city.size > 1 {
-                self.reduce_city_population(index);
-                self.reconcile_city_workers();
-                details.push("One citizen lost.".to_owned());
-            } else if has_effect("ReducePopDestroy") {
-                self.remove_city_because(city.id, lifecycle::CityRemoval::Disaster, None);
-                details.push("City destroyed.".to_owned());
-            }
+        if has_effect(DisasterEffect::ReducePopulation) && city.size > 1 {
+            self.reduce_city_population(index);
+            self.reconcile_city_workers();
+            details.push("One citizen lost.".to_owned());
         }
 
         if let Some(index) = self.city_index_by_id(city.id) {
-            if has_effect("DestroyBuilding") {
+            if has_effect(DisasterEffect::DestroyBuilding) {
                 let targets = self.disaster_building_candidates(&city);
                 if !targets.is_empty() {
                     let building = targets[self.rand_below(targets.len() as i32) as usize];
@@ -154,12 +97,12 @@ impl Simulation {
                 }
             }
 
-            if has_effect("EmptyFoodStock") && city.food > 0 {
+            if has_effect(DisasterEffect::EmptyFoodStock) && city.food > 0 {
                 self.cities[index].food = 0;
                 details.push(format!("{} stored food lost.", city.food));
             }
 
-            if has_effect("EmptyProdStock") && city.shields > 0 {
+            if has_effect(DisasterEffect::EmptyProdStock) && city.shields > 0 {
                 let city = &mut self.cities[index];
                 let shields = city.shields;
                 city.shields = 0;
@@ -170,10 +113,7 @@ impl Simulation {
         }
 
         if city.owner == HUMAN {
-            let name = disaster
-                .display_name
-                .as_deref()
-                .unwrap_or(&disaster.rule_name);
+            let name = disaster.name;
             let detail = details.join(" ");
             self.add_event(if detail.is_empty() {
                 format!("{name} struck {}.", city.name)
@@ -202,35 +142,24 @@ impl Simulation {
 mod tests {
     use super::*;
 
-    fn disaster(name: &str) -> &'static RuleRecord {
-        RulesetData::campaign_default()
-            .rule_records
+    fn disaster(id: &str) -> &'static Disaster {
+        campaign_disasters()
             .iter()
-            .find(|record| {
-                record.file.eq_ignore_ascii_case("game.ruleset")
-                    && record
-                        .section
-                        .eq_ignore_ascii_case(&format!("disaster_{name}"))
-            })
-            .unwrap_or_else(|| panic!("missing campaign disaster `{name}`"))
+            .find(|disaster| disaster.id == id)
+            .unwrap_or_else(|| panic!("missing campaign disaster `{id}`"))
     }
 
     #[test]
-    fn disaster_records_supply_the_selected_types_frequencies_effects_and_requirements() {
-        let records: Vec<_> = RulesetData::campaign_default()
-            .rule_records
-            .iter()
-            .filter(|record| record.namespace.eq_ignore_ascii_case("disaster"))
-            .collect();
-        assert_eq!(records.len(), 6);
-        for record in records {
-            assert_eq!(record.integer_field("frequency").unwrap(), Some(10));
-            assert!(record.string_list_field("effects").unwrap().is_some());
-        }
+    fn disasters_have_the_selected_types_requirements_and_effects() {
+        assert_eq!(campaign_disasters().len(), 6);
         assert!(disaster("earthquake").requirements.iter().any(|req| {
             req.kind == crate::rules::engine_rules::RequirementKind::Terrain
                 && req.matches_name("Hills")
         }));
+        assert_eq!(
+            disaster("industrial_accident").effects,
+            [DisasterEffect::ReducePopulation, DisasterEffect::Pollution]
+        );
     }
 
     #[test]

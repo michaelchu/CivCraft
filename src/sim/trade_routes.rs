@@ -6,7 +6,6 @@
 
 use crate::rules::engine_rules::EffectKind;
 use std::collections::{BTreeMap, BTreeSet};
-use std::sync::OnceLock;
 
 use crate::rules::engine_rules::{
     TradeGoodFlag, TradeGoodRulesetRecord, TradeRevenueStyle, TradeRouteCancellation,
@@ -19,12 +18,7 @@ use super::{City, Pact, Simulation};
 const FREECIV_MAX_TRADE_ROUTES: i32 = 20;
 
 fn campaign_settings() -> &'static TradeRouteRulesetSettings {
-    static SETTINGS: OnceLock<TradeRouteRulesetSettings> = OnceLock::new();
-    SETTINGS.get_or_init(|| {
-        crate::rules::engine_rules::RulesetData::campaign_default()
-            .trade_route_settings()
-            .unwrap_or_else(|error| panic!("invalid C2C3 trade-route rules: {error}"))
-    })
+    TradeRouteRulesetSettings::campaign()
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]

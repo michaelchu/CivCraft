@@ -1,7 +1,10 @@
-//! Achievement checks and rewards from the selected Freeciv ruleset.
+//! Achievement checks and rewards.
+//!
+//! The achievements and their thresholds are the campaign's pinned Freeciv
+//! `civ2civ3` set. A stored achievement is keyed by its `name`, so renaming one
+//! would orphan saved progress.
 
 use super::*;
-use crate::rules::engine_rules::{RuleRecord, RulesetData};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum AchievementKind {
@@ -10,51 +13,91 @@ enum AchievementKind {
     Multicultural,
     CulturedCity,
     CulturedNation,
-    Lucky,
-    Huts,
     Metropolis,
     Literate,
     LandAhoy,
-    Killer,
-    Rich,
-}
-
-impl AchievementKind {
-    fn from_ruleset_name(name: &str) -> Self {
-        match name.to_ascii_lowercase().as_str() {
-            "spaceship" => Self::Spaceship,
-            "map_known" => Self::MapKnown,
-            "multicultural" => Self::Multicultural,
-            "cultured_city" => Self::CulturedCity,
-            "cultured_nation" => Self::CulturedNation,
-            "lucky" => Self::Lucky,
-            "huts" => Self::Huts,
-            "metropolis" => Self::Metropolis,
-            "literate" => Self::Literate,
-            "land_ahoy" => Self::LandAhoy,
-            "killer" => Self::Killer,
-            "rich" => Self::Rich,
-            _ => panic!("unsupported Freeciv achievement type {name:?}"),
-        }
-    }
 }
 
 #[derive(Clone, Copy)]
-struct Achievement<'a> {
-    record: &'a RuleRecord,
+struct Achievement {
+    /// Display name, and the key saved in a nation's achievement set.
+    name: &'static str,
     kind: AchievementKind,
+    /// Whether only the first nation to qualify earns it.
+    unique: bool,
+    /// The threshold: a percentage, count or score, depending on the kind.
+    value: i32,
+    /// Culture history awarded to each nation that earns it.
+    culture: i32,
 }
 
-impl Achievement<'_> {
+/// In evaluation order. Freeciv iterates achievements first, then players.
+const ACHIEVEMENTS: [Achievement; 8] = [
+    Achievement {
+        name: "Spaceship Launch",
+        kind: AchievementKind::Spaceship,
+        unique: false,
+        value: 0,
+        culture: 5000,
+    },
+    Achievement {
+        name: "Entire Map Known",
+        kind: AchievementKind::MapKnown,
+        unique: false,
+        value: 100,
+        culture: 1000,
+    },
+    Achievement {
+        name: "Land Ahoy",
+        kind: AchievementKind::LandAhoy,
+        unique: false,
+        value: 2,
+        culture: 100,
+    },
+    Achievement {
+        name: "Literate",
+        kind: AchievementKind::Literate,
+        unique: false,
+        value: 100,
+        culture: 1000,
+    },
+    Achievement {
+        name: "Multicultural",
+        kind: AchievementKind::Multicultural,
+        unique: false,
+        value: 2,
+        culture: 1000,
+    },
+    Achievement {
+        name: "Metropolis",
+        kind: AchievementKind::Metropolis,
+        unique: false,
+        value: 20,
+        culture: 1000,
+    },
+    Achievement {
+        name: "Cultured City",
+        kind: AchievementKind::CulturedCity,
+        unique: false,
+        value: 1000,
+        culture: 1000,
+    },
+    Achievement {
+        name: "Cultured Nation",
+        kind: AchievementKind::CulturedNation,
+        unique: false,
+        value: 10_000,
+        culture: 0,
+    },
+];
+
+impl Achievement {
     fn rule_name(&self) -> &str {
-        self.record.rule_name.as_str()
+        self.name
     }
 
     fn name(&self) -> &str {
-        self.record
-            .display_name
-            .as_deref()
-            .unwrap_or(&self.record.rule_name)
+        self.name
     }
 
     fn kind(&self) -> AchievementKind {
@@ -62,32 +105,15 @@ impl Achievement<'_> {
     }
 
     fn unique(&self) -> bool {
-        self.record
-            .boolean_field("unique")
-            .unwrap_or_else(|error| panic!("invalid C2C3 achievement unique flag: {error}"))
-            .unwrap_or(true)
+        self.unique
     }
 
     fn value(&self) -> i32 {
-        self.integer_field("value", 0)
+        self.value
     }
 
     fn culture(&self) -> i32 {
-        self.integer_field("culture", 0)
-    }
-
-    fn integer_field(&self, field: &str, default: i32) -> i32 {
-        let value = self
-            .record
-            .integer_field(field)
-            .unwrap_or_else(|error| panic!("invalid C2C3 achievement field: {error}"))
-            .unwrap_or(i64::from(default));
-        i32::try_from(value).unwrap_or_else(|_| {
-            panic!(
-                "C2C3 achievement {} field {field} is outside i32 range: {value}",
-                self.rule_name()
-            )
-        })
+        self.culture
     }
 }
 
@@ -142,7 +168,7 @@ impl Simulation {
     fn achievement_is_met(
         &mut self,
         owner: usize,
-        achievement: Achievement<'_>,
+        achievement: Achievement,
         labels: &[usize],
     ) -> bool {
         match achievement.kind() {
@@ -161,12 +187,6 @@ impl Simulation {
                 .any(|city| self.city_culture_score(city) >= i64::from(achievement.value())),
             AchievementKind::CulturedNation => {
                 self.civilization_culture(owner) >= i64::from(achievement.value())
-            }
-            AchievementKind::Lucky => self.rand_below(10_000) < achievement.value(),
-            AchievementKind::Huts => {
-                // C2C3 defines no Huts achievement; this campaign does not
-                // persist Freeciv's per-player huts-entered counter.
-                panic!("Freeciv Huts achievement lacks a CivCraft campaign counter")
             }
             AchievementKind::Metropolis => self
                 .cities_owned_by(owner)
@@ -189,26 +209,22 @@ impl Simulation {
                 }
                 false
             }
-            AchievementKind::Killer => {
-                self.nation_scores[owner].units_killed >= achievement.value()
-            }
-            AchievementKind::Rich => self.players[owner].gold >= achievement.value(),
         }
     }
 
-    fn has_achievement(&self, owner: usize, achievement: Achievement<'_>) -> bool {
+    fn has_achievement(&self, owner: usize, achievement: Achievement) -> bool {
         self.nation_scores[owner]
             .achievements
             .contains(achievement.rule_name())
     }
 
-    fn achievement_claimed(&self, achievement: Achievement<'_>) -> bool {
+    fn achievement_claimed(&self, achievement: Achievement) -> bool {
         self.nation_scores
             .iter()
             .any(|score| score.achievements.contains(achievement.rule_name()))
     }
 
-    fn award_achievement(&mut self, owner: usize, achievement: Achievement<'_>) {
+    fn award_achievement(&mut self, owner: usize, achievement: Achievement) {
         self.nation_scores[owner]
             .achievements
             .insert(achievement.rule_name().to_owned());
@@ -218,30 +234,12 @@ impl Simulation {
     }
 
     pub(super) fn check_achievements(&mut self) {
-        let rules = RulesetData::campaign_default();
-        let achievements: Vec<_> = rules
-            .rule_records
-            .iter()
-            .filter(|record| record.namespace == "achievement")
-            .map(|record| {
-                let type_name = record
-                    .string_field("type")
-                    .unwrap_or_else(|error| panic!("invalid C2C3 achievement type: {error}"))
-                    .unwrap_or_else(|| {
-                        panic!("C2C3 achievement {} is missing its type", record.rule_name)
-                    });
-                Achievement {
-                    record,
-                    kind: AchievementKind::from_ruleset_name(type_name),
-                }
-            })
-            .collect();
         let labels = self.continent_labels();
 
         // Freeciv iterates achievement records first, then player slots. A
         // cohort which claims a nonunique achievement is awarded together;
         // the first claimant is selected with the source fc_rand draw.
-        for achievement in achievements {
+        for achievement in ACHIEVEMENTS {
             let already_claimed = self.achievement_claimed(achievement);
             let unique = achievement.unique();
             let mut achievers = Vec::new();
@@ -284,40 +282,24 @@ impl Simulation {
 mod tests {
     use super::*;
 
-    fn achievement(rule_name: &str) -> Achievement<'static> {
-        let record = RulesetData::campaign_default()
-            .rule_records
+    fn achievement(name: &str) -> Achievement {
+        *ACHIEVEMENTS
             .iter()
-            .find(|record| {
-                record.namespace == "achievement"
-                    && record
-                        .section
-                        .eq_ignore_ascii_case(&format!("achievement_{rule_name}"))
-            })
-            .unwrap();
-        let type_name = record.string_field("type").unwrap().unwrap();
-        Achievement {
-            record,
-            kind: AchievementKind::from_ruleset_name(type_name),
-        }
+            .find(|achievement| achievement.name == name)
+            .unwrap()
     }
 
     #[test]
-    fn achievement_rewards_and_thresholds_come_from_civ2civ3_records() {
-        let records: Vec<_> = RulesetData::campaign_default()
-            .rule_records
-            .iter()
-            .filter(|record| record.namespace == "achievement")
-            .collect();
-        assert_eq!(records.len(), 8);
-        assert_eq!(achievement("spaceship").culture(), 5000);
-        assert_eq!(achievement("map_known").value(), 100);
-        assert_eq!(achievement("another_island").value(), 2);
-        assert_eq!(achievement("metropolis").value(), 20);
-        assert_eq!(achievement("cultured_city").value(), 1000);
-        assert_eq!(achievement("cultured_nation").value(), 10_000);
-        assert_eq!(achievement("multicultural").culture(), 1000);
-        assert!(!achievement("map_known").unique());
+    fn achievement_rewards_and_thresholds_match_the_pinned_ruleset() {
+        assert_eq!(ACHIEVEMENTS.len(), 8);
+        assert_eq!(achievement("Spaceship Launch").culture(), 5000);
+        assert_eq!(achievement("Entire Map Known").value(), 100);
+        assert_eq!(achievement("Land Ahoy").value(), 2);
+        assert_eq!(achievement("Metropolis").value(), 20);
+        assert_eq!(achievement("Cultured City").value(), 1000);
+        assert_eq!(achievement("Cultured Nation").value(), 10_000);
+        assert_eq!(achievement("Multicultural").culture(), 1000);
+        assert!(!achievement("Entire Map Known").unique());
     }
 
     #[test]
@@ -395,7 +377,7 @@ mod tests {
         game.refresh_score_snapshot();
         assert_eq!(game.nation_scores[HUMAN].score_literacy, 100);
         let boundary_culture = game.nation_scores[HUMAN].score_culture;
-        let expected_reward: i32 = ["literate", "metropolis", "cultured_city", "cultured_nation"]
+        let expected_reward: i32 = ["Literate", "Metropolis", "Cultured City", "Cultured Nation"]
             .iter()
             .map(|name| achievement(name).culture())
             .sum();

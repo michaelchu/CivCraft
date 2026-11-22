@@ -1,4 +1,5 @@
-//! Typed engine ruleset data layered over the native section-file syntax.
+//! The campaign's engine rules: effects, action enablers, extras, disasters and
+//! settings, as Rust tables, plus the shared requirement evaluator.
 //!
 //! This module owns data shapes and shared conditional evaluation. It does not
 //! own gameplay transitions; simulation subsystems provide a context that
@@ -7,76 +8,44 @@
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
-const FREECIV_OCEAN_DEPTH_MINIMUM: i32 = 1;
-const FREECIV_OCEAN_DEPTH_MAXIMUM: i32 = 100;
-
-#[cfg(test)]
-use super::section_file;
-use super::section_file::{Entry, Section, SectionFile, Value};
-
-#[path = "engine_rules/civil_war.rs"]
-mod civil_war;
-#[path = "engine_rules/combat.rs"]
+mod action_enablers;
+mod campaign;
 mod combat;
-#[path = "engine_rules/great_leader.rs"]
+mod disasters;
+mod effect_table;
+mod extras;
 mod great_leader;
-#[path = "engine_rules/identifiers.rs"]
 mod identifiers;
-#[path = "engine_rules/loader.rs"]
 mod loader;
-#[path = "engine_rules/settlement_ai.rs"]
 mod settlement_ai;
-#[path = "engine_rules/trade_routes.rs"]
 mod trade_routes;
-#[path = "engine_rules/veterancy.rs"]
 mod veterancy;
-pub(crate) use civil_war::CivilWarRulesetSettings;
+pub(crate) use campaign::{
+    CivilWarRulesetSettings, DISASTER_FREQUENCY, INITIAL_CITY_RADIUS_SQ, MIGRATION_PML,
+    VeterancySettings,
+};
 pub(crate) use combat::{
     CombatBonusKind, CombatRulesetSettings, TransportDefense, UnitCombatBonus,
 };
+pub(crate) use disasters::{Disaster, DisasterEffect, campaign_disasters};
+pub(crate) use extras::{
+    ExtraRule, RoadRule, campaign_extras, extra_by_any_name, extra_by_name, road_by_name,
+};
 pub(crate) use great_leader::GreatLeaderSettings;
 pub(crate) use identifiers::{EffectKind, RequirementKind};
-#[cfg(test)]
-pub(crate) use loader::RULESET_FILES;
 pub(crate) use settlement_ai::SettlementAiSettings;
-#[allow(unused_imports)]
 pub(crate) use trade_routes::{
     CaravanBonusStyle, GoodsSelection, TradeGoodFlag, TradeGoodRulesetRecord, TradeRevenueStyle,
     TradeRouteBonus, TradeRouteCancellation, TradeRouteRulesetSettings, TradeRouteType,
     TradeRouteTypeSettings,
 };
-pub(crate) use veterancy::{VeteranLevel, VeteranSystem, VeterancySettings};
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct LoadedRuleFile {
-    pub(crate) name: String,
-    pub(crate) path: PathBuf,
-    pub(crate) source: RuleFileSource,
-    pub(crate) parsed: SectionFile,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum RuleFileSource {
-    SelectedRuleset,
-    DefaultRuleset,
-    LegacyFilename,
-}
+pub(crate) use veterancy::{VeteranLevel, VeteranSystem};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct RulesetData {
-    pub(crate) name: String,
-    /// The fixed Freeciv load order, with each file's original section order.
-    pub(crate) files: Vec<LoadedRuleFile>,
-    pub(crate) settings: Vec<SettingRecord>,
-    pub(crate) parameters: Vec<RuleParameter>,
     pub(crate) effects: EffectSet,
-    pub(crate) actions: Vec<ActionRecord>,
     pub(crate) action_enablers: Vec<ActionEnabler>,
     action_index: RuleNameIndex,
-    pub(crate) content: Vec<ContentRecord>,
-    /// Ordered records from Freeciv namespaces that do not have a dedicated
-    /// CivCraft adapter yet (extras, resources, roads, disasters, and others).
-    pub(crate) rule_records: Vec<RuleRecord>,
 }
 
 /// Immutable name-to-record positions, built in file order at load time.
@@ -104,95 +73,6 @@ impl RuleNameIndex {
             })
             .map(|index| self.0[index].1.as_slice())
             .unwrap_or_default()
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct SettingRecord {
-    pub(crate) name: String,
-    pub(crate) value: Value,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct RuleParameter {
-    pub(crate) file: String,
-    pub(crate) section: String,
-    pub(crate) key: String,
-    pub(crate) value: Value,
-}
-
-impl RuleParameter {
-    /// Read an integer ruleset parameter without exposing the section-file
-    /// parser's value representation to gameplay adapters.
-    pub(crate) fn integer_value(&self) -> Result<Option<i64>, String> {
-        match &self.value {
-            Value::Integer(value) => Ok(Some(*value)),
-            other => Err(format!(
-                "{}.{} must be an integer, found {other:?}",
-                self.section, self.key
-            )),
-        }
-    }
-
-    pub(crate) fn integer_list_value(&self) -> Result<Option<Vec<i64>>, String> {
-        match &self.value {
-            Value::List(values) => values
-                .iter()
-                .map(|value| match value {
-                    Value::Integer(value) => Ok(*value),
-                    other => Err(format!(
-                        "{}.{} must be an integer list, found item {other:?}",
-                        self.section, self.key
-                    )),
-                })
-                .collect::<Result<Vec<_>, _>>()
-                .map(Some),
-            other => Err(format!(
-                "{}.{} must be an integer list, found {other:?}",
-                self.section, self.key
-            )),
-        }
-    }
-
-    pub(crate) fn string_value(&self) -> Result<Option<&str>, String> {
-        match &self.value {
-            Value::String(value) => Ok(Some(value)),
-            other => Err(format!(
-                "{}.{} must be a string, found {other:?}",
-                self.section, self.key
-            )),
-        }
-    }
-
-    pub(crate) fn string_list_value(&self) -> Result<Option<Vec<String>>, String> {
-        match &self.value {
-            Value::String(value) => Ok(Some(vec![value.clone()])),
-            Value::List(values) => values
-                .iter()
-                .map(|value| match value {
-                    Value::String(value) => Ok(value.clone()),
-                    other => Err(format!(
-                        "{}.{} must be a string list, found item {other:?}",
-                        self.section, self.key
-                    )),
-                })
-                .collect::<Result<Vec<_>, _>>()
-                .map(Some),
-            other => Err(format!(
-                "{}.{} must be a string list, found {other:?}",
-                self.section, self.key
-            )),
-        }
-    }
-
-    pub(crate) fn boolean_value(&self) -> Result<Option<bool>, String> {
-        match &self.value {
-            Value::Bool(value) => Ok(Some(*value)),
-            other => Err(format!(
-                "{}.{} must be a boolean, found {other:?}",
-                self.section, self.key
-            )),
-        }
     }
 }
 
@@ -231,27 +111,10 @@ pub(crate) enum RevolutionType {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum HappyBorders {
-    Disabled,
-    National,
-    Allied,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum UnitUpkeepOutput {
     Food,
     Shield,
     Gold,
-}
-
-impl UnitUpkeepOutput {
-    fn parameter_name(self) -> &'static str {
-        match self {
-            Self::Food => "food",
-            Self::Shield => "shield",
-            Self::Gold => "gold",
-        }
-    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -277,12 +140,6 @@ impl MissingUnitUpkeepSettings {
             UnitUpkeepOutput::Gold => &self.gold,
         }
     }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct UnitHappinessRulesetSettings {
-    pub(crate) borders_enabled: bool,
-    pub(crate) happy_borders: HappyBorders,
 }
 
 /// Effective C2C3 research and revolution inputs. The selected ruleset is the
@@ -314,23 +171,16 @@ pub(crate) struct ResearchRulesetSettings {
     pub(crate) revolution_length: i32,
 }
 
+#[allow(
+    dead_code,
+    reason = "complete Freeciv option set; the campaign selects a subset"
+)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum VictoryCondition {
     SpaceRace,
     Allied,
     Culture,
     WorldPeace,
-}
-
-impl VictoryCondition {
-    fn rule_name(self) -> &'static str {
-        match self {
-            Self::SpaceRace => "SPACERACE",
-            Self::Allied => "ALLIED",
-            Self::Culture => "CULTURE",
-            Self::WorldPeace => "WORLDPEACE",
-        }
-    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -391,12 +241,20 @@ pub(crate) struct RuleSourceLocation {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[allow(
+    dead_code,
+    reason = "the tables name universals by string; numeric values are part of the Freeciv model"
+)]
 pub(crate) enum RequirementValue {
     String(String),
     Integer(i64),
     Bool(bool),
 }
 
+#[allow(
+    dead_code,
+    reason = "complete Freeciv range set; the tables use a subset"
+)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum RequirementRange {
     Local,
@@ -433,7 +291,7 @@ pub(crate) struct EffectSet {
 }
 
 impl EffectSet {
-    /// Effects of one engine type, in ruleset file order.
+    /// Effects of one engine type, in table order.
     pub(crate) fn of_kind(&self, kind: EffectKind) -> impl Iterator<Item = &EffectRecord> + '_ {
         self.by_kind
             .get(kind as usize)
@@ -471,311 +329,11 @@ impl<'a> IntoIterator for &'a EffectSet {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct ActionRecord {
-    pub(crate) rule_name: String,
-    pub(crate) action: String,
-    pub(crate) fields: Vec<Entry>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct ActionEnabler {
     pub(crate) rule_name: String,
     pub(crate) action: String,
     pub(crate) actor_requirements: Vec<Requirement>,
     pub(crate) target_requirements: Vec<Requirement>,
-    pub(crate) fields: Vec<Entry>,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum ContentKind {
-    Unit,
-    Building,
-    Technology,
-    Terrain,
-    Government,
-    Nation,
-    Style,
-    GovernmentMultiplier,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct ContentRecord {
-    pub(crate) kind: ContentKind,
-    /// Freeciv's internal identity: `rule_name` when supplied, otherwise the
-    /// untranslated `name` value. The section tag is retained separately.
-    pub(crate) rule_name: String,
-    pub(crate) section: String,
-    pub(crate) display_name: Option<String>,
-    pub(crate) requirements: Vec<Requirement>,
-    /// Technologies and other conditions that make a building obsolete in
-    /// this selected ruleset. This is distinct from Civ III catalog data.
-    pub(crate) obsolete_by: Vec<Requirement>,
-    /// Keep native fields in source order so content adapters can read fields
-    /// not yet consumed by gameplay without throwing them away.
-    pub(crate) fields: Vec<Entry>,
-}
-
-impl ContentRecord {
-    /// Read a scalar string field without exposing the native parser's value
-    /// representation to gameplay adapters.
-    pub(crate) fn string_field(&self, key: &str) -> Result<Option<&str>, String> {
-        let Some(entry) = self.fields.iter().find(|entry| entry.key == key) else {
-            return Ok(None);
-        };
-        match &entry.value {
-            Value::String(value) => Ok(Some(value)),
-            other => Err(format!(
-                "{}.{} must be a string, found {other:?}",
-                self.section, key
-            )),
-        }
-    }
-
-    /// Read a scalar integer field without exposing the native parser's value
-    /// representation to gameplay adapters.
-    pub(crate) fn integer_field(&self, key: &str) -> Result<Option<i64>, String> {
-        let Some(entry) = self.fields.iter().find(|entry| entry.key == key) else {
-            return Ok(None);
-        };
-        match &entry.value {
-            Value::Integer(value) => Ok(Some(*value)),
-            other => Err(format!(
-                "{}.{} must be an integer, found {other:?}",
-                self.section, key
-            )),
-        }
-    }
-
-    /// Read a string-list field without exposing the native parser's value
-    /// representation to gameplay adapters. A single quoted string is
-    /// normalized to a one-item list, as several ruleset fields permit either
-    /// spelling.
-    pub(crate) fn string_list_field(&self, key: &str) -> Result<Option<Vec<String>>, String> {
-        string_list_field(&self.section, &self.fields, key)
-    }
-
-    /// Read a table with one string key column and one integer value column.
-    /// Freeciv terrain `extra_settings` uses this shape for per-extra
-    /// removal times; gameplay adapters can inspect it without accessing the
-    /// section-file parser's generic `Value` enum.
-    pub(crate) fn string_integer_table_field(
-        &self,
-        key: &str,
-        string_column: &str,
-        integer_column: &str,
-    ) -> Result<Option<Vec<(String, i64)>>, String> {
-        let Some(entry) = self.fields.iter().find(|entry| entry.key == key) else {
-            return Ok(None);
-        };
-        let Value::Table { columns, rows } = &entry.value else {
-            return Err(format!(
-                "{}.{} must be a table, found {:?}",
-                self.section, key, entry.value
-            ));
-        };
-        let column_index = |name: &str| {
-            columns
-                .iter()
-                .position(|column| column.eq_ignore_ascii_case(name))
-        };
-        let string_index = column_index(string_column).ok_or_else(|| {
-            format!(
-                "{}.{} is missing the {string_column:?} column",
-                self.section, key
-            )
-        })?;
-        let integer_index = column_index(integer_column).ok_or_else(|| {
-            format!(
-                "{}.{} is missing the {integer_column:?} column",
-                self.section, key
-            )
-        })?;
-        rows.iter()
-            .enumerate()
-            .map(|(row_index, row)| {
-                let string_value = row.get(string_index).ok_or_else(|| {
-                    format!("{}.{} row {} is missing {string_column:?}", self.section, key, row_index + 1)
-                })?;
-                let integer_value = row.get(integer_index).ok_or_else(|| {
-                    format!("{}.{} row {} is missing {integer_column:?}", self.section, key, row_index + 1)
-                })?;
-                let Value::String(name) = string_value else {
-                    return Err(format!(
-                        "{}.{} row {} {string_column:?} must be a string, found {string_value:?}",
-                        self.section,
-                        key,
-                        row_index + 1
-                    ));
-                };
-                let Value::Integer(value) = integer_value else {
-                    return Err(format!(
-                        "{}.{} row {} {integer_column:?} must be an integer, found {integer_value:?}",
-                        self.section,
-                        key,
-                        row_index + 1
-                    ));
-                };
-                Ok((name.clone(), *value))
-            })
-            .collect::<Result<Vec<_>, _>>()
-            .map(Some)
-    }
-}
-
-/// A selected-ruleset government, retaining stable ruleset identity and the
-/// requirements and effect attributes that define its behavior.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct GovernmentRulesetRecord {
-    /// Stable Freeciv rule name used by requirements and saves.
-    pub(crate) id: String,
-    pub(crate) name: String,
-    pub(crate) section: String,
-    pub(crate) requirements: Vec<Requirement>,
-    pub(crate) flags: Vec<String>,
-    pub(crate) ai_better: Option<String>,
-    /// Effects whose government requirements match this government. Other
-    /// requirements are preserved and evaluated by the shared effect engine.
-    pub(crate) attributes: EffectSet,
-}
-
-impl GovernmentRulesetRecord {
-    /// Evaluate an effect such as `Max_Rates` using Freeciv's shared evaluator.
-    /// The caller supplies the simulation-specific requirements and multiplier
-    /// context; this record supplies the selected ruleset's government-scoped
-    /// effect definitions.
-    pub(crate) fn effect_value(
-        &self,
-        kind: EffectKind,
-        context: &impl EffectContext,
-    ) -> Result<i64, EffectEvaluationError> {
-        effect_value(&self.attributes, kind, context)
-    }
-}
-
-/// Government records in selected ruleset order, plus the rule selected for
-/// Freeciv's temporary government during a revolution.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct GovernmentRulesetCatalog {
-    pub(crate) during_revolution_id: String,
-    pub(crate) governments: Vec<GovernmentRulesetRecord>,
-}
-
-impl GovernmentRulesetCatalog {
-    pub(crate) fn get(&self, id: &str) -> Option<&GovernmentRulesetRecord> {
-        self.governments
-            .iter()
-            .find(|government| government.id.eq_ignore_ascii_case(id))
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct RuleRecord {
-    pub(crate) file: String,
-    pub(crate) namespace: String,
-    pub(crate) section: String,
-    pub(crate) rule_name: String,
-    pub(crate) display_name: Option<String>,
-    pub(crate) requirements: Vec<Requirement>,
-    pub(crate) fields: Vec<Entry>,
-}
-
-impl RuleRecord {
-    /// Read a string field without exposing the native parser's value
-    /// representation to gameplay adapters.
-    pub(crate) fn string_field(&self, key: &str) -> Result<Option<&str>, String> {
-        let Some(entry) = self
-            .fields
-            .iter()
-            .find(|entry| entry.key.eq_ignore_ascii_case(key))
-        else {
-            return Ok(None);
-        };
-        match &entry.value {
-            Value::String(value) => Ok(Some(value)),
-            other => Err(format!(
-                "{}.{} must be a string, found {other:?}",
-                self.section, key
-            )),
-        }
-    }
-
-    /// Read an integer field without exposing the native parser's value
-    /// representation to gameplay adapters.
-    pub(crate) fn integer_field(&self, key: &str) -> Result<Option<i64>, String> {
-        let Some(entry) = self
-            .fields
-            .iter()
-            .find(|entry| entry.key.eq_ignore_ascii_case(key))
-        else {
-            return Ok(None);
-        };
-        match &entry.value {
-            Value::Integer(value) => Ok(Some(*value)),
-            other => Err(format!(
-                "{}.{} must be an integer, found {other:?}",
-                self.section, key
-            )),
-        }
-    }
-
-    /// Read a scalar boolean field without exposing the native parser's
-    /// value representation to gameplay adapters.
-    pub(crate) fn boolean_field(&self, key: &str) -> Result<Option<bool>, String> {
-        let Some(entry) = self
-            .fields
-            .iter()
-            .find(|entry| entry.key.eq_ignore_ascii_case(key))
-        else {
-            return Ok(None);
-        };
-        match &entry.value {
-            Value::Bool(value) => Ok(Some(*value)),
-            other => Err(format!(
-                "{}.{} must be a boolean, found {other:?}",
-                self.section, key
-            )),
-        }
-    }
-
-    /// Read a string-list field without exposing the native parser's value
-    /// representation to gameplay adapters. A single quoted string is
-    /// normalized to a one-item list, as several ruleset fields permit either
-    /// spelling.
-    pub(crate) fn string_list_field(&self, key: &str) -> Result<Option<Vec<String>>, String> {
-        string_list_field(&self.section, &self.fields, key)
-    }
-}
-
-fn string_list_field(
-    section: &str,
-    fields: &[Entry],
-    key: &str,
-) -> Result<Option<Vec<String>>, String> {
-    let mut entries = fields
-        .iter()
-        .filter(|entry| entry.key.eq_ignore_ascii_case(key));
-    let Some(entry) = entries.next() else {
-        return Ok(None);
-    };
-    if entries.next().is_some() {
-        return Err(format!("{section}.{key} occurs more than once"));
-    }
-    match &entry.value {
-        Value::String(value) => Ok(Some(vec![value.clone()])),
-        Value::List(values) => values
-            .iter()
-            .map(|value| match value {
-                Value::String(value) => Ok(value.clone()),
-                other => Err(format!(
-                    "{section}.{key} must be a string list, found item {other:?}"
-                )),
-            })
-            .collect::<Result<Vec<_>, _>>()
-            .map(Some),
-        other => Err(format!(
-            "{section}.{key} must be a string list, found {other:?}"
-        )),
-    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -838,531 +396,17 @@ impl RulesetData {
         )
     }
 
-    /// Load the generic engine layer from `src/rules/engine_data/`.
-    /// Native content catalogs construct independently, without import bindings.
-    #[cfg(test)]
-    pub(crate) fn load_civcraft(engine_dir: &Path) -> Result<Self, LoadError> {
-        Self::load_from_directory(engine_dir, engine_dir, "civcraft")
-    }
-
     /// Cache the single CivCraft campaign package once.
     pub(crate) fn campaign_default() -> &'static Self {
         static RULESET: OnceLock<RulesetData> = OnceLock::new();
         RULESET.get_or_init(|| {
-            Self::load_bundled_campaign()
+            Self::build_campaign()
                 .unwrap_or_else(|error| panic!("failed to load campaign ruleset: {error}"))
         })
     }
-
-    #[cfg(test)]
-    pub(crate) fn with_test_units(&self, units_source: &str) -> Self {
-        let mut files = self.files.clone();
-        let units_file = files
-            .iter_mut()
-            .find(|file| file.name == "units.ruleset")
-            .expect("campaign ruleset includes units.ruleset");
-        let parsed = super::section_file::parse(units_source).expect("valid test units.ruleset");
-        units_file.parsed.sections.extend(parsed.sections);
-        Self::from_files(&self.name, files).expect("valid campaign + test units ruleset")
-    }
-
-    #[cfg(test)]
-    pub(crate) fn test_unit_record_from_ruleset(source: &str, section: &str) -> ContentRecord {
-        let rules = Self::campaign_default().with_test_units(source);
-        rules
-            .content
-            .into_iter()
-            .find(|record| {
-                record.kind == ContentKind::Unit && record.section.eq_ignore_ascii_case(section)
-            })
-            .expect("test unit section")
-    }
-
-    pub(crate) fn optional_parameter(
-        &self,
-        file: &str,
-        section: &str,
-        key: &str,
-    ) -> Result<Option<&RuleParameter>, LoadError> {
-        let mut matches = self.parameters.iter().filter(|parameter| {
-            parameter.file.eq_ignore_ascii_case(file)
-                && parameter.section.eq_ignore_ascii_case(section)
-                && parameter.key.eq_ignore_ascii_case(key)
-        });
-        let parameter = matches.next();
-        if matches.next().is_some() {
-            return Err(LoadError::new(format!(
-                "selected ruleset repeats {file} [{section}].{key}"
-            )));
-        }
-        Ok(parameter)
-    }
-
-    pub(crate) fn optional_parameter_in_file(
-        &self,
-        file: &str,
-        key: &str,
-    ) -> Result<Option<&RuleParameter>, LoadError> {
-        let mut matches = self.parameters.iter().filter(|parameter| {
-            parameter.file.eq_ignore_ascii_case(file) && parameter.key.eq_ignore_ascii_case(key)
-        });
-        let parameter = matches.next();
-        if matches.next().is_some() {
-            return Err(LoadError::new(format!(
-                "selected ruleset repeats {file} {key}"
-            )));
-        }
-        Ok(parameter)
-    }
-
-    pub(crate) fn required_parameter(
-        &self,
-        file: &str,
-        section: &str,
-        key: &str,
-    ) -> Result<&RuleParameter, LoadError> {
-        self.optional_parameter(file, section, key)?.ok_or_else(|| {
-            LoadError::new(format!(
-                "selected ruleset is missing {file} [{section}].{key}"
-            ))
-        })
-    }
-
-    pub(crate) fn required_integer_parameter(
-        &self,
-        file: &str,
-        section: &str,
-        key: &str,
-    ) -> Result<i64, LoadError> {
-        let parameter = self.required_parameter(file, section, key)?;
-        parameter
-            .integer_value()
-            .map_err(|error| LoadError::new(format!("invalid {file} [{section}].{key}: {error}")))?
-            .ok_or_else(|| LoadError::new(format!("{file} [{section}].{key} has no integer value")))
-    }
-
-    pub(crate) fn required_i32_parameter(
-        &self,
-        file: &str,
-        section: &str,
-        key: &str,
-    ) -> Result<i32, LoadError> {
-        let value = self.required_integer_parameter(file, section, key)?;
-        i32::try_from(value).map_err(|_| {
-            LoadError::new(format!(
-                "{file} [{section}].{key} is outside the supported integer range"
-            ))
-        })
-    }
-
-    pub(crate) fn optional_i32_parameter(
-        &self,
-        file: &str,
-        section: &str,
-        key: &str,
-    ) -> Result<Option<i32>, LoadError> {
-        let Some(parameter) = self.optional_parameter(file, section, key)? else {
-            return Ok(None);
-        };
-        let value = parameter
-            .integer_value()
-            .map_err(|error| LoadError::new(format!("invalid {file} [{section}].{key}: {error}")))?
-            .ok_or_else(|| {
-                LoadError::new(format!("{file} [{section}].{key} has no integer value"))
-            })?;
-        i32::try_from(value).map(Some).map_err(|_| {
-            LoadError::new(format!(
-                "{file} [{section}].{key} is outside the supported integer range"
-            ))
-        })
-    }
-
-    pub(crate) fn required_boolean_parameter(
-        &self,
-        file: &str,
-        section: &str,
-        key: &str,
-    ) -> Result<bool, LoadError> {
-        let parameter = self.required_parameter(file, section, key)?;
-        parameter
-            .boolean_value()
-            .map_err(|error| LoadError::new(format!("invalid {file} [{section}].{key}: {error}")))?
-            .ok_or_else(|| LoadError::new(format!("{file} [{section}].{key} has no boolean value")))
-    }
-
-    pub(crate) fn optional_boolean_parameter(
-        &self,
-        file: &str,
-        section: &str,
-        key: &str,
-    ) -> Result<Option<bool>, LoadError> {
-        let Some(parameter) = self.optional_parameter(file, section, key)? else {
-            return Ok(None);
-        };
-        parameter
-            .boolean_value()
-            .map_err(|error| LoadError::new(format!("invalid {file} [{section}].{key}: {error}")))?
-            .map(Some)
-            .ok_or_else(|| LoadError::new(format!("{file} [{section}].{key} has no boolean value")))
-    }
-
-    /// Resolve the selected C2C3 research and revolution inputs. This method
-    /// intentionally rejects styles other than the ones used by the pinned
-    /// campaign ruleset rather than substituting a built-in fallback.
-    pub(crate) fn research_settings(&self) -> Result<ResearchRulesetSettings, LoadError> {
-        let parameter_string = |section: &str, key: &str| -> Result<String, LoadError> {
-            let parameter = required_parameter(self, "game.ruleset", section, key)?;
-            parameter
-                .string_value()
-                .map_err(|error| LoadError::new(format!("invalid research rules: {error}")))?
-                .map(str::to_owned)
-                .ok_or_else(|| {
-                    LoadError::new(format!(
-                        "game.ruleset [{section}].{key} has no string value"
-                    ))
-                })
-        };
-        let parameter_integer = |section: &str, key: &str| -> Result<i32, LoadError> {
-            let parameter = required_parameter(self, "game.ruleset", section, key)?;
-            let value = parameter
-                .integer_value()
-                .map_err(|error| LoadError::new(format!("invalid research rules: {error}")))?
-                .ok_or_else(|| {
-                    LoadError::new(format!(
-                        "game.ruleset [{section}].{key} has no integer value"
-                    ))
-                })?;
-            i32::try_from(value).map_err(|_| {
-                LoadError::new(format!(
-                    "game.ruleset [{section}].{key} is outside the supported integer range"
-                ))
-            })
-        };
-        let parameter_bool = |section: &str, key: &str| -> Result<bool, LoadError> {
-            let parameter = required_parameter(self, "game.ruleset", section, key)?;
-            match &parameter.value {
-                Value::Bool(value) => Ok(*value),
-                other => Err(LoadError::new(format!(
-                    "game.ruleset [{section}].{key} must be a boolean, found {other:?}"
-                ))),
-            }
-        };
-        let setting_integer = |name: &str| -> Result<i32, LoadError> {
-            let setting = required_setting(self, name)?;
-            let value = match &setting.value {
-                Value::Integer(value) => *value,
-                other => {
-                    return Err(LoadError::new(format!(
-                        "game setting `{name}` must be an integer, found {other:?}"
-                    )));
-                }
-            };
-            i32::try_from(value)
-                .map_err(|_| LoadError::new(format!("game setting `{name}` is outside i32 range")))
-        };
-        let setting_string = |name: &str| -> Result<String, LoadError> {
-            let setting = required_setting(self, name)?;
-            match &setting.value {
-                Value::String(value) => Ok(value.clone()),
-                other => Err(LoadError::new(format!(
-                    "game setting `{name}` must be a string, found {other:?}"
-                ))),
-            }
-        };
-        let checked_setting_integer =
-            |name: &str, minimum: i32, maximum: i32| -> Result<i32, LoadError> {
-                let value = setting_integer(name)?;
-                if !(minimum..=maximum).contains(&value) {
-                    return Err(LoadError::new(format!(
-                        "game setting `{name}` must be in {minimum}..={maximum}, found {value}"
-                    )));
-                }
-                Ok(value)
-            };
-
-        let cost_style = match parameter_string("research", "tech_cost_style")?
-            .to_ascii_lowercase()
-            .as_str()
-        {
-            "linear" => ResearchCostStyle::Linear,
-            value => {
-                return Err(LoadError::new(format!(
-                    "unsupported campaign tech_cost_style {value:?}"
-                )));
-            }
-        };
-        let leakage_style = match parameter_string("research", "tech_leakage")?
-            .to_ascii_lowercase()
-            .as_str()
-        {
-            "embassies" => TechnologyLeakageStyle::Embassies,
-            value => {
-                return Err(LoadError::new(format!(
-                    "unsupported campaign tech_leakage {value:?}"
-                )));
-            }
-        };
-        let upkeep_style = match parameter_string("research", "tech_upkeep_style")?
-            .to_ascii_lowercase()
-            .as_str()
-        {
-            "cities" => TechnologyUpkeepStyle::Cities,
-            value => {
-                return Err(LoadError::new(format!(
-                    "unsupported campaign tech_upkeep_style {value:?}"
-                )));
-            }
-        };
-        let free_technology_style = match parameter_string("research", "free_tech_method")?
-            .to_ascii_lowercase()
-            .as_str()
-        {
-            "cheapest" => FreeTechnologyStyle::Cheapest,
-            value => {
-                return Err(LoadError::new(format!(
-                    "unsupported campaign free_tech_method {value:?}"
-                )));
-            }
-        };
-        let revolution_type = match setting_string("revolentype")?.to_ascii_uppercase().as_str() {
-            "RANDQUICK" => RevolutionType::RandomQuick,
-            value => {
-                return Err(LoadError::new(format!(
-                    "unsupported campaign revolentype {value:?}"
-                )));
-            }
-        };
-
-        Ok(ResearchRulesetSettings {
-            cost_style,
-            base_tech_cost: parameter_integer("research", "base_tech_cost")?,
-            min_tech_cost: parameter_integer("research", "min_tech_cost")?,
-            leakage_style,
-            upkeep_style,
-            upkeep_divider: parameter_integer("research", "tech_upkeep_divider")?,
-            free_technology_style,
-            tech_steal_allow_holes: parameter_bool("civstyle", "tech_steal_allow_holes")?,
-            tech_trade_allow_holes: parameter_bool("civstyle", "tech_trade_allow_holes")?,
-            tech_trade_loss_allow_holes: parameter_bool("civstyle", "tech_trade_loss_allow_holes")?,
-            tech_parasite_allow_holes: parameter_bool("civstyle", "tech_parasite_allow_holes")?,
-            tech_loss_allow_holes: parameter_bool("civstyle", "tech_loss_allow_holes")?,
-            sciencebox_percent: checked_setting_integer("sciencebox", 1, 10_000)?,
-            tech_penalty_percent: checked_setting_integer("techpenalty", 0, 100)?,
-            tech_leak_percent: checked_setting_integer("techleak", 0, 300)?,
-            tech_loss_forgiveness_percent: checked_setting_integer("techlossforgiveness", -1, 200)?,
-            tech_loss_restore_percent: checked_setting_integer("techlossrestore", -1, 100)?,
-            tech_lost_recv_percent: checked_setting_integer("techlost_recv", 0, 100)?,
-            tech_lost_donor_percent: checked_setting_integer("techlost_donor", 0, 100)?,
-            diplomatic_bulb_cost_percent: checked_setting_integer("diplbulbcost", 0, 100)?,
-            revolution_type,
-            revolution_length: checked_setting_integer("revolen", 1, 20)?,
-        })
-    }
-
-    pub(crate) fn calendar_settings(&self) -> Result<CalendarSettings, LoadError> {
-        let read = |key: &str| {
-            self.parameters
-                .iter()
-                .find(|parameter| {
-                    parameter.file == "game.ruleset"
-                        && parameter.section == "calendar"
-                        && parameter.key == key
-                })
-                .map(|parameter| &parameter.value)
-                .ok_or_else(|| LoadError::new(format!("calendar is missing `{key}`")))
-        };
-        let start_year = match read("start_year")? {
-            Value::Integer(value) => i32::try_from(*value)
-                .map_err(|_| LoadError::new("calendar start_year is outside i32 range"))?,
-            other => {
-                return Err(LoadError::new(format!(
-                    "calendar start_year must be an integer, found {other:?}"
-                )));
-            }
-        };
-        let skip_year_0 = match read("skip_year_0")? {
-            Value::Bool(value) => *value,
-            other => {
-                return Err(LoadError::new(format!(
-                    "calendar skip_year_0 must be a boolean, found {other:?}"
-                )));
-            }
-        };
-        let fragments_per_year = match read("fragments")? {
-            Value::Integer(value) => u32::try_from(*value)
-                .map_err(|_| LoadError::new("calendar fragments must be nonnegative"))?,
-            other => {
-                return Err(LoadError::new(format!(
-                    "calendar fragments must be an integer, found {other:?}"
-                )));
-            }
-        };
-        let label = |key: &str| -> Result<String, LoadError> {
-            match read(key)? {
-                Value::String(value) => Ok(value.clone()),
-                other => Err(LoadError::new(format!(
-                    "calendar {key} must be a string, found {other:?}"
-                ))),
-            }
-        };
-        Ok(CalendarSettings {
-            start_year,
-            skip_year_0,
-            fragments_per_year,
-            positive_label: label("positive_label")?,
-            negative_label: label("negative_label")?,
-        })
-    }
-
-    /// Read a named integer server setting from the selected ruleset's
-    /// explicit campaign defaults. Reject absent, duplicate, malformed, or
-    /// out-of-range values instead of falling back to an engine constant.
-    pub(crate) fn integer_setting_value(&self, name: &str) -> Result<i32, LoadError> {
-        let setting = required_setting(self, name)?;
-        let Value::Integer(value) = &setting.value else {
-            return Err(LoadError::new(format!(
-                "campaign `{name}` setting must be an integer, found {:?}",
-                setting.value
-            )));
-        };
-        i32::try_from(*value).map_err(|_| {
-            LoadError::new(format!(
-                "campaign `{name}` setting is outside the supported integer range"
-            ))
-        })
-    }
-
-    /// Read Freeciv's bitwise `victories` server setting from the selected
-    /// ruleset's explicit campaign defaults. The engine default is not a
-    /// ruleset value, so the CivCraft derivative records it instead of
-    /// inheriting it implicitly.
-    pub(crate) fn victory_enabled(&self, condition: VictoryCondition) -> Result<bool, LoadError> {
-        let value = self
-            .settings
-            .iter()
-            .find(|setting| setting.name.eq_ignore_ascii_case("victories"))
-            .map(|setting| &setting.value)
-            .ok_or_else(|| LoadError::new("campaign ruleset is missing `victories` setting"))?;
-        let Value::String(value) = value else {
-            return Err(LoadError::new(format!(
-                "campaign `victories` setting must be a string, found {value:?}"
-            )));
-        };
-
-        let mut seen = std::collections::BTreeSet::new();
-        let mut enabled = false;
-        for name in value.split('|').map(str::trim) {
-            if name.is_empty() {
-                if value.trim().is_empty() {
-                    continue;
-                }
-                return Err(LoadError::new(
-                    "campaign `victories` setting contains an empty condition",
-                ));
-            }
-            let canonical = match name.to_ascii_uppercase().as_str() {
-                "SPACERACE" => "SPACERACE",
-                "ALLIED" => "ALLIED",
-                "CULTURE" => "CULTURE",
-                "WORLDPEACE" => "WORLDPEACE",
-                _ => {
-                    return Err(LoadError::new(format!(
-                        "campaign `victories` setting contains unknown condition {name:?}"
-                    )));
-                }
-            };
-            if !seen.insert(canonical) {
-                return Err(LoadError::new(format!(
-                    "campaign `victories` setting repeats condition {name:?}"
-                )));
-            }
-            enabled |= canonical == condition.rule_name();
-        }
-        Ok(enabled)
-    }
-}
-
-fn required_parameter<'a>(
-    rules: &'a RulesetData,
-    file: &str,
-    section: &str,
-    key: &str,
-) -> Result<&'a RuleParameter, LoadError> {
-    rules.required_parameter(file, section, key)
-}
-
-fn optional_parameter<'a>(
-    rules: &'a RulesetData,
-    file: &str,
-    section: &str,
-    key: &str,
-) -> Result<Option<&'a RuleParameter>, LoadError> {
-    rules.optional_parameter(file, section, key)
-}
-
-fn required_setting<'a>(
-    rules: &'a RulesetData,
-    name: &str,
-) -> Result<&'a SettingRecord, LoadError> {
-    let mut matches = rules
-        .settings
-        .iter()
-        .filter(|setting| setting.name.eq_ignore_ascii_case(name));
-    let setting = matches
-        .next()
-        .ok_or_else(|| LoadError::new(format!("selected ruleset is missing `{name}` setting")))?;
-    if matches.next().is_some() {
-        return Err(LoadError::new(format!(
-            "selected ruleset repeats `{name}` setting"
-        )));
-    }
-    Ok(setting)
 }
 
 impl RulesetData {
-    /// Resolve the border settings used by Freeciv's `unit_being_aggressive`.
-    /// The engine defaults are explicit in the CivCraft-owned derivative.
-    pub(crate) fn unit_happiness_settings(
-        &self,
-    ) -> Result<UnitHappinessRulesetSettings, LoadError> {
-        let string_setting = |name: &str| -> Result<String, LoadError> {
-            let setting = required_setting(self, name)?;
-            match &setting.value {
-                Value::String(value) => Ok(value.clone()),
-                other => Err(LoadError::new(format!(
-                    "game setting `{name}` must be a string, found {other:?}"
-                ))),
-            }
-        };
-
-        let borders_enabled = match string_setting("borders")?.to_ascii_uppercase().as_str() {
-            "DISABLED" => false,
-            "ENABLED" | "SEE_INSIDE" | "EXPAND" => true,
-            value => {
-                return Err(LoadError::new(format!(
-                    "unsupported borders setting {value:?}"
-                )));
-            }
-        };
-        let happy_borders = match string_setting("happyborders")?
-            .to_ascii_uppercase()
-            .as_str()
-        {
-            "DISABLED" => HappyBorders::Disabled,
-            "NATIONAL" => HappyBorders::National,
-            "ALLIED" => HappyBorders::Allied,
-            value => {
-                return Err(LoadError::new(format!(
-                    "unsupported happyborders setting {value:?}"
-                )));
-            }
-        };
-        Ok(UnitHappinessRulesetSettings {
-            borders_enabled,
-            happy_borders,
-        })
-    }
-
     /// The government-only contribution. Contextual effects remain part of
     /// the full evaluator for callers that supply a player or city.
     pub(crate) fn government_base_effect(&self, government: &str, kind: EffectKind) -> i64 {
@@ -1383,186 +427,6 @@ impl RulesetData {
                 effect.value
             })
             .sum()
-    }
-
-    /// Decode the CivCraft-native governments and their government-scoped
-    /// effects. The selected Freeciv government records are deliberately not
-    /// consulted: the native catalog supplies campaign government identities.
-    pub(crate) fn government_catalog(&self) -> Result<GovernmentRulesetCatalog, LoadError> {
-        let native = crate::rules::native::governments();
-        if native.governments.is_empty() {
-            return Err(LoadError::new("native government catalog is empty"));
-        }
-
-        let governments = native
-            .governments
-            .iter()
-            .map(|source| {
-                let id = source.government.trim();
-                if id.is_empty() || source.name.trim().is_empty() {
-                    return Err(LoadError::new(
-                        "native governments must have non-empty identities and names",
-                    ));
-                }
-                if let Some(preferred) = source.preferred_government.as_deref()
-                    && native.get(preferred).is_none()
-                {
-                    return Err(LoadError::new(format!(
-                        "native government {id:?} references unknown preferred government {preferred:?}"
-                    )));
-                }
-
-                let requirements = source.technology
-                    .map(|tech| Requirement {
-                        kind: RequirementKind::Tech,
-                        name: RequirementValue::String(source.required_technology.clone()),
-                        resolved: Some(ResolvedRequirementValue::Tech(tech)),
-                        range: RequirementRange::Player,
-                        present: true,
-                        survives: false,
-                        quiet: false,
-                        source: RuleSourceLocation {
-                            file: PathBuf::from("builtin:governments"),
-                            section: format!("government_{id}"),
-                            key: "required_technology".to_owned(),
-                            line: 0,
-                        },
-                    })
-                    .into_iter()
-                    .collect();
-                let attributes = self
-                    .effects
-                    .iter()
-                    .filter(|effect| government_effect_applies_to(effect, id))
-                    .cloned()
-                    .collect::<Vec<_>>()
-                    .into();
-
-                Ok(GovernmentRulesetRecord {
-                    id: id.to_owned(),
-                    name: source.name.clone(),
-                    section: format!("government_{id}"),
-                    requirements,
-                    flags: source.flags.clone(),
-                    ai_better: source.preferred_government.clone(),
-                    attributes,
-                })
-            })
-            .collect::<Result<Vec<_>, LoadError>>()?;
-
-        let during_revolution_id = native
-            .get("anarchy")
-            .map(|government| government.government.clone())
-            .ok_or_else(|| LoadError::new("native government catalog has no Anarchy"))?;
-        Ok(GovernmentRulesetCatalog {
-            during_revolution_id,
-            governments,
-        })
-    }
-}
-
-fn government_effect_applies_to(effect: &EffectRecord, government_id: &str) -> bool {
-    let mut found_government_requirement = false;
-    for requirement in effect
-        .requirements
-        .iter()
-        .filter(|requirement| requirement.kind == RequirementKind::Gov)
-    {
-        found_government_requirement = true;
-        let matches = matches!(
-            &requirement.name,
-            RequirementValue::String(name) if name.eq_ignore_ascii_case(government_id)
-        );
-        if requirement.present != matches {
-            return false;
-        }
-    }
-    found_government_requirement
-}
-
-fn terrain_content_error(
-    source_file: Option<&LoadedRuleFile>,
-    record: &ContentRecord,
-    key: &str,
-    message: impl Into<String>,
-) -> LoadError {
-    LoadError {
-        file: source_file.map(|file| file.path.clone()),
-        section: Some(record.section.clone()),
-        key: Some(key.to_owned()),
-        line: record
-            .fields
-            .iter()
-            .find(|entry| entry.key == key)
-            .map(|entry| entry.line),
-        message: message.into(),
-    }
-}
-
-fn terrain_flag_is_set(
-    record: &ContentRecord,
-    source_file: Option<&LoadedRuleFile>,
-    flag_name: &str,
-) -> Result<bool, LoadError> {
-    let Some(entry) = record
-        .fields
-        .iter()
-        .find(|entry| entry.key.eq_ignore_ascii_case("flags"))
-    else {
-        return Ok(false);
-    };
-    match &entry.value {
-        Value::List(flags) => flags.iter().try_fold(false, |found, flag| match flag {
-            Value::String(name) => Ok(found || name.eq_ignore_ascii_case(flag_name)),
-            other => Err(terrain_content_error(
-                source_file,
-                record,
-                "flags",
-                format!("terrain flags must be strings, found {other:?}"),
-            )),
-        }),
-        Value::String(flag) => Ok(flag.eq_ignore_ascii_case(flag_name)),
-        Value::Empty => Ok(false),
-        other => Err(terrain_content_error(
-            source_file,
-            record,
-            "flags",
-            format!("terrain flags must be a string list, found {other:?}"),
-        )),
-    }
-}
-
-fn rule_record_integer(
-    rules: &RulesetData,
-    record: &RuleRecord,
-    key: &str,
-) -> Result<i32, LoadError> {
-    let Some(entry) = record.fields.iter().find(|entry| entry.key == key) else {
-        return Ok(0);
-    };
-    match &entry.value {
-        Value::Integer(value) => i32::try_from(*value).map_err(|_| LoadError {
-            file: rules
-                .files
-                .iter()
-                .find(|file| file.name == record.file)
-                .map(|file| file.path.clone()),
-            section: Some(record.section.clone()),
-            key: Some(key.to_owned()),
-            line: Some(entry.line),
-            message: format!("road output value is outside i32 range: {value}"),
-        }),
-        other => Err(LoadError {
-            file: rules
-                .files
-                .iter()
-                .find(|file| file.name == record.file)
-                .map(|file| file.path.clone()),
-            section: Some(record.section.clone()),
-            key: Some(key.to_owned()),
-            line: Some(entry.line),
-            message: format!("road output value must be an integer, found {other:?}"),
-        }),
     }
 }
 
@@ -1711,26 +575,6 @@ pub(crate) fn campaign_effect(kind: EffectKind, context: &impl EffectContext) ->
 }
 
 impl LoadError {
-    fn new(message: impl Into<String>) -> Self {
-        Self {
-            file: None,
-            section: None,
-            key: None,
-            line: None,
-            message: message.into(),
-        }
-    }
-
-    fn at(file: &Path, message: impl Into<String>) -> Self {
-        Self {
-            file: Some(file.to_owned()),
-            section: None,
-            key: None,
-            line: None,
-            message: message.into(),
-        }
-    }
-
     fn at_line(
         file: &Path,
         section: &str,
@@ -1746,267 +590,17 @@ impl LoadError {
             message: message.into(),
         }
     }
-
-    fn in_section(file: &Path, section: &Section, message: impl Into<String>) -> Self {
-        Self {
-            file: Some(file.to_owned()),
-            section: Some(section.name.clone()),
-            key: None,
-            line: None,
-            message: message.into(),
-        }
-    }
-
-    fn in_key(file: &Path, section: &Section, key: &str, message: impl Into<String>) -> Self {
-        let line = section
-            .entries
-            .iter()
-            .find(|entry| entry.key == key)
-            .map(|entry| entry.line);
-        Self {
-            file: Some(file.to_owned()),
-            section: Some(section.name.clone()),
-            key: Some(key.to_owned()),
-            line,
-            message: message.into(),
-        }
-    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::section_file::{Entry, Value};
     use super::{
-        ActionEnabler, ActionRecord, ContentKind, EffectContext, EffectKind, EffectRecord,
-        EffectSet, FreeTechnologyStyle, HappyBorders, LoadedRuleFile, RULESET_FILES, Requirement,
+        ActionEnabler, EffectContext, EffectKind, EffectRecord, EffectSet, Requirement,
         RequirementContext, RequirementEvaluationError, RequirementKind, RequirementRange,
-        RequirementValue, ResearchCostStyle, ResearchRulesetSettings, RevolutionType,
-        RuleFileSource, RuleSourceLocation, RulesetData, TechnologyLeakageStyle,
-        TechnologyUpkeepStyle, UnitHappinessRulesetSettings, VictoryCondition, action_enabled,
-        effect_value, requirements_met,
+        RequirementValue, RuleSourceLocation, RulesetData, action_enabled, effect_value,
+        requirements_met,
     };
-    use std::fs;
     use std::path::PathBuf;
-
-    #[test]
-    fn campaign_victory_conditions_are_explicit_and_validated() {
-        let mut rules = RulesetData::campaign_default().clone();
-        assert!(rules.victory_enabled(VictoryCondition::SpaceRace).unwrap());
-        assert!(rules.victory_enabled(VictoryCondition::Allied).unwrap());
-        assert!(rules.victory_enabled(VictoryCondition::Culture).unwrap());
-
-        let index = rules
-            .settings
-            .iter()
-            .position(|setting| setting.name == "victories")
-            .unwrap();
-        rules.settings[index].value = super::Value::String("ALLIED".to_owned());
-        assert!(rules.victory_enabled(VictoryCondition::Allied).unwrap());
-        assert!(!rules.victory_enabled(VictoryCondition::SpaceRace).unwrap());
-        assert!(!rules.victory_enabled(VictoryCondition::Culture).unwrap());
-
-        rules.settings[index].value = super::Value::String("ALLIED|UNKNOWN".to_owned());
-        assert!(rules.victory_enabled(VictoryCondition::Allied).is_err());
-        rules.settings[index].value = super::Value::String("ALLIED|ALLIED".to_owned());
-        assert!(rules.victory_enabled(VictoryCondition::Allied).is_err());
-    }
-
-    #[test]
-    fn campaign_disaster_frequency_is_read_from_the_selected_ruleset_setting() {
-        let mut rules = RulesetData::campaign_default().clone();
-        assert_eq!(rules.integer_setting_value("disasters").unwrap(), 100);
-
-        let index = rules
-            .settings
-            .iter()
-            .position(|setting| setting.name.eq_ignore_ascii_case("disasters"))
-            .unwrap();
-        rules.settings[index].value = Value::String("100".to_owned());
-        assert!(rules.integer_setting_value("disasters").is_err());
-
-        rules.settings[index].value = Value::Integer(0);
-        assert_eq!(rules.integer_setting_value("DISASTERS").unwrap(), 0);
-        rules.settings.push(rules.settings[index].clone());
-        assert!(rules.integer_setting_value("disasters").is_err());
-    }
-
-    #[test]
-    fn campaign_research_settings_are_ruleset_owned_and_typed() {
-        let rules = RulesetData::campaign_default();
-        let settings = rules.research_settings().unwrap();
-        assert_eq!(
-            settings,
-            ResearchRulesetSettings {
-                cost_style: ResearchCostStyle::Linear,
-                base_tech_cost: 10,
-                min_tech_cost: 10,
-                leakage_style: TechnologyLeakageStyle::Embassies,
-                upkeep_style: TechnologyUpkeepStyle::Cities,
-                upkeep_divider: 6000,
-                free_technology_style: FreeTechnologyStyle::Cheapest,
-                tech_steal_allow_holes: false,
-                tech_trade_allow_holes: false,
-                tech_trade_loss_allow_holes: false,
-                tech_parasite_allow_holes: false,
-                tech_loss_allow_holes: false,
-                sciencebox_percent: 100,
-                tech_penalty_percent: 100,
-                tech_leak_percent: 100,
-                tech_loss_forgiveness_percent: 0,
-                tech_loss_restore_percent: 50,
-                tech_lost_recv_percent: 0,
-                tech_lost_donor_percent: 0,
-                diplomatic_bulb_cost_percent: 0,
-                revolution_type: RevolutionType::RandomQuick,
-                revolution_length: 5,
-            }
-        );
-    }
-
-    #[test]
-    fn campaign_unit_happiness_settings_are_ruleset_owned_and_typed() {
-        let rules = RulesetData::campaign_default();
-        assert_eq!(
-            rules.unit_happiness_settings().unwrap(),
-            UnitHappinessRulesetSettings {
-                borders_enabled: true,
-                happy_borders: HappyBorders::National,
-            }
-        );
-
-        let mut rules = rules.clone();
-        rules
-            .settings
-            .iter_mut()
-            .find(|setting| setting.name == "happyborders")
-            .unwrap()
-            .value = Value::String("ALLIED".to_owned());
-        assert_eq!(
-            rules.unit_happiness_settings().unwrap().happy_borders,
-            HappyBorders::Allied
-        );
-
-        rules
-            .settings
-            .iter_mut()
-            .find(|setting| setting.name == "happyborders")
-            .unwrap()
-            .value = Value::String("unknown".to_owned());
-        assert!(rules.unit_happiness_settings().is_err());
-    }
-
-    #[test]
-    fn campaign_research_settings_reject_missing_duplicate_and_malformed_inputs() {
-        let mut rules = RulesetData::campaign_default().clone();
-        rules
-            .settings
-            .retain(|setting| setting.name != "sciencebox");
-        assert!(rules.research_settings().is_err());
-
-        let mut rules = RulesetData::campaign_default().clone();
-        let setting = rules
-            .settings
-            .iter()
-            .find(|setting| setting.name == "sciencebox")
-            .unwrap()
-            .clone();
-        rules.settings.push(setting);
-        assert!(rules.research_settings().is_err());
-
-        let mut rules = RulesetData::campaign_default().clone();
-        rules
-            .parameters
-            .iter_mut()
-            .find(|parameter| parameter.key == "tech_cost_style")
-            .unwrap()
-            .value = super::Value::String("Classic".to_owned());
-        assert!(rules.research_settings().is_err());
-
-        let mut rules = RulesetData::campaign_default().clone();
-        rules
-            .parameters
-            .iter_mut()
-            .find(|parameter| parameter.key == "tech_trade_allow_holes")
-            .unwrap()
-            .value = super::Value::String("FALSE".to_owned());
-        assert!(rules.research_settings().is_err());
-
-        let mut rules = RulesetData::campaign_default().clone();
-        rules
-            .parameters
-            .iter_mut()
-            .find(|parameter| parameter.key == "base_tech_cost")
-            .unwrap()
-            .value = super::Value::String("10".to_owned());
-        assert!(rules.research_settings().is_err());
-
-        let mut rules = RulesetData::campaign_default().clone();
-        rules
-            .settings
-            .iter_mut()
-            .find(|setting| setting.name == "techpenalty")
-            .unwrap()
-            .value = super::Value::String("100".to_owned());
-        assert!(rules.research_settings().is_err());
-
-        let mut rules = RulesetData::campaign_default().clone();
-        rules
-            .settings
-            .iter_mut()
-            .find(|setting| setting.name == "techpenalty")
-            .unwrap()
-            .value = super::Value::Integer(101);
-        assert!(rules.research_settings().is_err());
-
-        let mut rules = RulesetData::campaign_default().clone();
-        rules
-            .settings
-            .iter_mut()
-            .find(|setting| setting.name == "revolen")
-            .unwrap()
-            .value = super::Value::Integer(21);
-        assert!(rules.research_settings().is_err());
-
-        let mut rules = RulesetData::campaign_default().clone();
-        rules
-            .parameters
-            .retain(|parameter| parameter.key != "min_tech_cost");
-        assert!(rules.research_settings().is_err());
-
-        let mut rules = RulesetData::campaign_default().clone();
-        let parameter = rules
-            .parameters
-            .iter()
-            .find(|parameter| parameter.key == "base_tech_cost")
-            .unwrap()
-            .clone();
-        rules.parameters.push(parameter);
-        assert!(rules.research_settings().is_err());
-    }
-
-    fn parsed_file(name: &str, source: &str) -> LoadedRuleFile {
-        LoadedRuleFile {
-            name: name.to_owned(),
-            path: PathBuf::from(name),
-            source: RuleFileSource::SelectedRuleset,
-            parsed: super::section_file::parse(source).unwrap(),
-        }
-    }
-
-    fn files_with_overrides(overrides: &[(&str, &str)]) -> Vec<LoadedRuleFile> {
-        let mut files = RULESET_FILES
-            .iter()
-            .map(|name| parsed_file(name, ""))
-            .collect::<Vec<_>>();
-        for (name, source) in overrides {
-            if let Some(index) = files.iter().position(|file| file.name == *name) {
-                files[index] = parsed_file(name, source);
-            } else {
-                files.push(parsed_file(name, source));
-            }
-        }
-        files
-    }
 
     struct Context {
         present: Vec<(String, RequirementValue, RequirementRange)>,
@@ -2126,14 +720,12 @@ mod tests {
                 action: "Found City".to_owned(),
                 actor_requirements: vec![req("Tech", "Iron Working", true)],
                 target_requirements: vec![],
-                fields: vec![],
             },
             ActionEnabler {
                 rule_name: "requires_writing".to_owned(),
                 action: "Found City".to_owned(),
                 actor_requirements: vec![req("Tech", "Writing", true)],
                 target_requirements: vec![req("Terrain", "Ocean", false)],
-                fields: vec![],
             },
         ];
         let mut indexed = RulesetData::campaign_default().clone();
@@ -2217,508 +809,26 @@ mod tests {
     }
 
     #[test]
-    fn public_model_keeps_rule_names_separate_from_content_positions() {
-        let record = super::ContentRecord {
-            kind: ContentKind::Technology,
-            rule_name: "mobile_warfare".to_owned(),
-            section: "advance_mobile_warfare".to_owned(),
-            display_name: Some("Mobile Warfare".to_owned()),
-            requirements: vec![],
-            obsolete_by: vec![],
-            fields: vec![],
-        };
-        let action = ActionRecord {
-            rule_name: "build_city".to_owned(),
-            action: "Found City".to_owned(),
-            fields: vec![],
-        };
-        assert_eq!(record.rule_name, "mobile_warfare");
-        assert_eq!(action.action, "Found City");
-    }
-
-    #[test]
-    fn content_record_reads_validated_string_integer_table_fields() {
-        let record = super::ContentRecord {
-            kind: ContentKind::Terrain,
-            rule_name: "grassland".to_owned(),
-            section: "terrain_grassland".to_owned(),
-            display_name: Some("Grassland".to_owned()),
-            requirements: vec![],
-            obsolete_by: vec![],
-            fields: vec![Entry {
-                key: "extra_settings".to_owned(),
-                value: Value::Table {
-                    columns: vec!["extra".to_owned(), "removal_time".to_owned()],
-                    rows: vec![vec![
-                        Value::String("Pollution".to_owned()),
-                        Value::Integer(3),
-                    ]],
-                },
-                line: 1,
-            }],
-        };
-        assert_eq!(
-            record
-                .string_integer_table_field("extra_settings", "extra", "removal_time")
-                .unwrap(),
-            Some(vec![("Pollution".to_owned(), 3)])
-        );
-        assert!(
-            record
-                .string_integer_table_field("extra_settings", "extra", "missing")
-                .is_err()
-        );
-    }
-
-    #[test]
-    fn rule_record_reads_validated_boolean_fields() {
-        let record = super::RuleRecord {
-            file: "game.ruleset".to_owned(),
-            namespace: "disaster".to_owned(),
-            section: "disaster_test".to_owned(),
-            rule_name: "Test".to_owned(),
-            display_name: Some("Test".to_owned()),
-            requirements: vec![],
-            fields: vec![Entry {
-                key: "enabled".to_owned(),
-                value: Value::Bool(true),
-                line: 1,
-            }],
-        };
-        assert_eq!(record.boolean_field("enabled").unwrap(), Some(true));
-        assert_eq!(record.boolean_field("missing").unwrap(), None);
-        assert!(record.string_field("enabled").is_err());
-    }
-
-    #[test]
-    fn loader_builds_typed_settings_effects_actions_and_content() {
-        let files = files_with_overrides(&[
-            (
-                "game.ruleset",
-                "[settings]\nset =\n { \"name\", \"value\"\n \"citymindist\", 3\n \"generator\", \"FRACTAL\"\n }\n[clause_advance]\ntype = \"Advance\"\n",
-            ),
-            (
-                "actions.ruleset",
-                "[action_found_city]\naction = \"Found City\"\n[enabler_found_city]\naction = \"Found City\"\nactor_reqs =\n { \"type\", \"name\", \"range\", \"present\"\n \"Tech\", \"civ3_literacy\", \"Player\", TRUE\n }\ntarget_reqs =\n { \"type\", \"name\", \"range\"\n \"Terrain\", \"Ocean\", \"Tile\"\n }\n",
-            ),
-            (
-                "effects.ruleset",
-                "[effect_bonus]\ntype = \"Output_Bonus\"\nvalue = 5\nreqs =\n { \"type\", \"name\", \"range\"\n \"Building\", \"civcraft_library\", \"City\"\n }\n",
-            ),
-            (
-                "buildings.ruleset",
-                "[building_library]\nrule_name = \"civcraft_library\"\nname = \"Library\"\nreqs =\n { \"type\", \"name\", \"range\"\n \"Tech\", \"civ3_literacy\", \"Player\"\n }\nobsolete_by =\n { \"type\", \"name\", \"range\", \"survives\"\n \"Tech\", \"civ3_literacy\", \"Player\", FALSE\n }\n",
-            ),
-            (
-                "units.ruleset",
-                "[unit_scout]\nrule_name = \"civ3_scout\"\nname = \"Scout\"\n",
-            ),
-            (
-                "techs.ruleset",
-                "[advance_writing]\nrule_name = \"civ3_literacy\"\nname = \"Writing\"\n[advance_alphabet]\nname = \"Alphabet\"\n",
-            ),
-            (
-                "terrain.ruleset",
-                "[terrain_ocean]\nname = \"Ocean\"\n[resource_iron]\nname = \"Iron\"\nreqs =\n { \"type\", \"name\", \"range\"\n \"Terrain\", \"Ocean\", \"tile\"\n }\n[extra_mine]\nname = _(\"?extra:Mine\")\n[unitclass_land]\nname = \"Land\"\n",
-            ),
-        ]);
-        let rules = RulesetData::from_files("fixture", files).unwrap();
-
-        assert_eq!(rules.settings.len(), 2);
-        assert!(
-            rules
-                .rule_records
-                .iter()
-                .any(|record| { record.namespace == "clause" && record.rule_name == "advance" })
-        );
-        assert_eq!(rules.effects.len(), 1);
-        assert_eq!(
-            rules.effects[0].requirements[0].range,
-            RequirementRange::City
-        );
-        assert_eq!(rules.actions.len(), 1);
-        assert_eq!(rules.action_enablers.len(), 1);
-        assert!(rules.action_enablers[0].actor_requirements[0].present);
-        assert_eq!(
-            rules.action_enablers[0].target_requirements[0].range,
-            RequirementRange::Tile
-        );
-        assert!(rules.content.iter().any(|record| {
-            record.kind == ContentKind::Building
-                && record.rule_name == "civcraft_library"
-                && record.obsolete_by.len() == 1
-                && record.obsolete_by[0].kind == RequirementKind::Tech
-                && record.obsolete_by[0].range == RequirementRange::Player
-                && !record.obsolete_by[0].survives
-        }));
-        assert!(rules.content.iter().any(|record| {
-            record.kind == ContentKind::Unit && record.rule_name == "civ3_scout"
-        }));
-        assert!(rules.content.iter().any(|record| {
-            record.kind == ContentKind::Technology && record.rule_name == "civ3_literacy"
-        }));
-        assert!(rules.content.iter().any(|record| {
-            record.kind == ContentKind::Technology
-                && record.rule_name == "Alphabet"
-                && record.section == "advance_alphabet"
-        }));
-        assert!(rules.rule_records.iter().any(|record| {
-            record.namespace == "resource"
-                && record.rule_name == "Iron"
-                && record.requirements[0].range == RequirementRange::Tile
-        }));
-        assert!(rules.rule_records.iter().any(|record| {
-            record.namespace == "extra"
-                && record.rule_name == "Mine"
-                && record.display_name.as_deref() == Some("Mine")
-        }));
-        assert!(
-            rules
-                .rule_records
-                .iter()
-                .any(|record| { record.namespace == "unit_class" && record.rule_name == "Land" })
-        );
-    }
-
-    #[test]
-    fn loader_rejects_unknown_freeciv_engine_identifiers() {
-        let invalid_cases = [
-            (
-                "buildings.ruleset",
-                "[building_test]\nname = \"Test\"\nreqs =\n { \"type\", \"name\", \"range\"\n \"NotAUniversal\", \"value\", \"Player\"\n }\n",
-                "unknown Freeciv requirement type",
-            ),
-            (
-                "actions.ruleset",
-                "[action_test]\naction = \"Not An Action\"\n",
-                "unknown Freeciv action",
-            ),
-            (
-                "effects.ruleset",
-                "[effect_test]\ntype = \"Not_An_Effect\"\n",
-                "unknown Freeciv effect type",
-            ),
-        ];
-
-        for (file, contents, expected_error) in invalid_cases {
-            let files = files_with_overrides(&[(file, contents)]);
-            let error = RulesetData::from_files("fixture", files).unwrap_err();
+    fn campaign_enablers_name_known_actions() {
+        let enablers = &RulesetData::campaign_default().action_enablers;
+        assert_eq!(enablers.len(), 89);
+        for enabler in enablers {
             assert!(
-                error.message.contains(expected_error),
-                "unexpected error for {file}: {error}"
+                super::identifiers::ACTION_NAMES
+                    .iter()
+                    .any(|name| name.eq_ignore_ascii_case(&enabler.action)),
+                "enabler {} names unknown action {:?}",
+                enabler.rule_name,
+                enabler.action
             );
         }
-
-        let files = files_with_overrides(&[
-            ("techs.ruleset", "[advance_writing]\nname = \"Writing\"\n"),
-            (
-                "buildings.ruleset",
-                "[building_library]\nname = \"Library\"\nreqs =\n { \"type\", \"name\", \"range\"\n \"Tech\", \"Writng\", \"Player\"\n }\n",
-            ),
-        ]);
-        let error = RulesetData::from_files("fixture", files).unwrap_err();
-        assert!(error.message.contains("unknown or unsupported value"));
-        assert_eq!(error.section.as_deref(), Some("building_library"));
     }
 
     #[test]
-    fn file_loader_uses_whole_file_defaults_and_expands_includes() {
-        let root = std::env::temp_dir().join(format!(
-            "civcraft-ruleset-loader-{}-{}",
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        ));
-        let ruleset_dir = root.join("fixture");
-        let default_dir = root.join("default");
-        fs::create_dir_all(&ruleset_dir).unwrap();
-        fs::create_dir_all(&default_dir).unwrap();
-
-        for name in RULESET_FILES {
-            if *name == "units.ruleset" {
-                continue;
-            }
-            let contents = if *name == "game.ruleset" {
-                "[compatibility]\nfirst = \"parent\"\n*include \"default/extra.ruleset\"\n"
-            } else {
-                "[datafile]\nformat_version = 1\n"
-            };
-            fs::write(ruleset_dir.join(name), contents).unwrap();
-        }
-        fs::write(
-            default_dir.join("units.ruleset"),
-            "[unit_from_default]\nname = \"Default Unit\"\n",
-        )
-        .unwrap();
-        fs::write(
-            default_dir.join("extra.ruleset"),
-            "[compatibility]\nsecond = \"included\"\n",
-        )
-        .unwrap();
-
-        let rules = RulesetData::load(&root, "fixture").unwrap();
-        assert_eq!(
-            rules
-                .files
-                .iter()
-                .find(|file| file.name == "units.ruleset")
-                .unwrap()
-                .source,
-            RuleFileSource::DefaultRuleset
-        );
-        let game = rules
-            .files
-            .iter()
-            .find(|file| file.name == "game.ruleset")
-            .unwrap();
-        let compatibility = game
-            .parsed
-            .sections
-            .iter()
-            .filter(|section| section.name == "compatibility")
-            .collect::<Vec<_>>();
-        assert_eq!(compatibility.len(), 1);
-        assert_eq!(compatibility[0].entries.len(), 2);
-
-        fs::write(
-            default_dir.join("extra.ruleset"),
-            "[compatibility]\nfirst = \"duplicate\"\n",
-        )
-        .unwrap();
-        let duplicate_error = RulesetData::load(&root, "fixture").unwrap_err();
-        assert!(duplicate_error.message.contains("duplicate ruleset entry"));
-
-        fs::remove_dir_all(root).unwrap();
-    }
-
-    #[test]
-    fn packaged_baseline_loads_only_selected_civcraft_ruleset_files() {
-        let engine_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/rules/engine_data");
-        let rules = RulesetData::load_from_directory(&engine_dir, &engine_dir, "civcraft").unwrap();
-
-        assert_eq!(rules.name, "civcraft");
-        assert_eq!(rules.files.len(), RULESET_FILES.len());
-        assert!(
-            rules
-                .files
-                .iter()
-                .all(|file| file.source == RuleFileSource::SelectedRuleset)
-        );
-        assert_eq!(rules.effects.len(), 510);
-        assert_eq!(rules.actions.len(), 19);
-        assert_eq!(rules.action_enablers.len(), 89);
-        assert_eq!(
-            rules
-                .content
-                .iter()
-                .filter(|record| record.kind == ContentKind::Unit)
-                .count(),
-            0,
-            "the mechanics ruleset no longer embeds unit records"
-        );
-        assert_eq!(
-            rules
-                .content
-                .iter()
-                .filter(|record| record.kind == ContentKind::Building)
-                .count(),
-            0,
-            "the mechanics ruleset no longer embeds building records"
-        );
-        assert_eq!(
-            rules
-                .content
-                .iter()
-                .filter(|record| record.kind == ContentKind::Technology)
-                .count(),
-            0,
-            "the mechanics ruleset no longer embeds technology records"
-        );
-        assert_eq!(
-            rules
-                .content
-                .iter()
-                .filter(|record| record.kind == ContentKind::Nation)
-                .count(),
-            0,
-            "the mechanics ruleset no longer embeds nation records"
-        );
-        assert!(engine_dir.join("UPSTREAM_MANIFEST.tsv").is_file());
-    }
-
-    #[test]
-    fn campaign_ruleset_keeps_native_catalogs_separate_from_engine_records() {
-        let engine_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/rules/engine_data");
-        let rules = RulesetData::load_civcraft(&engine_dir).unwrap();
-
-        assert_eq!(rules.effects.len(), 510);
-        assert_eq!(
-            rules
-                .content
-                .iter()
-                .filter(|r| r.kind == ContentKind::Unit)
-                .count(),
-            0
-        );
-        assert_eq!(
-            rules
-                .content
-                .iter()
-                .filter(|r| r.kind == ContentKind::Building)
-                .count(),
-            0
-        );
-        assert_eq!(
-            rules
-                .content
-                .iter()
-                .filter(|r| r.kind == ContentKind::Technology)
-                .count(),
-            0
-        );
-        assert_eq!(crate::rules::native::units().units.len(), 92);
-        assert_eq!(crate::rules::native::buildings().rules.len(), 91);
-        assert_eq!(crate::rules::native::technologies().technologies.len(), 85);
-        assert_eq!(
-            crate::rules::native::civilizations().civilizations.len(),
-            31
-        );
-    }
-}
-
-#[cfg(test)]
-mod government_catalog_tests {
-    use super::{
-        ContentKind, EffectKind, GovernmentRulesetCatalog, Requirement, RequirementContext,
-        RequirementEvaluationError, RequirementKind, RequirementRange, RequirementValue,
-        RulesetData,
-    };
-
-    struct GovernmentContext {
-        government: String,
-    }
-
-    impl RequirementContext for GovernmentContext {
-        fn is_present(
-            &self,
-            requirement: &Requirement,
-        ) -> Result<bool, RequirementEvaluationError> {
-            Ok(requirement.kind == RequirementKind::Gov
-                && requirement.range == RequirementRange::Player
-                && matches!(
-                    &requirement.name,
-                    RequirementValue::String(name)
-                        if name.eq_ignore_ascii_case(&self.government)
-                ))
-        }
-    }
-
-    impl super::EffectContext for GovernmentContext {
-        fn multiplier_percent(&self, _multiplier: &str) -> Option<i64> {
-            None
-        }
-    }
-
-    fn campaign_governments() -> GovernmentRulesetCatalog {
-        RulesetData::campaign_default()
-            .government_catalog()
-            .unwrap()
-    }
-
-    #[test]
-    fn campaign_government_catalog_exposes_order_requirements_flags_and_rates() {
-        let catalog = campaign_governments();
-        assert_eq!(
-            catalog.during_revolution_id, "anarchy",
-            "native catalog selects Anarchy during revolution"
-        );
-        assert_eq!(
-            catalog
-                .governments
-                .iter()
-                .map(|government| government.id.as_str())
-                .collect::<Vec<_>>(),
-            [
-                "anarchy",
-                "despotism",
-                "monarchy",
-                "communism",
-                "republic",
-                "democracy",
-                "fascism",
-                "feudalism",
-            ],
-            "records preserve native TOML order"
-        );
-
-        let anarchy = catalog.get("anarchy").unwrap();
-        assert_eq!(anarchy.name, "Anarchy");
-        assert!(anarchy.requirements.is_empty());
-
-        let monarchy = catalog.get("Monarchy").unwrap();
-        assert_eq!(monarchy.requirements.len(), 1);
-        assert_eq!(monarchy.requirements[0].kind, RequirementKind::Tech);
-        assert_eq!(
-            monarchy.requirements[0].name,
-            RequirementValue::String("TECH_Monarchy".to_owned())
-        );
-        assert_eq!(monarchy.requirements[0].range, RequirementRange::Player);
-        assert_eq!(
-            catalog.get("Despotism").unwrap().ai_better.as_deref(),
-            Some("monarchy")
-        );
-        assert!(
-            catalog
-                .get("Despotism")
-                .unwrap()
-                .flags
-                .iter()
-                .any(|flag| flag == "ShieldToGold")
-        );
-
-        let despotism = catalog.get("Despotism").unwrap();
-        let rate = despotism
-            .effect_value(
-                EffectKind::MaxRates,
-                &GovernmentContext {
-                    government: "Despotism".to_owned(),
-                },
-            )
-            .unwrap();
-        assert_eq!(rate, 60, "the rate comes from the selected effects.ruleset");
-    }
-
-    #[test]
-    fn government_catalog_ignores_selected_freeciv_government_records() {
-        let mut rules = RulesetData::campaign_default().clone();
-        rules.parameters.push(super::RuleParameter {
-            file: "governments.ruleset".to_owned(),
-            section: "governments".to_owned(),
-            key: "during_revolution".to_owned(),
-            value: super::Value::String("MissingGovernment".to_owned()),
-        });
-        rules.content.push(super::ContentRecord {
-            kind: ContentKind::Government,
-            section: "government_despotism".to_owned(),
-            rule_name: "Despotism".to_owned(),
-            display_name: None,
-            requirements: Vec::new(),
-            obsolete_by: Vec::new(),
-            fields: vec![super::Entry {
-                key: "ai_better".to_owned(),
-                value: super::Value::String("MissingGovernment".to_owned()),
-                line: 1,
-            }],
-        });
-
-        let catalog = rules.government_catalog().unwrap();
-        assert_eq!(catalog.during_revolution_id, "anarchy");
-        assert_eq!(catalog.governments.len(), 8);
-        assert_eq!(
-            catalog.get("Despotism").unwrap().ai_better.as_deref(),
-            Some("monarchy")
-        );
+    fn campaign_effects_are_loaded_in_table_order() {
+        let effects = &RulesetData::campaign_default().effects;
+        assert_eq!(effects.len(), 510);
+        assert_eq!(effects[0].rule_name, "ai_cheat_food");
+        assert!(effects.of_kind(EffectKind::MaxRates).count() > 0);
     }
 }

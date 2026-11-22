@@ -154,9 +154,7 @@ impl Simulation {
         let defender_class = movement_rules
             .unit_class_for_kind(unit.kind)
             .expect("campaign C2C3 defender unit class is explicitly mapped");
-        let class_rules = movement_rules
-            .unit_class_movement_data(defender_class)
-            .expect("campaign C2C3 defender class rules are valid");
+        let class_rules = movement_rules.unit_class_movement_data(defender_class);
         let tile = self.tile(x, y);
         if class_rules.terrain_defense {
             let terrain_bonus = movement_rules
@@ -536,9 +534,7 @@ impl Simulation {
         let Some(class) = movement.unit_class_for_kind(unit.kind).ok() else {
             return false;
         };
-        let Ok(class_rules) = movement.unit_class_movement_data(class) else {
-            return false;
-        };
+        let class_rules = movement.unit_class_movement_data(class);
         let native_at = |tx, ty| {
             let tile = self.tile(tx, ty);
             movement
@@ -584,33 +580,18 @@ impl Simulation {
 
         let base_refuels = self.tile(x, y).base.is_some_and(|base| {
             let extra_name = base.extra_rule_name();
-            RulesetData::campaign_default()
-                .rule_records
-                .iter()
-                .find(|record| {
-                    record.namespace.eq_ignore_ascii_case("extra")
-                        && record.rule_name.eq_ignore_ascii_case(extra_name)
-                })
-                .is_some_and(|record| {
-                    let flags = record
-                        .string_list_field("flags")
-                        .ok()
-                        .flatten()
-                        .unwrap_or_default();
-                    let native_to = record
-                        .string_list_field("native_to")
-                        .ok()
-                        .flatten()
-                        .unwrap_or_default();
-                    flags.iter().any(|flag| flag.eq_ignore_ascii_case("Refuel"))
-                        && super::super::action_rules::unit_class_rule_name(unit.kind).is_some_and(
-                            |class| {
-                                native_to
-                                    .iter()
-                                    .any(|name| name.eq_ignore_ascii_case(&class))
-                            },
-                        )
-                })
+            crate::rules::engine_rules::extra_by_name(extra_name).is_some_and(|record| {
+                record.has_flag("Refuel")
+                    && super::super::action_rules::unit_class_rule_name(unit.kind).is_some_and(
+                        |class| {
+                            record
+                                .native_to
+                                .unwrap_or_default()
+                                .iter()
+                                .any(|name| name.eq_ignore_ascii_case(&class))
+                        },
+                    )
+            })
         });
         if base_refuels {
             return true;

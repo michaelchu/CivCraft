@@ -2,49 +2,15 @@
 
 use super::*;
 
-#[derive(Clone, Copy)]
-enum SelectedActionRange {
-    Unlimited,
-    Limited(i32),
-}
-
 fn selected_paratroopers_range(kind: UnitKind) -> Option<i32> {
     crate::sim::action_rules::freeciv_unit_paratroopers_range(kind)
 }
 
-fn selected_airlift_max_range() -> Option<SelectedActionRange> {
-    static MAX_RANGE: std::sync::OnceLock<Option<SelectedActionRange>> = std::sync::OnceLock::new();
-    *MAX_RANGE.get_or_init(|| {
-        let parameter = crate::rules::engine_rules::RulesetData::campaign_default()
-            .optional_parameter("actions.ruleset", "actions", "airlift_max_range")
-            .ok()??;
-        if let Ok(Some(value)) = parameter.string_value() {
-            return if value.eq_ignore_ascii_case("unlimited") {
-                Some(SelectedActionRange::Unlimited)
-            } else {
-                let range = value.parse::<i32>().ok()?;
-                (range >= 0).then_some(SelectedActionRange::Limited(range))
-            };
-        }
-        let range = i32::try_from(parameter.integer_value().ok()??).ok()?;
-        (range >= 0).then_some(SelectedActionRange::Limited(range))
-    })
-}
-
-fn selected_airlift_capacity_always_enabled(source: bool) -> Option<bool> {
-    static FROM: std::sync::OnceLock<Option<bool>> = std::sync::OnceLock::new();
-    static TO: std::sync::OnceLock<Option<bool>> = std::sync::OnceLock::new();
-    let (cache, key) = if source {
-        (&FROM, "airlift_from_always_enabled")
-    } else {
-        (&TO, "airlift_to_always_enabled")
-    };
-    *cache.get_or_init(|| {
-        let parameter = crate::rules::engine_rules::RulesetData::campaign_default()
-            .optional_parameter_in_file("game.ruleset", key)
-            .ok()??;
-        parameter.boolean_value().ok()?
-    })
+/// `airlift_from_always_enabled = FALSE`, `airlift_to_always_enabled = TRUE`:
+/// a destination city can always receive an airlift, while a source city
+/// needs airlift capacity.
+const fn airlift_capacity_always_enabled(source: bool) -> bool {
+    !source
 }
 
 impl Simulation {
@@ -85,18 +51,13 @@ impl Simulation {
     }
 
     fn airlift_capacity_available(&self, city: &City, source: bool) -> bool {
-        let Some(always_enabled) = selected_airlift_capacity_always_enabled(source) else {
-            return false;
-        };
-        always_enabled
+        airlift_capacity_always_enabled(source)
             || (!city.airlift_used && self.airlift_capacity(city).is_some_and(|value| value > 0))
     }
 
     fn airlift_origin(&self, unit: &Unit, destination: (i32, i32)) -> Option<&City> {
-        let max_range = selected_airlift_max_range()?;
-        let distance = self.map_distance(unit.x, unit.y, destination.0, destination.1);
+        // Airlifts have no range limit (`airlift_max_range = "unlimited"`).
         if unit.transport.is_some()
-            || matches!(max_range, SelectedActionRange::Limited(range) if distance > range)
             || !self.pf_native_tile(unit.kind, destination.0, destination.1)
             || !self.action_available_for_unit_fail_closed(unit, "Airlift Unit", destination)
         {

@@ -2145,12 +2145,9 @@ mod stealth_tests {
             game.action_available_for_unit_against_unit(&aircraft, "Bombard", &target_unit)
                 .unwrap()
         );
-        assert!(!game.bombard_blocked_by_action(
-            &aircraft,
-            target.0,
-            target.1,
-            selected_bombard_blocking_actions().unwrap(),
-        ));
+        assert!(
+            !game.bombard_blocked_by_action(&aircraft, target.0, target.1, BOMBARD_BLOCKED_BY,)
+        );
         assert_eq!(
             game.try_bombard(&aircraft, target.0, target.1),
             MoveResult::Fought
