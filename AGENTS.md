@@ -277,6 +277,14 @@ movement table, the `CanOccupyCity` class flag and `UnitKind::can_occupy_city`.
 Fortifying follows the same rule: only land units fortify, so ships and
 aircraft get neither the Fortify order nor the fortified/city-fortified defense
 bonus (`UnitRule::can_fortify`, owner-confirmed 2026-11-22).
+City counter-defender selection (`defender_versus`) follows the same
+precedence, as an owner-directed departure from Freeciv's
+`dai_choose_defender_versus`: it never picks a unit from an earlier era than
+the newest era the city can build (a unit's era is that of its required
+technology; none is Ancient), and against aircraft or missiles it considers
+only anti-air units (`UnitKind::can_counter_air`: `AttackAir` or
+`air_defense > 0`), never ground units. With no anti-air unit available there
+is no counter.
 Derive new unit properties the same way, once on `UnitRule`, rather than
 re-deriving them per consumer. This narrows the aircraft exception's statement
 that helicopters retain their existing rules; their capture rule follows Civ III.

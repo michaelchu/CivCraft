@@ -9,9 +9,20 @@ impl Simulation {
         let mut best = None;
         let mut best_want = 0.0;
         let mut best_cost = i32::MAX;
-        for kind in UnitKind::simple_military()
+        // Only units that can answer aircraft and missiles counter them;
+        // a ground defender is never the answer to an air attacker.
+        let versus_air = attacker.kind.is_air_threat();
+        let candidates: Vec<UnitKind> = UnitKind::simple_military()
             .into_iter()
             .filter(|&kind| self.unit_buildable(city, kind))
+            .filter(|kind| !versus_air || kind.can_counter_air())
+            .collect();
+        // Never counter with a unit from an earlier era than the newest one
+        // this city can build, however cheap it is per shield.
+        let newest_era = candidates.iter().map(|kind| kind.era()).max();
+        for kind in candidates
+            .into_iter()
+            .filter(|kind| Some(kind.era()) == newest_era)
         {
             let mut defender = self.make_unit(0, city.owner, kind, city.x, city.y);
             defender.home_city = Some(city.id);

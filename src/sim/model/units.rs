@@ -250,6 +250,24 @@ impl UnitKind {
         self.metadata().attacks_air
     }
 
+    /// A unit that can answer aircraft or missiles: it shoots them down
+    /// (Fighter, Flak, Mobile SAM, AEGIS) or carries anti-air defense.
+    pub(in crate::sim) fn can_counter_air(self) -> bool {
+        self.can_attack_aircraft() || self.air_defense() > 0
+    }
+
+    /// Aircraft and missiles are the units that only an anti-air unit counters.
+    pub(in crate::sim) fn is_air_threat(self) -> bool {
+        self.conquests_rule().unit_type == 2 || self.is_missile()
+    }
+
+    /// Era of the technology that unlocks this unit; starting units are Ancient.
+    pub(in crate::sim) fn era(self) -> crate::rules::TechEra {
+        self.metadata()
+            .tech
+            .map_or(crate::rules::TechEra::Ancient, |tech| tech.era())
+    }
+
     pub(in crate::sim) fn bombard_rate(self) -> i32 {
         self.conquests_rule().rate_of_fire
     }
