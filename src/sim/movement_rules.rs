@@ -112,7 +112,7 @@ impl MovementRules {
     /// Resolve a result name read from a selected C2C3 terrain record back to
     /// CivCraft's stable terrain enum. C2C3-only names are rejected explicitly.
     pub(super) fn terrain_result(&self, rule_name: &str) -> Result<Terrain, MovementRulesError> {
-        c2c3_terrain_result_to_civ3(rule_name)
+        terrain_result_to_native(rule_name)
     }
 
     pub(super) fn terrain_movement_cost(
@@ -995,7 +995,8 @@ impl Base {
     }
 }
 
-fn c2c3_terrain_result_to_civ3(name: &str) -> Result<Terrain, MovementRulesError> {
+/// Maps a civ2civ3 terrain result to a Civ III terrain.
+fn terrain_result_to_native(name: &str) -> Result<Terrain, MovementRulesError> {
     let terrain = match name.trim().to_ascii_lowercase().as_str() {
         "ocean" => Terrain::Sea,
         "deep ocean" => Terrain::Ocean,

@@ -84,7 +84,7 @@ fn newly_founded_city_claims_a_square_and_culture_grows_it_to_the_work_radius() 
 
         // A new city owns only its 3×3 square, so it can work just the eight
         // adjacent tiles until culture earns the 21-tile fat X.
-        let distances = game.map_wrap.civ3_distances_from(cx, cy);
+        let distances = game.map_wrap.step_distances_from(cx, cy);
         let owned = |game: &Simulation| {
             game.tiles
                 .iter()
@@ -153,23 +153,23 @@ fn new_game_advances_freeciv_post_mapgen_rng_and_keeps_civ3_assignments() {
     for civilization in expected_roster.iter().take(civilization_count) {
         let known = civilization.starting_techs;
         let mut available_count = 0;
-        for tech in Tech::all().filter(|tech| tech.is_civ3_advance()) {
+        for tech in Tech::all().filter(|tech| tech.is_researchable_advance()) {
             // Fresh campaign players start in the Ancient era. Mirror
             // tech_available()'s era gate as well as its known/prerequisite
             // checks so the expected reservoir-sampling draws stay aligned.
             if tech.era() > crate::rules::TechEra::Ancient
                 || known.contains(&tech)
                 || tech
-                    .civ3_equivalent()
+                    .catalog_equivalent()
                     .is_some_and(|equivalent| known.contains(&equivalent))
             {
                 continue;
             }
-            let prerequisites = tech.civ3_prerequisites().unwrap_or(&[]);
+            let prerequisites = tech.catalog_prerequisites().unwrap_or(&[]);
             if prerequisites.iter().all(|required| {
                 known.contains(required)
                     || required
-                        .civ3_equivalent()
+                        .catalog_equivalent()
                         .is_some_and(|equivalent| known.contains(&equivalent))
             }) {
                 available_count += 1;
@@ -326,9 +326,9 @@ fn wrapped_path_uses_one_legal_civ3_step() {
     let unit_id = game.units[0].id;
     game.units[0].x = 0;
     game.units[0].y = 0;
-    let (target_x, target_y) = game.map_wrap.civ3_neighbor(0, 0, 2).unwrap();
+    let (target_x, target_y) = game.map_wrap.eight_way_neighbor(0, 0, 2).unwrap();
     assert_eq!(game.path_to(unit_id, target_x, target_y), vec![(2, 0)]);
-    assert_eq!(game.map_wrap.civ3_distance(0, 0, target_x, target_y), 1);
+    assert_eq!(game.map_wrap.step_distance(0, 0, target_x, target_y), 1);
 }
 
 #[test]
@@ -563,7 +563,7 @@ fn irrigation_uses_ruleset_water_enablers_and_conflicts_with_mines() {
     let (x, y) = crate::test_support::seeded_map().starts[0];
     game.tile_mut(x, y).terrain = Terrain::Hills;
     game.tile_mut(x, y).river = false;
-    let adjacent: Vec<_> = game.map_wrap.civ3_neighbors(x, y).collect();
+    let adjacent: Vec<_> = game.map_wrap.eight_way_neighbors(x, y).collect();
     for &(neighbor_x, neighbor_y) in &adjacent {
         let neighbor = game.tile_mut(neighbor_x, neighbor_y);
         neighbor.terrain = Terrain::Grassland;

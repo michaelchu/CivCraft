@@ -129,7 +129,7 @@ impl Simulation {
             if radius_sq >= 0 {
                 let max_dist = (radius_sq as u32).isqrt() as i32;
                 let stealth_sq = radius_sq.clamp(0, 2);
-                for (nx, ny, dist) in self.map_wrap.civ3_radius(x, y, max_dist) {
+                for (nx, ny, dist) in self.map_wrap.tiles_within_steps(x, y, max_dist) {
                     let idx = self.map_wrap.index(nx, ny);
                     main[idx] = true;
                     if dist * dist <= stealth_sq {
@@ -344,7 +344,7 @@ impl Simulation {
         let _profile = profiler.scope("visibility.refresh.revealers");
         for (owner, x, y, radius_sq, stealth_sq) in revealers {
             let radius = radius_sq.max(0).isqrt();
-            for (visible_x, visible_y, distance) in self.map_wrap.civ3_radius(x, y, radius) {
+            for (visible_x, visible_y, distance) in self.map_wrap.tiles_within_steps(x, y, radius) {
                 if !self.within_vision_distance_sq(distance, radius_sq) {
                     continue;
                 }
@@ -409,7 +409,7 @@ impl Simulation {
         for (x, y) in [from, to] {
             let radius_sq = self.unit_vision_radius_sq_for(unit.owner, unit.kind, x, y);
             let radius = radius_sq.max(0).isqrt();
-            for (tx, ty, distance) in self.map_wrap.civ3_radius(x, y, radius) {
+            for (tx, ty, distance) in self.map_wrap.tiles_within_steps(x, y, radius) {
                 if self.within_vision_distance_sq(distance, radius_sq) {
                     let index = self.map_wrap.index(tx, ty);
                     self.visibility_refresh.mark_render_tile(index);
@@ -751,13 +751,13 @@ impl Simulation {
         let radius = radius_sq.max(0).isqrt();
         let mut indices = self
             .map_wrap
-            .civ3_radius(x, y, radius)
+            .tiles_within_steps(x, y, radius)
             .into_iter()
             .filter(|(_, _, distance)| distance * distance <= radius_sq.max(0))
             .map(|(tx, ty, _)| self.map_wrap.index(tx, ty))
             .collect::<Vec<_>>();
         // remember_render_positions_with_sight uses binary_search on scoped
-        // indices when storing and pruning city memories. civ3_radius returns
+        // indices when storing and pruning city memories. tiles_within_steps returns
         // breadth-first order, not index order.
         indices.sort_unstable();
         let recipients = self.vision_recipients(owner);

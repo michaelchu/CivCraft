@@ -106,7 +106,7 @@ pub(in crate::client) struct WorldMapView {
 }
 impl WorldMapView {
     pub fn project(self, wrap: MapWrap, x: i32, y: i32) -> Vec2 {
-        super::civ3_world_screen_position(wrap, self.viewport, self.camera, self.zoom, x, y)
+        super::projected_screen_position(wrap, self.viewport, self.camera, self.zoom, x, y)
     }
     pub fn tiles(self, wrap: MapWrap) -> Vec<(i32, i32, Vec2)> {
         visible_world_tiles(wrap, self.viewport, self.camera, self.zoom)
@@ -204,7 +204,8 @@ impl<'a> Civ3WorldPainter<'a> {
                 // masks. Use Civ III's staggered-grid directions here: the
                 // legacy render_neighbor offsets resolve to different tiles.
                 for (bit, direction) in [7, 1, 5, 3].into_iter().enumerate() {
-                    let Some((nx, ny)) = self.game.sim.map_wrap().civ3_neighbor(x, y, direction)
+                    let Some((nx, ny)) =
+                        self.game.sim.map_wrap().eight_way_neighbor(x, y, direction)
                     else {
                         continue;
                     };
@@ -313,7 +314,7 @@ impl<'a> Civ3WorldPainter<'a> {
             let diagonals = diagonal_directions.map(|direction| {
                 game.sim
                     .map_wrap()
-                    .civ3_neighbor(x, y, direction)
+                    .eight_way_neighbor(x, y, direction)
                     .is_some_and(|(nx, ny)| {
                         let neighbor = game.sim.render_tile_view(nx, ny);
                         neighbor.seen
@@ -388,10 +389,11 @@ impl<'a> Civ3WorldPainter<'a> {
                 let wrap = game.sim.map_wrap();
                 let diagonal_directions = [7, 1, 5, 3]; // NW, NE, SW, SE
                 let diagonals = diagonal_directions.map(|direction| {
-                    wrap.civ3_neighbor(x, y, direction).is_some_and(|(nx, ny)| {
-                        let neighbor = game.sim.render_tile_view(nx, ny);
-                        neighbor.seen && neighbor.irrigation
-                    })
+                    wrap.eight_way_neighbor(x, y, direction)
+                        .is_some_and(|(nx, ny)| {
+                            let neighbor = game.sim.render_tile_view(nx, ny);
+                            neighbor.seen && neighbor.irrigation
+                        })
                 });
                 let index = irrigation_sprite_index(diagonals);
                 self.assets
@@ -414,7 +416,7 @@ impl<'a> Civ3WorldPainter<'a> {
         let neighbors: [Option<RenderTileView>; 8] = std::array::from_fn(|direction| {
             game.sim
                 .map_wrap()
-                .civ3_neighbor(x, y, direction)
+                .eight_way_neighbor(x, y, direction)
                 .map(|(nx, ny)| game.sim.render_tile_view(nx, ny))
         });
         let road_connections = std::array::from_fn(|direction| {
@@ -541,7 +543,7 @@ impl<'a> Civ3WorldPainter<'a> {
             let fog_fringe = game
                 .sim
                 .map_wrap()
-                .civ3_neighbors(x, y)
+                .eight_way_neighbors(x, y)
                 .any(|(nx, ny)| game.sim.render_tile_view(nx, ny).seen);
             if !tile.seen && !fog_fringe {
                 continue;
@@ -607,7 +609,7 @@ impl<'a> Civ3WorldPainter<'a> {
                         && game
                             .sim
                             .map_wrap()
-                            .civ3_neighbors(x, y)
+                            .eight_way_neighbors(x, y)
                             .any(|(nx, ny)| game.sim.render_tile_view(nx, ny).seen)
                     {
                         game.draw_grid_layer(
@@ -733,7 +735,8 @@ impl<'a> Civ3WorldPainter<'a> {
 }
 
 impl Game {
-    pub(in crate::client) fn draw_civ3_world_map(&self, assets: &Assets) {
+    /// Renders with Civ III art and its diamond map projection.
+    pub(in crate::client) fn draw_world_map(&self, assets: &Assets) {
         Civ3WorldPainter::new(self, assets).draw();
     }
 }

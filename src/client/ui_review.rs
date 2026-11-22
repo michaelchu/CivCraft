@@ -169,7 +169,7 @@ impl Game {
             return;
         }
         if scene == 43 {
-            self.sim.review_fixture().civ3_city_sprites();
+            self.sim.review_fixture().city_sprites();
             self.zoom = 0.78;
             self.focus_camera_on(20, 24);
             return;
@@ -278,7 +278,7 @@ impl Game {
                 return;
             }
             44 => {
-                self.sim.review_fixture().civ3_water_depths();
+                self.sim.review_fixture().water_depth_scene();
                 self.zoom = 1.35;
                 self.focus_camera_on(20, 24);
                 return;
@@ -868,7 +868,7 @@ impl Game {
                     let fallout_tiles = self
                         .sim
                         .map_wrap()
-                        .civ3_radius(22, 24, 1)
+                        .tiles_within_steps(22, 24, 1)
                         .into_iter()
                         .filter(|&(x, y, _)| self.sim.render_tile_view(x, y).fallout)
                         .count();

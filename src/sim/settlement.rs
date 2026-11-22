@@ -305,7 +305,7 @@ impl Simulation {
                 reservation.destination.0,
                 reservation.destination.1,
             );
-            self.follow_civ3_path(founder.id, path);
+            self.follow_grid_path(founder.id, path);
             if self.units.iter().any(|unit| {
                 unit.id == founder.id
                     && unit.moves_left > 0
@@ -343,7 +343,7 @@ impl Simulation {
             }
             self.reserve_settlement_site(founder, destination);
             self.ai_guard_for_destination(founder.id, destination.0, destination.1);
-            self.follow_civ3_path(founder.id, path);
+            self.follow_grid_path(founder.id, path);
             if self.units.iter().any(|unit| {
                 unit.id == founder.id && unit.moves_left > 0 && (unit.x, unit.y) == destination
             }) {
@@ -397,8 +397,8 @@ impl Simulation {
                 let uy = u.y;
                 for dy in -3..=3 {
                     for dx in -6..=6 {
-                        if let Some((tx, ty)) = self.map_wrap.civ3_offset(ux, uy, dx, dy)
-                            && self.map_wrap.civ3_distance(ux, uy, tx, ty) <= 3
+                        if let Some((tx, ty)) = self.map_wrap.eight_way_offset(ux, uy, dx, dy)
+                            && self.map_wrap.step_distance(ux, uy, tx, ty) <= 3
                         {
                             war_zone[self.map_wrap.index(tx, ty)] = true;
                         }
@@ -523,7 +523,9 @@ impl Simulation {
         debug_assert!(traveler.kind.is_civilian());
         CIV3_DIRS.into_iter().filter_map(move |direction| {
             let (dx, dy) = direction;
-            let (nx, ny) = self.map_wrap.civ3_offset(traveler.x, traveler.y, dx, dy)?;
+            let (nx, ny) = self
+                .map_wrap
+                .eight_way_offset(traveler.x, traveler.y, dx, dy)?;
             if blocked_land[self.map_wrap.index(nx, ny)]
                 || self.zone_blocks_worker_route_step_with_profile(
                     traveler,
@@ -624,7 +626,7 @@ impl Simulation {
                 next.clear();
                 for &index in &frontier {
                     let (x, y) = self.map_wrap.position(index);
-                    for (nx, ny) in self.map_wrap.civ3_neighbors(x, y) {
+                    for (nx, ny) in self.map_wrap.eight_way_neighbors(x, y) {
                         let neighbor = self.map_wrap.index(nx, ny);
                         if visited[neighbor] == epoch {
                             continue;
@@ -668,7 +670,7 @@ impl Simulation {
                     )
             })
             || std::iter::once((x, y))
-                .chain(self.map_wrap.civ3_neighbors(x, y))
+                .chain(self.map_wrap.eight_way_neighbors(x, y))
                 .any(|(tx, ty)| {
                     context.hostile_military.map_or_else(
                         || {
@@ -775,7 +777,7 @@ impl Simulation {
         total += 100.0 / (total + 1.0) * (100 / defense * settings.defense_emphasis) as f32;
         if self
             .map_wrap
-            .civ3_neighbors(x, y)
+            .eight_way_neighbors(x, y)
             .any(|(nx, ny)| self.tile(nx, ny).terrain.is_water())
         {
             total += total * settings.naval_emphasis as f32 / 100.0;

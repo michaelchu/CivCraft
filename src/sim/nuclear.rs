@@ -110,7 +110,7 @@ impl Simulation {
         // only detonate in place.
         let range = unit.kind.bombard_range();
         if !(unit.kind == UnitKind::ICBM && range == 0)
-            && self.map_wrap.civ3_distance(unit.x, unit.y, x, y) > range
+            && self.map_wrap.step_distance(unit.x, unit.y, x, y) > range
         {
             return false;
         }
@@ -165,7 +165,7 @@ impl Simulation {
         // Recorded owner exception (Civ III): nuclear detonations affect the
         // full 3x3 square (ground zero plus all 8 Civ III compass neighbors).
         self.map_wrap
-            .civ3_radius(x, y, 1)
+            .tiles_within_steps(x, y, 1)
             .into_iter()
             .map(|(tx, ty, _)| (tx, ty))
             .collect()
@@ -492,7 +492,7 @@ mod tests {
         let unit = game.unit_by_id(nuke).unwrap().clone();
         assert!(game.can_launch_nuclear_strike_at(&unit, x, y));
 
-        let adjacent_city = game.map_wrap.civ3_offset(x, y, 2, 0).unwrap();
+        let adjacent_city = game.map_wrap.eight_way_offset(x, y, 2, 0).unwrap();
         game.create_city(1, adjacent_city.0, adjacent_city.1);
         game.tile_mut(adjacent_city.0, adjacent_city.1)
             .known_by
@@ -500,7 +500,7 @@ mod tests {
         let city_nuke = game.unit_by_id(nuke).unwrap().clone();
         assert!(game.can_launch_nuclear_strike_at(&city_nuke, adjacent_city.0, adjacent_city.1));
 
-        let empty_units_tile = game.map_wrap.civ3_offset(x, y, 0, 2).unwrap();
+        let empty_units_tile = game.map_wrap.eight_way_offset(x, y, 0, 2).unwrap();
         game.tile_mut(empty_units_tile.0, empty_units_tile.1).owner = Some(1);
         game.tile_mut(empty_units_tile.0, empty_units_tile.1)
             .known_by
@@ -515,7 +515,7 @@ mod tests {
             "ACTRES_NUKE_UNITS accepts an empty physical stack when its tile enabler passes"
         );
 
-        let adjacent_units = game.map_wrap.civ3_offset(x, y, -2, 0).unwrap();
+        let adjacent_units = game.map_wrap.eight_way_offset(x, y, -2, 0).unwrap();
         game.tile_mut(adjacent_units.0, adjacent_units.1).owner = Some(1);
         game.tile_mut(adjacent_units.0, adjacent_units.1)
             .known_by
@@ -584,7 +584,7 @@ mod tests {
         game.sign_pact(HUMAN, 1, Pact::War);
         let nuke = make_nuke(&mut game, x, y);
         let unit = game.unit_by_id(nuke).unwrap().clone();
-        let target = game.map_wrap.civ3_offset(x, y, 2, 0).unwrap();
+        let target = game.map_wrap.eight_way_offset(x, y, 2, 0).unwrap();
 
         // The remembered tile belongs to the enemy but contains no known city.
         // A city is added at the same position after the observation, hidden
@@ -650,7 +650,7 @@ mod tests {
         assert!(
             affected
                 .iter()
-                .all(|&(tx, ty)| game.map_wrap.civ3_distance(x, y, tx, ty) <= 1)
+                .all(|&(tx, ty)| game.map_wrap.step_distance(x, y, tx, ty) <= 1)
         );
     }
 
@@ -678,13 +678,13 @@ mod tests {
             Building::FACTORY,
             Building::CATHEDRAL,
         ]);
-        let nearby = game.map_wrap.civ3_neighbor(x, y, 2).unwrap();
+        let nearby = game.map_wrap.eight_way_neighbor(x, y, 2).unwrap();
         game.tile_mut(nearby.0, nearby.1).owner = Some(HUMAN);
         game.tile_mut(nearby.0, nearby.1).road = true;
         game.tile_mut(nearby.0, nearby.1).mine = true;
-        let ocean = game.map_wrap.civ3_neighbor(x, y, 6).unwrap();
+        let ocean = game.map_wrap.eight_way_neighbor(x, y, 6).unwrap();
         game.tile_mut(ocean.0, ocean.1).terrain = Terrain::Ocean;
-        let coast = game.map_wrap.civ3_neighbor(x, y, 0).unwrap();
+        let coast = game.map_wrap.eight_way_neighbor(x, y, 0).unwrap();
         game.tile_mut(coast.0, coast.1).terrain = Terrain::Coast;
         let nuke = make_nuke(&mut game, x, y);
         let mut tracked_units = Vec::new();

@@ -90,7 +90,9 @@ impl Simulation {
     /// Calculate the Freeciv veteran level granted to a unit built in a city.
     /// This is separate from the retained Civ III rank, which continues to
     /// supply the Conquests hitpoint bonus and display identity.
-    pub(super) fn trained_c2c3_veteran(&self, city: &City, kind: UnitKind) -> usize {
+    ///
+    /// Uses the civ2civ3 veteran training rules.
+    pub(super) fn trained_veteran(&self, city: &City, kind: UnitKind) -> usize {
         let system = selected_veteran_system(kind);
         let unit = Unit::new(u32::MAX, city.owner, kind, city.x, city.y);
         let effect = self.city_rule_effect_for_unit(
@@ -241,7 +243,7 @@ mod tests {
         game.create_city(HUMAN, 10, 20);
         let (city, expected_rank) = game.veteran_fixture();
         let city_state = game.city_by_id(city).unwrap();
-        assert_eq!(game.trained_c2c3_veteran(city_state, UnitKind::Warrior), 1);
+        assert_eq!(game.trained_veteran(city_state, UnitKind::Warrior), 1);
         assert!(game.unit_buildable(city_state, UnitKind::Warrior));
         assert!(
             game.cities

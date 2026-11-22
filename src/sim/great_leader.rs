@@ -455,7 +455,7 @@ mod tests {
                 .unwrap()
                 .veteran_level = top - 1;
             game.spawn_unit(1, UnitKind::Warrior, nx, ny);
-            let direction = game.civ3_direction_for_unit_offset(attacker, 1, 0).unwrap();
+            let direction = game.direction_for_unit_offset(attacker, 1, 0).unwrap();
             game.apply(Command::MoveCiv3(attacker, direction));
             let promoted = game
                 .unit_by_id(attacker)
@@ -487,7 +487,7 @@ mod tests {
                 spawn_elite(&mut game, 1, UnitKind::Pikeman, nx, ny);
                 game.spawn_unit(HUMAN, UnitKind::Warrior, 10, 24)
             };
-            let direction = game.civ3_direction_for_unit_offset(attacker, 1, 0).unwrap();
+            let direction = game.direction_for_unit_offset(attacker, 1, 0).unwrap();
             game.apply(Command::MoveCiv3(attacker, direction));
             if game.units.iter().any(|u| u.kind == UnitKind::Leader) {
                 return true;

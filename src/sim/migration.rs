@@ -31,7 +31,9 @@ pub(crate) struct MigrationSettings {
 
 impl MigrationSettings {
     /// Pinned Freeciv server defaults for the selected C2C3 ruleset.
-    pub(crate) const fn c2c3_default() -> Self {
+    ///
+    /// Defaults come from the civ2civ3 ruleset.
+    pub(crate) const fn ruleset_default() -> Self {
         Self {
             enabled: false,
             turn_interval: 5,
@@ -45,7 +47,7 @@ impl MigrationSettings {
 
 impl Default for MigrationSettings {
     fn default() -> Self {
-        Self::c2c3_default()
+        Self::ruleset_default()
     }
 }
 
@@ -161,7 +163,9 @@ impl Simulation {
         // The source iterates map tiles outward from the city center. CivCraft
         // adapts that traversal to its staggered Civ III graph; this preserves
         // deterministic distance-ring order without relying on city storage.
-        let outward_positions = self.map_wrap.civ3_radius(source.x, source.y, max_distance);
+        let outward_positions = self
+            .map_wrap
+            .tiles_within_steps(source.x, source.y, max_distance);
         let city_at = self
             .cities
             .iter()

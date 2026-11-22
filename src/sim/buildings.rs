@@ -235,7 +235,7 @@ impl Simulation {
                     }
                 }
             }
-            for (nx, ny) in self.map_wrap.civ3_neighbors(x, y) {
+            for (nx, ny) in self.map_wrap.eight_way_neighbors(x, y) {
                 let index = self.map_wrap.index(nx, ny);
                 let next = self.tile(nx, ny);
                 if next.owner == Some(city.owner) && next.road && !reached[index] {
@@ -268,7 +268,7 @@ impl Simulation {
         let nearby = || {
             std::iter::once(self.tile(city.x, city.y)).chain(
                 self.map_wrap
-                    .civ3_neighbors(city.x, city.y)
+                    .eight_way_neighbors(city.x, city.y)
                     .map(|(x, y)| self.tile(x, y)),
             )
         };
@@ -541,7 +541,7 @@ mod tests {
         let (x, y) = map.starts[0];
         let mut game = Simulation::new(map);
         game.create_city(HUMAN, x, y);
-        let adjacent: Vec<_> = game.map_wrap.civ3_neighbors(x, y).collect();
+        let adjacent: Vec<_> = game.map_wrap.eight_way_neighbors(x, y).collect();
         for (nx, ny) in std::iter::once((x, y)).chain(adjacent.iter().copied()) {
             let tile = game.tile_mut(nx, ny);
             tile.terrain = Terrain::Plains;
@@ -784,7 +784,7 @@ mod transaction_tests {
             Tech::REPLACEABLE_PARTS,
             Tech::ROCKETRY,
         ]);
-        let neighbors: Vec<_> = game.map_wrap.civ3_neighbors(10, 20).collect();
+        let neighbors: Vec<_> = game.map_wrap.eight_way_neighbors(10, 20).collect();
         for &(x, y) in &neighbors[..3] {
             let tile = game.tile_mut(x, y);
             tile.owner = Some(HUMAN);

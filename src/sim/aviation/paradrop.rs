@@ -3,7 +3,7 @@
 use super::*;
 
 fn selected_paratroopers_range(kind: UnitKind) -> Option<i32> {
-    crate::sim::action_rules::freeciv_unit_paratroopers_range(kind)
+    crate::sim::action_rules::unit_paratroopers_range(kind)
 }
 
 /// `airlift_from_always_enabled = FALSE`, `airlift_to_always_enabled = TRUE`:
@@ -218,7 +218,7 @@ impl Simulation {
         let mut best = None;
         let mut best_value = 0.0;
         let range = selected_paratroopers_range(unit.kind).unwrap_or(0);
-        let mut candidates = self.map_wrap.civ3_radius(unit.x, unit.y, range);
+        let mut candidates = self.map_wrap.tiles_within_steps(unit.x, unit.y, range);
         candidates.sort_unstable_by_key(|&(x, y, _)| self.map_wrap.index(x, y));
         for (x, y, _) in candidates {
             if !empty(x, y)
@@ -233,7 +233,7 @@ impl Simulation {
             let mut staged = unit.clone();
             (staged.x, staged.y) = (x, y);
             for (dx, dy) in CIV3_DIRS {
-                let Some((tx, ty)) = self.map_wrap.civ3_offset(x, y, dx, dy) else {
+                let Some((tx, ty)) = self.map_wrap.eight_way_offset(x, y, dx, dy) else {
                     continue;
                 };
                 if !self.tile(tx, ty).known_by[owner]

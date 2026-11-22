@@ -48,7 +48,8 @@ pub(super) struct RoadBonusCache {
     values: Vec<[Option<f32>; 2]>,
 }
 
-fn freeciv_square_road_connector_bonus(
+/// Follows Freeciv's road connector bonus evaluation.
+fn square_road_connector_bonus(
     real_road: &[bool; ROAD_BONUS_OFFSETS.len()],
     potential_road: &[bool; ROAD_BONUS_OFFSETS.len()],
     is_slow: &[bool; ROAD_BONUS_OFFSETS.len()],
@@ -624,7 +625,7 @@ impl Simulation {
             is_slow[index] = build_time == 0 || build_time > 5;
         }
 
-        let bonus = freeciv_square_road_connector_bonus(&real_road, &potential_road, &is_slow);
+        let bonus = square_road_connector_bonus(&real_road, &potential_road, &is_slow);
         if bonus == 0 {
             return 0.0;
         }

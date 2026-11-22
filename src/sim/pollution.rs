@@ -114,7 +114,7 @@ impl Simulation {
             // Craters are a Civ III-only state, with no corresponding C2C3
             // extra or `place_pollution` cause. Preserve the existing local
             // adapter if a Civ III caller uses it.
-            return self.place_civ3_craters(city);
+            return self.place_craters(city);
         }
 
         // Freeciv samples the full city-map index space on every attempt. A
@@ -157,7 +157,8 @@ impl Simulation {
         false
     }
 
-    fn place_civ3_craters(&mut self, city: &City) -> bool {
+    /// Civ III nuclear/crater pollution placement.
+    fn place_craters(&mut self, city: &City) -> bool {
         let candidates: Vec<_> = self
             .map_city_radius(city)
             .map(|(_, _, x, y)| (x, y))

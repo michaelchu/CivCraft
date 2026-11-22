@@ -51,7 +51,10 @@ fn movement_facts_follow_changed_descriptors_without_a_global_flush() {
     assert!(game.cached_movement_native_to_class(water, sea));
     assert!(!game.cached_movement_native_to_class(grass, sea));
     let start = (10, 24);
-    let target = game.map_wrap.civ3_neighbor(start.0, start.1, 2).unwrap();
+    let target = game
+        .map_wrap
+        .eight_way_neighbor(start.0, start.1, 2)
+        .unwrap();
     let id = game.spawn_unit(HUMAN, UnitKind::Warrior, start.0, start.1);
     for (x, y) in [start, target] {
         let tile = game.tile_mut(x, y);
@@ -99,7 +102,7 @@ fn prime_queries(game: &Simulation) -> QueryResults {
     let grass = MovementTile::new(crate::world::Terrain::Grassland, false, false, false, None);
     let native = game.cached_movement_native_to_class(grass, class);
     let unit = &game.units[0];
-    let target = game.map_wrap.civ3_neighbor(unit.x, unit.y, 2).unwrap();
+    let target = game.map_wrap.eight_way_neighbor(unit.x, unit.y, 2).unwrap();
     let cost = game.raw_move_cost_for(unit, target.0, target.1);
     QueryResults {
         unit_rows: units,

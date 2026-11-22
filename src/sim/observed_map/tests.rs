@@ -551,12 +551,15 @@ fn map_show_circle_uses_base_unit_radius_without_revealing_units() {
         "Airbase adds normal unit sight"
     );
 
-    let hidden_unit_tile = game.map_wrap.civ3_neighbor(center.0, center.1, 2).unwrap();
+    let hidden_unit_tile = game
+        .map_wrap
+        .eight_way_neighbor(center.0, center.1, 2)
+        .unwrap();
     let hidden_unit = game.spawn_unit(1, UnitKind::Warrior, hidden_unit_tile.0, hidden_unit_tile.1);
     let outside_radius = (unit_type_radius as f64).sqrt().ceil() as i32 + 1;
     let outside_base_circle = (0..outside_radius).fold(center, |position, _| {
         game.map_wrap
-            .civ3_neighbor(position.0, position.1, 2)
+            .eight_way_neighbor(position.0, position.1, 2)
             .unwrap()
     });
     assert!(!game.unit_visible_to_human(game.unit_by_id(hidden_unit).unwrap()));
@@ -578,14 +581,17 @@ fn map_show_circle_uses_base_unit_radius_without_revealing_units() {
 fn c2c3_hex_radius_sq_uses_civ3_steps_without_crossing_poles() {
     let game = Simulation::new(crate::test_support::seeded_map());
     let origin = (20, 20);
-    let one_step = game.map_wrap.civ3_neighbor(origin.0, origin.1, 2).unwrap();
+    let one_step = game
+        .map_wrap
+        .eight_way_neighbor(origin.0, origin.1, 2)
+        .unwrap();
     let two_steps = game
         .map_wrap
-        .civ3_neighbor(one_step.0, one_step.1, 2)
+        .eight_way_neighbor(one_step.0, one_step.1, 2)
         .unwrap();
     let three_steps = game
         .map_wrap
-        .civ3_neighbor(two_steps.0, two_steps.1, 2)
+        .eight_way_neighbor(two_steps.0, two_steps.1, 2)
         .unwrap();
     assert!(game.within_vision_radius_sq(origin, one_step, 2));
     assert!(game.within_vision_radius_sq(origin, two_steps, 5));
@@ -595,13 +601,13 @@ fn c2c3_hex_radius_sq_uses_civ3_steps_without_crossing_poles() {
     let south = (origin.0, game.map_wrap.height() - 1);
     assert!(
         game.map_wrap
-            .civ3_radius(north.0, north.1, 3)
+            .tiles_within_steps(north.0, north.1, 3)
             .iter()
             .all(|(_, y, _)| *y >= 0)
     );
     assert!(
         game.map_wrap
-            .civ3_radius(south.0, south.1, 3)
+            .tiles_within_steps(south.0, south.1, 3)
             .iter()
             .all(|(_, y, _)| *y < game.map_wrap.height())
     );

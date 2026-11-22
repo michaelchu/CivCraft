@@ -220,9 +220,9 @@ impl Simulation {
                 // should face one another regardless of their last move.
                 if let Some(direction) = (0..super::topology::CIV3_DIRS.len()).find(|&direction| {
                     self.map_wrap
-                        .civ3_neighbor(attacker.x, attacker.y, direction)
+                        .eight_way_neighbor(attacker.x, attacker.y, direction)
                         == Some((defender.x, defender.y))
-                }) && let Some(facing) = self.map_wrap.civ3_flic_direction_index(direction)
+                }) && let Some(facing) = self.map_wrap.flic_direction_index(direction)
                 {
                     attacker.facing = facing;
                     defender.facing = (facing + 4) % 8;
@@ -247,7 +247,7 @@ impl Simulation {
             VisualEvent::AirMission(mission) => {
                 let (fly_duration, action_duration, outcome_duration) = mission.default_timings();
                 let outbound_facing = self
-                    .civ3_facing_between(mission.from, mission.to)
+                    .facing_between(mission.from, mission.to)
                     .unwrap_or(mission.aircraft.facing);
                 let return_facing = (outbound_facing + 4) % 8;
                 let mut aircraft = self.rendered_unit_override_view(&mission.aircraft);
@@ -312,7 +312,8 @@ impl Simulation {
         }
     }
 
-    pub(super) fn civ3_facing_between(&self, from: (i32, i32), to: (i32, i32)) -> Option<u8> {
+    /// Civ III eight-direction unit facing.
+    pub(super) fn facing_between(&self, from: (i32, i32), to: (i32, i32)) -> Option<u8> {
         if from == to {
             return None;
         }
@@ -443,7 +444,7 @@ mod tests {
         for direction in 0..super::super::topology::CIV3_DIRS.len() {
             let defender_at = sim
                 .map_wrap
-                .civ3_neighbor(attacker_at.0, attacker_at.1, direction)
+                .eight_way_neighbor(attacker_at.0, attacker_at.1, direction)
                 .expect("all directions are available away from map edges");
             let mut attacker = Unit::new(1, HUMAN, UnitKind::Warrior, attacker_at.0, attacker_at.1);
             let mut defender = Unit::new(2, 1, UnitKind::Warrior, defender_at.0, defender_at.1);
@@ -451,8 +452,7 @@ mod tests {
             defender.facing = 3;
 
             let combat = combat_view_for(&sim, attacker, defender);
-            let expected_attacker_facing =
-                sim.map_wrap.civ3_flic_direction_index(direction).unwrap();
+            let expected_attacker_facing = sim.map_wrap.flic_direction_index(direction).unwrap();
             assert_eq!(combat.attacker.facing, expected_attacker_facing);
             assert_eq!(combat.defender.facing, (expected_attacker_facing + 4) % 8);
         }
@@ -480,8 +480,8 @@ mod tests {
             let mut unobserved = observed.clone();
             unobserved.visual_events = VisualEvents::default();
             assert_eq!(
-                observed.apply(Command::move_civ3_by_offset(&observed, id, 1, 0)),
-                unobserved.apply(Command::move_civ3_by_offset(&unobserved, id, 1, 0))
+                observed.apply(Command::move_by_offset(&observed, id, 1, 0)),
+                unobserved.apply(Command::move_by_offset(&unobserved, id, 1, 0))
             );
             assert_eq!(
                 observed.encode_campaign().unwrap(),
@@ -545,8 +545,8 @@ mod tests {
                 crate::sim::ui_review::ui_review_army_combat_setup(&mut observed, attacking);
             let mut unobserved = observed.clone();
             unobserved.visual_events = VisualEvents::default();
-            assert!(observed.apply(Command::move_civ3_by_offset(&observed, actor, 1, 0)));
-            assert!(unobserved.apply(Command::move_civ3_by_offset(&unobserved, actor, 1, 0)));
+            assert!(observed.apply(Command::move_by_offset(&observed, actor, 1, 0)));
+            assert!(unobserved.apply(Command::move_by_offset(&unobserved, actor, 1, 0)));
             assert_eq!(observed.native_random, unobserved.native_random);
             assert_eq!(
                 observed.encode_campaign().unwrap(),
@@ -599,10 +599,10 @@ mod tests {
         for direction in 0..super::topology::CIV3_DIRS.len() {
             let target = sim
                 .map_wrap
-                .civ3_neighbor(origin.0, origin.1, direction)
+                .eight_way_neighbor(origin.0, origin.1, direction)
                 .unwrap();
-            let expected = sim.map_wrap.civ3_flic_direction_index(direction).unwrap();
-            assert_eq!(sim.civ3_facing_between(origin, target), Some(expected));
+            let expected = sim.map_wrap.flic_direction_index(direction).unwrap();
+            assert_eq!(sim.facing_between(origin, target), Some(expected));
         }
     }
 
@@ -767,7 +767,7 @@ mod tests {
                 {
                     assert_eq!((combat.attacker.x, combat.attacker.y), target);
                     assert_eq!(
-                        sim.map_wrap.civ3_distance(
+                        sim.map_wrap.step_distance(
                             combat.attacker.x,
                             combat.attacker.y,
                             combat.defender.x,

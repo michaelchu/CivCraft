@@ -58,7 +58,9 @@ mod infrastructure_tests {
 /// Civ III staggered-diamond tile centers relative to the viewport center.
 /// The existing rectangular tile storage is adapted to occupied staggered
 /// coordinates here; simulation adjacency is migrated separately.
-pub(super) fn civ3_world_screen_position(
+///
+/// Uses Civ III's diamond map projection.
+pub(super) fn projected_screen_position(
     wrap: MapWrap,
     viewport: Rect,
     camera: Vec2,
@@ -136,14 +138,7 @@ mod visibility_tests {
                             (
                                 x,
                                 y,
-                                civ3_world_screen_position(
-                                    MapWrap::X,
-                                    viewport,
-                                    camera,
-                                    zoom,
-                                    x,
-                                    y,
-                                ),
+                                projected_screen_position(MapWrap::X, viewport, camera, zoom, x, y),
                             )
                         })
                         .collect();

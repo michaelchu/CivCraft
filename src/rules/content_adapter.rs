@@ -43,9 +43,9 @@ pub(crate) fn bind_engine_technology(
     if let Some(compatibility_tech) = Tech::all()
         .find(|tech| tech.name().eq_ignore_ascii_case(display_name))
         .and_then(|tech| {
-            tech.is_civ3_advance()
+            tech.is_researchable_advance()
                 .then_some(tech)
-                .or_else(|| tech.civ3_equivalent())
+                .or_else(|| tech.catalog_equivalent())
         })
     {
         return Ok(EngineTechBinding::Bound(compatibility_tech));
@@ -119,7 +119,7 @@ mod tests {
             bind_engine_technology("Radio"),
             Ok(EngineTechBinding::Bound(Tech::FLIGHT))
         );
-        assert!(!Tech::RADIO.is_civ3_advance());
+        assert!(!Tech::RADIO.is_researchable_advance());
         assert_eq!(
             bind_engine_technology("Environmentalism"),
             Ok(EngineTechBinding::Bound(Tech::ECOLOGY))

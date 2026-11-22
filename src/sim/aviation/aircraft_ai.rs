@@ -165,7 +165,7 @@ impl Simulation {
             }
             let dist = self
                 .map_wrap
-                .civ3_distance(city.x, city.y, enemy.x, enemy.y);
+                .step_distance(city.x, city.y, enemy.x, enemy.y);
             if dist <= enemy.kind.operational_range() {
                 score += 2.0;
             } else if dist <= enemy.kind.rebase_range() {
@@ -185,7 +185,7 @@ impl Simulation {
                     && self.tile(other.x, other.y).known_by[city.owner]
                     && self
                         .map_wrap
-                        .civ3_distance(city.x, city.y, other.x, other.y)
+                        .step_distance(city.x, city.y, other.x, other.y)
                         <= 16
             })
             .count();
@@ -291,7 +291,7 @@ impl Simulation {
             let output =
                 *max_output.get_or_insert_with(|| self.aircraft_production_denominator(&plane));
             let value = if kind.is_fixed_wing_aircraft() {
-                self.civ3_aircraft_production_value(city, &plane, output)
+                self.aircraft_production_value(city, &plane, output)
             } else {
                 self.aircraft_attack_path_with_output(&plane, output)
                     .map_or(0.0, |(_, _, v)| v)
@@ -307,7 +307,9 @@ impl Simulation {
     /// Score a buildable Civ III fixed-wing aircraft by its bombard mission value
     /// from this city (or reachable forward bases within rebase range) plus CAP
     /// interception value when an observable enemy air threat exists.
-    fn civ3_aircraft_production_value(&self, city: &City, plane: &Unit, max_output: i32) -> f64 {
+    ///
+    /// Valuation for Civ III Conquests fixed-wing aircraft.
+    fn aircraft_production_value(&self, city: &City, plane: &Unit, max_output: i32) -> f64 {
         let stats = plane.kind.stats();
         let own_cities = self
             .cities
@@ -318,7 +320,7 @@ impl Simulation {
         let own_fighters = self
             .units
             .iter()
-            .filter(|u| u.owner == city.owner && civ3_air_superiority_unit(u.kind))
+            .filter(|u| u.owner == city.owner && is_air_superiority_unit(u.kind))
             .count();
         let own_bombers = self
             .units
@@ -326,7 +328,7 @@ impl Simulation {
             .filter(|u| {
                 u.owner == city.owner
                     && u.kind.is_fixed_wing_aircraft()
-                    && !civ3_air_superiority_unit(u.kind)
+                    && !is_air_superiority_unit(u.kind)
             })
             .count();
 
@@ -342,7 +344,7 @@ impl Simulation {
                         && self.allied(city.owner, other.owner)
                         && self
                             .map_wrap
-                            .civ3_distance(city.x, city.y, other.x, other.y)
+                            .step_distance(city.x, city.y, other.x, other.y)
                             <= rebase_limit
                 })
                 .map(|other| 0.75 * self.best_bombard_value_from(plane, other.x, other.y))
@@ -358,7 +360,7 @@ impl Simulation {
                     && self.tile(other.x, other.y).known_by[city.owner]
                     && self
                         .map_wrap
-                        .civ3_distance(city.x, city.y, other.x, other.y)
+                        .step_distance(city.x, city.y, other.x, other.y)
                         <= max_reach
             });
             if has_planned_target {
@@ -370,7 +372,7 @@ impl Simulation {
             0.0
         };
 
-        let is_fighter = civ3_air_superiority_unit(plane.kind);
+        let is_fighter = is_air_superiority_unit(plane.kind);
         let strike_cap = (own_cities * 2).max(2);
         let bomber_diminishing = if !is_fighter {
             if own_bombers >= strike_cap {
@@ -411,7 +413,7 @@ impl Simulation {
     }
 
     fn best_bombard_value_from(&self, plane: &Unit, bx: i32, by: i32) -> f64 {
-        let range = Self::civ3_bombard_range(plane.kind);
+        let range = Self::fixed_wing_bombard_range(plane.kind);
         if range <= 0 {
             return 0.0;
         }
@@ -421,7 +423,7 @@ impl Simulation {
         staged.moves_left = self.unit_move_rate(plane);
         let (_, war_mask, _) = self.pact_masks(plane.owner);
         let mut best = 0.0_f64;
-        for (x, y, _) in self.map_wrap.civ3_radius(bx, by, range) {
+        for (x, y, _) in self.map_wrap.tiles_within_steps(bx, by, range) {
             let hostile_city = self.city_at_cached(x, y).is_some_and(|c| {
                 c.owner != plane.owner
                     && ((c.owner < 64 && ((war_mask >> c.owner) & 1) != 0)
@@ -578,14 +580,14 @@ impl Simulation {
                     if let Some(primary) = self.unit_by_id(primary)
                         && self
                             .map_wrap
-                            .civ3_distance(live.x, live.y, primary.x, primary.y)
+                            .step_distance(live.x, live.y, primary.x, primary.y)
                             == 1
                         && let Some(direction) = CIV3_DIRS.iter().position(|&(dx, dy)| {
-                            self.map_wrap.civ3_offset(live.x, live.y, dx, dy)
+                            self.map_wrap.eight_way_offset(live.x, live.y, dx, dy)
                                 == Some((primary.x, primary.y))
                         })
                     {
-                        self.try_move_unit_civ3(id, direction);
+                        self.try_move_unit(id, direction);
                     }
                 }
                 if self.trace.wants::<military_observation::AirMissionEvent>() {
@@ -696,7 +698,7 @@ impl Simulation {
             staged.moves_left = self.unit_move_rate(plane);
             let value = self
                 .map_wrap
-                .civ3_radius(x, y, Self::civ3_bombard_range(plane.kind))
+                .tiles_within_steps(x, y, Self::fixed_wing_bombard_range(plane.kind))
                 .into_iter()
                 .filter(|&(tx, ty, _)| self.can_bombard_tile(&staged, tx, ty))
                 .map(|(tx, ty, _)| self.ai_bombard_tile_value(&staged, tx, ty))
@@ -794,7 +796,7 @@ impl Simulation {
 
     pub(in crate::sim) fn run_ai_strike_aircraft(&mut self, aircraft: &Unit) {
         if aircraft.kind.is_fixed_wing_aircraft() {
-            self.run_ai_civ3_aircraft(aircraft);
+            self.run_ai_aircraft(aircraft);
             return;
         }
         if matches!(aircraft.order, Some(UnitOrder::AirSuperiority { .. })) {
@@ -967,7 +969,8 @@ impl Simulation {
         }
     }
 
-    fn run_ai_civ3_aircraft(&mut self, aircraft: &Unit) {
+    /// Drives Civ III Conquests fixed-wing aircraft missions.
+    fn run_ai_aircraft(&mut self, aircraft: &Unit) {
         let position = (aircraft.x, aircraft.y);
         let on_base = self.aircraft_on_base(aircraft);
         let at_war_any = (0..self.players.len())
@@ -978,7 +981,7 @@ impl Simulation {
                 self.cancel_unit_order(aircraft.id);
             }
             if on_base && aircraft.moves_left > 0 && aircraft.hp < aircraft.max_hit_points() {
-                self.ai_rebase_civ3_aircraft(aircraft, false);
+                self.ai_rebase_aircraft(aircraft, false);
             }
             return;
         }
@@ -1033,12 +1036,12 @@ impl Simulation {
 
         // 3. Rebase (within 3 * operational_range) to a forward base that puts
         //    valuable enemy targets in range, needs CAP, or repairs faster.
-        if self.ai_rebase_civ3_aircraft(aircraft, true) {
+        if self.ai_rebase_aircraft(aircraft, true) {
             return;
         }
 
         // 4. Recon unexplored or fogged enemy territory within operational range.
-        if self.ai_recon_civ3_aircraft(aircraft) {
+        if self.ai_recon_aircraft(aircraft) {
             return;
         }
 
@@ -1073,7 +1076,7 @@ impl Simulation {
                 && self.tile(city.x, city.y).known_by[owner]
                 && self
                     .map_wrap
-                    .civ3_distance(position.0, position.1, city.x, city.y)
+                    .step_distance(position.0, position.1, city.x, city.y)
                     <= 16
         });
         let near_visible_enemy_air = self.units.iter().any(|enemy| {
@@ -1082,13 +1085,14 @@ impl Simulation {
                 && self.unit_visible_to(owner, enemy)
                 && self
                     .map_wrap
-                    .civ3_distance(position.0, position.1, enemy.x, enemy.y)
+                    .step_distance(position.0, position.1, enemy.x, enemy.y)
                     <= enemy.kind.operational_range()
         });
         recently_bombed || near_enemy_city || near_visible_enemy_air
     }
 
-    fn ai_rebase_civ3_aircraft(&mut self, aircraft: &Unit, at_war: bool) -> bool {
+    /// Civ III Conquests rebase mission.
+    fn ai_rebase_aircraft(&mut self, aircraft: &Unit, at_war: bool) -> bool {
         let bases = self.rebaseable_bases_in_range(aircraft.id);
         if bases.is_empty() {
             return false;
@@ -1098,7 +1102,7 @@ impl Simulation {
         if damaged && current_regen <= 1 {
             return false;
         }
-        let is_fighter = civ3_air_superiority_unit(aircraft.kind);
+        let is_fighter = is_air_superiority_unit(aircraft.kind);
         let current_value = if at_war {
             self.best_bombard_value_from(aircraft, aircraft.x, aircraft.y)
         } else {
@@ -1112,7 +1116,7 @@ impl Simulation {
                         && self.at_war(aircraft.owner, c.owner)
                         && self.tile(c.x, c.y).known_by[aircraft.owner]
                 })
-                .map(|c| self.map_wrap.civ3_distance(x, y, c.x, c.y))
+                .map(|c| self.map_wrap.step_distance(x, y, c.x, c.y))
                 .min()
         };
         let current_enemy_dist = nearest_enemy_city(aircraft.x, aircraft.y);
@@ -1156,7 +1160,7 @@ impl Simulation {
             if score <= 0.0 {
                 continue;
             }
-            let dist = self.map_wrap.civ3_distance(aircraft.x, aircraft.y, bx, by);
+            let dist = self.map_wrap.step_distance(aircraft.x, aircraft.y, bx, by);
             if best.is_none_or(|(old_score, old_dist, _)| {
                 score > old_score || (score == old_score && dist < old_dist)
             }) {
@@ -1169,7 +1173,8 @@ impl Simulation {
         self.rebase_aircraft(aircraft.id, bx, by)
     }
 
-    fn ai_recon_civ3_aircraft(&mut self, aircraft: &Unit) -> bool {
+    /// Civ III Conquests recon mission.
+    fn ai_recon_aircraft(&mut self, aircraft: &Unit) -> bool {
         if !self.can_begin_recon(aircraft) {
             return false;
         }
@@ -1185,12 +1190,15 @@ impl Simulation {
             .map(|c| (c.x, c.y))
             .collect();
         let mut best: Option<(i32, i32, (i32, i32))> = None;
-        for (x, y, dist) in self.map_wrap.civ3_radius(aircraft.x, aircraft.y, range) {
+        for (x, y, dist) in self
+            .map_wrap
+            .tiles_within_steps(aircraft.x, aircraft.y, range)
+        {
             if dist == 0 {
                 continue;
             }
             let mut score = 0_i32;
-            for (tx, ty, _) in self.map_wrap.civ3_radius(x, y, 1) {
+            for (tx, ty, _) in self.map_wrap.tiles_within_steps(x, y, 1) {
                 let tile = self.tile(tx, ty);
                 if !tile.known_by[aircraft.owner] {
                     score += 3;
@@ -1200,7 +1208,7 @@ impl Simulation {
                     });
                     let near_enemy_city = enemy_cities
                         .iter()
-                        .any(|&(cx, cy)| self.map_wrap.civ3_distance(tx, ty, cx, cy) <= 3);
+                        .any(|&(cx, cy)| self.map_wrap.step_distance(tx, ty, cx, cy) <= 3);
                     if enemy_owned || near_enemy_city {
                         score += 2;
                     }
@@ -1232,13 +1240,13 @@ impl Simulation {
         // (at least 1), leaving others free for bombard/recon/rebase sorties.
         let total_fighters = self
             .tile_units_ordered(aircraft.x, aircraft.y)
-            .filter(|u| u.owner == aircraft.owner && civ3_air_superiority_unit(u.kind))
+            .filter(|u| u.owner == aircraft.owner && is_air_superiority_unit(u.kind))
             .count();
         let cap_fighters = self
             .tile_units_ordered(aircraft.x, aircraft.y)
             .filter(|u| {
                 u.owner == aircraft.owner
-                    && civ3_air_superiority_unit(u.kind)
+                    && is_air_superiority_unit(u.kind)
                     && matches!(u.order, Some(UnitOrder::AirSuperiority { .. }))
             })
             .count();

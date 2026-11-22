@@ -377,7 +377,7 @@ mod tests {
         let branch = tree.ancestors(Tech::COMPUTERS);
 
         let critical: Vec<_> = Tech::all()
-            .filter(|tech| tech.era() < TechEra::Modern && tech.required_for_civ3_era())
+            .filter(|tech| tech.era() < TechEra::Modern && tech.is_required_for_era())
             .collect();
         assert!(
             !critical.is_empty(),

@@ -280,7 +280,7 @@ fn cargo_danger_forecast_accounts_for_transport_capacity_and_disembark() {
     game.create_city(1, home.0, home.1);
     let mut sea = home;
     for _ in 0..4 {
-        sea = game.map_wrap.civ3_neighbor(sea.0, sea.1, 2).unwrap();
+        sea = game.map_wrap.eight_way_neighbor(sea.0, sea.1, 2).unwrap();
     }
     let ferry = game.spawn_unit(HUMAN, UnitKind::Transport, sea.0, sea.1);
     let troop = game.spawn_unit(HUMAN, UnitKind::Warrior, sea.0, sea.1);

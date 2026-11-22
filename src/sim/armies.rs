@@ -315,7 +315,7 @@ mod tests {
     fn army_fights_through_move_command_and_carries_members_into_captured_city() {
         let mut game = world();
         let (army, members) = loaded_army(&mut game, HUMAN, &[UnitKind::ModernArmor; 3]);
-        let target = game.map_wrap.civ3_neighbor(10, 20, 2).unwrap();
+        let target = game.map_wrap.eight_way_neighbor(10, 20, 2).unwrap();
         game.create_city(1, target.0, target.1);
         let city = game.city_at(target.0, target.1).unwrap().id;
         game.cities.iter_mut().find(|c| c.id == city).unwrap().size = 3;
@@ -342,7 +342,7 @@ mod tests {
     fn defeated_army_loses_all_members_in_a_protected_city() {
         let mut game = world();
         let (army, members) = loaded_army(&mut game, HUMAN, &[UnitKind::Warrior; 3]);
-        let target = game.map_wrap.civ3_neighbor(10, 20, 2).unwrap();
+        let target = game.map_wrap.eight_way_neighbor(10, 20, 2).unwrap();
         let enemy = game.spawn_unit(1, UnitKind::ModernArmor, target.0, target.1);
         assert_eq!(
             game.best_defender_id(game.unit_by_id(enemy).unwrap(), 10, 20),
@@ -386,7 +386,7 @@ mod tests {
     fn bombardment_damages_the_army_pool_once_and_keeps_members_in_sync() {
         let mut game = world();
         let (army, members) = loaded_army(&mut game, 1, &[UnitKind::Warrior; 3]);
-        let at = game.map_wrap.civ3_neighbor(10, 20, 2).unwrap();
+        let at = game.map_wrap.eight_way_neighbor(10, 20, 2).unwrap();
         let gun = game.spawn_unit(HUMAN, UnitKind::Artillery, at.0, at.1);
         game.refresh_visibility();
         let before = game.unit_by_id(army).unwrap().hp;
@@ -406,7 +406,7 @@ mod tests {
     fn empty_armies_cannot_attack_or_conquer_and_loaded_armies_can_ride_ships() {
         let mut game = world();
         let army = game.spawn_unit(HUMAN, UnitKind::Army, 10, 20);
-        let target = game.map_wrap.civ3_neighbor(10, 20, 2).unwrap();
+        let target = game.map_wrap.eight_way_neighbor(10, 20, 2).unwrap();
         game.create_city(1, target.0, target.1);
         assert!(!game.action_available_for_unit_fail_closed(
             game.unit_by_id(army).unwrap(),

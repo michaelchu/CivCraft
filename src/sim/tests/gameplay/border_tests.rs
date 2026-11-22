@@ -72,7 +72,7 @@ impl Simulation {
         let mut points = vec![(x, y)];
         for _ in 0..8 {
             let previous = *points.last().unwrap();
-            points.push(wrap.civ3_offset(previous.0, previous.1, 1, 1).unwrap());
+            points.push(wrap.eight_way_offset(previous.0, previous.1, 1, 1).unwrap());
         }
         let point = |step: usize| points[step];
         let (rx, ry) = point(4);
@@ -111,7 +111,7 @@ impl Simulation {
             path.push(
                 size_growth
                     .map_wrap
-                    .civ3_neighbor(previous.0, previous.1, 2)
+                    .eight_way_neighbor(previous.0, previous.1, 2)
                     .expect("city border path stays on the map"),
             );
         }

@@ -22,9 +22,10 @@ fn actor(sim: &mut Simulation, kind: UnitKind, position: (i32, i32)) -> Unit {
     sim.unit_by_id(id).unwrap().clone()
 }
 
-fn civ3_east(sim: &Simulation, point: (i32, i32), tiles: usize) -> (i32, i32) {
+/// Steps east on Civ III's eight-direction grid.
+fn east_by(sim: &Simulation, point: (i32, i32), tiles: usize) -> (i32, i32) {
     (0..tiles).fold(point, |(x, y), _| {
-        sim.map_wrap.civ3_neighbor(x, y, 2).unwrap()
+        sim.map_wrap.eight_way_neighbor(x, y, 2).unwrap()
     })
 }
 
@@ -58,8 +59,8 @@ fn an_isolated_aircraft_without_any_refuel_point_cannot_leave_its_start() {
 fn waiting_for_refuel_preserves_the_earliest_position_for_the_mapped_fuel_budget() {
     let mut sim = world();
     sim.create_city(HUMAN, 10, 20);
-    let start = civ3_east(&sim, (10, 20), 1);
-    let airstrip = civ3_east(&sim, (10, 20), 2);
+    let start = east_by(&sim, (10, 20), 1);
+    let airstrip = east_by(&sim, (10, 20), 2);
     sim.tile_mut(airstrip.0, airstrip.1).base = Some(Base::Airstrip);
     // Cruise Missiles remain fueled units handled by FuelPaths.
     let mut missile = actor(&mut sim, UnitKind::CruiseMissile, start);
@@ -156,7 +157,7 @@ fn native_bombers_have_one_mission_budget_and_use_bombard_instead_of_normal_atta
     assert_eq!(plane.kind.operational_range(), 10);
     assert_eq!(plane.kind.rebase_range(), 30);
     assert_eq!(plane.kind.stats().attack, 0);
-    assert!(!sim.apply(Command::move_civ3_by_offset(&sim, plane.id, 1, 0)));
+    assert!(!sim.apply(Command::move_by_offset(&sim, plane.id, 1, 0)));
 }
 
 #[test]

@@ -218,7 +218,7 @@ impl Simulation {
 
         for index in 0..tile_count {
             let (x, y) = self.map_wrap.position(index);
-            for (nx, ny) in self.map_wrap.civ3_neighbors(x, y) {
+            for (nx, ny) in self.map_wrap.eight_way_neighbors(x, y) {
                 let neighbor = self.map_wrap.index(nx, ny);
                 if road_tiles[index] && road_tiles[neighbor] {
                     components.connect(index, neighbor);
@@ -235,7 +235,7 @@ impl Simulation {
             if road_tiles[center] {
                 components.connect(hub, center);
             }
-            for (nx, ny) in self.map_wrap.civ3_neighbors(city.x, city.y) {
+            for (nx, ny) in self.map_wrap.eight_way_neighbors(city.x, city.y) {
                 let neighbor = self.map_wrap.index(nx, ny);
                 if road_tiles[neighbor] {
                     components.connect(hub, neighbor);
@@ -376,7 +376,7 @@ impl Simulation {
             && (first.owner != second.owner
                 || self
                     .map_wrap
-                    .civ3_distance(first.x, first.y, second.x, second.y)
+                    .step_distance(first.x, first.y, second.x, second.y)
                     >= settings.minimum_city_distance)
             && route_type.trade_percent > 0
     }
@@ -427,7 +427,7 @@ impl Simulation {
     ) -> i32 {
         let distance = self
             .map_wrap
-            .civ3_distance(first.x, first.y, second.x, second.y);
+            .step_distance(first.x, first.y, second.x, second.y);
         let base = match settings.revenue_style {
             TradeRevenueStyle::Classic => {
                 let map_scale = self.map_wrap.width().max(self.map_wrap.height()).max(1);
@@ -764,7 +764,7 @@ mod tests {
 
         // C2C3 uses world-relative 100: distance * 40 / max(36, 48), then
         // adds both sizes, applies the 100% IN route rate, then divides by 12.
-        let distance = game.map_wrap.civ3_distance(5, 20, 20, 20);
+        let distance = game.map_wrap.step_distance(5, 20, 20, 20);
         let expected = (distance * 40 / 48 + 10 + 10) / 12;
         assert_eq!(
             campaign_settings().revenue_style,

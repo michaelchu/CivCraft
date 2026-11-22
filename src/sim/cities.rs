@@ -178,7 +178,7 @@ impl Simulation {
         unit.kind == UnitKind::Settler
             && unit.owner == city.owner
             && unit.moves_left > 0
-            && self.map_wrap.civ3_distance(unit.x, unit.y, city.x, city.y) <= 1
+            && self.map_wrap.step_distance(unit.x, unit.y, city.x, city.y) <= 1
             && city.size + unit.kind.stats().pop_cost <= self.city_size_limit(city)
     }
 
@@ -414,7 +414,7 @@ impl Simulation {
             return;
         };
         let mut destinations = Vec::new();
-        for (x, y, distance) in self.map_wrap.civ3_radius(unit.x, unit.y, 2) {
+        for (x, y, distance) in self.map_wrap.tiles_within_steps(unit.x, unit.y, 2) {
             if distance == 0 {
                 continue;
             }
@@ -912,7 +912,7 @@ impl Simulation {
         let settings = *super::research::campaign_research_settings();
         let eligible = Tech::all()
             .filter(|&tech| {
-                tech.is_civ3_advance()
+                tech.is_researchable_advance()
                     && self.has_tech(victim, tech)
                     && !self.has_tech(taker, tech)
                     && (settings.tech_steal_allow_holes || self.tech_available(taker, tech))
@@ -933,7 +933,7 @@ impl Simulation {
                 || self.players[victim]
                     .known
                     .iter()
-                    .all(|&known| !known.civ3_prerequisites().unwrap_or(&[]).contains(&tech)))
+                    .all(|&known| !known.catalog_prerequisites().unwrap_or(&[]).contains(&tech)))
             && self.rand_below(100) < settings.tech_lost_donor_percent
         {
             self.trace.technology_changed(
@@ -1023,7 +1023,7 @@ impl Simulation {
     ) -> (i32, i32, i32) {
         let (food, shields, mut trade) = self.city_gross_yields_with_tech(city, granted);
         trade += self.trade_route_income(city, granted);
-        self.c2c3_finalize_city_outputs(
+        self.finalize_city_outputs(
             city,
             (food, shields, trade),
             self.players[city.owner].government,

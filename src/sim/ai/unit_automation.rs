@@ -31,7 +31,7 @@ impl Simulation {
             let mut moved = false;
             for offset in 0..CIV3_DIRS.len() {
                 let direction = (start + offset) % CIV3_DIRS.len();
-                if self.try_move_unit_civ3(unit_id, direction) != MoveResult::Blocked {
+                if self.try_move_unit(unit_id, direction) != MoveResult::Blocked {
                     moved = true;
                     break;
                 }

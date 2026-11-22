@@ -210,7 +210,7 @@ fn apply_start_assignment_randomness(
 
     // Current generated starts are all unrestricted, so Freeciv shuffles the
     // whole list even when fewer players than starts will be assigned.
-    shuffle_with_freeciv_rng(rng, starts);
+    shuffle_with_map_rng(rng, starts);
 }
 
 /// Matches utility/shared.c::array_shuffle(): n - 1 calls with bounds n..2.
@@ -221,7 +221,9 @@ fn consume_shuffle_draws(rng: &mut crate::random::FreecivRng, item_count: usize)
 }
 
 /// Matches utility/shared.c::array_shuffle()'s Fisher-Yates swaps and bounds.
-fn shuffle_with_freeciv_rng<T>(rng: &mut crate::random::FreecivRng, items: &mut [T]) {
+///
+/// Uses Freeciv's shuffle primitive.
+fn shuffle_with_map_rng<T>(rng: &mut crate::random::FreecivRng, items: &mut [T]) {
     for index in 0..items.len().saturating_sub(1) {
         let bound = items.len() - index;
         let swap_index = index + rng.draw(bound as u32) as usize;
@@ -637,7 +639,7 @@ impl Simulation {
                     )
                 });
             for (name, count) in profile.units() {
-                let kind = UnitKind::from_civ3_name(name).unwrap_or_else(|| {
+                let kind = UnitKind::from_catalog_name(name).unwrap_or_else(|| {
                     panic!(
                         "unsupported Civ III starting unit {name} for {}",
                         game.players[owner].name
@@ -783,7 +785,7 @@ impl Simulation {
 
     /// Measures Civ III graph distance between wrapped map coordinates.
     pub(crate) fn map_distance(&self, ax: i32, ay: i32, bx: i32, by: i32) -> i32 {
-        self.map_wrap.civ3_distance(ax, ay, bx, by)
+        self.map_wrap.step_distance(ax, ay, bx, by)
     }
 
     fn run_ai_last_activities(&mut self, owner: usize) {

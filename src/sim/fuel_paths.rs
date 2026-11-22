@@ -209,7 +209,7 @@ impl FuelPaths {
                 if !sim.tiles[candidate].known_by[self.actor.owner] {
                     return None;
                 }
-                let distance = self.map_wrap.civ3_distance(x, y, nx, ny);
+                let distance = self.map_wrap.step_distance(x, y, nx, ny);
                 (distance <= maximum).then_some(distance)
             })
             .min()
@@ -305,7 +305,7 @@ impl FuelPaths {
         while let Some(direction) = self.nodes[cursor].direction {
             let (x, y) = self.map_wrap.position(cursor);
             let (dx, dy) = CIV3_DIRS[direction];
-            let Some((px, py)) = self.map_wrap.civ3_offset(x, y, -dx, -dy) else {
+            let Some((px, py)) = self.map_wrap.eight_way_offset(x, y, -dx, -dy) else {
                 continue;
             };
             cursor = self.map_wrap.index(px, py);
@@ -379,7 +379,7 @@ impl FuelPaths {
                 }
                 let (x, y) = self.map_wrap.position(index);
                 for (direction, (dx, dy)) in CIV3_DIRS.into_iter().enumerate() {
-                    let Some((nx, ny)) = self.map_wrap.civ3_offset(x, y, dx, dy) else {
+                    let Some((nx, ny)) = self.map_wrap.eight_way_offset(x, y, dx, dy) else {
                         continue;
                     };
                     let next = self.map_wrap.index(nx, ny);
@@ -562,7 +562,7 @@ impl FuelPaths {
             let point = self.map_wrap.position(index);
             let previous = self
                 .map_wrap
-                .civ3_offset(point.0, point.1, -step.0, -step.1)?;
+                .eight_way_offset(point.0, point.1, -step.0, -step.1)?;
             index = self.map_wrap.index(previous.0, previous.1);
             segment = position.previous?;
         }

@@ -40,7 +40,7 @@ mod tests {
                 .unwrap()
                 .transport = Some(boat);
             game.spawn_unit(1, UnitKind::Warrior, target.0, target.1);
-            let result = game.try_move_unit_civ3_by_offset(actor, 1, 0);
+            let result = game.try_move_unit_by_offset(actor, 1, 0);
             assert_eq!(
                 result,
                 if kind.has_marine_attack() {

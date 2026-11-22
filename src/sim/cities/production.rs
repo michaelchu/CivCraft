@@ -318,7 +318,7 @@ impl Simulation {
                         let nationality =
                             self.remove_citizen_nationalities(index, kind.stats().pop_cost);
                         let rank = self.trained_rank(&snapshot, kind);
-                        let veteran_level = self.trained_c2c3_veteran(&snapshot, kind);
+                        let veteran_level = self.trained_veteran(&snapshot, kind);
                         let id = self.spawn_unit_with_origin(
                             snapshot.owner,
                             kind,

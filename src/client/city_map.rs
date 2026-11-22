@@ -235,7 +235,7 @@ mod tests {
             let layout = CityMapLayout::new(bounds);
             for dy in -3_i32..=3 {
                 for dx in -3_i32..=3 {
-                    if (dx - dy).rem_euclid(2) != 0 || civ3_rank_distance(dx, dy) > 2 {
+                    if (dx - dy).rem_euclid(2) != 0 || rank_distance(dx, dy) > 2 {
                         continue;
                     }
                     let r = layout.tile_rect(dx, dy);

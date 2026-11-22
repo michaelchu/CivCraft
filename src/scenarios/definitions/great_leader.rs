@@ -137,7 +137,10 @@ pub(super) const ARMY_COMBAT: Scenario = Scenario::new(
 fn army_combat(game: &mut Simulation, checks: &mut Checks) {
     use crate::sim::{Command, HUMAN, Pact};
     let origin = (10, 24);
-    let target = game.map_wrap.civ3_neighbor(origin.0, origin.1, 2).unwrap();
+    let target = game
+        .map_wrap
+        .eight_way_neighbor(origin.0, origin.1, 2)
+        .unwrap();
     let mut world = WorldBuilder::new(game);
     world.grassland_campaign(false);
     let home = world.founding_city(HUMAN, origin);

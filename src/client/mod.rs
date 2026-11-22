@@ -45,8 +45,8 @@ mod civ3_geometry;
 mod civ3_projection;
 mod espionage_view;
 mod flc;
-mod font;
 mod fog;
+mod font;
 mod government_view;
 mod hud;
 mod input;
@@ -653,7 +653,7 @@ impl Game {
             Overlay::Spaceship => return self.draw_spaceship(),
             _ => {}
         }
-        self.draw_civ3_world_map(assets);
+        self.draw_world_map(assets);
         let mut actions = self.draw_hud(assets);
         if self.overlay == Overlay::Intro {
             actions.clear();

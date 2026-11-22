@@ -72,7 +72,7 @@ impl ReviewFixture<'_> {
         }
         for y in 0..sim.map_wrap.height() {
             for x in 0..sim.map_wrap.width() {
-                let known = sim.map_wrap.civ3_distance(x, y, 21, 25) <= 7;
+                let known = sim.map_wrap.step_distance(x, y, 21, 25) <= 7;
                 let tile = sim.tile_mut(x, y);
                 tile.seen = known;
                 tile.visible = known && y <= 26;
@@ -101,8 +101,9 @@ impl ReviewFixture<'_> {
         ui_review_reveal_all_tiles(self.0)
     }
 
-    pub(crate) fn civ3_city_sprites(&mut self) {
-        ui_review_civ3_city_sprites(self.0)
+    /// UI review scene using Civ III city art.
+    pub(crate) fn city_sprites(&mut self) {
+        ui_review_city_sprites(self.0)
     }
 
     pub(crate) fn first_contact(&mut self) {
@@ -141,8 +142,9 @@ impl ReviewFixture<'_> {
         ui_review_ice_transitions(self.0)
     }
 
-    pub(crate) fn civ3_water_depths(&mut self) {
-        ui_review_civ3_water_depths(self.0)
+    /// UI review scene using Civ III water terrain art.
+    pub(crate) fn water_depth_scene(&mut self) {
+        ui_review_water_depths(self.0)
     }
 
     pub(crate) fn terrain_biomes(&mut self) {
@@ -248,7 +250,7 @@ impl<'a> ReviewState<'a> {
     }
 
     pub(crate) fn move_command(self, unit: u32, dx: i32, dy: i32) -> Command {
-        Command::move_civ3_by_offset(self.0, unit, dx, dy)
+        Command::move_by_offset(self.0, unit, dx, dy)
     }
 }
 
@@ -486,7 +488,7 @@ pub(crate) fn ui_review_rivers(sim: &mut Simulation, fogged: bool) {
         let (x, y) = offset_native_by_map(20, 24, dx, dy);
         sim.tile_mut(x, y).terrain = Terrain::Lake;
     }
-    super::topology::rebuild_civ3_river_edges(sim.map_wrap, &mut sim.tiles);
+    super::topology::rebuild_river_edges(sim.map_wrap, &mut sim.tiles);
     if fogged {
         let (x, y) = offset_native_by_map(20, 24, -1, -1);
         let tile = sim.tile_mut(x, y);
@@ -599,7 +601,9 @@ pub(crate) fn ui_review_unit_status(sim: &mut Simulation) {
 
 /// Four cultural sheets currently represented by the playable roster,
 /// with one city in each supported population band per style.
-pub(crate) fn ui_review_civ3_city_sprites(sim: &mut Simulation) {
+///
+/// UI review scene using Civ III city art.
+pub(crate) fn ui_review_city_sprites(sim: &mut Simulation) {
     sim.units.clear();
     sim.cities.clear();
     for tile in &mut sim.tiles {
@@ -768,7 +772,7 @@ pub(crate) fn ui_review_fog(sim: &mut Simulation) -> u32 {
     sim.refresh_visibility();
     for y in 0..sim.map_wrap.height() {
         for x in 0..sim.map_wrap.width() {
-            let distance = sim.map_wrap.civ3_distance(x, y, 20, 24);
+            let distance = sim.map_wrap.step_distance(x, y, 20, 24);
             let tile = sim.tile_mut(x, y);
             tile.seen = distance <= 6;
             tile.visible = distance <= 3;
@@ -861,7 +865,7 @@ pub(crate) fn ui_review_terrain_layers(sim: &mut Simulation, layers: bool) -> Op
         sim.tile_mut(20, 24).irrigation = true;
         sim.tile_mut(20, 24).river = true;
         sim.tile_mut(20, 24).road = true;
-        super::topology::rebuild_civ3_river_edges(sim.map_wrap, &mut sim.tiles);
+        super::topology::rebuild_river_edges(sim.map_wrap, &mut sim.tiles);
         sim.spawn_unit(HUMAN, UnitKind::Warrior, 20, 24);
         Some(id)
     } else {
@@ -916,7 +920,7 @@ pub(crate) fn ui_review_terrain_layers(sim: &mut Simulation, layers: bool) -> Op
                 };
             }
         }
-        super::topology::rebuild_civ3_river_edges(sim.map_wrap, &mut sim.tiles);
+        super::topology::rebuild_river_edges(sim.map_wrap, &mut sim.tiles);
         None
     }
 }
@@ -1042,7 +1046,9 @@ pub(crate) fn ui_review_terrain_seams(sim: &mut Simulation) {
 
 /// A controlled island with evenly spaced Civ III water-depth rings.
 /// This isolates atlas transitions from procedural coastline generation.
-pub(crate) fn ui_review_civ3_water_depths(sim: &mut Simulation) {
+///
+/// UI review scene using Civ III water terrain art.
+pub(crate) fn ui_review_water_depths(sim: &mut Simulation) {
     ui_review_terrain_layers(sim, false);
     for tile in 0..sim.tiles.len() {
         sim.tiles[tile].terrain = Terrain::Ocean;
@@ -1150,7 +1156,7 @@ fn ui_review_borders_fog_cities(sim: &mut Simulation) {
     }
     for y in 0..sim.map_wrap.height() {
         for x in 0..sim.map_wrap.width() {
-            let distance = sim.map_wrap.civ3_distance(x, y, 20, 24);
+            let distance = sim.map_wrap.step_distance(x, y, 20, 24);
             let tile = sim.tile_mut(x, y);
             tile.seen = distance <= 6;
             tile.visible = distance <= 2;

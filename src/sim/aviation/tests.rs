@@ -156,7 +156,7 @@ fn ai_artillery_moves_toward_a_firing_position_when_no_shot_is_in_range() {
     let artillery = game.spawn_unit(1, UnitKind::Artillery, source.0, source.1);
     let source_distance = game
         .map_wrap
-        .civ3_distance(source.0, source.1, target.0, target.1);
+        .step_distance(source.0, source.1, target.0, target.1);
     assert!(source_distance > UnitKind::Artillery.bombard_range());
 
     game.run_ai_player(1);
@@ -164,7 +164,7 @@ fn ai_artillery_moves_toward_a_firing_position_when_no_shot_is_in_range() {
     let artillery = game.unit_by_id(artillery).unwrap();
     let moved_distance = game
         .map_wrap
-        .civ3_distance(artillery.x, artillery.y, target.0, target.1);
+        .step_distance(artillery.x, artillery.y, target.0, target.1);
     assert!(moved_distance < source_distance);
     assert!(moved_distance > 0);
 }
@@ -1100,12 +1100,12 @@ fn ai_bomber_rebases_to_a_site_with_an_in_range_enemy_city() {
     let actor = game.unit_by_id(bomber).unwrap().clone();
     assert!(
         game.map_wrap
-            .civ3_distance(source.0, source.1, target.0, target.1)
+            .step_distance(source.0, source.1, target.0, target.1)
             > UnitKind::Bomber.operational_range()
     );
     assert!(
         game.map_wrap
-            .civ3_distance(base.0, base.1, target.0, target.1)
+            .step_distance(base.0, base.1, target.0, target.1)
             <= UnitKind::Bomber.operational_range()
     );
     let mut staged = actor.clone();
@@ -1344,8 +1344,8 @@ fn civ3_bombard_can_target_an_empty_enemy_city_and_uses_selected_citizen_class_r
     let attacker = game.unit_by_id(bomber).unwrap().clone();
     let target_city = game.city_at(tx, ty).unwrap();
 
-    assert!(game.has_civ3_bombard_capability(UnitKind::Bomber));
-    assert!(game.has_civ3_bombard_capability(UnitKind::Artillery));
+    assert!(game.has_bombard_capability(UnitKind::Bomber));
+    assert!(game.has_bombard_capability(UnitKind::Artillery));
     assert_eq!(
         selected_unit_class_flag(UnitKind::Bomber, "KillCitizen"),
         Some(false)
@@ -1557,7 +1557,7 @@ mod fighter_tests {
         // Under Civ III Conquests rules, fixed-wing aircraft cannot make direct
         // tile-by-tile melee moves; Fighters engage enemy aircraft via Air
         // Superiority interception.
-        assert!(!game.apply(Command::move_civ3_by_offset(&game, fighter, 1, 0)));
+        assert!(!game.apply(Command::move_by_offset(&game, fighter, 1, 0)));
         assert!(game.apply(Command::AirSuperiority(fighter)));
         game.units
             .iter_mut()
@@ -1593,7 +1593,7 @@ mod carrier_tests {
         let port = Production::Unit(UnitKind::Carrier);
         let (x, y) = (10, 20);
         game.tile_mut(x, y).terrain = Terrain::Grassland;
-        let harbor = game.map_wrap.civ3_neighbor(x, y, 0).unwrap();
+        let harbor = game.map_wrap.eight_way_neighbor(x, y, 0).unwrap();
         game.tile_mut(harbor.0, harbor.1).terrain = Terrain::Sea;
         game.create_city(HUMAN, x, y);
         let city = game.cities.last().unwrap().clone();
@@ -1650,7 +1650,7 @@ mod stealth_tests {
         assert!(game.refuel_site(plane.owner, plane.x, plane.y));
         assert!(
             game.map_wrap
-                .civ3_distance(plane.x, plane.y, target.x, target.y)
+                .step_distance(plane.x, plane.y, target.x, target.y)
                 <= plane.kind.operational_range()
         );
     }
@@ -1866,13 +1866,13 @@ mod stealth_tests {
             UnitKind::StealthBomber,
         ] {
             assert!(
-                game.has_civ3_bombard_capability(kind),
+                game.has_bombard_capability(kind),
                 "{kind:?} has a Civ III bombard profile"
             );
         }
         for kind in [UnitKind::Archer, UnitKind::Longbowman, UnitKind::Guerilla] {
             assert!(
-                !game.has_civ3_bombard_capability(kind),
+                !game.has_bombard_capability(kind),
                 "{kind:?} has no Civ III bombard tile/operational range"
             );
         }
@@ -1927,7 +1927,7 @@ mod stealth_tests {
         assert!(game.tile(distant.0, distant.1).visible);
         assert!(game.unit_visible_to_human(game.unit_by_id(hidden).unwrap()));
         let explorer = game.spawn_unit(HUMAN, UnitKind::Explorer, city.x, city.y);
-        assert!(game.apply(Command::move_civ3_by_offset(&game, explorer, 1, 0)));
+        assert!(game.apply(Command::move_by_offset(&game, explorer, 1, 0)));
         assert!(game.unit_visible_to_human(game.unit_by_id(hidden).unwrap()));
 
         game.players[HUMAN].known.extend([
@@ -2307,17 +2307,17 @@ fn civ3_fixed_wing_rebase_range_is_3x_operational_range_and_blocks_open_tile_mov
     let fighter = game.spawn_unit(HUMAN, UnitKind::Fighter, home.0, home.1);
     assert_eq!(
         game.map_wrap
-            .civ3_distance(home.0, home.1, in_range_city.0, in_range_city.1),
+            .step_distance(home.0, home.1, in_range_city.0, in_range_city.1),
         UnitKind::Fighter.rebase_range()
     );
     assert!(
         game.map_wrap
-            .civ3_distance(home.0, home.1, too_far_city.0, too_far_city.1)
+            .step_distance(home.0, home.1, too_far_city.0, too_far_city.1)
             > UnitKind::Fighter.rebase_range()
     );
 
     // Tile-by-tile movement and GoTo onto open tiles are blocked.
-    assert!(!game.apply(Command::move_civ3_by_offset(&game, fighter, 1, 0)));
+    assert!(!game.apply(Command::move_by_offset(&game, fighter, 1, 0)));
     assert!(!game.apply(Command::GoTo(fighter, open_tile.0, open_tile.1)));
     assert!(!game.apply(Command::Rebase(fighter, open_tile.0, open_tile.1)));
     // Rebase beyond 3 * operational_range is rejected.
@@ -2356,7 +2356,7 @@ fn civ3_recon_reveals_3x3_area_and_is_aborted_when_intercepted() {
     let scout = game.unit_by_id(fighter).unwrap();
     assert_eq!((scout.x, scout.y), home);
     assert_eq!(scout.moves_left, 0);
-    for (tx, ty, _) in game.map_wrap.civ3_radius(target.0, target.1, 1) {
+    for (tx, ty, _) in game.map_wrap.tiles_within_steps(target.0, target.1, 1) {
         assert!(game.tile(tx, ty).known_by[HUMAN]);
         assert!(game.tile(tx, ty).visible);
     }
@@ -2539,7 +2539,7 @@ fn civ3_overrunning_undefended_airfield_destroys_stationed_enemy_aircraft() {
     game.sign_pact(HUMAN, 1, Pact::War);
     let tank = game.spawn_unit(HUMAN, UnitKind::Tank, start.0, start.1);
     let enemy_bomber = game.spawn_unit(1, UnitKind::Bomber, airfield.0, airfield.1);
-    assert!(game.apply(Command::move_civ3_by_offset(&game, tank, 1, 0)));
+    assert!(game.apply(Command::move_by_offset(&game, tank, 1, 0)));
     assert_eq!(
         (
             game.unit_by_id(tank).unwrap().x,

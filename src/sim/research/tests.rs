@@ -221,14 +221,14 @@ fn later_era_research_waits_for_critical_advances_in_prior_eras() {
 
     assert_eq!(Tech::FEUDALISM.era(), crate::rules::TechEra::MiddleAges);
     assert_eq!(game.research_era(HUMAN), crate::rules::TechEra::Ancient);
-    assert!(Tech::FEUDALISM.civ3_prerequisites().unwrap().is_empty());
+    assert!(Tech::FEUDALISM.catalog_prerequisites().unwrap().is_empty());
     assert!(!game.tech_available(HUMAN, Tech::FEUDALISM));
     let path = game.research_path(HUMAN, Tech::FEUDALISM);
     assert!(path.contains(&Tech::FEUDALISM));
     assert!(
         Tech::all()
             .filter(
-                |tech| tech.era() == crate::rules::TechEra::Ancient && tech.required_for_civ3_era()
+                |tech| tech.era() == crate::rules::TechEra::Ancient && tech.is_required_for_era()
             )
             .all(|tech| path.contains(&tech))
     );
@@ -236,9 +236,7 @@ fn later_era_research_waits_for_critical_advances_in_prior_eras() {
     let modern_path = game.research_path(HUMAN, Tech::COMPUTERS);
     assert!(
         Tech::all()
-            .filter(
-                |tech| tech.era() < crate::rules::TechEra::Modern && tech.required_for_civ3_era()
-            )
+            .filter(|tech| tech.era() < crate::rules::TechEra::Modern && tech.is_required_for_era())
             .all(|tech| modern_path.contains(&tech))
     );
 }
@@ -271,7 +269,7 @@ fn era_advances_only_after_every_critical_advance_of_each_age_is_known() {
         (TechEra::Industrial, TechEra::Modern),
     ] {
         let required: Vec<_> = Tech::all()
-            .filter(|tech| tech.era() == era && tech.required_for_civ3_era())
+            .filter(|tech| tech.era() == era && tech.is_required_for_era())
             .collect();
         assert!(
             !required.is_empty(),
@@ -285,7 +283,7 @@ fn era_advances_only_after_every_critical_advance_of_each_age_is_known() {
         game.discover(HUMAN, *required.last().unwrap());
         assert!(
             Tech::all()
-                .filter(|tech| tech.era() == era && tech.optional_in_civ3())
+                .filter(|tech| tech.era() == era && tech.optional_for_era())
                 .all(|tech| !game.has_tech(HUMAN, tech))
         );
         assert_eq!(game.research_era(HUMAN), next_era);

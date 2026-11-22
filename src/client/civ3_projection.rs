@@ -35,7 +35,7 @@ pub(super) fn world_screen_position(
     x: i32,
     y: i32,
 ) -> Vec2 {
-    super::world::civ3_world_screen_position(wrap, viewport, camera, zoom, x, y)
+    super::world::projected_screen_position(wrap, viewport, camera, zoom, x, y)
 }
 
 #[cfg(test)]

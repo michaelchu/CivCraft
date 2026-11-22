@@ -22,7 +22,7 @@ fn execute(game: &mut Simulation, checks: &mut Checks) {
     game.ensure_research_observation();
     let tech = Tech::all()
         .find(|t| {
-            t.is_civ3_advance()
+            t.is_researchable_advance()
                 && !game.has_tech(0, *t)
                 && !game.has_tech(1, *t)
                 && game.tech_available(0, *t)

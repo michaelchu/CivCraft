@@ -29,7 +29,7 @@ pub(super) const SCENARIO: Scenario = Scenario::new(
 
 fn setup(map: GeneratedMap) -> (Simulation, Box<dyn ScenarioRun>) {
     let techs: Vec<_> = Tech::all()
-        .filter(|tech| tech.is_civ3_advance())
+        .filter(|tech| tech.is_researchable_advance())
         .take(25)
         .collect();
     let mut game = WorldBuilder::ocean_campaign(

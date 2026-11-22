@@ -367,7 +367,7 @@ impl NormalPaths {
             || self.class_build_anywhere
             || self
                 .map_wrap
-                .civ3_neighbors(x, y)
+                .eight_way_neighbors(x, y)
                 .any(|(nx, ny)| self.scope_native_tile(sim, kind, nx, ny)))
         {
             scope |= CITY;
@@ -540,7 +540,7 @@ impl NormalPaths {
         };
         let (x, y) = self.map_wrap.position(tile);
         let (goal_x, goal_y) = self.map_wrap.position(goal);
-        let distance = self.map_wrap.civ3_distance(x, y, goal_x, goal_y);
+        let distance = self.map_wrap.step_distance(x, y, goal_x, goal_y);
         let heuristic = i64::from(distance) * i64::from(TURN_FACTOR);
         if self.reachability_only {
             heuristic
@@ -597,7 +597,7 @@ impl NormalPaths {
             for (direction, (dx, dy)) in CIV3_DIRS.into_iter().enumerate() {
                 sim.trace.count_operation("normal_paths.neighbor_checks", 1);
                 sim.trace.count_operation(neighbor_counter, 1);
-                let Some((nx, ny)) = self.map_wrap.civ3_offset(x, y, dx, dy) else {
+                let Some((nx, ny)) = self.map_wrap.eight_way_offset(x, y, dx, dy) else {
                     continue;
                 };
                 let next = self.map_wrap.index(nx, ny);
@@ -805,7 +805,7 @@ impl NormalPaths {
             let (dx, dy) = CIV3_DIRS[usize::from(direction)];
             path.push((dx, dy));
             let (x, y) = self.map_wrap.position(cursor);
-            let (x, y) = self.map_wrap.civ3_offset(x, y, -dx, -dy)?;
+            let (x, y) = self.map_wrap.eight_way_offset(x, y, -dx, -dy)?;
             cursor = self.map_wrap.index(x, y);
         }
         path.reverse();
@@ -964,7 +964,7 @@ impl Simulation {
             if (dx, dy) != (0, 0) {
                 destination = self
                     .map_wrap
-                    .civ3_offset(destination.0, destination.1, dx, dy)
+                    .eight_way_offset(destination.0, destination.1, dx, dy)
                     .expect("planned step is real");
             }
         }
@@ -980,7 +980,7 @@ impl Simulation {
             let Some(actor) = self.unit_by_id(id).cloned() else {
                 break;
             };
-            let Some((x, y)) = self.map_wrap.civ3_offset(actor.x, actor.y, dx, dy) else {
+            let Some((x, y)) = self.map_wrap.eight_way_offset(actor.x, actor.y, dx, dy) else {
                 continue;
             };
             let enemy =
@@ -1011,7 +1011,7 @@ impl Simulation {
                 .iter()
                 .position(|&step| step == (dx, dy))
                 .map_or(MoveResult::Blocked, |direction| {
-                    self.try_move_unit_civ3(id, direction)
+                    self.try_move_unit(id, direction)
                 });
             if result == MoveResult::Blocked {
                 break;
@@ -1064,7 +1064,7 @@ mod selected_rules_tests {
         let mut sim = world();
         let id = sim.spawn_unit(HUMAN, UnitKind::Explorer, 10, 20);
         let actor = sim.unit_by_id(id).unwrap().clone();
-        let target = sim.map_wrap.civ3_neighbor(10, 20, 2).unwrap();
+        let target = sim.map_wrap.eight_way_neighbor(10, 20, 2).unwrap();
         sim.tile_mut(target.0, target.1).known_by.set(HUMAN, false);
 
         let expected = MovementRules::campaign()
@@ -1089,7 +1089,7 @@ mod selected_rules_tests {
         }
         let id = sim.spawn_unit(HUMAN, UnitKind::Warrior, 10, 20);
         let actor = sim.unit_by_id(id).unwrap().clone();
-        let target = sim.map_wrap.civ3_neighbor(10, 20, 2).unwrap();
+        let target = sim.map_wrap.eight_way_neighbor(10, 20, 2).unwrap();
         sim.create_city(HUMAN, target.0, target.1);
         sim.tile_mut(target.0, target.1).road = false;
 
@@ -1115,7 +1115,7 @@ mod selected_rules_tests {
         let mut sim = world();
         let id = sim.spawn_unit(HUMAN, UnitKind::Helicopter, 10, 20);
         let actor = sim.unit_by_id(id).unwrap().clone();
-        let target = sim.map_wrap.civ3_neighbor(10, 20, 2).unwrap();
+        let target = sim.map_wrap.eight_way_neighbor(10, 20, 2).unwrap();
         sim.create_city(1, target.0, target.1);
 
         let class = MovementRules::campaign()
@@ -1157,19 +1157,28 @@ mod selected_rules_tests {
         let actor = sim.unit_by_id(id).unwrap().clone();
         assert!(!sim.safe_ocean_at(actor.x, actor.y, None));
 
-        let diagonal_only = sim.map_wrap.civ3_neighbor(actor.x, actor.y, 2).unwrap();
+        let diagonal_only = sim
+            .map_wrap
+            .eight_way_neighbor(actor.x, actor.y, 2)
+            .unwrap();
         sim.tile_mut(diagonal_only.0, diagonal_only.1).terrain = Terrain::Grassland;
         assert!(
             !sim.safe_ocean_at(actor.x, actor.y, None),
             "C2C3 ISO|HEX coast adjacency excludes CivCraft's two diagonal steps"
         );
 
-        let cardinal = sim.map_wrap.civ3_neighbor(actor.x, actor.y, 1).unwrap();
+        let cardinal = sim
+            .map_wrap
+            .eight_way_neighbor(actor.x, actor.y, 1)
+            .unwrap();
         sim.tile_mut(cardinal.0, cardinal.1).terrain = Terrain::Grassland;
         assert!(sim.safe_ocean_at(actor.x, actor.y, None));
 
         sim.tile_mut(cardinal.0, cardinal.1).terrain = unsafe_terrain;
-        let seam_cardinal = sim.map_wrap.civ3_neighbor(actor.x, actor.y, 7).unwrap();
+        let seam_cardinal = sim
+            .map_wrap
+            .eight_way_neighbor(actor.x, actor.y, 7)
+            .unwrap();
         assert_eq!(seam_cardinal.0, sim.map_wrap.width() - 1);
         sim.tile_mut(seam_cardinal.0, seam_cardinal.1).terrain = Terrain::Grassland;
         assert!(sim.safe_ocean_at(actor.x, actor.y, None));

@@ -118,7 +118,7 @@ impl Simulation {
         self.trace.phase(trace::Phase::WorldEvents);
         let _profile = profiler.scope("turn.world.events_and_visibility");
         self.summon_barbarians();
-        self.check_city_migrations(crate::sim::migration::MigrationSettings::c2c3_default());
+        self.check_city_migrations(crate::sim::migration::MigrationSettings::ruleset_default());
         self.check_disasters();
         // srv_main.c::end_phase calls do_reveal_effects before end_turn.
         // Refresh here so effects such as Apollo's Reveal_Map are reflected
@@ -455,7 +455,7 @@ mod tests {
         game.cities[0].size = 2;
         let approach = game
             .map_wrap
-            .civ3_neighbor(city_position.0, city_position.1, 1)
+            .eight_way_neighbor(city_position.0, city_position.1, 1)
             .expect("the test city has a northeast neighbor");
         game.spawn_unit(BARBARIANS, UnitKind::ModernArmor, approach.0, approach.1);
 

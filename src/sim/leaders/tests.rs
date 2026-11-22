@@ -21,9 +21,10 @@ fn world() -> Simulation {
     game
 }
 
-fn civ3_east(game: &Simulation, point: (i32, i32), tiles: usize) -> (i32, i32) {
+/// Steps east on Civ III's eight-direction grid.
+fn east_by(game: &Simulation, point: (i32, i32), tiles: usize) -> (i32, i32) {
     (0..tiles).fold(point, |(x, y), _| {
-        game.map_wrap.civ3_neighbor(x, y, 2).unwrap()
+        game.map_wrap.eight_way_neighbor(x, y, 2).unwrap()
     })
 }
 
@@ -37,8 +38,8 @@ fn attack_sanity_omits_empty_city_attack_flag_but_default_map_treats_it_as_an_en
     let mut game = world();
     game.sign_pact(HUMAN, 1, Pact::War);
     let id = game.spawn_unit(HUMAN, UnitKind::Warrior, 10, 20);
-    let city = civ3_east(&game, (10, 20), 1);
-    let beyond = civ3_east(&game, (10, 20), 2);
+    let city = east_by(&game, (10, 20), 1);
+    let beyond = east_by(&game, (10, 20), 2);
     game.create_city(1, city.0, city.1);
     let actor = game.unit_by_id(id).unwrap();
     let index = Simulation::idx(beyond.0, beyond.1);

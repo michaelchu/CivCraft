@@ -71,16 +71,16 @@ fn ai_path_waits_for_outer_batch_and_matches_the_normal_path_after_flushing() {
     for _ in 0..2 {
         destination = game
             .map_wrap
-            .civ3_neighbor(destination.0, destination.1, direction)
+            .eight_way_neighbor(destination.0, destination.1, direction)
             .unwrap();
     }
     let newly_visible = game
         .map_wrap
-        .civ3_neighbor(destination.0, destination.1, direction)
+        .eight_way_neighbor(destination.0, destination.1, direction)
         .unwrap();
     let revision = game.observed_map.revision;
     let batch = game.visibility_refresh.begin_batch(true);
-    assert!(game.follow_civ3_path(unit, [step; 2]));
+    assert!(game.follow_grid_path(unit, [step; 2]));
     let actor = game.unit_by_id(unit).unwrap();
     assert_eq!((actor.x, actor.y), destination);
     assert!(!game.tile(newly_visible.0, newly_visible.1).known_by[1]);
@@ -94,7 +94,7 @@ fn ai_path_waits_for_outer_batch_and_matches_the_normal_path_after_flushing() {
     game.flush_deferred_visibility();
     assert_eq!(game.observed_map.revision, flushed_revision);
 
-    assert!(normal.follow_civ3_path(unit, [step; 2]));
+    assert!(normal.follow_grid_path(unit, [step; 2]));
     assert_eq!(
         game.encode_campaign().unwrap(),
         normal.encode_campaign().unwrap()
@@ -110,7 +110,7 @@ fn scoped_path_refresh_is_consumed_before_the_next_full_refresh() {
     assert!(!game.remembered_tile(1, far.0, far.1).unwrap().mine);
     game.tile_mut(far.0, far.1).mine = true;
 
-    assert!(game.follow_civ3_path(unit, [(2, 0), (2, 0)]));
+    assert!(game.follow_grid_path(unit, [(2, 0), (2, 0)]));
     assert!(!game.remembered_tile(1, far.0, far.1).unwrap().mine);
     game.refresh_visibility();
     assert!(game.remembered_tile(1, far.0, far.1).unwrap().mine);

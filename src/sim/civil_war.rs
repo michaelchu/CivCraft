@@ -135,7 +135,7 @@ impl Simulation {
             .known
             .iter()
             .copied()
-            .filter(|t| t.is_civ3_advance())
+            .filter(|t| t.is_researchable_advance())
             .chain(std::iter::repeat_n(
                 Tech::FUTURE,
                 self.players[rebel].future_techs.max(0) as usize,

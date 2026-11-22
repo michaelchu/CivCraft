@@ -200,7 +200,7 @@ impl Simulation {
                     && city.owner == owner
                     && self
                         .map_wrap
-                        .civ3_distance(source.x, source.y, city.x, city.y)
+                        .step_distance(source.x, source.y, city.x, city.y)
                         <= rules().local_distance
                 {
                     rules().local_pressure + f.outgoing_pressure
@@ -555,7 +555,7 @@ mod tests {
         w.known_technologies(
             1,
             &Tech::all()
-                .filter(|t| t.is_civ3_advance())
+                .filter(|t| t.is_researchable_advance())
                 .collect::<Vec<_>>(),
         );
         w.government(1, Government::DEMOCRACY);

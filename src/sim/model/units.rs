@@ -127,7 +127,8 @@ impl UnitKind {
             .map(|unit| unit.id.as_str())
     }
 
-    pub(crate) fn from_civ3_name(name: &str) -> Option<Self> {
+    /// Looks up a unit by its Civ III catalog name.
+    pub(crate) fn from_catalog_name(name: &str) -> Option<Self> {
         crate::rules::native::units()
             .units
             .iter()
@@ -210,8 +211,7 @@ impl UnitKind {
     }
 
     pub(crate) fn fuel_capacity(self) -> u8 {
-        crate::sim::action_rules::freeciv_unit_type_fuel_capacity(self)
-            .expect("native unit mission budget")
+        crate::sim::action_rules::unit_type_fuel_capacity(self).expect("native unit mission budget")
     }
 
     pub(in crate::sim) fn operational_range(self) -> i32 {
@@ -296,7 +296,7 @@ impl UnitKind {
     /// Strength consumed by the retained combat-action engine. Ordinary attacks
     /// use PRTO attack; its Cruise Missile action consumes PRTO bombard strength.
     pub(crate) fn attack_strength(self) -> i32 {
-        crate::sim::action_rules::freeciv_missile_attack_strength(self)
+        crate::sim::action_rules::missile_attack_strength(self)
             .unwrap_or_else(|| self.stats().attack)
     }
 

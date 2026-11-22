@@ -10,12 +10,14 @@ fn is_ocean(terrain: Terrain) -> bool {
 /// Source-derived density and spring elevation values for the Freeciv path.
 /// The two Freeciv terrain percentages share the same `adjust_terrain_param`
 /// inputs and map-size-adjusted polar term as the terrain pass.
-pub(super) fn freeciv_river_parameters(
+///
+/// Follows Freeciv's river generation parameters with civ2civ3 values.
+pub(super) fn river_parameters(
     settings: MapGenerationSettings,
     tile_count: usize,
 ) -> (i32, usize, i32) {
     let (_, _, _, swamp_percent, _, river_percent) =
-        super::terrain::freeciv_terrain_percentages(settings, tile_count);
+        super::terrain::terrain_percentages(settings, tile_count);
     let target = river_percent as usize * tile_count * settings.landmass_percent as usize / 5325;
     let shore = settings.shore_level();
     let lowland = shore + 4 * swamp_percent * (1000 - shore) / 100;
@@ -28,11 +30,13 @@ impl super::Generator {
     /// Enumerate adjacent map tiles using Civ III's eight-direction grid.
     /// Terrain and elevation still use transitional rectangular storage, so
     /// this adapter converts positions at the generator boundary.
-    pub(super) fn civ3_neighbors(&self, tile: usize) -> impl Iterator<Item = usize> + '_ {
+    ///
+    /// Uses Civ III's eight-direction neighbor model.
+    pub(super) fn eight_way_neighbors(&self, tile: usize) -> impl Iterator<Item = usize> + '_ {
         let (x, y) = self.wrap.position(tile);
         (0..CIV3_DIRS.len()).filter_map(move |direction| {
             self.wrap
-                .civ3_neighbor(x, y, direction)
+                .eight_way_neighbor(x, y, direction)
                 .map(|(nx, ny)| self.wrap.index(nx, ny))
         })
     }
@@ -46,7 +50,7 @@ impl super::Generator {
             .step_by(2)
             .filter_map(move |direction| {
                 self.wrap
-                    .civ3_neighbor(x, y, direction)
+                    .eight_way_neighbor(x, y, direction)
                     .map(|(nx, ny)| self.wrap.index(nx, ny))
             })
     }
@@ -54,14 +58,16 @@ impl super::Generator {
     /// Freeciv's square-grid cardinal direction array is emitted in enum
     /// order North, West, East, South. Keep that order for random ties while
     /// mapping the four slots to Civ III's renderable NE, NW, SE, SW edges.
-    fn freeciv_river_neighbors(&self, tile: usize) -> impl Iterator<Item = usize> + '_ {
+    ///
+    /// Follows Freeciv's river neighbor selection.
+    fn river_flow_neighbors(&self, tile: usize) -> impl Iterator<Item = usize> + '_ {
         const CIV3_RIVER_DIRS_IN_FREECIV_ORDER: [usize; 4] = [1, 7, 3, 5];
         let (x, y) = self.wrap.position(tile);
         CIV3_RIVER_DIRS_IN_FREECIV_ORDER
             .into_iter()
             .filter_map(move |direction| {
                 self.wrap
-                    .civ3_neighbor(x, y, direction)
+                    .eight_way_neighbor(x, y, direction)
                     .map(|(nx, ny)| self.wrap.index(nx, ny))
             })
     }
@@ -81,7 +87,7 @@ impl super::Generator {
         );
         let (target, lowland) = if let Some(freeciv_temperature) = freeciv_temperature {
             let (_, target, lowland) =
-                freeciv_river_parameters(freeciv_temperature.settings, self.wrap.tile_count());
+                river_parameters(freeciv_temperature.settings, self.wrap.tile_count());
             (target, lowland)
         } else {
             (
@@ -109,7 +115,7 @@ impl super::Generator {
                         .unwrap_or(temperature[tile] >= VERY_COLD)
             };
             let spring = if freeciv_temperature.is_some() {
-                freeciv_rand_map_pos_filtered(self.wrap.tile_count(), rng, eligible_spring)
+                filtered_rand_map_pos(self.wrap.tile_count(), rng, eligible_spring)
             } else {
                 random_tile(self.wrap.tile_count(), rng, eligible_spring)
             };
@@ -120,16 +126,15 @@ impl super::Generator {
             if let Some(properties) = terrain_properties
                 && freeciv_temperature.is_some()
             {
-                if !self.freeciv_spring_is_acceptable(tiles, spring, properties, attempt, MAX_TRIES)
-                {
+                if !self.spring_is_acceptable(tiles, spring, properties, attempt, MAX_TRIES) {
                     continue;
                 }
             } else if self
-                .civ3_neighbors(spring)
+                .eight_way_neighbors(spring)
                 .all(|next| Self::mountainous(tiles[next].terrain) > 0)
                 && attempt < MAX_TRIES / 10 * 5
                 || self
-                    .civ3_neighbors(spring)
+                    .eight_way_neighbors(spring)
                     .filter(|&tile| tiles[tile].river || tiles[tile].terrain.is_water())
                     .count()
                     > 1
@@ -150,7 +155,8 @@ impl super::Generator {
         }
     }
 
-    pub(super) fn freeciv_spring_is_acceptable(
+    /// Follows Freeciv's river spring acceptance filters.
+    pub(super) fn spring_is_acceptable(
         &self,
         tiles: &[GeneratedTile],
         spring: usize,
@@ -158,18 +164,18 @@ impl super::Generator {
         attempt: i32,
         max_tries: i32,
     ) -> bool {
-        let neighbors: Vec<_> = self.freeciv_river_neighbors(spring).collect();
+        let neighbors: Vec<_> = self.river_flow_neighbors(spring).collect();
         let adjacent_water_and_river = neighbors
             .iter()
             .filter(|&&tile| tiles[tile].terrain.is_water() || tiles[tile].river)
             .count();
         let adjacent_mountainous_percent = self.adjacent_percentage(&neighbors, |tile| {
-            self.freeciv_terrain_property(tiles[tile].terrain, terrain_properties, |properties| {
+            self.terrain_property(tiles[tile].terrain, terrain_properties, |properties| {
                 properties.mountainous
             }) > 0
         });
         let property = |tile: usize, value: fn(&TerrainMapgenProperties) -> i32| {
-            self.freeciv_terrain_property(tiles[tile].terrain, terrain_properties, value)
+            self.terrain_property(tiles[tile].terrain, terrain_properties, value)
         };
 
         adjacent_water_and_river <= 1
@@ -214,7 +220,7 @@ impl super::Generator {
     fn connect_river_step(&self, tiles: &mut [GeneratedTile], from: usize, to: usize) {
         let (x, y) = self.wrap.position(from);
         let direction = (0..CIV3_DIRS.len()).find(|&direction| {
-            self.wrap.civ3_neighbor(x, y, direction) == Some(self.wrap.position(to))
+            self.wrap.eight_way_neighbor(x, y, direction) == Some(self.wrap.position(to))
         });
         let Some(direction) = direction else {
             return;
@@ -225,7 +231,8 @@ impl super::Generator {
             _ => return,
         };
         let (to_x, to_y) = self.wrap.position(to);
-        let Some((edge_x, edge_y)) = self.wrap.civ3_neighbor(to_x, to_y, edge_direction) else {
+        let Some((edge_x, edge_y)) = self.wrap.eight_way_neighbor(to_x, to_y, edge_direction)
+        else {
             return;
         };
         self.connect_river_edge(tiles, to, self.wrap.index(edge_x, edge_y));
@@ -242,7 +249,7 @@ impl super::Generator {
             return;
         };
         let Some((neighbor_x, neighbor_y)) =
-            self.wrap.civ3_neighbor(to_x, to_y, neighbor_direction)
+            self.wrap.eight_way_neighbor(to_x, to_y, neighbor_direction)
         else {
             return;
         };
@@ -250,8 +257,9 @@ impl super::Generator {
         if tiles[neighbor].river_edges & (1 << required_edge) == 0 {
             return;
         }
-        let Some((stitch_x, stitch_y)) =
-            self.wrap.civ3_neighbor(neighbor_x, neighbor_y, added_edge)
+        let Some((stitch_x, stitch_y)) = self
+            .wrap
+            .eight_way_neighbor(neighbor_x, neighbor_y, added_edge)
         else {
             return;
         };
@@ -261,7 +269,7 @@ impl super::Generator {
     fn connect_river_edge(&self, tiles: &mut [GeneratedTile], from: usize, to: usize) {
         let (x, y) = self.wrap.position(from);
         let direction = (0..CIV3_DIRS.len()).find(|&direction| {
-            self.wrap.civ3_neighbor(x, y, direction) == Some(self.wrap.position(to))
+            self.wrap.eight_way_neighbor(x, y, direction) == Some(self.wrap.position(to))
         });
         let Some(direction) = direction else {
             return;
@@ -296,7 +304,7 @@ impl super::Generator {
         rng: &mut MapRng,
     ) -> Option<Vec<usize>> {
         if let Some(properties) = terrain_properties {
-            return self.trace_freeciv_river(tiles, heights, spring, properties, rng);
+            return self.trace_river_course(tiles, heights, spring, properties, rng);
         }
 
         self.trace_opensimplex_river(tiles, heights, spring, rng)
@@ -306,7 +314,9 @@ impl super::Generator {
     /// cardinal square-grid directions; CivCraft uses the four diagonal
     /// junction directions that have continuous Civ III river-sheet edges.
     /// All route blocking and course adjacency use this same renderable graph.
-    fn trace_freeciv_river(
+    ///
+    /// Follows Freeciv's river tracing.
+    fn trace_river_course(
         &self,
         tiles: &[GeneratedTile],
         heights: &[i32],
@@ -320,28 +330,22 @@ impl super::Generator {
         loop {
             course.push(current);
             if self
-                .freeciv_river_neighbors(current)
+                .river_flow_neighbors(current)
                 .any(|next| tiles[next].river)
                 || self
-                    .freeciv_river_neighbors(current)
+                    .river_flow_neighbors(current)
                     .any(|next| is_ocean(tiles[next].terrain))
             {
                 return Some(course);
             }
 
-            let next = self.select_freeciv_river_step(
-                tiles,
-                heights,
-                terrain_properties,
-                &blocked,
-                current,
-                rng,
-            )?;
+            let next =
+                self.select_river_step(tiles, heights, terrain_properties, &blocked, current, rng)?;
 
             // Freeciv's river_blockmark reserves the current tile and its
             // course neighbors after selecting the outgoing direction.
             blocked[current] = true;
-            for neighbor in self.freeciv_river_neighbors(current) {
+            for neighbor in self.river_flow_neighbors(current) {
                 blocked[neighbor] = true;
             }
             current = next;
@@ -353,7 +357,9 @@ impl super::Generator {
     /// candidates. Its `FC_INFINITY - wet` tests are represented by negative
     /// wetness sums, which preserve the exact ordering without copying the
     /// unrelated engine infinity constant.
-    pub(super) fn select_freeciv_river_step(
+    ///
+    /// Follows Freeciv's river step selection.
+    pub(super) fn select_river_step(
         &self,
         tiles: &[GeneratedTile],
         heights: &[i32],
@@ -362,7 +368,7 @@ impl super::Generator {
         current: usize,
         rng: &mut MapRng,
     ) -> Option<usize> {
-        let mut candidates: Vec<_> = self.freeciv_river_neighbors(current).collect();
+        let mut candidates: Vec<_> = self.river_flow_neighbors(current).collect();
         candidates.retain(|&tile| !tiles[tile].terrain.is_water());
         if candidates.is_empty() {
             return None;
@@ -370,8 +376,8 @@ impl super::Generator {
 
         for test in 0..9 {
             let value = |candidate: usize| -> i32 {
-                let course_neighbors: Vec<_> = self.freeciv_river_neighbors(candidate).collect();
-                let all_neighbors: Vec<_> = self.civ3_neighbors(candidate).collect();
+                let course_neighbors: Vec<_> = self.river_flow_neighbors(candidate).collect();
+                let all_neighbors: Vec<_> = self.eight_way_neighbors(candidate).collect();
                 match test {
                     // river_test_blocked: candidate and every possible
                     // continuation must not already be reserved.
@@ -388,7 +394,7 @@ impl super::Generator {
                             > 1,
                     ),
                     // river_test_highlands
-                    2 => self.freeciv_terrain_property(
+                    2 => self.terrain_property(
                         tiles[candidate].terrain,
                         terrain_properties,
                         |properties| properties.mountainous,
@@ -410,7 +416,7 @@ impl super::Generator {
                     5 => all_neighbors
                         .iter()
                         .map(|&next| {
-                            self.freeciv_terrain_property(
+                            self.terrain_property(
                                 tiles[next].terrain,
                                 terrain_properties,
                                 |properties| properties.mountainous,
@@ -418,7 +424,7 @@ impl super::Generator {
                         })
                         .sum(),
                     // river_test_swamp: minimize FC_INFINITY - property_wet.
-                    6 => -self.freeciv_terrain_property(
+                    6 => -self.terrain_property(
                         tiles[candidate].terrain,
                         terrain_properties,
                         |properties| properties.wet,
@@ -427,7 +433,7 @@ impl super::Generator {
                     7 => -all_neighbors
                         .iter()
                         .map(|&next| {
-                            self.freeciv_terrain_property(
+                            self.terrain_property(
                                 tiles[next].terrain,
                                 terrain_properties,
                                 |properties| properties.wet,
@@ -459,7 +465,8 @@ impl super::Generator {
         }
     }
 
-    fn freeciv_terrain_property(
+    /// Uses civ2civ3 terrain property values.
+    fn terrain_property(
         &self,
         terrain: Terrain,
         terrain_properties: &[TerrainMapgenProperties],
@@ -521,12 +528,12 @@ impl super::Generator {
                     std::cmp::Reverse(water_count(next)),
                     lake_count(next),
                     std::cmp::Reverse(river_count(next)),
-                    self.civ3_neighbors(next)
+                    self.eight_way_neighbors(next)
                         .map(|tile| Self::mountainous(tiles[tile].terrain))
                         .sum::<i32>(),
                     std::cmp::Reverse(Self::wet(tiles[next].terrain)),
                     std::cmp::Reverse(
-                        self.civ3_neighbors(next)
+                        self.eight_way_neighbors(next)
                             .map(|tile| Self::wet(tiles[tile].terrain))
                             .sum::<i32>(),
                     ),

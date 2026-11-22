@@ -368,7 +368,9 @@ fn invalid_campaign_state_is_rejected_on_load() {
 fn civilization_identity_and_unit_access_survive_renaming_and_save_reload() {
     let path = temporary_save("civilization-id");
     let mut game = Simulation::new(crate::test_support::seeded_map());
-    game.players[HUMAN].known = Tech::all().filter(|tech| tech.is_civ3_advance()).collect();
+    game.players[HUMAN].known = Tech::all()
+        .filter(|tech| tech.is_researchable_advance())
+        .collect();
     let leader = game.players[HUMAN].leader_name();
     assert_eq!(game.players[HUMAN].civilization_id.as_deref(), Some("rome"));
     assert!(game.unit_available(HUMAN, UnitKind::Worker));
@@ -565,7 +567,7 @@ fn loading_a_campaign_rebuilds_borders_from_culture() {
     let mut stale = Vec::new();
     for index in 0..game.tiles.len() {
         let (x, y) = game.map_wrap.position(index);
-        if game.map_wrap.civ3_distance(cx, cy, x, y) <= 2 {
+        if game.map_wrap.step_distance(cx, cy, x, y) <= 2 {
             game.tiles[index].owner = Some(HUMAN);
             game.tiles[index].border_city = Some(city_id);
             stale.push((x, y));
@@ -578,7 +580,7 @@ fn loading_a_campaign_rebuilds_borders_from_culture() {
     fs::remove_file(path).unwrap();
     assert_eq!(loaded.city_border_extent(city_id), Some(square));
     for (x, y) in stale {
-        let near = loaded.map_wrap.civ3_distance(cx, cy, x, y) <= 1;
+        let near = loaded.map_wrap.step_distance(cx, cy, x, y) <= 1;
         assert_eq!(
             loaded.tile(x, y).border_city,
             near.then_some(city_id),

@@ -237,15 +237,13 @@ impl Simulation {
             let port = route_zone_cache
                 .city_at(self, x, y)
                 .is_some_and(|city| self.allied(city.owner, founder.owner) && self.is_port(city));
-            for pickup in
-                port.then_some((x, y))
-                    .into_iter()
-                    .chain(self.map_wrap.civ3_neighbors(x, y).filter(|&(sx, sy)| {
-                        self.tile(sx, sy).terrain.is_water()
-                            && !self.treaty_blocks_move(&traveler, sx, sy)
-                            && !blocked_units[self.map_wrap.index(sx, sy)]
-                    }))
-            {
+            for pickup in port.then_some((x, y)).into_iter().chain(
+                self.map_wrap.eight_way_neighbors(x, y).filter(|&(sx, sy)| {
+                    self.tile(sx, sy).terrain.is_water()
+                        && !self.treaty_blocks_move(&traveler, sx, sy)
+                        && !blocked_units[self.map_wrap.index(sx, sy)]
+                }),
+            ) {
                 pickup_candidates += 1;
                 let pickup_index = self.map_wrap.index(pickup.0, pickup.1);
                 // One land tile can reach a pickup tile through several
@@ -451,7 +449,7 @@ impl Simulation {
             sea_expansions += 1;
             let (x, y) = self.map_wrap.position(tile);
             (staged.x, staged.y) = (x, y);
-            for (nx, ny) in self.map_wrap.civ3_neighbors(x, y) {
+            for (nx, ny) in self.map_wrap.eight_way_neighbors(x, y) {
                 let index = self.map_wrap.index(nx, ny);
                 let blocked = blocked_units[index];
                 if labels[index] > 0
@@ -668,7 +666,7 @@ impl Simulation {
             return;
         };
         if founder.transport.is_none() {
-            self.follow_civ3_path(founder.id, plan.pickup_walk.iter().copied());
+            self.follow_grid_path(founder.id, plan.pickup_walk.iter().copied());
             self.unit_goto_tiles.insert(ship, plan.pickup);
             self.ai_goto_unit(ship, plan.pickup, GotoTask::None);
             if !self.board_specific_ship(founder.id, ship)
@@ -688,12 +686,12 @@ impl Simulation {
             .any(|unit| unit.id == ship && (unit.x, unit.y) == (x, y))
         {
             let direction = CIV3_DIRS.iter().position(|&(dx, dy)| {
-                self.map_wrap.civ3_offset(x, y, dx, dy) == Some(plan.landing)
+                self.map_wrap.eight_way_offset(x, y, dx, dy) == Some(plan.landing)
             });
             if direction.is_some_and(|direction| {
-                self.try_move_unit_civ3(founder.id, direction) == MoveResult::Moved
+                self.try_move_unit(founder.id, direction) == MoveResult::Moved
             }) {
-                self.follow_civ3_path(founder.id, plan.inland_path.iter().copied());
+                self.follow_grid_path(founder.id, plan.inland_path.iter().copied());
                 if self.units.iter().any(|unit| {
                     unit.id == founder.id
                         && unit.moves_left > 0

@@ -101,7 +101,7 @@ fn build_continent_labels(tiles: &[Tile], map_wrap: MapWrap) -> Arc<[usize]> {
         labels[index] = continent;
         let mut pending = vec![map_wrap.position(index)];
         while let Some((x, y)) = pending.pop() {
-            for (nx, ny) in map_wrap.civ3_neighbors(x, y) {
+            for (nx, ny) in map_wrap.eight_way_neighbors(x, y) {
                 let index = map_wrap.index(nx, ny);
                 if labels[index] == 0 && !tiles[index].terrain.is_water() {
                     labels[index] = continent;
@@ -131,7 +131,7 @@ fn build_sea_region_labels(tiles: &[Tile], cities: &[City], map_wrap: MapWrap) -
         labels[index] = region;
         let mut pending = vec![map_wrap.position(index)];
         while let Some((x, y)) = pending.pop() {
-            for (nx, ny) in map_wrap.civ3_neighbors(x, y) {
+            for (nx, ny) in map_wrap.eight_way_neighbors(x, y) {
                 let next = map_wrap.index(nx, ny);
                 if labels[next] == 0 && passable[next] {
                     labels[next] = region;
@@ -186,7 +186,7 @@ impl MovementConnectivity {
             if allow_adjacent_attack {
                 return sim
                     .map_wrap
-                    .civ3_neighbors(target.0, target.1)
+                    .eight_way_neighbors(target.0, target.1)
                     .any(|(nx, ny)| self.sea_regions[sim.map_wrap.index(nx, ny)] == sc);
             }
             return false;
@@ -244,7 +244,7 @@ impl Simulation {
                 let mut cluster_root: Option<usize> = None;
                 while let Some(tile_idx) = stack.pop() {
                     let (tx, ty) = self.map_wrap.position(tile_idx);
-                    for (nx, ny) in self.map_wrap.civ3_neighbors(tx, ty) {
+                    for (nx, ny) in self.map_wrap.eight_way_neighbors(tx, ty) {
                         let ni = self.map_wrap.index(nx, ny);
                         let c = continents[ni];
                         if c != 0 {

@@ -87,7 +87,7 @@ fn axis(wrap: MapWrap, from: (i32, i32), direction: usize, steps: usize) -> Vec<
     for _ in 0..steps {
         let previous = *path.last().unwrap();
         path.push(
-            wrap.civ3_neighbor(previous.0, previous.1, direction)
+            wrap.eight_way_neighbor(previous.0, previous.1, direction)
                 .expect("scenario path stays on the map"),
         );
     }
@@ -113,7 +113,7 @@ fn rule_holds(game: &Simulation) -> bool {
             let occupied = cities.iter().any(|city| (city.x, city.y) == (x, y));
             let mut best: Option<((i32, i64, u32), u32)> = None;
             for (city, &radius) in cities.iter().zip(&radii) {
-                if !wrap.civ3_border_shape_contains((city.x, city.y), (x, y), radius) {
+                if !wrap.border_shape_contains((city.x, city.y), (x, y), radius) {
                     continue;
                 }
                 let is_center = (city.x, city.y) == (x, y);
@@ -123,7 +123,7 @@ fn rule_holds(game: &Simulation) -> bool {
                 let rank = if is_center {
                     -1
                 } else {
-                    wrap.civ3_culture_rank(city.x, city.y, x, y)
+                    wrap.culture_rank_distance(city.x, city.y, x, y)
                 };
                 let key = (rank, -game.city_culture_score(city), city.id);
                 if best.is_none_or(|(current, _)| key < current) {
@@ -472,7 +472,7 @@ fn shape_tiles(game: &Simulation, center: (i32, i32), radius: i32) -> Vec<(i32, 
     let mut tiles = Vec::new();
     for y in 0..wrap.height() {
         for x in 0..wrap.width() {
-            if wrap.civ3_border_shape_contains(center, (x, y), radius) {
+            if wrap.border_shape_contains(center, (x, y), radius) {
                 tiles.push((x, y));
             }
         }

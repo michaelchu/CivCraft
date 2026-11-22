@@ -49,7 +49,9 @@ pub(crate) fn setup(map: GeneratedMap) -> (Simulation, Box<dyn ScenarioRun>) {
 }
 
 fn campaign(map: GeneratedMap) -> (Simulation, SpaceVictory) {
-    let known: Vec<_> = Tech::all().filter(|tech| tech.is_civ3_advance()).collect();
+    let known: Vec<_> = Tech::all()
+        .filter(|tech| tech.is_researchable_advance())
+        .collect();
     let contender_known: Vec<_> = known
         .iter()
         .copied()

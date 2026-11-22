@@ -49,7 +49,7 @@ struct BorderSource {
 
 impl BorderSource {
     fn contains(&self, wrap: MapWrap, tile_index: usize) -> bool {
-        wrap.civ3_border_shape_contains((self.x, self.y), wrap.position(tile_index), self.radius)
+        wrap.border_shape_contains((self.x, self.y), wrap.position(tile_index), self.radius)
     }
 }
 
@@ -164,7 +164,8 @@ impl Simulation {
                     -1
                 } else {
                     let (x, y) = self.map_wrap.position(tile_index);
-                    self.map_wrap.civ3_culture_rank(source.x, source.y, x, y)
+                    self.map_wrap
+                        .culture_rank_distance(source.x, source.y, x, y)
                 };
                 let key = (rank, -source.culture, source.city_id);
                 if claim_slot.is_none_or(|claim| key < claim.key) {

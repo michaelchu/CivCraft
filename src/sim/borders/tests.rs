@@ -30,7 +30,7 @@ fn straight_path(
         let previous = *path.last().unwrap();
         path.push(
             game.map_wrap
-                .civ3_neighbor(previous.0, previous.1, direction)
+                .eight_way_neighbor(previous.0, previous.1, direction)
                 .expect("test path stays inside the map"),
         );
     }
@@ -104,7 +104,10 @@ fn borders_claim_every_tile_in_the_shape_seen_or_not() {
     game.rebuild_city_ownership();
     assert_eq!(owned_tile_count(&game), 21);
     // The claim reveals the terrain it covers to its owner.
-    let neighbor = game.map_wrap.civ3_neighbor(origin.0, origin.1, 2).unwrap();
+    let neighbor = game
+        .map_wrap
+        .eight_way_neighbor(origin.0, origin.1, 2)
+        .unwrap();
     assert_eq!(game.tile(neighbor.0, neighbor.1).owner, Some(HUMAN));
     assert!(game.tile(neighbor.0, neighbor.1).known_by[HUMAN]);
 }
@@ -271,7 +274,7 @@ fn shared_border_is_the_line_of_equal_distance_and_ignores_history() {
             continue;
         };
         let (x, y) = game.map_wrap.position(index);
-        let ranks = centers.map(|(cx, cy)| game.map_wrap.civ3_culture_rank(cx, cy, x, y));
+        let ranks = centers.map(|(cx, cy)| game.map_wrap.culture_rank_distance(cx, cy, x, y));
         let nearest = if ranks[0] <= ranks[1] { ids[0] } else { ids[1] };
         if ranks[0] != ranks[1] {
             // Never taken from the nearer city, never a size effect.
@@ -321,7 +324,7 @@ fn cultural_claims_discover_owned_tiles_without_granting_current_sight() {
     for direction in [2, 2, 3] {
         position = sim
             .map_wrap
-            .civ3_neighbor(position.0, position.1, direction)
+            .eight_way_neighbor(position.0, position.1, direction)
             .unwrap();
     }
     let (x, y) = position;

@@ -2619,7 +2619,7 @@ impl Civ3 {
 
         let wrap = game.sim.map_wrap();
         let at = |direction| {
-            wrap.civ3_neighbor(x, y, direction)
+            wrap.eight_way_neighbor(x, y, direction)
                 .map(|(nx, ny)| game.sim.render_tile_view(nx, ny))
         };
         let Some(north) = at(1) else { return };
@@ -2630,7 +2630,7 @@ impl Civ3 {
             return;
         }
         let edges = |tile: &RenderTileView| if tile.seen { tile.river_edges } else { 0 };
-        let Some(index) = super::rivers::civ3_junction_index(
+        let Some(index) = super::rivers::river_junction_index(
             edges(&north),
             edges(&east),
             edges(&south),
@@ -2645,12 +2645,14 @@ impl Civ3 {
         let is_mouth = !west.terrain.is_water()
             && (0..8).any(|direction| {
                 west.river_edges & (1 << direction) != 0
-                    && wrap.civ3_neighbor(x, y, direction).is_some_and(|(nx, ny)| {
-                        let neighbor = game.sim.render_tile_view(nx, ny);
-                        neighbor.seen && neighbor.terrain.is_water()
-                    })
+                    && wrap
+                        .eight_way_neighbor(x, y, direction)
+                        .is_some_and(|(nx, ny)| {
+                            let neighbor = game.sim.render_tile_view(nx, ny);
+                            neighbor.seen && neighbor.terrain.is_water()
+                        })
             });
-        let texture = match super::rivers::civ3_river_sheet(index, is_mouth) {
+        let texture = match super::rivers::river_sheet_cell(index, is_mouth) {
             Civ3RiverSheet::Delta => &self.river_delta,
             Civ3RiverSheet::Mountain => &self.river_mountain,
         };
@@ -2661,7 +2663,7 @@ impl Civ3 {
             WHITE,
             DrawTextureParams {
                 dest_size: Some(size),
-                source: Some(super::rivers::civ3_river_sprite(index)),
+                source: Some(super::rivers::river_sprite(index)),
                 ..Default::default()
             },
         );

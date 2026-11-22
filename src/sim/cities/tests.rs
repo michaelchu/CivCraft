@@ -215,9 +215,9 @@ fn conquest_steals_an_available_technology_using_selected_effect_and_transfer_se
     }
     let tech = Tech::all()
         .find(|&tech| {
-            tech.is_civ3_advance()
+            tech.is_researchable_advance()
                 && tech
-                    .civ3_prerequisites()
+                    .catalog_prerequisites()
                     .is_some_and(|prerequisites| prerequisites.is_empty())
         })
         .expect("the C2C3 tree has a root technology");
@@ -244,12 +244,12 @@ fn conquest_fixture() -> (Simulation, u32, u32, (i32, i32)) {
     let center = (20, 24);
     let mut bounce_area = game
         .map_wrap
-        .freeciv_square_radius(center.0, center.1, 2)
+        .square_radius_in_source_order(center.0, center.1, 2)
         .into_iter()
         .collect::<std::collections::BTreeSet<_>>();
     bounce_area.extend(
         game.map_wrap
-            .civ3_radius(center.0, center.1, 2)
+            .tiles_within_steps(center.0, center.1, 2)
             .into_iter()
             .map(|(x, y, _)| (x, y)),
     );
@@ -391,12 +391,12 @@ fn conquest_transfer_bounces_units_from_other_nonallied_cities() {
     let foreign_city = (10, 24);
     let mut bounce_area = game
         .map_wrap
-        .freeciv_square_radius(foreign_city.0, foreign_city.1, 2)
+        .square_radius_in_source_order(foreign_city.0, foreign_city.1, 2)
         .into_iter()
         .collect::<std::collections::BTreeSet<_>>();
     bounce_area.extend(
         game.map_wrap
-            .civ3_radius(foreign_city.0, foreign_city.1, 2)
+            .tiles_within_steps(foreign_city.0, foreign_city.1, 2)
             .into_iter()
             .map(|(x, y, _)| (x, y)),
     );
@@ -431,12 +431,12 @@ fn conquest_transfer_unloads_unallied_cargo_before_bouncing_illegal_city_occupan
     let foreign_city = (10, 24);
     let mut bounce_area = game
         .map_wrap
-        .freeciv_square_radius(foreign_city.0, foreign_city.1, 2)
+        .square_radius_in_source_order(foreign_city.0, foreign_city.1, 2)
         .into_iter()
         .collect::<std::collections::BTreeSet<_>>();
     bounce_area.extend(
         game.map_wrap
-            .civ3_radius(foreign_city.0, foreign_city.1, 2)
+            .tiles_within_steps(foreign_city.0, foreign_city.1, 2)
             .into_iter()
             .map(|(x, y, _)| (x, y)),
     );
@@ -514,7 +514,7 @@ fn conquest_city_transfer_bounce_uses_freeciv_order_and_preserves_unit_id() {
         };
     let freeciv_destinations = game
         .map_wrap
-        .freeciv_square_radius(center.0, center.1, 2)
+        .square_radius_in_source_order(center.0, center.1, 2)
         .into_iter()
         .filter(|&(x, y)| (x, y) != center)
         .filter(|&(x, y)| game.unit_can_survive_at_tile(&bounced, x, y))
@@ -522,7 +522,7 @@ fn conquest_city_transfer_bounce_uses_freeciv_order_and_preserves_unit_id() {
         .collect::<Vec<_>>();
     let old_civ3_destinations = game
         .map_wrap
-        .civ3_radius(center.0, center.1, 2)
+        .tiles_within_steps(center.0, center.1, 2)
         .into_iter()
         .filter(|&(_, _, distance)| distance != 0)
         .filter(|&(x, y, _)| game.movement_cost_for(&bounced, x, y).is_some())

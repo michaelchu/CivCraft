@@ -229,7 +229,8 @@ impl Simulation {
         }
     }
 
-    pub(super) fn c2c3_finalize_city_outputs_cached(
+    /// Applies civ2civ3 city output finalization.
+    pub(super) fn finalize_city_outputs_cached(
         &self,
         city: &City,
         gross: (i32, i32, i32),
@@ -464,7 +465,9 @@ impl Simulation {
     /// Apply Freeciv's city-wide bonus-before-waste ordering to the three
     /// worked-tile outputs after route trade has joined gross trade. C2C3's
     /// size penalty and local tax split are retained.
-    pub(in crate::sim) fn c2c3_finalize_city_outputs(
+    ///
+    /// Applies civ2civ3 city output finalization.
+    pub(in crate::sim) fn finalize_city_outputs(
         &self,
         city: &City,
         gross: (i32, i32, i32),

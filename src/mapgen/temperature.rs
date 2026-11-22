@@ -68,7 +68,9 @@ impl Generator {
     /// Build the `create_tmap()` temperature categories for the Freeciv
     /// generator. When `real` is false, Freeciv uses latitude alone; start
     /// position selection does this after the height map has been discarded.
-    pub(super) fn freeciv_temperature_map(
+    ///
+    /// Follows Freeciv's temperature map generation.
+    pub(super) fn generate_temperature_map(
         &self,
         real: bool,
         heights: Option<&[i32]>,
@@ -129,7 +131,7 @@ impl Generator {
         }
 
         let (frozen_level, cold_level, tropical_level) =
-            freeciv_temperature_thresholds(settings.temperature, tile_count);
+            temperature_thresholds(settings.temperature, tile_count);
         let dry_min = (FREECIV_MAX_COLATITUDE * (7300 - settings.temperature * 18) / 10000).max(0);
         let dry_max = FREECIV_MAX_COLATITUDE * (7300 + settings.temperature * 17) / 10000;
         TemperatureMap {
@@ -167,10 +169,8 @@ fn rank_field_between(values: &mut [i32], minimum: i32, maximum: i32) {
     }
 }
 
-pub(super) fn freeciv_temperature_thresholds(
-    temperature: i32,
-    tile_count: usize,
-) -> (i32, i32, i32) {
+/// Follows Freeciv's temperature zone thresholds.
+pub(super) fn temperature_thresholds(temperature: i32, tile_count: usize) -> (i32, i32, i32) {
     let cold_level = (FREECIV_MAX_COLATITUDE * (60 * 7 - temperature * 6) / 700).max(0);
     let tropical_level = (FREECIV_MAX_COLATITUDE * (143 * 7 - temperature * 10) / 700)
         .clamp(0, FREECIV_MAX_COLATITUDE * 9 / 10);
@@ -205,20 +205,20 @@ mod tests {
 
     #[test]
     fn c2c3_temperature_setting_produces_freeciv_zone_boundaries() {
-        assert_eq!(freeciv_temperature_thresholds(60, 36 * 48), (56, 85, 572));
+        assert_eq!(temperature_thresholds(60, 36 * 48), (56, 85, 572));
     }
 
     #[test]
     fn freeciv_ice_base_uses_default_separate_poles_for_larger_maps() {
-        assert_eq!(freeciv_temperature_thresholds(60, 80 * 80), (38, 85, 572));
-        assert_eq!(freeciv_temperature_thresholds(60, 100 * 100), (32, 85, 572));
+        assert_eq!(temperature_thresholds(60, 80 * 80), (38, 85, 572));
+        assert_eq!(temperature_thresholds(60, 100 * 100), (32, 85, 572));
     }
 
     #[test]
     fn latitude_only_temperature_map_matches_freeciv_start_filter_zones() {
         let generator = generator(MapWrap::X);
         let settings = ruleset_settings();
-        let map = generator.freeciv_temperature_map(false, None, None, settings);
+        let map = generator.generate_temperature_map(false, None, None, settings);
         let x = generator.wrap.width() / 2;
         assert_eq!(map.get(generator.index(x, 0)), TemperatureType::Frozen);
         assert_eq!(map.get(generator.index(x, 2)), TemperatureType::Temperate);
@@ -230,7 +230,7 @@ mod tests {
     #[test]
     fn dry_zone_uses_freeciv_latitude_and_adjacent_ocean_percentage() {
         let generator = generator(MapWrap::X);
-        let map = generator.freeciv_temperature_map(false, None, None, ruleset_settings());
+        let map = generator.generate_temperature_map(false, None, None, ruleset_settings());
         let tile = generator.index(generator.wrap.width() / 2, 18);
         let mut water = vec![false; generator.wrap.tile_count()];
         assert!(map.is_dry(&generator, tile, &water));

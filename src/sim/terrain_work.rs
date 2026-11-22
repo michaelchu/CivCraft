@@ -45,7 +45,7 @@ impl Simulation {
         if target.is_water() == old.is_water() {
             return true;
         }
-        let adjacent: Vec<_> = self.map_wrap.civ3_neighbors(x, y).collect();
+        let adjacent: Vec<_> = self.map_wrap.eight_way_neighbors(x, y).collect();
         let water = adjacent
             .iter()
             .filter(|&&(nx, ny)| self.tile(nx, ny).terrain.is_water())
@@ -112,7 +112,7 @@ impl Simulation {
             let Some(unit) = self.unit_by_id(id) else {
                 continue;
             };
-            let destination = self.map_wrap.civ3_neighbors(x, y).find(|&(nx, ny)| {
+            let destination = self.map_wrap.eight_way_neighbors(x, y).find(|&(nx, ny)| {
                 self.movement_cost_for(unit, nx, ny).is_some()
                     && !self.treaty_blocks_move(unit, nx, ny)
                     && self.best_defender_id(unit, nx, ny).is_none()

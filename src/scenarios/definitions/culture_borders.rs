@@ -26,7 +26,7 @@ fn execute(game: &mut Simulation, checks: &mut Checks) {
         let previous = *path.last().unwrap();
         path.push(
             game.map_wrap
-                .civ3_neighbor(previous.0, previous.1, 3)
+                .eight_way_neighbor(previous.0, previous.1, 3)
                 .unwrap(),
         );
     }

@@ -134,7 +134,7 @@ impl Simulation {
         let target = self.unit_by_id(distant).unwrap();
         let skipped = self
             .map_wrap
-            .civ3_distance(home.0, home.1, target.x, target.y)
+            .step_distance(home.0, home.1, target.x, target.y)
             > plane.kind.operational_range()
             && !self.can_bombard_tile(plane, target.x, target.y);
 

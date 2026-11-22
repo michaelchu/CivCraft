@@ -180,7 +180,7 @@ mod tests {
             );
             let bonus_unit = profile
                 .expansionist
-                .then(|| UnitKind::from_civ3_name(profile.expansionist_bonus_unit).unwrap());
+                .then(|| UnitKind::from_catalog_name(profile.expansionist_bonus_unit).unwrap());
             assert_eq!(
                 owner_units
                     .iter()

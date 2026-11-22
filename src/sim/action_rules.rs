@@ -383,12 +383,12 @@ impl<'a> SimulationRequirementContext<'a> {
             RequirementRange::Adjacent => Ok(self
                 .simulation
                 .map_wrap
-                .civ3_neighbors(tile.0, tile.1)
+                .eight_way_neighbors(tile.0, tile.1)
                 .collect()),
             // Freeciv's CAdjacent range uses map_distance <= 1, so it includes
             // the target tile as well as its topology-adjacent neighbors.
             RequirementRange::CAdjacent => Ok(std::iter::once(tile)
-                .chain(self.simulation.map_wrap.civ3_neighbors(tile.0, tile.1))
+                .chain(self.simulation.map_wrap.eight_way_neighbors(tile.0, tile.1))
                 .collect()),
             _ => Err(Self::unsupported(requirement)),
         }
@@ -1211,7 +1211,8 @@ impl EffectContext for SimulationRequirementContext<'_> {
     }
 }
 
-fn c2c3_building_name_aliases(runtime_name: &str) -> &'static [&'static str] {
+/// Maps civ2civ3 building names to Civ III buildings.
+fn building_name_aliases(runtime_name: &str) -> &'static [&'static str] {
     match runtime_name {
         "Harbor" => &["Harbour"],
         "Shakespeare's Theater" => &["Shakespeare's Theatre"],
@@ -1222,7 +1223,7 @@ fn c2c3_building_name_aliases(runtime_name: &str) -> &'static [&'static str] {
 fn runtime_building_for_name(name: &str) -> Option<Building> {
     Building::all().find(|building| {
         building.data().name.eq_ignore_ascii_case(name)
-            || c2c3_building_name_aliases(building.data().name)
+            || building_name_aliases(building.data().name)
                 .iter()
                 .any(|alias| alias.eq_ignore_ascii_case(name))
     })
@@ -1870,12 +1871,10 @@ impl Simulation {
         }
         if let WorkKind::Pillage(target) = kind {
             return super::movement_rules::MovementRules::campaign()
-                .terrain_pillage_time(terrain, freeciv_pillage_extra(target))
+                .terrain_pillage_time(terrain, pillage_extra(target))
                 .map_err(|_| {
                     SimulationRequirementContext::unsupported(
-                        &SimulationRequirementContext::extra_requirement(freeciv_pillage_extra(
-                            target,
-                        )),
+                        &SimulationRequirementContext::extra_requirement(pillage_extra(target)),
                     )
                     .into()
                 });
@@ -2051,7 +2050,8 @@ fn set_work_tile_extra(tile: &mut Tile, kind: WorkKind) -> bool {
     true
 }
 
-fn freeciv_pillage_extra(target: PillageTarget) -> &'static str {
+/// Follows Freeciv's pillage target selection.
+fn pillage_extra(target: PillageTarget) -> &'static str {
     target.name()
 }
 
@@ -2078,7 +2078,9 @@ pub(crate) fn unit_class_rule_name(unit: UnitKind) -> Option<String> {
 }
 
 /// Civ III PRTO supplies no per-target Freeciv combat-bonus table.
-pub(crate) fn freeciv_unit_combat_bonuses(
+///
+/// Reads Freeciv-style unit combat bonuses.
+pub(crate) fn unit_combat_bonuses(
     _unit: UnitKind,
 ) -> Option<Vec<crate::rules::engine_rules::UnitCombatBonus>> {
     Some(Vec::new())
@@ -2086,19 +2088,23 @@ pub(crate) fn freeciv_unit_combat_bonuses(
 
 /// The retained flight planner uses a one-turn mission budget for aircraft.
 /// This is engine state, not a second unit statistic or operational range.
-pub(crate) fn freeciv_unit_type_fuel_capacity(unit: UnitKind) -> Option<u8> {
+///
+/// Reads the Freeciv unit fuel value.
+pub(crate) fn unit_type_fuel_capacity(unit: UnitKind) -> Option<u8> {
     Some(u8::from(
         unit.conquests_rule().unit_type == 2 || unit.is_missile(),
     ))
 }
 
-pub(crate) fn freeciv_unit_transport_defense(
+/// Reads Freeciv-style transport defense rules.
+pub(crate) fn unit_transport_defense(
     _unit: UnitKind,
 ) -> Option<crate::rules::engine_rules::TransportDefense> {
     Some(crate::rules::engine_rules::TransportDefense::Alight)
 }
 
-pub(crate) fn freeciv_unit_paratroopers_range(unit: UnitKind) -> Option<i32> {
+/// Reads the Freeciv paratroopers range.
+pub(crate) fn unit_paratroopers_range(unit: UnitKind) -> Option<i32> {
     let rule = unit.conquests_rule();
     rule.has_capability("Paradrop")
         .then_some(rule.operational_range)
@@ -2106,7 +2112,9 @@ pub(crate) fn freeciv_unit_paratroopers_range(unit: UnitKind) -> Option<i32> {
 
 /// The retained suicide-action engine consumes the native missile's bombard
 /// strength. This does not claim that its combat algorithm matches Civ III bombardment.
-pub(crate) fn freeciv_missile_attack_strength(unit: UnitKind) -> Option<i32> {
+///
+/// Follows Freeciv's missile attack strength.
+pub(crate) fn missile_attack_strength(unit: UnitKind) -> Option<i32> {
     (unit == UnitKind::CruiseMissile).then_some(unit.conquests_rule().bombard_strength)
 }
 
@@ -2255,7 +2263,10 @@ mod tests {
     fn extra_requirements_support_adjacent_and_center_adjacent_ranges() {
         let mut game = flat_game();
         let center = (10, 20);
-        let adjacent = game.map_wrap.civ3_neighbor(center.0, center.1, 0).unwrap();
+        let adjacent = game
+            .map_wrap
+            .eight_way_neighbor(center.0, center.1, 0)
+            .unwrap();
         game.tile_mut(adjacent.0, adjacent.1).river = true;
         let requirement = |range| Requirement {
             kind: RequirementKind::Extra,
@@ -2341,7 +2352,7 @@ mod tests {
         game.players[crate::sim::HUMAN]
             .known
             .retain(|tech| *tech != Tech::ELECTRICITY);
-        let water = game.map_wrap.civ3_neighbor(x, y, 0).unwrap();
+        let water = game.map_wrap.eight_way_neighbor(x, y, 0).unwrap();
         game.tile_mut(water.0, water.1).terrain = Terrain::Sea;
         assert!(
             game.action_available(worker, "Build Irrigation", (x, y))
@@ -2821,7 +2832,7 @@ mod tests {
     fn borrowed_target_action_context_uses_specific_enemy_on_an_unowned_tile() {
         let mut game = flat_game();
         let (x, y) = (10, 20);
-        let target_xy = game.map_wrap.civ3_offset(x, y, 2, 0).unwrap();
+        let target_xy = game.map_wrap.eight_way_offset(x, y, 2, 0).unwrap();
         game.sign_pact(crate::sim::HUMAN, 1, Pact::War);
         game.tile_mut(target_xy.0, target_xy.1).owner = None;
         let actor_id = game.spawn_unit(crate::sim::HUMAN, UnitKind::Bomber, x, y);
@@ -2857,7 +2868,7 @@ mod tests {
     fn borrowed_city_action_context_uses_city_owner_when_tile_owner_is_unset() {
         let mut game = flat_game();
         let (x, y) = (10, 20);
-        let target_xy = game.map_wrap.civ3_offset(x, y, 2, 0).unwrap();
+        let target_xy = game.map_wrap.eight_way_offset(x, y, 2, 0).unwrap();
         game.sign_pact(crate::sim::HUMAN, 1, Pact::War);
         let actor_id = game.spawn_unit(crate::sim::HUMAN, UnitKind::ICBM, x, y);
         game.create_city(1, target_xy.0, target_xy.1);

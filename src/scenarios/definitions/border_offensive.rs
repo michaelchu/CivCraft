@@ -256,12 +256,12 @@ impl ScenarioRun for ReinforcementAudit {
                     let distance = game.map_distance(unit.x, unit.y, target.0, target.1);
                     if let Some(direction) = CIV3_DIRS.iter().position(|&(dx, dy)| {
                         game.map_wrap
-                            .civ3_offset(unit.x, unit.y, dx, dy)
+                            .eight_way_offset(unit.x, unit.y, dx, dy)
                             .is_some_and(|(x, y)| {
                                 game.map_distance(x, y, target.0, target.1) < distance
                             })
                     }) {
-                        game.try_move_unit_civ3(id, direction);
+                        game.try_move_unit(id, direction);
                     }
                 }
             }
@@ -288,7 +288,7 @@ impl ScenarioRun for ReinforcementAudit {
         let city = game.city_by_id(self.audit.target).unwrap();
         let position = game
             .map_wrap
-            .civ3_radius(city.x, city.y, 3)
+            .tiles_within_steps(city.x, city.y, 3)
             .into_iter()
             .filter_map(|(x, y, distance)| (distance > 0).then_some((x, y)))
             .filter(|&(x, y)| {

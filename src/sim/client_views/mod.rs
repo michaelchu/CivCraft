@@ -855,7 +855,10 @@ mod tests {
         let mut game = Simulation::new(crate::test_support::seeded_map());
         game.units.clear();
         let start = (10, 24);
-        let target = game.map_wrap.civ3_neighbor(start.0, start.1, 1).unwrap();
+        let target = game
+            .map_wrap
+            .eight_way_neighbor(start.0, start.1, 1)
+            .unwrap();
         for (x, y) in [start, target] {
             let tile = game.tile_mut(x, y);
             tile.terrain = Terrain::Grassland;

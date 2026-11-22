@@ -247,7 +247,7 @@ impl Simulation {
         // daitech.c adds each supported effect's raw value to the per-city
         // accumulator before applying its common 14/8 conversion. The direct
         // output preview above remains the base-want path for output effects.
-        let effect_value = self.freeciv_city_tech_effect_value(city, tech);
+        let effect_value = self.city_tech_effect_value(city, tech);
         let mut want = (direct + effect_value) * 14 / 8;
         for &building in &city.buildings {
             if building
@@ -274,8 +274,10 @@ impl Simulation {
     /// requirements have no direct Civ III advance binding. Freeciv itself
     /// gives no value to the selected Trade_Revenue_Bonus, Inspire_Partisans,
     /// Has_Senate, or timeline effects.
-    fn freeciv_city_tech_effect_value(&self, city: &City, tech: Tech) -> i32 {
-        if !tech.is_civ3_advance() {
+    ///
+    /// Follows Freeciv's research effect valuation.
+    fn city_tech_effect_value(&self, city: &City, tech: Tech) -> i32 {
+        if !tech.is_researchable_advance() {
             return 0;
         }
 
@@ -597,7 +599,7 @@ fn city_effect_techs() -> &'static [Tech] {
         Tech::all()
             .filter(|&tech| {
                 matches!(tech, Tech::RAILROAD | Tech::TRADE | Tech::THE_CORPORATION)
-                    || tech.is_civ3_advance()
+                    || tech.is_researchable_advance()
                         && ruleset.effects.iter().any(|effect| {
                             effect.multiplier.is_none()
                                 && matches!(
@@ -639,7 +641,7 @@ fn bound_player_tech(requirement: &FreecivRequirement) -> Option<(Tech, bool)> {
             _ => return None,
         },
     };
-    tech.is_civ3_advance()
+    tech.is_researchable_advance()
         .then_some((tech, requirement.present))
 }
 
