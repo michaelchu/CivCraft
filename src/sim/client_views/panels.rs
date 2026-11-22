@@ -75,27 +75,9 @@ impl Simulation {
     }
 
     pub(crate) fn spaceship_assembly_view(&self, owner: usize) -> SpaceshipAssemblyView {
-        let (unplaced, structure, components, modules, manual) = self.ship_assembly();
-        let status = self.spaceship_status(owner).unwrap_or_default();
-        let structural_enabled =
-            std::array::from_fn(|index| self.can_place_ship_part(ShipPart::Structural(index)));
-        let component_enabled =
-            std::array::from_fn(|index| self.can_place_ship_part(ShipPart::Component(index)));
-        let module_enabled =
-            std::array::from_fn(|index| self.can_place_ship_part(ShipPart::Module(index)));
         SpaceshipAssemblyView {
-            unplaced,
-            structure,
-            components,
-            modules,
-            manual,
-            can_launch: self.can_launch_spaceship(owner),
-            can_toggle_manual: !status.starts_with("Spaceship arrives"),
-            status,
-            structural_parents: STRUCTURE_PARENT,
-            structural_enabled,
-            component_enabled,
-            module_enabled,
+            status: self.spaceship_status(owner).unwrap_or_default(),
+            parts: self.spaceship_parts(owner),
         }
     }
 
@@ -123,13 +105,7 @@ impl Simulation {
                 let support_description =
                     "Unit upkeep: C2C3 per-unit costs and city allowances".to_owned();
                 let requirement_description = government.requirement().and_then(|tech| {
-                    (!player.known.contains(&tech)).then(|| {
-                        if self.can_change_government(owner, government) {
-                            "Statue of Liberty".to_owned()
-                        } else {
-                            format!("Requires {}", tech.name())
-                        }
-                    })
+                    (!player.known.contains(&tech)).then(|| format!("Requires {}", tech.name()))
                 });
                 GovernmentOptionView {
                     government,
@@ -176,7 +152,6 @@ impl Simulation {
             research_points: player.research,
             research_cost: self.target_cost(owner, research),
             spaceship_status: self.spaceship_status(owner),
-            can_launch_spaceship: self.can_launch_spaceship(owner),
         })
     }
 

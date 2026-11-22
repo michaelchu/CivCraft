@@ -128,7 +128,6 @@ impl Simulation {
         // and before the global-warming/nuclear-winter phase.
         self.check_achievements();
         self.update_climate();
-        self.refresh_diplomatic_contact_effects();
         // srv_main.c::end_turn advances diplomacy and the calendar after
         // migrations, disasters, achievements, climate, and other world
         // changes. check_for_game_over() runs immediately after end_turn().
@@ -151,7 +150,6 @@ impl Simulation {
         if self.check_turn_limit() {
             return;
         }
-        self.check_space_race_arrivals();
         if self.game_over.is_some() {
             return;
         }

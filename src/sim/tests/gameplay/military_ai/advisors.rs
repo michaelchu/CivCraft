@@ -106,15 +106,13 @@ impl Simulation {
             && value(self, Building::SAM_BATTERY) == 6.0;
         // is_capital includes the secondary Capital_City value1 as well as
         // the primary Palace value2; it is not is_primary_capital.
-        self.cities[0]
-            .buildings
-            .push(Building::ECCLESIASTICAL_PALACE);
+        self.cities[0].buildings.push(Building::FORBIDDEN_PALACE);
         let quiet = quiet
             && value(self, Building::CITY_WALLS) == 11.0
             && value(self, Building::COASTAL_DEFENSE) == 22.0;
         self.cities[0]
             .buildings
-            .retain(|&b| b != Building::ECCLESIASTICAL_PALACE);
+            .retain(|&b| b != Building::FORBIDDEN_PALACE);
         let remote = offset_native_by_map(10, 24, 4, 0);
         self.spawn_unit(HUMAN, UnitKind::Marine, remote.0, remote.1);
         let unit_only = value(self, Building::CITY_WALLS) == 3.0;
@@ -201,7 +199,7 @@ impl Simulation {
         self.cities[0].buildings.extend([
             Building::TEMPLE,
             Building::CATHEDRAL,
-            Building::AMPHITHEATER,
+            Building::COLOSSEUM,
         ]);
         self.spawn_unit(1, UnitKind::Warrior, 10, 24);
         let id = self.cities[0].id;
@@ -214,7 +212,7 @@ impl Simulation {
         let mut with_aqueduct = city.clone();
         with_aqueduct.buildings.push(Building::AQUEDUCT);
         let aqueduct_extends_city_limit =
-            size_limit == 8 && self.city_size_limit(&with_aqueduct) == 16;
+            size_limit == 6 && self.city_size_limit(&with_aqueduct) == 12;
         let aqueduct_available = self.building_blocker(&city, Building::AQUEDUCT).is_none();
         let expansion_available = self.settlement_production_choice(&self.cities[0]).is_some();
         // Source documents the building effects, not a required ranking among

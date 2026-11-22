@@ -575,7 +575,7 @@ impl Simulation {
             // find_nearest_safe_city is a name, not a threat filter: safety
             // remains native's TODO. Sea/Trireme HP_Regen comes from the port.
             let regeneration = if unit.kind.is_naval() {
-                city.has_building(Building::PORT_FACILITY)
+                true
             } else if unit.kind.is_aircraft() {
                 city.has_building(Building::AIRPORT)
             } else {

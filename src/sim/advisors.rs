@@ -226,9 +226,10 @@ impl Simulation {
             // daieffects.c EFT_ENABLE_SPACE; unlike parts Apollo gets base 10.
             return if competitive { 160.0 } else { 10.0 };
         }
-        let race_started = self.spaceships.iter().enumerate().any(|(owner, ship)| {
-            owner != BARBARIANS && self.player_alive(owner) && ship.built != [0; 3]
-        });
+        let race_started =
+            self.spaceships.iter().enumerate().any(|(owner, ship)| {
+                owner != BARBARIANS && self.player_alive(owner) && ship.started()
+            });
         if !competitive && !race_started {
             return 0.0;
         }
@@ -237,7 +238,7 @@ impl Simulation {
         } else {
             210.0
         };
-        let started = self.spaceships[city.owner].built != [0; 3];
+        let started = self.spaceships[city.owner].started();
         // daieffects.c lowers space priority in the wonder city, and
         // daicity.c then divides every non-wonder building want by five.
         let want = base * if started { 3.0 } else { 1.0 };

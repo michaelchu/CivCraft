@@ -86,14 +86,12 @@ impl Simulation {
             Building::FACTORY,
             Building::MFG_PLANT,
             Building::OFFSHORE_PLATFORM,
-            Building::SUPER_HIGHWAYS,
         ]
         .into_iter()
         .filter(|&building| has(building))
         .count() as i32
             * 25
-            - 50 * i32::from(has(Building::MASS_TRANSIT))
-            - 25 * i32::from(self.has_active_wonder(city.owner, Building::EIFFEL_TOWER));
+            - 50 * i32::from(has(Building::MASS_TRANSIT));
         (percent_of(shields, (100 - reduction).max(0)) + percent_of(city.size, population.max(0))
             - 20)
             .max(0)

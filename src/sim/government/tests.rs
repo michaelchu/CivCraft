@@ -238,27 +238,6 @@ fn zero_turn_ai_government_change_is_committed_at_the_phase_boundary() {
 }
 
 #[test]
-fn ruleset_no_anarchy_effect_allows_and_defers_a_human_government_change() {
-    let mut game = Simulation::new(crate::test_support::seeded_map());
-    game.create_city(HUMAN, 10, 20);
-    game.cities[0].buildings.push(Building::STATUE_OF_LIBERTY);
-
-    assert!(game.change_government(HUMAN, Government::FASCISM));
-    assert_eq!(
-        game.players[HUMAN].government,
-        Government::during_revolution()
-    );
-    assert_eq!(
-        game.players[HUMAN].revolution_target,
-        Some(Government::FASCISM)
-    );
-    assert_eq!(game.players[HUMAN].revolution_turn, Some(game.turn));
-
-    game.finish_revolutions();
-    assert_eq!(game.players[HUMAN].government, Government::FASCISM);
-}
-
-#[test]
 fn human_rate_reallocation_preserves_luxury_then_maximizes_science() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     game.players[HUMAN].government = Government::during_revolution();
@@ -396,30 +375,6 @@ fn republic_content_turn_resets_disorder_revolution_counter() {
     assert_eq!(game.cities[0].anarchy, 0);
     assert_eq!(game.players[HUMAN].government, Government::REPUBLIC);
     assert_eq!(game.players[HUMAN].revolution_turn, None);
-}
-
-#[test]
-fn statue_of_liberty_makes_republic_disorder_revolution_immediate() {
-    let (mut game, city_id) = republic_disorder_scenario();
-    game.cities[0].buildings.push(Building::STATUE_OF_LIBERTY);
-    for _ in 0..3 {
-        game.update_city_disorder_revolution(city_id);
-    }
-
-    assert_eq!(game.cities[0].anarchy, 3);
-    assert_eq!(
-        game.players[HUMAN].government,
-        Government::during_revolution()
-    );
-    assert_eq!(
-        game.players[HUMAN].revolution_target,
-        Some(Government::REPUBLIC)
-    );
-    assert_eq!(game.players[HUMAN].revolution_turn, Some(game.turn));
-
-    game.finish_revolutions();
-
-    assert_eq!(game.players[HUMAN].government, Government::REPUBLIC);
 }
 
 fn republic_disorder_scenario() -> (Simulation, u32) {

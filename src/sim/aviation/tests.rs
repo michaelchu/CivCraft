@@ -2600,7 +2600,7 @@ fn native_ai_counter_air_responds_to_observed_raids_and_ignores_ground_only_cont
             Building::FACTORY,
             Building::MARKETPLACE,
             Building::LIBRARY,
-            Building::BARRACKS_III,
+            Building::BARRACKS,
             Building::AIRPORT,
         ]);
         game.create_city(HUMAN, 16, 20);

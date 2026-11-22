@@ -52,23 +52,6 @@ impl Simulation {
                     .is_some_and(|until| self.turn < until))
     }
 
-    pub(in crate::sim) fn refresh_diplomatic_contact_effects(&mut self) {
-        // srv_main.c:do_have_contacts_effect runs after city refresh at phase
-        // end, before the turn advances. Civ2Civ3 grants this via Marco Polo.
-        for owner in 0..self.players.len() {
-            if !self.player_alive(owner)
-                || !self.has_active_wonder(owner, Building::MARCO_POLOS_EMBASSY)
-            {
-                continue;
-            }
-            for other in 0..self.players.len() {
-                if other != owner && self.player_alive(other) {
-                    self.make_diplomatic_contact(owner, other);
-                }
-            }
-        }
-    }
-
     pub(crate) fn refresh_diplomatic_contact_at(&mut self, owner: usize, x: i32, y: i32) {
         if owner >= self.players.len() || !self.player_alive(owner) {
             return;

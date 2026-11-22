@@ -703,6 +703,7 @@ mod tests {
         game.cities[1].founded_turn = 5;
         game.cities[1].foreign_citizens = vec![(HUMAN, 1)];
         game.cities[2].size = 7;
+        game.cities[2].buildings.push(Building::AQUEDUCT);
         game.cities[2].history = 20_000;
         let source_id = game.cities[1].id;
         let destination_id = game.cities[2].id;
@@ -734,6 +735,7 @@ mod tests {
         game.cities[1].size = 1;
         game.cities[1].foreign_citizens = vec![(2, 1)];
         game.cities[2].size = 7;
+        game.cities[2].buildings.push(Building::AQUEDUCT);
         game.cities[2].history = 20_000;
         let unit = game.spawn_unit(1, UnitKind::Warrior, 10, 20);
         let unit_index = game.unit_index_by_id(unit).unwrap();

@@ -327,8 +327,6 @@ impl UnitKind {
 
 #[cfg(test)]
 mod constant_tests {
-    use super::*;
-
     #[test]
     fn unit_index_constants_name_the_catalog_entry_at_their_index() {
         crate::test_support::assert_index_constants_match_catalog(

@@ -145,7 +145,7 @@ impl Game {
                 UiAction::ToggleSpaceship,
                 status,
                 true,
-                view.can_launch_spaceship,
+                false,
             ));
         }
         let mut tooltip = None;

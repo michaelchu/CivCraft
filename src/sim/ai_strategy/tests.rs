@@ -6,7 +6,7 @@ fn industrial_contender_commits_to_space_research_before_launch_infrastructure()
     let strategy = game.strategic_priorities(1);
     assert_eq!(
         strategy.space_research_goal,
-        Some(Tech::COMPUTERS),
+        Some(Tech::SPACE_FLIGHT),
         "era={:?}, productive sites={:?}, capital={}",
         game.research_era(1),
         game.cities_owned_by(1)

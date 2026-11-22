@@ -218,7 +218,7 @@ impl Simulation {
             occupied: observed.occupied,
             disorder: observed.disorder,
             capital: city.buildings.contains(&Building::PALACE)
-                || city.buildings.contains(&Building::ECCLESIASTICAL_PALACE),
+                || city.buildings.contains(&Building::FORBIDDEN_PALACE),
             growth_label,
             production_label,
         }

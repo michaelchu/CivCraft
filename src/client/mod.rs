@@ -82,8 +82,8 @@ use crate::rules::{Building, Requirement, Tech};
 use crate::sim::{
     Base, CityManagerView, ClientSimulation, Command, EspionageMission, EspionageRisk, GotoPoint,
     GotoPreview, Government, HUMAN, MAX_CIVILIZATIONS, Pact, PresentationEventView, Production,
-    RenderedCityView, RenderedUnitView, Resource, ShipPart, Terrain, TreatyMap, TreatyOffer,
-    UnitKind, UnitState, WORKLIST_LIMIT, WorkKind, WorklistEdit, year_label,
+    RenderedCityView, RenderedUnitView, Resource, Terrain, TreatyMap, TreatyOffer, UnitKind,
+    UnitState, WORKLIST_LIMIT, WorkKind, WorklistEdit, year_label,
 };
 #[cfg(test)]
 use crate::sim::{CombatVisual, VisualEvent};
@@ -138,10 +138,7 @@ pub(crate) enum UiAction {
     SetSfxVolume(u8),
     ActionPage(usize),
     EndTurn,
-    LaunchSpaceship,
     ToggleSpaceship,
-    ToggleManualAssembly,
-    PlaceShipPart(ShipPart),
     /// Sets the science, tax and luxury split from a rate slider.
     SetRates([i32; 3]),
     Specialist(u32, usize, i32),

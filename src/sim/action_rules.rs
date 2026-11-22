@@ -538,11 +538,7 @@ impl<'a> SimulationRequirementContext<'a> {
     ) -> Result<bool, RequirementEvaluationError> {
         let flag = Self::string_name(requirement)?;
         let mapped = if flag.eq_ignore_ascii_case("Barracks") {
-            vec![
-                Building::BARRACKS,
-                Building::BARRACKS_II,
-                Building::BARRACKS_III,
-            ]
+            vec![Building::BARRACKS]
         } else {
             if self.unbound_content_is_absent {
                 return Ok(false);

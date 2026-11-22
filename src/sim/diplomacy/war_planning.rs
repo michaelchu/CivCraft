@@ -276,10 +276,12 @@ impl Simulation {
     pub(super) fn ai_space_race_leader(&self) -> Option<usize> {
         (0..self.players.len())
             .filter(|&owner| owner != BARBARIANS && self.player_alive(owner))
-            .filter(|&owner| self.spaceships[owner].built.iter().any(|&n| n > 0))
-            .min_by_key(|&owner| match self.spaceships[owner].arrival_year() {
-                Some(year) => (0, year as i32),
-                None => (1, 0),
+            .filter(|&owner| self.spaceships[owner].started())
+            .max_by_key(|&owner| {
+                (
+                    self.spaceships[owner].parts_built(),
+                    std::cmp::Reverse(owner),
+                )
             })
     }
 
@@ -332,11 +334,11 @@ impl Simulation {
             for &target in &contacts {
                 if self.at_war(owner, target)
                     || self.ai_war_countdown(owner, target) != -1
-                    || !self.spaceships[target].built.iter().any(|&n| n > 0)
+                    || !self.spaceships[target].started()
                 {
                     continue;
                 }
-                if !self.spaceships[target].launched() {
+                {
                     if self
                         .ai_space_warnings
                         .get(&(owner, target))
@@ -359,22 +361,6 @@ impl Simulation {
                             ));
                         }
                     }
-                } else if space_leader == Some(target) {
-                    let allied = self.allied(owner, target);
-                    let side = usize::from(owner > target);
-                    let relation = self
-                        .diplomacy
-                        .get_mut(&Self::relation_key(owner, target))
-                        .unwrap();
-                    if allied {
-                        relation.trust[side] = -10_000;
-                        relation.vision[side] = false;
-                    }
-                    relation.trust[side] = (relation.trust[side] - 5000).max(-10_000);
-                    if allied && !self.senate_blocks_cancellation(owner, target) {
-                        self.cancel_pact(owner, target);
-                    }
-                    self.begin_ai_war_plan(owner, target, 2, WarReason::Space);
                 }
             }
         }

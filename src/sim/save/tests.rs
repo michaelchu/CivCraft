@@ -105,7 +105,7 @@ fn current_campaign_round_trip_preserves_gameplay_and_topology_state() {
     let culture_without_achievement = game.civilization_culture(HUMAN);
     game.nation_scores[HUMAN]
         .achievements
-        .insert("Spaceship Launch".to_owned());
+        .insert("Spaceship Completed".to_owned());
     for index in 1..40 {
         game.nation_scores[HUMAN]
             .achievements
@@ -214,7 +214,7 @@ fn current_campaign_round_trip_preserves_gameplay_and_topology_state() {
     assert!(
         loaded.nation_scores[HUMAN]
             .achievements
-            .contains("Spaceship Launch")
+            .contains("Spaceship Completed")
     );
     assert_eq!(loaded.nation_scores[HUMAN].score_literacy, 67);
     assert_eq!(loaded.cities[0].foreign_citizens, vec![(2, 1)]);

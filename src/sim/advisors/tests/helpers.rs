@@ -35,7 +35,7 @@ impl super::Simulation {
         self.players[1].government = Government::DEMOCRACY;
         self.cities[0].buildings.push(Building::POLICE_STATION);
         let removal =
-            self.building_happiness_want(&self.cities[0], Building::WOMENS_SUFFRAGE) == 0.0;
+            self.building_happiness_want(&self.cities[0], Building::UNIVERSAL_SUFFRAGE) == 0.0;
         self.units.clear();
         self.cities[0].buildings.clear();
         self.cities[0].size = 1;
@@ -46,7 +46,7 @@ impl super::Simulation {
             self.cities.last_mut().unwrap().size = 10;
         }
         let ranged = self.building_happiness_want(&self.cities[0], Building::HANGING_GARDENS) > 0.0
-            && self.building_happiness_want(&self.cities[0], Building::MICHELANGELOS_CHAPEL) == 0.0;
+            && self.building_happiness_want(&self.cities[0], Building::SISTINE_CHAPEL) == 0.0;
         independent && wartime && removal && ranged
     }
 

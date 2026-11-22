@@ -35,12 +35,11 @@ pub(crate) fn runtime_index(id: &str) -> Option<usize> {
     // an ID hit and a name hit on different records is resolved as the scan
     // would: whichever record comes first. Catalog IDs and names do not
     // collide, which `catalog_ids_and_names_resolve_to_one_record` pins.
-    let direct = index
+    index
         .by_id
         .get(id)
         .or_else(|| index.by_name.get(&id.to_ascii_lowercase()))
-        .copied();
-    direct
+        .copied()
 }
 
 pub(crate) fn runtime_index_in(catalog: &TechnologyCatalog, id: &str) -> Option<usize> {

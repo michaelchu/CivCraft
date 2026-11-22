@@ -59,7 +59,7 @@ fn production_defender_requires_defense_role_and_is_stable_under_training() {
         super::super::action_rules::unit_has_role(untrained, "DefendGood")
             || super::super::action_rules::unit_has_role(untrained, "DefendOk")
     );
-    game.cities[0].buildings.push(Building::BARRACKS_II);
+    game.cities[0].buildings.push(Building::BARRACKS);
     assert_eq!(
         choose(&game),
         untrained,

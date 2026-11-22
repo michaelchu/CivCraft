@@ -37,14 +37,9 @@ impl Simulation {
             .unwrap()
             .id;
         self.finish_building(city, HUMAN, Building::APOLLO_PROGRAM, 600);
-        for (building, count) in [
-            (Building::SPACE_MODULE, 3),
-            (Building::SPACE_COMPONENT, 2),
-            (Building::SPACE_STRUCTURAL, 8),
-        ] {
-            for _ in 0..count {
-                self.finish_building(city, HUMAN, building, building.data().cost);
-            }
+        // Part of a ship: nine of the ten Civ III components.
+        for (building, _) in crate::sim::spaceship::SPACE_PART_PROJECTS.iter().take(9) {
+            self.finish_building(city, HUMAN, *building, building.data().cost);
         }
         self.year = 1880;
     }

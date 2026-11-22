@@ -78,25 +78,6 @@ fn fresh_casus_belli_starts_the_short_revenge_countdown() {
 }
 
 #[test]
-fn launched_space_leader_triggers_a_two_turn_war_plan() {
-    let mut game = war_planning_game();
-    game.sign_pact(HUMAN, 1, Pact::Alliance);
-    game.diplomacy.get_mut(&(HUMAN, 1)).unwrap().trust[1] = 5000;
-    game.spaceship_fixture();
-    assert!(game.launch_spaceship(HUMAN));
-    game.advance_ai_war_plans();
-    let plan = game.ai_war_plans[&(1, HUMAN)];
-    assert!(matches!(plan.reason, WarReason::Space));
-    assert_eq!(plan.countdown, 1);
-    assert_eq!(game.pact(HUMAN, 1), Pact::Armistice);
-    game.advance_ai_war_plans();
-    assert_eq!(game.ai_war_countdown(1, HUMAN), 0);
-    game.advance_ai_war_plans();
-    assert!(game.at_war(HUMAN, 1));
-    assert_eq!(game.ai_war_countdown(1, HUMAN), -10);
-}
-
-#[test]
 fn hatred_prepares_war_and_stubbornness_expires_separately() {
     let mut game = war_planning_game();
     for tile in &mut game.tiles {

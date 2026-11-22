@@ -10,17 +10,9 @@ impl Simulation {
         }
         let size_illness = ((1.0 - (-f64::from(city.size - 5) / 10.0).exp()) * 100.0) as i32;
         let pollution_illness = self.pollution_risk(city, shields) / 2;
-        let aqueduct = [
-            Building::AQUEDUCT,
-            Building::AQUEDUCT_RIVER,
-            Building::AQUEDUCT_LAKE,
-        ]
-        .into_iter()
-        .any(|building| city.has_building(building));
+        let aqueduct = city.has_building(Building::AQUEDUCT);
         let health = 30
-            * (i32::from(aqueduct)
-                + i32::from(city.has_building(Building::SEWER_SYSTEM))
-                + i32::from(self.has_tech(city.owner, Tech::MEDICINE)))
+            * (i32::from(aqueduct) + i32::from(self.has_tech(city.owner, Tech::MEDICINE)))
             + 10 * i32::from(self.has_active_wonder(city.owner, Building::CURE_FOR_CANCER));
         percent_of(size_illness + pollution_illness, 100 - health).clamp(0, 999)
     }
@@ -59,17 +51,12 @@ mod tests {
         city.size = 9;
         assert_eq!(game.city_illness(&city, 0), 32);
         assert_eq!(game.city_illness(&city, 100), 72);
-        city.buildings.extend([
-            Building::AQUEDUCT,
-            Building::AQUEDUCT_RIVER,
-            Building::AQUEDUCT_LAKE,
-        ]);
+        city.buildings.push(Building::AQUEDUCT);
         assert_eq!(game.city_illness(&city, 100), 50);
-        city.buildings.push(Building::SEWER_SYSTEM);
         game.players[HUMAN].known.push(Tech::MEDICINE);
-        assert_eq!(game.city_illness(&city, 100), 7);
+        assert_eq!(game.city_illness(&city, 100), 28);
         game.cities[0].buildings.push(Building::CURE_FOR_CANCER);
-        assert_eq!(game.city_illness(&city, 100), 0);
+        assert_eq!(game.city_illness(&city, 100), 21);
     }
 
     #[test]

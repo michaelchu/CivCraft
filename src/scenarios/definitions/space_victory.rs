@@ -1,4 +1,5 @@
 //! A late-game race that begins before the contender has any spaceship parts.
+//! Civ III rules: ten distinct parts, and the tenth wins the space race.
 
 use super::*;
 use crate::{
@@ -16,12 +17,9 @@ use serde_json::{Value, json};
 
 const CONTENDER: usize = 1;
 const DEADLINE: u32 = 110;
-const MISSING: [Tech; 4] = [
-    Tech::COMPUTERS,
-    Tech::SPACE_FLIGHT,
-    Tech::ECOLOGY,
-    Tech::SUPERCONDUCTOR,
-];
+// Darwin's Voyage no longer boosts science (Civ III's Theory of Evolution grants
+// advances instead), so the contender researches only the two gating advances.
+const MISSING: [Tech; 2] = [Tech::SPACE_FLIGHT, Tech::SUPERCONDUCTOR];
 
 pub(super) const SCENARIO: Scenario = Scenario::new(
     "space-victory",
@@ -116,7 +114,7 @@ fn campaign(map: GeneratedMap) -> (Simulation, SpaceVictory) {
             Building::MARKETPLACE,
             Building::BANK,
             Building::CATHEDRAL,
-            Building::AMPHITHEATER,
+            Building::COLOSSEUM,
             Building::MASS_TRANSIT,
         ];
         if position == capital_location || position == (28, 24) {
@@ -148,7 +146,25 @@ fn campaign(map: GeneratedMap) -> (Simulation, SpaceVictory) {
                 let mut tile = TilePreset::new(Terrain::Plains, TerrainBase::Plains);
                 tile.resource = Some(Resource::Cattle);
                 tile.railroad = true;
+                tile.road = true;
                 tile.river = true;
+                // Civ III spaceship parts need connected strategic resources.
+                // Each resource sits on terrain that can actually hold it.
+                match (x - position.0, y - position.1) {
+                    (1, 0) => {
+                        tile.terrain = Terrain::Hills;
+                        tile.resource = Some(Resource::Aluminum);
+                    }
+                    (-1, 0) => {
+                        tile.terrain = Terrain::Mountains;
+                        tile.resource = Some(Resource::Uranium);
+                    }
+                    (0, 1) => {
+                        tile.terrain = Terrain::Forest;
+                        tile.resource = Some(Resource::Rubber);
+                    }
+                    _ => {}
+                }
                 world.tile((x, y), tile);
             }
         }
@@ -175,15 +191,15 @@ struct SpaceVictory {
     planned: Option<u32>,
     first_part: Option<u32>,
     completed: Option<u32>,
-    launch: Option<u32>,
-    pressured_launch: bool,
+    victory: Option<u32>,
+    pressured_victory: bool,
     held_frontier: bool,
 }
 
 impl ScenarioRun for SpaceVictory {
     fn observe_turn(&mut self, game: &Simulation, turn: u32) -> Value {
-        let (built, arrival) = game.spaceship_progress(CONTENDER);
-        let (rival, rival_arrival) = game.spaceship_progress(HUMAN);
+        let built = game.spaceship_progress(CONTENDER);
+        let rival = game.spaceship_progress(HUMAN);
         let strategy = game.strategic_priorities(CONTENDER);
         let research = game.players()[CONTENDER].researching;
         let capital_held = game
@@ -199,7 +215,7 @@ impl ScenarioRun for SpaceVictory {
                     && (unit.x, unit.y) == (city.x, city.y)
             })
         });
-        if built == [0; 3]
+        if built == [0; 10]
             && strategy.space_program
             && (MISSING.contains(&research)
                 || MISSING
@@ -208,15 +224,15 @@ impl ScenarioRun for SpaceVictory {
         {
             self.planned.get_or_insert(turn);
         }
-        if built != [0; 3] {
+        if built != [0; 10] {
             self.first_part.get_or_insert(turn);
         }
-        if built == [32, 16, 12] {
+        if built == [1; 10] || rival == [1; 10] {
             self.completed.get_or_insert(turn);
         }
-        if arrival.is_some() && self.launch.is_none() {
-            self.launch = Some(turn);
-            self.pressured_launch = game.at_war(CONTENDER, HUMAN);
+        if game.game_over().is_some() && self.victory.is_none() {
+            self.victory = Some(turn);
+            self.pressured_victory = game.at_war(CONTENDER, HUMAN);
             self.held_frontier = capital_held && guarded;
         }
         json!({
@@ -225,8 +241,9 @@ impl ScenarioRun for SpaceVictory {
             "apollo": game.cities().iter().find(|city| city.has_building(Building::APOLLO_PROGRAM)).map(|city| city.owner),
             "built": built,
             "rival_built": rival,
-            "arrival": arrival,
-            "rival_arrival": rival_arrival,
+            "game_over": game.game_over(),
+            "rates": game.players()[CONTENDER].rates,
+            "gold": game.players()[CONTENDER].gold,
             "war": game.at_war(CONTENDER, HUMAN),
             "frontier_guarded": guarded,
             "capital_held": capital_held,
@@ -252,34 +269,41 @@ impl ScenarioRun for SpaceVictory {
                 ),
             },
             Check {
-                name: "space_builds_full_ship_and_launches",
+                name: "space_builds_full_ship_and_wins",
                 passed: self
                     .completed
-                    .zip(self.launch)
-                    .is_some_and(|(complete, launch)| complete < launch && launch <= DEADLINE),
+                    .zip(self.victory)
+                    .is_some_and(|(complete, victory)| complete == victory && victory <= DEADLINE),
                 detail: format!(
-                    "Full assembly on {:?}, launch on {:?} within {DEADLINE} turns",
-                    self.completed, self.launch
+                    "Tenth part on {:?}, victory on {:?} within {DEADLINE} turns",
+                    self.completed, self.victory
                 ),
             },
             Check {
-                name: "space_launches_during_war_with_defended_frontier",
-                passed: self.pressured_launch && self.held_frontier,
+                name: "space_wins_during_war_with_defended_frontier",
+                passed: self.pressured_victory && self.held_frontier,
                 detail: format!(
-                    "At launch: war {}, guarded frontier and capital {}",
-                    self.pressured_launch, self.held_frontier
+                    "At victory: war {}, guarded frontier and capital {}",
+                    self.pressured_victory, self.held_frontier
                 ),
             },
         ]
     }
 }
 
-const PARTS: [Building; 3] = [
-    Building::SPACE_STRUCTURAL,
-    Building::SPACE_COMPONENT,
-    Building::SPACE_MODULE,
+const PARTS: [Building; 10] = [
+    Building::SS_THRUSTERS,
+    Building::SS_ENGINE,
+    Building::SS_DOCKING_BAY,
+    Building::SS_COCKPIT,
+    Building::SS_FUEL_CELLS,
+    Building::SS_LIFE_SUPPORT_SYSTEM,
+    Building::SS_STASIS_CHAMBER,
+    Building::SS_STORAGE_SUPPLY,
+    Building::SS_PLANETARY_PARTY_LOUNGE,
+    Building::SS_EXTERIOR_CASING,
 ];
-const RECOVERY_DEADLINE: u32 = 100;
+const RECOVERY_DEADLINE: u32 = 150;
 
 fn setup_industrial_loss(map: GeneratedMap) -> (Simulation, Box<dyn ScenarioRun>) {
     let (game, baseline) = campaign(map);
@@ -296,12 +320,12 @@ fn setup_industrial_loss(map: GeneratedMap) -> (Simulation, Box<dyn ScenarioRun>
 struct IndustrialLoss {
     frontier: u32,
     loss: Option<(u32, u32, Building)>,
-    parts_before: [usize; 3],
+    parts_before: [usize; 10],
     original_part_sites: Vec<u32>,
     completed_part_sites: Vec<u32>,
     replacement: Option<(u32, u32)>,
-    launch: Option<u32>,
-    defended_at_launch: bool,
+    victory: Option<u32>,
+    defended_at_victory: bool,
 }
 
 impl ScenarioRun for IndustrialLoss {
@@ -310,8 +334,8 @@ impl ScenarioRun for IndustrialLoss {
     }
 
     fn before_turn(&mut self, game: &mut Simulation, completed: u32) {
-        let (built, arrival) = game.spaceship_progress(CONTENDER);
-        if self.loss.is_some() || built.iter().sum::<usize>() < 8 || arrival.is_some() {
+        let built = game.spaceship_progress(CONTENDER);
+        if self.loss.is_some() || built.iter().sum::<usize>() < 5 || game.game_over().is_some() {
             return;
         }
         let site = game
@@ -337,7 +361,7 @@ impl ScenarioRun for IndustrialLoss {
     }
 
     fn observe_turn(&mut self, game: &Simulation, turn: u32) -> Value {
-        let (built, arrival) = game.spaceship_progress(CONTENDER);
+        let built = game.spaceship_progress(CONTENDER);
         let war = game.at_war(CONTENDER, HUMAN);
         let frontier_guarded = game.city_by_id(self.frontier).is_some_and(|city| {
             city.owner == CONTENDER
@@ -367,14 +391,14 @@ impl ScenarioRun for IndustrialLoss {
                     self.completed_part_sites.push(city);
                 }
             }
-            if arrival.is_some() && self.launch.is_none() {
-                self.launch = Some(turn);
-                self.defended_at_launch = war && frontier_guarded;
+            if game.game_over().is_some() && self.victory.is_none() {
+                self.victory = Some(turn);
+                self.defended_at_victory = war && frontier_guarded;
             }
         }
         json!({
             "industrial_loss": self.loss.map(|(turn, city, part)| json!({"turn": turn, "city": city, "part": part.data().name})),
-            "built": built, "arrival": arrival, "active_war": war, "frontier_guarded": frontier_guarded,
+            "built": built, "game_over": game.game_over(), "active_war": war, "frontier_guarded": frontier_guarded,
             "replacement_completion": self.replacement,
             "part_sites": game.cities_owned_by(CONTENDER).filter_map(|city| match city.production {
                 crate::sim::Production::Building(part) if PARTS.contains(&part) => Some((city.id, part.data().name)),
@@ -404,12 +428,12 @@ impl ScenarioRun for IndustrialLoss {
                 ),
             },
             Check {
-                name: "space_launches_after_industrial_loss",
-                passed: self.launch.is_some_and(|turn| turn <= RECOVERY_DEADLINE)
-                    && self.defended_at_launch,
+                name: "space_wins_after_industrial_loss",
+                passed: self.victory.is_some_and(|turn| turn <= RECOVERY_DEADLINE)
+                    && self.defended_at_victory,
                 detail: format!(
-                    "Launch {:?} by turn {RECOVERY_DEADLINE}, defended frontier during war {}",
-                    self.launch, self.defended_at_launch
+                    "Victory {:?} by turn {RECOVERY_DEADLINE}, defended frontier during war {}",
+                    self.victory, self.defended_at_victory
                 ),
             },
         ]

@@ -717,35 +717,6 @@ fn war_desire_uses_the_selected_ruleset_city_defense_bonus() {
 }
 
 #[test]
-fn ai_love_wonder_bonus_uses_gain_ai_love_effect_and_apollo_requirement() {
-    let plain = war_planning_game();
-    let mut eiffel = plain.clone();
-    eiffel
-        .cities
-        .iter_mut()
-        .find(|city| city.owner == HUMAN)
-        .unwrap()
-        .buildings
-        .push(Building::EIFFEL_TOWER);
-    eiffel.completed_wonders.push(Building::EIFFEL_TOWER);
-
-    let mut apollo = eiffel.clone();
-    apollo
-        .cities
-        .iter_mut()
-        .find(|city| city.owner == HUMAN)
-        .unwrap()
-        .buildings
-        .push(Building::APOLLO_PROGRAM);
-    apollo.completed_wonders.push(Building::APOLLO_PROGRAM);
-    apollo.apollo_completed = true;
-
-    assert_eq!(plain.player_effect(HUMAN, EffectKind::GainAiLove), 0);
-    assert_eq!(eiffel.player_effect(HUMAN, EffectKind::GainAiLove), 10);
-    assert_eq!(apollo.player_effect(HUMAN, EffectKind::GainAiLove), 0);
-}
-
-#[test]
 fn treaty_city_listing_excludes_capitals_hidden_cities_and_other_owners() {
     let mut game = war_planning_game();
     for (x, y) in [(14, 24), (16, 24), (18, 24)] {
@@ -1077,13 +1048,6 @@ fn senate_enforces_treaties_unless_provoked_or_waived() {
             .find(|building| building.data().name == name)
             .unwrap()
     };
-    game.sign_pact(HUMAN, 1, Pact::Ceasefire);
-    game.cities[0].buildings.push(find("Statue of Liberty"));
-    assert!(game.apply(Command::CancelPact(1)));
-
-    game.cities[0]
-        .buildings
-        .retain(|building| building.data().name != "Statue of Liberty");
     game.players[HUMAN].government = Government::DESPOTISM;
     game.cities[0].buildings.push(find("United Nations"));
     game.completed_wonders.push(find("United Nations"));

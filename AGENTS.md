@@ -296,11 +296,28 @@ owner-confirmed valid on 2026-11-22): unlock technology, prerequisite building,
 strategic-resource requirements, obsolescence and upkeep for the 71 matched
 buildings, verified by `matched_buildings_follow_the_civ3_biq_records`. A building
 resource requirement means a resource connected to the city (owned, road-linked),
-the same test units use. Not yet at parity: building costs, the 12 Civ III records
-with no rule (10 spaceship parts, Civil Defense, Commercial Dock) and the 20
-Freeciv-only rules; those lists are pinned in that test and must be updated when
-a gap closes. The Pentagon era gate and culture rates are owner-authorized
-deviations.
+the same test units use. The catalog is now an exact clone of the 83 Conquests
+building records: the 20 Freeciv-only rules (Aqueduct Lake/River, Sewer System,
+Supermarket, Super Highways, Amphitheater, Barracks II/III, Ecclesiastical
+Palace, Port Facility, the three Freeciv space parts, Darwin's Voyage, Eiffel
+Tower, King Richard's, Marco Polo, Michelangelo's, Statue of Liberty, Women's
+Suffrage) were removed and the 12 missing records (ten spaceship parts, Civil
+Defense, Commercial Dock) added. Mechanics of the four Freeciv twins moved to
+their Civ III buildings (Sistine Chapel, Universal Suffrage, Forbidden Palace;
+Theory of Evolution already grants two advances). Saves are disposable during
+development, so catalog indices are not preserved.
+City size follows the Conquests Civilopedia (owner-confirmed 2026-11-22): 6
+without an Aqueduct, 12 with one (a city beside a river or lake never needs
+it), 16 with a Hospital or Shakespeare's Theater (`city_size_limit_from_ruleset`).
+Farmland adds +50% food by itself. The spaceship is ten distinct parts built once
+each after the Apollo Program; the tenth part wins the space race immediately,
+with no assembly, launch, travel time or success roll (owner-confirmed
+2026-11-22; online sources conflict on a launch step). Building costs of the 12
+new records use the BIQ cost x5 as a provisional scale pending investigation
+(`SS` parts 80-320, Civil Defense 60, Commercial Dock 80); existing costs are
+unchanged. Civil Defense (+50% defense, needs Barracks) and Commercial Dock (+1
+trade on water tiles already producing trade, needs Harbor) follow the Pedia.
+The Pentagon era gate and culture rates are owner-authorized deviations.
 Derive new unit properties the same way, once on `UnitRule`, rather than
 re-deriving them per consumer. This narrows the aircraft exception's statement
 that helicopters retain their existing rules; their capture rule follows Civ III.

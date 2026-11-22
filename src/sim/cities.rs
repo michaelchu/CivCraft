@@ -304,9 +304,6 @@ impl Simulation {
         {
             unit.home_city = None;
         }
-        if removed.has_building(Building::PALACE) {
-            self.lose_spaceship(removed.owner);
-        }
         self.city_founders.remove(&removed.id);
         self.city_rapture.remove(&removed.id);
         self.rebuild_city_ownership_for_city_event(removed.id);
@@ -495,9 +492,6 @@ impl Simulation {
         let city_name = self.cities[city_index].name.clone();
         let city_size = self.cities[city_index].size;
         let had_palace = self.cities[city_index].has_building(Building::PALACE);
-        if had_palace {
-            self.lose_spaceship(old_owner);
-        }
         // citytools.c checks and rolls for a capital-triggered civil war
         // before size-one destruction, loot, and conquest-technology RNG.
         let civil_war = had_palace && self.capital_loss_triggers_civil_war(old_owner);

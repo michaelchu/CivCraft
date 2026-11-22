@@ -30,7 +30,7 @@ impl GovernmentEvaluationFacts {
             supported_by_city,
             land_units,
             total_units,
-            womens_suffrage: simulation.has_active_wonder(owner, Building::WOMENS_SUFFRAGE),
+            womens_suffrage: simulation.has_active_wonder(owner, Building::UNIVERSAL_SUFFRAGE),
             theology: simulation.has_tech(owner, Tech::THEOLOGY),
             mysticism: simulation.has_tech(owner, Tech::MYSTICISM),
         }

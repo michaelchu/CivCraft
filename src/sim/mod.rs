@@ -132,7 +132,6 @@ use climate::ClimatePressure;
 pub(crate) use pillage::PillageTarget;
 pub(crate) use pollution::Contamination;
 use spaceship::Spaceship;
-pub(crate) use spaceship::{STRUCTURE_PARENT, ShipPart};
 #[cfg(any(test, feature = "scenarios"))]
 pub(crate) mod drive;
 #[cfg(any(test, feature = "scenarios"))]
@@ -826,7 +825,6 @@ impl Simulation {
         drop(_profile);
         let _profile = profiler.scope("ai.last.research_and_spaceship");
         self.manage_ai_research(owner);
-        self.auto_launch_ai_spaceship(owner);
         drop(_profile);
         self.end_ai_advisor_cache();
     }

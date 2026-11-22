@@ -19,14 +19,6 @@ fn aqueduct_health_has_value_and_science_fraction_is_preserved() {
     let mut redundant = city.clone();
     redundant.buildings.push(Building::AQUEDUCT);
     assert_eq!(
-        game.building_health_want(&redundant, Building::AQUEDUCT_RIVER),
-        0.0
-    );
-    assert_eq!(
-        game.building_health_want(&redundant, Building::AQUEDUCT_LAKE),
-        0.0
-    );
-    assert_eq!(
         game.advisor_city_output_exact(city, None),
         f64::from(game.advisor_city_output(city, None))
     );

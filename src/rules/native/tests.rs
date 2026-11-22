@@ -74,7 +74,7 @@ fn native_catalogs_have_expected_schema_and_campaign_coverage() {
     assert_eq!(civilizations().civilizations.len(), 31);
     assert_eq!(buildings().schema_version, 1);
     assert_eq!(buildings().source, "Civilization III: Conquests");
-    assert_eq!(buildings().rules.len(), 91);
+    assert_eq!(buildings().rules.len(), 83);
     assert_eq!(technologies().schema_version, 1);
     assert_eq!(technologies().source, "Civilization III: Conquests");
     assert_eq!(technologies().technologies.len(), 85);
@@ -290,45 +290,11 @@ const BIQ_BUILDING_NAMES: [(&str, &str); 28] = [
     ("The Statue of Zeus", "Statue of Zeus"),
 ];
 
-/// Civ III records with no runtime rule yet. Closing a gap must update this list.
-const BIQ_BUILDINGS_WITHOUT_RULE: [&str; 12] = [
-    "SS Thrusters",
-    "SS Engine",
-    "SS Docking Bay",
-    "SS Cockpit",
-    "SS Fuel Cells",
-    "SS Life Support System",
-    "SS Stasis Chamber",
-    "SS Storage/Supply",
-    "SS Planetary Party Lounge",
-    "SS Exterior Casing",
-    "Civil Defense",
-    "Commercial Dock",
-];
+/// Civ III records with no runtime rule. The catalog now covers every record.
+const BIQ_BUILDINGS_WITHOUT_RULE: [&str; 0] = [];
 
-/// Runtime rules that came from the Freeciv ruleset and have no Civ III record.
-const FREECIV_ONLY_BUILDINGS: [&str; 20] = [
-    "Aqueduct, Lake",
-    "Aqueduct, River",
-    "Barracks II",
-    "Barracks III",
-    "Amphitheater",
-    "Ecclesiastical Palace",
-    "Port Facility",
-    "Sewer System",
-    "Space Component",
-    "Space Module",
-    "Space Structural",
-    "Super Highways",
-    "Supermarket",
-    "Darwin's Voyage",
-    "Eiffel Tower",
-    "King Richard's Crusade",
-    "Marco Polo's Embassy",
-    "Michelangelo's Chapel",
-    "Statue of Liberty",
-    "Women's Suffrage",
-];
+/// Runtime rules with no Civ III record. The catalog is an exact Civ III clone.
+const FREECIV_ONLY_BUILDINGS: [&str; 0] = [];
 
 #[test]
 fn matched_buildings_follow_the_civ3_biq_records() {
@@ -433,7 +399,7 @@ fn matched_buildings_follow_the_civ3_biq_records() {
             None => without_rule.push(record.name.as_str()),
         }
     }
-    assert_eq!(matched.len(), 71);
+    assert_eq!(matched.len(), 83);
     assert_eq!(without_rule, BIQ_BUILDINGS_WITHOUT_RULE);
     let freeciv_only: Vec<_> = rules
         .iter()

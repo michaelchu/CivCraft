@@ -262,14 +262,7 @@ impl Simulation {
             && self.allied(HUMAN, 1);
         self.advance_ai_war_plans();
         let quiet = self.diplomacy[&(HUMAN, 1)].trust[1] == 4000;
-        if !self.launch_spaceship(HUMAN) {
-            return false;
-        }
-        self.advance_ai_war_plans();
-        warned
-            && quiet
-            && self.ai_war_countdown(1, HUMAN) == 1
-            && self.pact(HUMAN, 1) == Pact::Armistice
+        warned && quiet
     }
 
     pub(crate) fn city_clause_test(&mut self) -> bool {
