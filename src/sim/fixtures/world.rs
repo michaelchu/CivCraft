@@ -182,10 +182,11 @@ impl WorldBuilder<'_> {
     }
 
     pub(crate) fn mark_known(&mut self, owner: usize, position: (i32, i32)) {
-        self.game
-            .tile_mut(position.0, position.1)
-            .known_by
-            .set(owner, true);
+        let tile = self.game.tile_mut(position.0, position.1);
+        tile.known_by.set(owner, true);
+        if owner == crate::sim::HUMAN {
+            tile.seen = true;
+        }
     }
 
     /// Clear starting entities and relationships for an isolated action case.

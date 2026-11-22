@@ -173,6 +173,10 @@ impl ReviewFixture<'_> {
         ui_review_air_combat_setup(self.0, with_sam)
     }
 
+    pub(crate) fn nuclear_setup(&mut self, with_sdi: bool) -> (u32, (i32, i32)) {
+        ui_review_nuclear_setup(self.0, with_sdi)
+    }
+
     pub(crate) fn animation_setup(&mut self, combat: bool) -> (u32, (i32, i32)) {
         ui_review_animation_setup(self.0, combat)
     }
@@ -1237,4 +1241,43 @@ pub(crate) fn ui_review_air_combat_setup(
     ui_review_record_knowledge(sim);
     sim.enable_visual_events();
     (bomber, target)
+}
+
+/// A human ICBM strikes an enemy city, either detonating a mushroom cloud that
+/// leaves nuclear fallout around the target or being intercepted by SDI Defense.
+pub(crate) fn ui_review_nuclear_setup(sim: &mut Simulation, with_sdi: bool) -> (u32, (i32, i32)) {
+    let (_, _) = ui_review_animation_setup(sim, false);
+    sim.units.clear();
+    sim.cities.clear();
+    let base = (19, 24);
+    let target = (22, 24);
+    for dx in -3..=5 {
+        for dy in -3..=3 {
+            if let Some((x, y)) = sim.map_wrap.offset(base.0, base.1, dx, dy) {
+                let tile = sim.tile_mut(x, y);
+                tile.terrain = Terrain::Grassland;
+                tile.fallout = false;
+                tile.pollution = false;
+                tile.visible = true;
+                tile.seen = true;
+            }
+        }
+    }
+    sim.create_city(HUMAN, base.0, base.1);
+    sim.create_city(1, target.0, target.1);
+    sim.sign_pact(HUMAN, 1, Pact::War);
+    if let Some(city) = sim.cities.iter_mut().find(|c| (c.x, c.y) == target) {
+        city.size = 10;
+        if with_sdi {
+            city.buildings.push(crate::rules::Building::SDI_DEFENSE);
+        }
+    }
+    let icbm = sim.spawn_unit(HUMAN, UnitKind::ICBM, base.0, base.1);
+    sim.spawn_unit(1, UnitKind::Infantry, target.0, target.1);
+    sim.native_random = None;
+    sim.rng = 42;
+    sim.refresh_visibility();
+    ui_review_record_knowledge(sim);
+    sim.enable_visual_events();
+    (icbm, target)
 }

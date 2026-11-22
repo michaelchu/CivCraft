@@ -335,10 +335,17 @@ impl Simulation {
                     .find(|unit| unit.owner != weapon.owner)
                     .map(|unit| unit.owner)
             });
-        self.publish_visual_event(VisualEvent::Capture {
-            unit: weapon.clone(),
-        });
         if let Some(defending_city_owner) = self.nuclear_sdi_intercepts(weapon, action, x, y) {
+            self.publish_visual_event(VisualEvent::AirMission(Box::new(
+                presentation::AirMissionVisual {
+                    aircraft: weapon.clone(),
+                    from: (weapon.x, weapon.y),
+                    to: (x, y),
+                    kind: presentation::AirMissionVisualKind::NuclearStrike {
+                        intercepted_by_sdi: true,
+                    },
+                },
+            )));
             // server/unithand.c:unit_nuke applies the caught-action
             // consequence against the defending city owner before wiping
             // the intercepted weapon.
@@ -370,6 +377,17 @@ impl Simulation {
             }
             return;
         }
+
+        self.publish_visual_event(VisualEvent::AirMission(Box::new(
+            presentation::AirMissionVisual {
+                aircraft: weapon.clone(),
+                from: (weapon.x, weapon.y),
+                to: (x, y),
+                kind: presentation::AirMissionVisualKind::NuclearStrike {
+                    intercepted_by_sdi: false,
+                },
+            },
+        )));
 
         if nuclear_action_consumes_weapon(action) {
             self.remove_units_with_cargo_because(vec![weapon.id], lifecycle::UnitRemoval::Expended);

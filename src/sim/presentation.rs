@@ -22,6 +22,14 @@ pub(crate) enum AirMissionVisualKind {
         defender: Option<(Unit, i32, i32)>,
         city: Option<Box<City>>,
     },
+    CruiseMissileStrike {
+        /// Optional primary defending unit on the target tile with `(unit, hp_before, hp_after)`.
+        defender: Option<(Unit, i32, i32)>,
+        city: Option<Box<City>>,
+    },
+    NuclearStrike {
+        intercepted_by_sdi: bool,
+    },
     Recon,
     Rebase,
     SamIntercept {
@@ -81,6 +89,8 @@ impl AirMissionVisual {
         let fly = (0.22 + 0.03 * f64::from(manhattan)).clamp(0.22, 0.50);
         match &self.kind {
             AirMissionVisualKind::Bombard { .. } => (fly, 0.65, 0.0),
+            AirMissionVisualKind::CruiseMissileStrike { .. } => (fly, 0.85, 0.0),
+            AirMissionVisualKind::NuclearStrike { .. } => (0.95, 0.65, 1.35),
             AirMissionVisualKind::Recon => (fly, 0.10, 0.0),
             AirMissionVisualKind::Rebase => (
                 (0.25 + 0.04 * f64::from(manhattan)).clamp(0.25, 0.70),
@@ -102,6 +112,8 @@ impl AirMissionVisual {
     ) -> f64 {
         match kind {
             AirMissionVisualKind::Rebase => fly,
+            AirMissionVisualKind::CruiseMissileStrike { .. } => fly + action,
+            AirMissionVisualKind::NuclearStrike { .. } => fly + action + outcome,
             AirMissionVisualKind::Bombard { .. } | AirMissionVisualKind::Recon => {
                 fly + action + fly
             }
@@ -254,6 +266,22 @@ impl Simulation {
                                 .map(|city| self.rendered_city_override_view(city)),
                         }
                     }
+                    AirMissionVisualKind::CruiseMissileStrike { defender, city } => {
+                        let defender = defender.map(|(unit, hp_before, hp_after)| {
+                            let mut view = self.rendered_unit_override_view(&unit);
+                            view.hp = hp_before;
+                            (view, hp_before, hp_after)
+                        });
+                        AirMissionPresentationKind::CruiseMissileStrike {
+                            defender,
+                            city: city
+                                .as_deref()
+                                .map(|city| self.rendered_city_override_view(city)),
+                        }
+                    }
+                    AirMissionVisualKind::NuclearStrike { intercepted_by_sdi } => {
+                        AirMissionPresentationKind::NuclearStrike { intercepted_by_sdi }
+                    }
                     AirMissionVisualKind::Recon => AirMissionPresentationKind::Recon,
                     AirMissionVisualKind::Rebase => AirMissionPresentationKind::Rebase,
                     AirMissionVisualKind::SamIntercept { shot_down } => {
@@ -362,6 +390,10 @@ impl Simulation {
                         .is_some_and(|city| city.owner == HUMAN)
                     || match &mission.kind {
                         AirMissionVisualKind::Bombard {
+                            defender: Some((unit, _, _)),
+                            ..
+                        }
+                        | AirMissionVisualKind::CruiseMissileStrike {
                             defender: Some((unit, _, _)),
                             ..
                         } => unit.owner == HUMAN,
@@ -755,5 +787,48 @@ mod tests {
             saw_dogfight,
             "expected CAP interception dogfight over target"
         );
+
+        // 8. Cruise Missile strike emits CruiseMissileStrike; ICBM strike emits NuclearStrike
+        //    both for detonation and SDI Defense interception.
+        let cruise = sim.spawn_unit(HUMAN, UnitKind::CruiseMissile, alt_base.0, alt_base.1);
+        sim.spawn_unit(1, UnitKind::Infantry, target.0, target.1);
+        assert!(sim.apply(Command::Bombard(cruise, target.0, target.1)));
+        assert!(matches!(
+            sim.take_visual_events().front(),
+            Some(VisualEvent::AirMission(m))
+                if matches!(m.kind, AirMissionVisualKind::CruiseMissileStrike { .. })
+        ));
+
+        let icbm = sim.spawn_unit(HUMAN, UnitKind::ICBM, base.0, base.1);
+        assert!(sim.apply(Command::NuclearStrike(icbm, target.0, target.1)));
+        assert!(matches!(
+            sim.take_visual_events().front(),
+            Some(VisualEvent::AirMission(m))
+                if matches!(
+                    m.kind,
+                    AirMissionVisualKind::NuclearStrike {
+                        intercepted_by_sdi: false
+                    }
+                )
+        ));
+
+        sim.cities
+            .iter_mut()
+            .find(|c| c.id == enemy_city)
+            .unwrap()
+            .buildings
+            .push(crate::rules::Building::SDI_DEFENSE);
+        let icbm_sdi = sim.spawn_unit(HUMAN, UnitKind::ICBM, base.0, base.1);
+        assert!(sim.apply(Command::NuclearStrike(icbm_sdi, target.0, target.1)));
+        assert!(matches!(
+            sim.take_visual_events().front(),
+            Some(VisualEvent::AirMission(m))
+                if matches!(
+                    m.kind,
+                    AirMissionVisualKind::NuclearStrike {
+                        intercepted_by_sdi: true
+                    }
+                )
+        ));
     }
 }

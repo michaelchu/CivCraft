@@ -24,6 +24,8 @@ fn air_mission_total_duration(
 ) -> f64 {
     match kind {
         crate::sim::AirMissionPresentationKind::Rebase => fly,
+        crate::sim::AirMissionPresentationKind::CruiseMissileStrike { .. } => fly + action,
+        crate::sim::AirMissionPresentationKind::NuclearStrike { .. } => fly + action + outcome,
         crate::sim::AirMissionPresentationKind::Bombard { .. }
         | crate::sim::AirMissionPresentationKind::Recon => fly + action + fly,
         crate::sim::AirMissionPresentationKind::SamIntercept { shot_down }
@@ -57,21 +59,30 @@ fn air_mission_phase(
         return AirMissionPhase::Outbound((t / mission.fly_duration.max(0.001)).min(1.0) as f32);
     }
     let after_out = t - mission.fly_duration;
+    if matches!(
+        mission.kind,
+        crate::sim::AirMissionPresentationKind::CruiseMissileStrike { .. }
+    ) {
+        return AirMissionPhase::Action(
+            (after_out / mission.action_duration.max(0.001)).min(1.0) as f32
+        );
+    }
     if after_out < mission.action_duration {
         return AirMissionPhase::Action(
             (after_out / mission.action_duration.max(0.001)).min(1.0) as f32
         );
     }
     let after_action = after_out - mission.action_duration;
-    let shot_down = matches!(
+    let ends_at_target = matches!(
         mission.kind,
-        crate::sim::AirMissionPresentationKind::SamIntercept { shot_down: true }
+        crate::sim::AirMissionPresentationKind::NuclearStrike { .. }
+            | crate::sim::AirMissionPresentationKind::SamIntercept { shot_down: true }
             | crate::sim::AirMissionPresentationKind::AaUnitIntercept {
                 shot_down: true,
                 ..
             }
     );
-    if shot_down {
+    if ends_at_target {
         AirMissionPhase::Crash((after_action / mission.outcome_duration.max(0.001)).min(1.0) as f32)
     } else {
         AirMissionPhase::Return((after_action / mission.fly_duration.max(0.001)).min(1.0) as f32)
@@ -142,6 +153,33 @@ pub(super) fn configure_event_combat_timing(
                         .filter(|(_, _, hp_after)| *hp_after <= 0)
                         .map_or(0.0, |(unit, _, _)| art.combat_clip_seconds(unit, Death));
                     mission.action_duration = bomb_seconds.max(defender_death).max(0.5);
+                }
+                crate::sim::AirMissionPresentationKind::CruiseMissileStrike {
+                    defender, ..
+                } => {
+                    let impact_seconds = art.combat_clip_seconds(&mission.aircraft, Death);
+                    let defender_death = defender
+                        .as_ref()
+                        .filter(|(_, _, hp_after)| *hp_after <= 0)
+                        .map_or(0.0, |(unit, _, _)| art.combat_clip_seconds(unit, Death));
+                    mission.action_duration = impact_seconds.max(defender_death).max(0.65);
+                }
+                crate::sim::AirMissionPresentationKind::NuclearStrike { intercepted_by_sdi } => {
+                    mission.fly_duration = art
+                        .combat_clip_seconds(&mission.aircraft, Capture)
+                        .max(0.75);
+                    let trail_seconds = art.combat_clip_seconds(&mission.aircraft, Run).max(0.5);
+                    mission.action_duration = if *intercepted_by_sdi {
+                        trail_seconds.max(art.sdi_effect_duration_seconds().unwrap_or(0.55))
+                    } else {
+                        trail_seconds
+                    };
+                    // Civ III stores the nuclear mushroom cloud in DEATH (`ICBMBomb.flc` /
+                    // `TacticalICBMBomb.flc`) and mid-air SDI destruction in VICTORY.
+                    let blast_action = if *intercepted_by_sdi { Victory } else { Death };
+                    mission.outcome_duration = art
+                        .combat_clip_seconds(&mission.aircraft, blast_action)
+                        .max(1.0);
                 }
                 crate::sim::AirMissionPresentationKind::SamIntercept { shot_down } => {
                     mission.action_duration = art.sam_effect_duration_seconds().unwrap_or(0.55);
@@ -324,6 +362,10 @@ impl Playback {
             } else if let PresentationEventView::AirMission(mission) = event
                 && let crate::sim::AirMissionPresentationKind::Bombard {
                     city: Some(city), ..
+                }
+                | crate::sim::AirMissionPresentationKind::CruiseMissileStrike {
+                    city: Some(city),
+                    ..
                 } = &mission.kind
             {
                 self.city_overrides
@@ -376,6 +418,10 @@ impl Playback {
                     crate::sim::AirMissionPresentationKind::Bombard {
                         defender: Some((defender, hp_before, hp_after)),
                         ..
+                    }
+                    | crate::sim::AirMissionPresentationKind::CruiseMissileStrike {
+                        defender: Some((defender, hp_before, hp_after)),
+                        ..
                     } => {
                         let mut def = defender.clone();
                         def.hp = match phase {
@@ -409,14 +455,23 @@ fn sound_requests(
                 crate::sim::AirMissionPresentationKind::Bombard {
                     defender: Some((defender, _, _)),
                     ..
+                }
+                | crate::sim::AirMissionPresentationKind::CruiseMissileStrike {
+                    defender: Some((defender, _, _)),
+                    ..
                 } => defender.owner == HUMAN,
                 crate::sim::AirMissionPresentationKind::Bombard {
                     city: Some(city), ..
+                }
+                | crate::sim::AirMissionPresentationKind::CruiseMissileStrike {
+                    city: Some(city),
+                    ..
                 } => city.owner == HUMAN,
                 crate::sim::AirMissionPresentationKind::AaUnitIntercept { aa_unit, .. } => {
                     aa_unit.owner == HUMAN
                 }
-                crate::sim::AirMissionPresentationKind::SamIntercept { .. } => true,
+                crate::sim::AirMissionPresentationKind::SamIntercept { .. }
+                | crate::sim::AirMissionPresentationKind::NuclearStrike { .. } => true,
                 _ => false,
             };
         if !selected_matches && !human_involved {
@@ -433,6 +488,44 @@ fn sound_requests(
                 delay_seconds,
             });
         };
+        match &mission.kind {
+            crate::sim::AirMissionPresentationKind::NuclearStrike { intercepted_by_sdi } => {
+                // Civ III ICBM / Tactical Nuke INIs play RUN on descent, SDI Laser on
+                // intercept, VICTORY (`ICBM Death.wav`) on shootdown, or DEATH (`ICBMBomb.wav`)
+                // on mushroom-cloud detonation.
+                push(&mission.aircraft, "RUN", mission.fly_duration);
+                if *intercepted_by_sdi {
+                    push(&mission.aircraft, "SDI_EFFECT", mission.fly_duration);
+                    push(
+                        &mission.aircraft,
+                        "VICTORY",
+                        mission.fly_duration + mission.action_duration,
+                    );
+                } else {
+                    push(
+                        &mission.aircraft,
+                        "DEATH",
+                        mission.fly_duration + mission.action_duration,
+                    );
+                }
+                return requests;
+            }
+            crate::sim::AirMissionPresentationKind::CruiseMissileStrike { defender, .. } => {
+                push(&mission.aircraft, "RUN", 0.0);
+                push(&mission.aircraft, "DEATH", mission.fly_duration);
+                if let Some((defender, _, hp_after)) = defender
+                    && *hp_after <= 0
+                {
+                    push(
+                        defender,
+                        "DEATH",
+                        mission.fly_duration + mission.action_duration * 0.45,
+                    );
+                }
+                return requests;
+            }
+            _ => {}
+        }
         push(&mission.aircraft, "RUN", 0.0);
         match &mission.kind {
             crate::sim::AirMissionPresentationKind::Bombard { defender, .. } => {
@@ -469,6 +562,10 @@ fn sound_requests(
                         mission.fly_duration + mission.action_duration,
                     );
                 }
+            }
+            crate::sim::AirMissionPresentationKind::NuclearStrike { .. }
+            | crate::sim::AirMissionPresentationKind::CruiseMissileStrike { .. } => {
+                unreachable!("handled above")
             }
         }
         return requests;
@@ -586,9 +683,87 @@ impl Game {
             let dy = to_center.y - from_center.y;
             let flight_vector = vec2(dx, dy);
 
+            // 0. Dedicated Civ III nuclear launch -> incoming trail / SDI laser -> mushroom cloud sequence.
+            if let crate::sim::AirMissionPresentationKind::NuclearStrike { intercepted_by_sdi } =
+                mission.kind
+            {
+                let palette_index = self.sim.player_team_palette_view(mission.aircraft.owner);
+                let unit_zoom = view.zoom * WORLD_ART_SCALE;
+                match phase {
+                    AirMissionPhase::Outbound(t) => {
+                        let _ = assets.civ3.draw_unit(
+                            mission.aircraft.kind,
+                            mission.aircraft.owner,
+                            palette_index,
+                            0,
+                            mission.aircraft.era_index,
+                            Action::Capture,
+                            t,
+                            Some(mission.fly_duration as f32),
+                            from_center,
+                            unit_zoom,
+                            false,
+                        );
+                    }
+                    AirMissionPhase::Action(t) => {
+                        let _ = assets.civ3.draw_unit(
+                            mission.aircraft.kind,
+                            mission.aircraft.owner,
+                            palette_index,
+                            0,
+                            mission.aircraft.era_index,
+                            Action::Run,
+                            t,
+                            Some(mission.action_duration as f32),
+                            to_center,
+                            unit_zoom,
+                            false,
+                        );
+                        if intercepted_by_sdi {
+                            let drawn = assets.civ3.draw_sdi_effect(0, t, to_center, view.zoom);
+                            if !drawn {
+                                draw_line(
+                                    to_center.x + 80.0 * view.zoom,
+                                    to_center.y - 120.0 * view.zoom,
+                                    to_center.x,
+                                    to_center.y - 12.0 * view.zoom,
+                                    (3.0 * view.zoom).max(2.0),
+                                    Color::from_rgba(120, 235, 255, 240),
+                                );
+                            }
+                        }
+                    }
+                    AirMissionPhase::Crash(t) | AirMissionPhase::Return(t) => {
+                        let blast_action = if intercepted_by_sdi {
+                            Action::Victory
+                        } else {
+                            Action::Death
+                        };
+                        let _ = assets.civ3.draw_unit(
+                            mission.aircraft.kind,
+                            mission.aircraft.owner,
+                            palette_index,
+                            0,
+                            mission.aircraft.era_index,
+                            blast_action,
+                            t,
+                            Some(mission.outcome_duration as f32),
+                            to_center,
+                            unit_zoom,
+                            false,
+                        );
+                    }
+                }
+                return;
+            }
+
             // 1. Draw any ground/naval target or firing AA unit underneath the aircraft.
             match &mission.kind {
                 crate::sim::AirMissionPresentationKind::Bombard {
+                    defender: Some((defender, hp_before, hp_after)),
+                    ..
+                }
+                | crate::sim::AirMissionPresentationKind::CruiseMissileStrike {
                     defender: Some((defender, hp_before, hp_after)),
                     ..
                 } => {
@@ -693,6 +868,32 @@ impl Game {
                                 view.zoom,
                             );
                         }
+                    }
+                    crate::sim::AirMissionPresentationKind::CruiseMissileStrike { .. } => {
+                        let palette_index =
+                            self.sim.player_team_palette_view(mission.aircraft.owner);
+                        let drawn = assets.civ3.draw_unit(
+                            mission.aircraft.kind,
+                            mission.aircraft.owner,
+                            palette_index,
+                            0,
+                            mission.aircraft.era_index,
+                            Action::Death,
+                            t,
+                            Some(mission.action_duration as f32),
+                            to_center,
+                            view.zoom * WORLD_ART_SCALE,
+                            false,
+                        );
+                        if !drawn {
+                            let _ = assets.civ3.draw_bomb_effect(
+                                mission.outbound_facing,
+                                t,
+                                to_center,
+                                view.zoom,
+                            );
+                        }
+                        return;
                     }
                     crate::sim::AirMissionPresentationKind::SamIntercept { .. } => {
                         let drawn = assets.civ3.draw_sam_effect(
@@ -1394,7 +1595,7 @@ mod tests {
         // 4. Recon & Rebase schedule RUN with smooth flight duration.
         let recon_view = sim.presentation_event_view_for_test(VisualEvent::AirMission(Box::new(
             crate::sim::AirMissionVisual {
-                aircraft: bomber_unit,
+                aircraft: bomber_unit.clone(),
                 from: (sx, sy),
                 to: (tx, ty),
                 kind: crate::sim::AirMissionVisualKind::Recon,
@@ -1414,7 +1615,7 @@ mod tests {
             &sim,
             VisualEvent::Combat(Box::new(CombatVisual {
                 attacker: artillery_unit,
-                defender: defender_unit,
+                defender: defender_unit.clone(),
                 hp: vec![(3, 3), (3, 2)],
                 city: None,
                 bombard_effects: true,
@@ -1428,6 +1629,90 @@ mod tests {
                 .map(|r| r.action.as_str())
                 .collect::<Vec<_>>(),
             vec!["ATTACK1", "BOMB_EFFECT"]
+        );
+
+        // 6. ICBM detonation schedules RUN (trail) -> DEATH (mushroom cloud);
+        //    SDI interception schedules RUN -> SDI_EFFECT (Laser) -> VICTORY (mid-air blast).
+        let mut icbm_unit = bomber_unit.clone();
+        icbm_unit.id = 105;
+        icbm_unit.kind = UnitKind::ICBM;
+        let nuke_det = sim.presentation_event_view_for_test(VisualEvent::AirMission(Box::new(
+            crate::sim::AirMissionVisual {
+                aircraft: icbm_unit.clone(),
+                from: (sx, sy),
+                to: (tx, ty),
+                kind: crate::sim::AirMissionVisualKind::NuclearStrike {
+                    intercepted_by_sdi: false,
+                },
+            },
+        )));
+        let PresentationEventView::AirMission(nuke_mission) = &nuke_det else {
+            unreachable!()
+        };
+        assert!(matches!(
+            air_mission_phase(nuke_mission, 0.1),
+            AirMissionPhase::Outbound(_)
+        ));
+        assert!(matches!(
+            air_mission_phase(nuke_mission, nuke_mission.fly_duration + 0.1),
+            AirMissionPhase::Action(_)
+        ));
+        assert!(matches!(
+            air_mission_phase(
+                nuke_mission,
+                nuke_mission.fly_duration + nuke_mission.action_duration + 0.1
+            ),
+            AirMissionPhase::Crash(_)
+        ));
+        assert_eq!(
+            sound_requests(&nuke_det, None)
+                .iter()
+                .map(|r| r.action.as_str())
+                .collect::<Vec<_>>(),
+            vec!["RUN", "DEATH"]
+        );
+
+        let nuke_sdi = sim.presentation_event_view_for_test(VisualEvent::AirMission(Box::new(
+            crate::sim::AirMissionVisual {
+                aircraft: icbm_unit,
+                from: (sx, sy),
+                to: (tx, ty),
+                kind: crate::sim::AirMissionVisualKind::NuclearStrike {
+                    intercepted_by_sdi: true,
+                },
+            },
+        )));
+        assert_eq!(
+            sound_requests(&nuke_sdi, None)
+                .iter()
+                .map(|r| r.action.as_str())
+                .collect::<Vec<_>>(),
+            vec!["RUN", "SDI_EFFECT", "VICTORY"]
+        );
+
+        // 7. Cruise Missile strike schedules RUN -> DEATH (impact explosion) -> defender DEATH.
+        let mut cruise_unit = bomber_unit;
+        cruise_unit.id = 106;
+        cruise_unit.kind = UnitKind::CruiseMissile;
+        let cruise_sounds = sound_requests_for(
+            &sim,
+            VisualEvent::AirMission(Box::new(crate::sim::AirMissionVisual {
+                aircraft: cruise_unit,
+                from: (sx, sy),
+                to: (tx, ty),
+                kind: crate::sim::AirMissionVisualKind::CruiseMissileStrike {
+                    defender: Some((defender_unit, 3, 0)),
+                    city: None,
+                },
+            })),
+            Some(106),
+        );
+        assert_eq!(
+            cruise_sounds
+                .iter()
+                .map(|r| (r.unit_id, r.action.as_str()))
+                .collect::<Vec<_>>(),
+            vec![(106, "RUN"), (106, "DEATH"), (defender, "DEATH")]
         );
     }
 }

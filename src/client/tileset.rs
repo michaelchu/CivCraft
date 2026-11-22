@@ -1163,6 +1163,7 @@ pub(super) struct Civ3 {
     unit_cursor: Civ3UnitCursor,
     bomb_effect: Option<Civ3EffectAnimation>,
     sam_effect: Option<Civ3EffectAnimation>,
+    sdi_effect: Option<Civ3EffectAnimation>,
     unit_animation_sources: HashMap<String, UnitAnimationSource>,
     unit_sound_sources: HashMap<String, HashMap<String, UnitSoundSource>>,
     animation_pacing: super::unit_animation_pacing::UnitAnimationPacing,
@@ -1859,6 +1860,11 @@ impl Civ3 {
             "Art/Animations/SAM/SamAttackA.flc",
             default_team_palette,
         )?;
+        let sdi_effect = load_optional_effect_animation(
+            &theme.media,
+            "Art/Animations/SDI/Laser.flc",
+            default_team_palette,
+        )?;
         Ok(Self {
             art,
             atlas: RefCell::default(),
@@ -1876,6 +1882,7 @@ impl Civ3 {
             unit_cursor,
             bomb_effect,
             sam_effect,
+            sdi_effect,
             unit_animation_sources: resolved_unit_paths,
             unit_sound_sources,
             animation_pacing,
@@ -1966,6 +1973,26 @@ impl Civ3 {
 
     pub(super) fn sam_effect_duration_seconds(&self) -> Option<f64> {
         self.sam_effect
+            .as_ref()
+            .map(|effect| effect.duration_seconds)
+    }
+
+    pub(super) fn draw_sdi_effect(
+        &self,
+        facing: u8,
+        progress: f32,
+        center: Vec2,
+        zoom: f32,
+    ) -> bool {
+        let Some(effect) = self.sdi_effect.as_ref() else {
+            return false;
+        };
+        Self::draw_effect_animation(effect, facing, progress, center, zoom);
+        true
+    }
+
+    pub(super) fn sdi_effect_duration_seconds(&self) -> Option<f64> {
+        self.sdi_effect
             .as_ref()
             .map(|effect| effect.duration_seconds)
     }

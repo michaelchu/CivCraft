@@ -23,6 +23,7 @@ mod harbor_trade;
 mod lifecycle_history;
 mod modern_combined_arms;
 mod naval;
+mod nuclear_warfare;
 mod peaceful_first_contact;
 mod proactive_trade;
 mod relationship_memory;
@@ -117,6 +118,7 @@ pub(super) const SCENARIOS: &[Scenario] = &[
     air_warfare::WARFARE,
     air_warfare::COUNTER_DEFENSE,
     air_warfare::COUNTER_DEFENSE_CONTROL,
+    nuclear_warfare::SCENARIO,
     great_leader::SCENARIO,
     great_leader::ARMY,
     great_leader::ARMY_COMBAT,

@@ -296,6 +296,13 @@ pub(crate) enum AirMissionPresentationKind {
         defender: Option<(RenderedUnitView, i32, i32)>,
         city: Option<RenderedCityView>,
     },
+    CruiseMissileStrike {
+        defender: Option<(RenderedUnitView, i32, i32)>,
+        city: Option<RenderedCityView>,
+    },
+    NuclearStrike {
+        intercepted_by_sdi: bool,
+    },
     Recon,
     Rebase,
     SamIntercept {
@@ -364,6 +371,10 @@ impl PresentationEventView {
             Self::Combat(combat) => [Some(&combat.attacker), Some(&combat.defender)],
             Self::AirMission(mission) => match &mission.kind {
                 AirMissionPresentationKind::Bombard {
+                    defender: Some((defender, _, _)),
+                    ..
+                }
+                | AirMissionPresentationKind::CruiseMissileStrike {
                     defender: Some((defender, _, _)),
                     ..
                 } => [Some(&mission.aircraft), Some(defender)],

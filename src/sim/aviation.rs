@@ -1624,6 +1624,7 @@ impl Simulation {
         let mut population_lost = 0;
         let mut observed_targets = Vec::new();
         let is_fixed_wing = attacker.kind.is_fixed_wing_aircraft();
+        let is_cruise_missile = attacker.kind == UnitKind::CruiseMissile;
         let mut air_bombard_defender: Option<(Unit, i32, i32)> = None;
 
         // Freeciv's unit_bombard() walks every unit on the target tile and
@@ -1664,7 +1665,7 @@ impl Simulation {
             }
             self.sync_army_damage(target.id);
             if self.visual_events.enabled {
-                if is_fixed_wing {
+                if is_fixed_wing || is_cruise_missile {
                     if air_bombard_defender.is_none() || dealt > 0 {
                         air_bombard_defender = Some((target.clone(), target.hp, hp));
                     }
@@ -1760,16 +1761,24 @@ impl Simulation {
             bomber.state = UnitState::Idle;
             bomber.work_left = 0;
         }
-        if self.visual_events.enabled && is_fixed_wing {
+        if self.visual_events.enabled && (is_fixed_wing || is_cruise_missile) {
+            let kind = if is_cruise_missile {
+                presentation::AirMissionVisualKind::CruiseMissileStrike {
+                    defender: air_bombard_defender,
+                    city: city.clone().map(Box::new),
+                }
+            } else {
+                presentation::AirMissionVisualKind::Bombard {
+                    defender: air_bombard_defender,
+                    city: city.clone().map(Box::new),
+                }
+            };
             self.publish_visual_event(VisualEvent::AirMission(Box::new(
                 presentation::AirMissionVisual {
                     aircraft: attacker.clone(),
                     from: (attacker.x, attacker.y),
                     to: (x, y),
-                    kind: presentation::AirMissionVisualKind::Bombard {
-                        defender: air_bombard_defender,
-                        city: city.clone().map(Box::new),
-                    },
+                    kind,
                 },
             )));
         }

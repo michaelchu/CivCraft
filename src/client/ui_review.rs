@@ -64,6 +64,8 @@ pub(crate) const UI_REVIEW_SCENES: &[&str] = &[
     "army-defend-horseman",
     "air-bombard",
     "air-sam-intercept",
+    "nuke-detonation",
+    "nuke-sdi-intercept",
 ];
 /// Cloning preserves the complete RNG and campaign state. Fixtures are built
 /// once and kept immutable; every scenario receives an independent clone.
@@ -340,6 +342,14 @@ impl Game {
                 self.playback.review_progress = Some(0.0);
                 self.zoom = 1.25;
                 self.focus_camera_on((20 + target.0) / 2, target.1);
+                return;
+            }
+            59 | 60 => {
+                let (unit, target) = self.sim.review_fixture().nuclear_setup(scene == 60);
+                self.select_unit_group(vec![unit], Some(unit));
+                self.playback.review_progress = Some(0.0);
+                self.zoom = 1.15;
+                self.focus_camera_on(target.0, target.1);
                 return;
             }
             23..=25 | 48 => {
@@ -836,6 +846,31 @@ impl Game {
                     self.move_selected(self.sim.review_state().move_command(id, 1, 0), id),
                 )?;
                 sequence.check("movement_refreshes_visibility", before != visibility(self))?;
+                return Ok(true);
+            }
+            return Ok(false);
+        }
+        if matches!(scene, 59 | 60) {
+            if phase == 1 {
+                let id = self.selected_unit.unwrap();
+                sequence.check(
+                    "nuclear_strike_real_command",
+                    self.move_selected(Command::NuclearStrike(id, 22, 24), id),
+                )?;
+            }
+            if phase == 6 {
+                // Scene 59 captures the mushroom cloud (`Crash` phase) with fallout
+                // tiles visible around the city; scene 60 captures the SDI orbital laser
+                // (`Action` phase) intersecting the descending ICBM trail.
+                let fraction = if scene == 59 { 0.72 } else { 0.48 };
+                sequence.check(
+                    "nuclear_clip_available",
+                    self.playback.review_first_air_mission(fraction),
+                )?;
+                sequence.check(
+                    "nuclear_actors_rendered",
+                    !self.playback.active().is_empty(),
+                )?;
                 return Ok(true);
             }
             return Ok(false);

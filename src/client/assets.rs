@@ -102,6 +102,7 @@ pub(crate) struct Assets {
     pub(super) hut_sound: Option<std::path::PathBuf>,
     pub(super) bomb_sound: Option<std::path::PathBuf>,
     pub(super) sam_sound: Option<std::path::PathBuf>,
+    pub(super) sdi_sound: Option<std::path::PathBuf>,
 }
 
 impl Assets {
@@ -119,6 +120,9 @@ impl Assets {
         }
         if action.eq_ignore_ascii_case("SAM_EFFECT") {
             return self.sam_sound.clone();
+        }
+        if action.eq_ignore_ascii_case("SDI_EFFECT") {
+            return self.sdi_sound.clone();
         }
         self.civ3
             .unit_sound_source(kind, era, action)
@@ -156,12 +160,18 @@ impl Assets {
             .base_policy()
             .lookup("Art/Animations/SAM/SAMAttack.wav")?
             .map(|found| found.path);
+        let sdi_sound = context
+            .media
+            .base_policy()
+            .lookup("Art/Animations/SDI/Laser.wav")?
+            .map(|found| found.path);
         Ok(Self {
             civ3,
             source_fog,
             hut_sound,
             bomb_sound,
             sam_sound,
+            sdi_sound,
         })
     }
 }

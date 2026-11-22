@@ -324,9 +324,9 @@ impl<'a> Civ3WorldPainter<'a> {
                         let neighbor = game.sim.render_tile_view(nx, ny);
                         neighbor.seen
                             && if pollution {
-                                neighbor.pollution
+                                neighbor.pollution || neighbor.fallout
                             } else {
-                                neighbor.fallout || neighbor.craters
+                                neighbor.craters
                             }
                     })
             });
@@ -336,7 +336,7 @@ impl<'a> Civ3WorldPainter<'a> {
                 .unsigned_abs() as usize;
             contamination_sprite_index(diagonals, variation)
         };
-        if tile.pollution {
+        if tile.pollution || tile.fallout {
             assets.civ3.draw_contamination(
                 false,
                 contamination_index(true),
@@ -344,7 +344,7 @@ impl<'a> Civ3WorldPainter<'a> {
                 geometry.size(),
             );
         }
-        if tile.fallout || tile.craters {
+        if tile.craters {
             assets.civ3.draw_contamination(
                 true,
                 contamination_index(false),
