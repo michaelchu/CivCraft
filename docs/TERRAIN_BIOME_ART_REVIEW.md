@@ -179,3 +179,48 @@ Final follow-up validation:
 - Remaining limitations: targeted scenes rather than the full gallery; the
   synthetic biome bands still have angular layouts, and the wrap fixture's
   sharp visibility/fog boundaries are outside this terrain-material fix.
+
+## Follow-up: soften the rectangular tundra patch
+
+The tundra-pine patch still had a rectangular green halo after the junction
+edge correction. Unsupported tundra/desert or tundra/plains combinations used
+XTGC's grass proxy, then patched the other biome into geometrically clipped
+regions. A softer edge alone could not remove that intervening grass.
+
+Land-only junctions containing tundra and desert/plains now blend native pure
+biome texture cells directly, using normalized smooth weights for all four
+corners. This removes the proxy halo and widens the material fade without
+altering terrain layout, vegetation sprites, snow-volcano artwork, simulation,
+map generation or RNG. Junctions with water retain the existing shoreline path.
+This is a CivCraft fallback compositor for combinations absent from the native
+atlases, not a recovered Civ III algorithm. The existing shared-edge correction
+continues to use canonical endpoint pairs.
+
+A source-adjacent regression uses a conspicuous green sentinel for proxy art
+and checks tundra/desert and tundra/plains in all four rotations: no proxy
+material may enter the result, opacity is preserved, and each transition must
+contain a continuous range of mixed values rather than a hard cut. The
+fixture is unchanged. Evidence remains under `/tmp/civcraft-terrain-evidence/`.
+
+Final softening validation:
+
+- `cargo test --offline --all-targets`: 1,459 library tests passed, 3 ignored;
+  report integration 2/2 and CLI integration 19/19 passed. Doc tests passed.
+- Release desktop build passed. Final captures are `soft-blend-final-*`,
+  compared to the preceding `edge-checked-*` / `edge-final-*` captures at the
+  unchanged 0.99 threshold. North/south poles and world are pixel-identical
+  (similarity 1.0); wrap-seam passes at 0.99979469 / 0.99957740.
+- Terrain-blending comparison fails at 0.98421278 (1280×720) and 0.98972599
+  (1600×900); the repeated terrain-seams-default comparison fails at
+  0.98776490. These are retained failures against the earlier material edges,
+  not replacement baselines. All non-baseline checks pass; the complete
+  repeated-seam run is in `soft-blend-checked-seams` without a baseline.
+- Inspected final release PNGs at both sizes and the repeated seam capture.
+  The pine patch loses its green rectangular halo and transitions directly
+  into the surrounding sand. The fixture's rectangular biome arrangement
+  remains; this change softens the rendered materials rather than moving
+  tiles or claiming exact native transition parity.
+- `soft-blend-before-after.png` is a labeled crop of original captures,
+  before on the left and after on the right. Full-resolution final image:
+  `soft-blend-final-terrain-blending/terrain-blending.png`. This remains a
+  focused visual review, not the full UI gallery.

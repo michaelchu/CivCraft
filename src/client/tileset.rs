@@ -1115,12 +1115,58 @@ impl GroundArt {
         image
     }
 
+    fn rasterize_land_blend(&self, ground: [Ground; 4]) -> Image {
+        // No native atlas contains both tundra and desert/plains. Blend the
+        // actual biome textures directly instead of leaving the grass proxy
+        // around a snowy tile and cutting another atlas into a triangular tip.
+        let cells = ground.map(|tile| {
+            let sheet = self.land_sheet([tile; 4], Some(tile));
+            let code = LAND_SHEETS[sheet]
+                .2
+                .iter()
+                .position(|&g| g == tile)
+                .unwrap();
+            SheetCell::lookup(&self.land[sheet], [code; 4])
+        });
+        let mut image = Image::gen_image_color(CELL_W as u16, CELL_H as u16, BLANK);
+        for (index, pixel) in image.get_image_data_mut().iter_mut().enumerate() {
+            let y = (index / CELL_W).saturating_sub(1).clamp(1, HEIGHT - 2);
+            let half = (2 * y.min(HEIGHT - 1 - y)).saturating_sub(1).max(1);
+            let x = (index % CELL_W)
+                .saturating_sub(1)
+                .clamp(64 - half, 63 + half);
+            let dx = (x as f32 + 0.5) / 64.0 - 1.0;
+            let dy = (y as f32 + 0.5) / 32.0 - 1.0;
+            let weights = [-dy - dx.abs(), dx - dy.abs(), dy - dx.abs(), -dx - dy.abs()]
+                .map(|distance| smooth(0.5 + distance / 0.75));
+            let total: f32 = weights.iter().sum();
+            let colors = cells.map(|cell| cell.pixel(x, y));
+            // Normalize all four contributions, including three-biome corners.
+            *pixel = std::array::from_fn(|channel| {
+                (colors
+                    .iter()
+                    .zip(weights)
+                    .map(|(color, weight)| f32::from(color[channel]) * weight)
+                    .sum::<f32>()
+                    / total)
+                    .round() as u8
+            });
+        }
+        image
+    }
+
     fn rasterize_cell(&self, key: Junction) -> Image {
         // Ice is a legacy land marker, not a water depth. Bounded off-map
         // water is supplied by junctions rather than masquerading as Ice.
         let ground = key
             .ground
             .map(|tile| if tile == Ice { Tundra } else { tile });
+        if ground.contains(&Tundra)
+            && ground.iter().any(|&tile| matches!(tile, Desert | Plains))
+            && !ground.iter().any(|&tile| is_water(tile))
+        {
+            return self.rasterize_land_blend(ground);
+        }
         let variant = usize::from(key.variant);
         let pure_water = ground.iter().all(|&tile| is_water(tile));
         let depths = ground.map(water_depth);
@@ -2977,6 +3023,53 @@ fn draw_sprite(texture: &Texture2D, center: Vec2, size: Vec2, source: Rect) {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn tundra_transition_uses_only_the_biomes_that_are_present() {
+        // Green is a sentinel for the old grass proxy. Only native pure-biome
+        // cells are white/red/blue, so any proxy halo fails these assertions.
+        let land = LAND_SHEETS
+            .iter()
+            .map(|(_, _, codes)| {
+                let mut image = Image::gen_image_color(1152, 576, GREEN);
+                for (code, ground) in codes.iter().enumerate() {
+                    let color = match ground {
+                        Tundra => WHITE,
+                        Desert => Color::from_rgba(255, 0, 0, 255),
+                        Plains => Color::from_rgba(0, 0, 255, 255),
+                        _ => continue,
+                    };
+                    for y in code * 4 * HEIGHT..(code * 4 + 1) * HEIGHT {
+                        for x in code * 4 * WIDTH..(code * 4 + 1) * WIDTH {
+                            image.set_pixel(x as u32, y as u32, color);
+                        }
+                    }
+                }
+                image
+            })
+            .collect::<Vec<_>>();
+        let art = GroundArt {
+            land,
+            water: Image::gen_image_color(1152, 576, GREEN),
+            sea: Image::gen_image_color(1152, 576, GREEN),
+            ocean: Image::gen_image_color(1152, 576, GREEN),
+        };
+        for neighbor in [Desert, Plains] {
+            for rotation in 0..4 {
+                let mut ground = [Tundra, neighbor, neighbor, Tundra];
+                ground.rotate_left(rotation);
+                let image = art.rasterize_base(Junction { ground, variant: 0 });
+                let channel = if neighbor == Desert { 0 } else { 2 };
+                for pixel in image.get_image_data() {
+                    assert_eq!(pixel[channel], 255, "grass proxy at {ground:?}");
+                    assert_eq!(pixel[3], 255);
+                }
+                let channel_values: std::collections::HashSet<_> =
+                    image.get_image_data().iter().map(|p| p[1]).collect();
+                assert!(channel_values.len() > 32, "transition must fade, not cut");
+            }
+        }
+    }
+
     #[test]
     fn shared_edge_art_does_not_depend_on_remote_junction_corners() {
         let sheet = |color| Image::gen_image_color(1152, 576, color);
