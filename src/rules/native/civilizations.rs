@@ -22,11 +22,15 @@ pub(crate) struct NativeCivilization {
     pub(crate) noun: String,
     pub(crate) adjective: String,
     pub(crate) leader: String,
+    #[serde(skip)]
     pub(crate) primary_color_index: u8,
+    #[serde(skip)]
     pub(crate) secondary_color_index: u8,
+    #[serde(skip)]
     pub(crate) city_style: u8,
     pub(crate) starting_techs: Vec<String>,
     pub(crate) cities: Vec<String>,
+    #[serde(skip)]
     pub(crate) culture_group_index: i32,
     pub(crate) agricultural: bool,
     pub(crate) commercial: bool,
@@ -48,7 +52,16 @@ pub(crate) struct NativeUnitStack {
 }
 
 pub(crate) fn parse_civilizations(source: &str) -> Result<CivilizationCatalog, String> {
-    let catalog: CivilizationCatalog = toml::from_str(source).map_err(|error| error.to_string())?;
+    let mut catalog: CivilizationCatalog =
+        toml::from_str(source).map_err(|error| error.to_string())?;
+    for civilization in &mut catalog.civilizations {
+        let art = super::bindings::civilization_art(&civilization.id)
+            .ok_or_else(|| format!("civilization {} has no art binding", civilization.id))?;
+        civilization.primary_color_index = art.primary_color_index;
+        civilization.secondary_color_index = art.secondary_color_index;
+        civilization.city_style = art.city_style;
+        civilization.culture_group_index = art.culture_group_index;
+    }
     validate_ids(
         catalog.civilizations.iter().map(|c| c.id.as_str()),
         "civilization",

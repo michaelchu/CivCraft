@@ -9,6 +9,7 @@
 use serde::Deserialize;
 use std::sync::OnceLock;
 
+mod bindings;
 mod buildings;
 mod civilizations;
 mod economy;

@@ -35,15 +35,9 @@ pub(super) struct UnitRule {
     pub(super) require_support: i32,
     #[allow(dead_code)] // Result identity retained for the unfinished enslave action.
     pub(super) enslave_result: &'static str,
-    #[allow(dead_code)] // Retained source capability for the unfinished crater action path.
-    pub(super) create_craters: i32,
     pub(super) worker_strength: f32,
     #[allow(dead_code)]
     pub(super) air_defense: i32,
-    #[allow(dead_code)]
-    pub(super) icon_index: i32,
-    #[allow(dead_code)]
-    pub(super) civilopedia_entry: &'static str,
     pub(super) available_to: &'static str,
     #[allow(dead_code)]
     pub(super) unique_civilization: &'static str,
@@ -341,11 +335,8 @@ fn rules() -> &'static [UnitRule] {
                 bombard_effects: native.bombard_effects,
                 require_support: native.require_support,
                 enslave_result: leak(&native.enslave_result),
-                create_craters: native.create_craters,
                 worker_strength: native.worker_strength,
                 air_defense: native.air_defense,
-                icon_index: native.icon_index,
-                civilopedia_entry: leak(&native.civilopedia_entry),
                 available_to,
                 unique_civilization,
                 replaces,
@@ -552,11 +543,8 @@ mod tests {
             assert_eq!(migrated.bombard_effects, source.bombard_effects);
             assert_eq!(migrated.require_support, source.require_support);
             assert_eq!(migrated.enslave_result, source.enslave_result);
-            assert_eq!(migrated.create_craters, source.create_craters);
             assert_eq!(migrated.worker_strength, source.worker_strength);
             assert_eq!(migrated.air_defense, source.air_defense);
-            assert_eq!(migrated.icon_index, source.icon_index);
-            assert_eq!(migrated.civilopedia_entry, source.civilopedia_entry);
         }
     }
 }

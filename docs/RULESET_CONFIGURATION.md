@@ -24,8 +24,8 @@ The migration does not introduce another gameplay scripting language.
 ## Units
 
 `content/units.toml` retains costs, population costs, combat and bombardment
-statistics, movement, capacity, range, support and worker values, availability,
-and artwork bindings. `domain` is `Land`, `Sea`, or `Air`.
+statistics, movement, capacity, range, support and worker values, and
+availability. `domain` is `Land`, `Sea`, or `Air`.
 
 `required_technology` references a compiled technology ID, such as
 `TECH_Bronze_Working`; `upgrade_to` and `replaces` reference unit IDs, such as
@@ -45,6 +45,20 @@ the test fixtures.
 its presence does not promise execution support. Unused import bytes and indices
 have been removed. `UnitKind` is a data-driven index handle backed by
 `content/units.toml`.
+
+## Engine-owned bindings
+
+Values that tie a record to artwork, to saved-game identity or to presentation
+are not tuning knobs and are not in the TOML files. They live in
+`src/rules/native/bindings.rs`: unit art folders and installation labels,
+which units play bombardment impact effects, each technology's persistent
+`Tech` save index, and each civilization's palette colors, city style and
+culture group. Unit art defaults to the unit's display name under the `base`
+installation, so only exceptions are listed. The loaders reject TOML that
+still contains these keys, and reject a technology or civilization with no
+binding. Technology save indices must never change or be reused. Unit
+icon indices, Civilopedia keys, technology-tree coordinates and the unused
+crater flag have been removed; nothing read them.
 
 ## Buildings
 

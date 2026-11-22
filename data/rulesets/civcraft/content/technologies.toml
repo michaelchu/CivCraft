@@ -4,308 +4,198 @@ source = "Civilization III: Conquests"
 
 [[technologies]]
 id = "TECH_Bronze_Working"
-runtime_index = 8
 name = "Bronze Working"
-civilopedia_entry = "TECH_Bronze_Working"
 cost = 3
 era = 0
-advance_icon = 6
-x = 82
-y = 72
 prerequisites = []
 flags = []
 required_for_era = true
 
 [[technologies]]
 id = "TECH_Masonry"
-runtime_index = 45
 name = "Masonry"
-civilopedia_entry = "TECH_Masonry"
 cost = 4
 era = 0
-advance_icon = 40
-x = 85
-y = 182
 prerequisites = []
 flags = []
 required_for_era = true
 
 [[technologies]]
 id = "TECH_Alphabet"
-runtime_index = 1
 name = "Alphabet"
-civilopedia_entry = "TECH_Alphabet"
 cost = 5
 era = 0
-advance_icon = 1
-x = 85
-y = 290
 prerequisites = []
 flags = []
 required_for_era = true
 
 [[technologies]]
 id = "TECH_Pottery"
-runtime_index = 62
 name = "Pottery"
-civilopedia_entry = "TECH_Pottery"
 cost = 2
 era = 0
-advance_icon = 57
-x = 85
-y = 391
 prerequisites = []
 flags = []
 required_for_era = true
 
 [[technologies]]
 id = "TECH_The_Wheel"
-runtime_index = 80
 name = "The Wheel"
-civilopedia_entry = "TECH_The_Wheel"
 cost = 4
 era = 0
-advance_icon = 78
-x = 85
-y = 473
 prerequisites = []
 flags = []
 required_for_era = true
 
 [[technologies]]
 id = "TECH_Warrior_Code"
-runtime_index = 85
 name = "Warrior Code"
-civilopedia_entry = "TECH_Warrior_Code"
 cost = 3
 era = 0
-advance_icon = 81
-x = 85
-y = 554
 prerequisites = []
 flags = []
 required_for_era = true
 
 [[technologies]]
 id = "TECH_Ceremonial_Burial"
-runtime_index = 9
 name = "Ceremonial Burial"
-civilopedia_entry = "TECH_Ceremonial_Burial"
 cost = 2
 era = 0
-advance_icon = 7
-x = 85
-y = 638
 prerequisites = []
 flags = []
 required_for_era = true
 
 [[technologies]]
 id = "TECH_Iron_Working"
-runtime_index = 37
 name = "Iron Working"
-civilopedia_entry = "TECH_Iron_Working"
 cost = 6
 era = 0
-advance_icon = 35
-x = 279
-y = 76
 prerequisites = ["TECH_Bronze_Working"]
 flags = []
 required_for_era = true
 
 [[technologies]]
 id = "TECH_Writing"
-runtime_index = 86
 name = "Writing"
-civilopedia_entry = "TECH_Writing"
 cost = 8
 era = 0
-advance_icon = 82
-x = 257
-y = 332
 prerequisites = ["TECH_Alphabet"]
 flags = []
 required_for_era = true
 
 [[technologies]]
 id = "TECH_Mysticism"
-runtime_index = 54
 name = "Mysticism"
-civilopedia_entry = "TECH_Mysticism"
 cost = 4
 era = 0
-advance_icon = 50
-x = 275
-y = 632
 prerequisites = ["TECH_Ceremonial_Burial"]
 flags = []
 required_for_era = true
 
 [[technologies]]
 id = "TECH_Mathematics"
-runtime_index = 47
 name = "Mathematics"
-civilopedia_entry = "TECH_Mathematics"
 cost = 8
 era = 0
-advance_icon = 41
-x = 327
-y = 182
 prerequisites = ["TECH_Masonry", "TECH_Alphabet"]
 flags = []
 required_for_era = true
 
 [[technologies]]
 id = "TECH_Philosophy"
-runtime_index = 58
 name = "Philosophy"
-civilopedia_entry = "TECH_Philosophy"
 cost = 6
 era = 0
-advance_icon = 54
-x = 499
-y = 216
 prerequisites = ["TECH_Writing"]
 flags = ["Bonus_Tech"]
 required_for_era = true
 
 [[technologies]]
 id = "TECH_Code_of_Laws"
-runtime_index = 12
 name = "Code of Laws"
-civilopedia_entry = "TECH_Code_of_Laws"
 cost = 10
 era = 0
-advance_icon = 10
-x = 469
-y = 298
 prerequisites = ["TECH_Writing"]
 flags = []
 required_for_era = true
 
 [[technologies]]
 id = "TECH_Literature"
-runtime_index = 90
 name = "Literature"
-civilopedia_entry = "TECH_Literature"
 cost = 10
 era = 0
-advance_icon = 36
-x = 469
-y = 379
 prerequisites = ["TECH_Writing"]
 flags = []
 required_for_era = false
 
 [[technologies]]
 id = "TECH_Map_Making"
-runtime_index = 44
 name = "Map Making"
-civilopedia_entry = "TECH_Map_Making"
 cost = 12
 era = 0
-advance_icon = 39
-x = 469
-y = 459
 prerequisites = ["TECH_Writing", "TECH_Pottery"]
 flags = []
 required_for_era = true
 
 [[technologies]]
 id = "TECH_Horseback_Riding"
-runtime_index = 34
 name = "Horseback Riding"
-civilopedia_entry = "TECH_Horseback_Riding"
 cost = 5
 era = 0
-advance_icon = 31
-x = 469
-y = 544
 prerequisites = ["TECH_The_Wheel", "TECH_Warrior_Code"]
 flags = []
 required_for_era = false
 
 [[technologies]]
 id = "TECH_Polytheism"
-runtime_index = 61
 name = "Polytheism"
-civilopedia_entry = "TECH_Polytheism"
 cost = 12
 era = 0
-advance_icon = 56
-x = 467
-y = 635
 prerequisites = ["TECH_Mysticism"]
 flags = []
 required_for_era = true
 
 [[technologies]]
 id = "TECH_Currency"
-runtime_index = 19
 name = "Currency"
-civilopedia_entry = "TECH_Currency"
 cost = 16
 era = 0
-advance_icon = 15
-x = 636
-y = 175
 prerequisites = ["TECH_Mathematics"]
 flags = []
 required_for_era = true
 
 [[technologies]]
 id = "TECH_The_Republic"
-runtime_index = 79
 name = "The Republic"
-civilopedia_entry = "TECH_The_Republic"
 cost = 28
 era = 0
-advance_icon = 77
-x = 680
-y = 278
 prerequisites = ["TECH_Philosophy", "TECH_Code_of_Laws"]
 flags = []
 required_for_era = false
 
 [[technologies]]
 id = "TECH_Monarchy"
-runtime_index = 52
 name = "Monarchy"
-civilopedia_entry = "TECH_Monarchy"
 cost = 24
 era = 0
-advance_icon = 46
-x = 680
-y = 591
 prerequisites = ["TECH_Warrior_Code", "TECH_Polytheism"]
 flags = []
 required_for_era = false
 
 [[technologies]]
 id = "TECH_Construction"
-runtime_index = 18
 name = "Construction"
-civilopedia_entry = "TECH_Construction"
 cost = 20
 era = 0
-advance_icon = 14
-x = 611
-y = 70
 prerequisites = ["TECH_Iron_Working", "TECH_Mathematics"]
 flags = []
 required_for_era = true
 
 [[technologies]]
 id = "TECH_Monotheism"
-runtime_index = 53
 name = "Monotheism"
-civilopedia_entry = "TECH_Monotheism"
 cost = 36
 era = 1
-advance_icon = 47
-x = 75
-y = 180
 prerequisites = []
 flags = []
 required_for_era = true
@@ -313,14 +203,9 @@ era_gate = 0
 
 [[technologies]]
 id = "TECH_Feudalism"
-runtime_index = 28
 name = "Feudalism"
-civilopedia_entry = "TECH_Feudalism"
 cost = 32
 era = 1
-advance_icon = 24
-x = 73
-y = 398
 prerequisites = []
 flags = []
 required_for_era = false
@@ -328,14 +213,9 @@ era_gate = 0
 
 [[technologies]]
 id = "TECH_Engineering"
-runtime_index = 24
 name = "Engineering"
-civilopedia_entry = "TECH_Engineering"
 cost = 36
 era = 1
-advance_icon = 22
-x = 73
-y = 610
 prerequisites = []
 flags = ["Bridge"]
 required_for_era = true
@@ -343,280 +223,180 @@ era_gate = 0
 
 [[technologies]]
 id = "TECH_Theology"
-runtime_index = 81
 name = "Theology"
-civilopedia_entry = "TECH_Theology"
 cost = 40
 era = 1
-advance_icon = 79
-x = 241
-y = 180
 prerequisites = ["TECH_Monotheism"]
 flags = []
 required_for_era = true
 
 [[technologies]]
 id = "TECH_Chivalry"
-runtime_index = 11
 name = "Chivalry"
-civilopedia_entry = "TECH_Chivalry"
 cost = 32
 era = 1
-advance_icon = 9
-x = 210
-y = 295
 prerequisites = ["TECH_Monotheism", "TECH_Feudalism"]
 flags = []
 required_for_era = false
 
 [[technologies]]
 id = "TECH_Invention"
-runtime_index = 36
 name = "Invention"
-civilopedia_entry = "TECH_Invention"
 cost = 44
 era = 1
-advance_icon = 34
-x = 209
-y = 531
 prerequisites = ["TECH_Feudalism", "TECH_Engineering"]
 flags = []
 required_for_era = true
 
 [[technologies]]
 id = "TECH_Printing_Press"
-runtime_index = 93
 name = "Printing Press"
-civilopedia_entry = "TECH_Printing_Press"
 cost = 36
 era = 1
-advance_icon = 58
-x = 432
-y = 180
 prerequisites = ["TECH_Theology"]
 flags = []
 required_for_era = false
 
 [[technologies]]
 id = "TECH_Music_Theory"
-runtime_index = 92
 name = "Music Theory"
-civilopedia_entry = "TECH_Music_Theory"
 cost = 40
 era = 1
-advance_icon = 49
-x = 430
-y = 287
 prerequisites = ["TECH_Education"]
 flags = []
 required_for_era = false
 
 [[technologies]]
 id = "TECH_Education"
-runtime_index = 84
 name = "Education"
-civilopedia_entry = "TECH_Education"
 cost = 44
 era = 1
-advance_icon = 19
-x = 331
-y = 374
 prerequisites = ["TECH_Theology"]
 flags = []
 required_for_era = true
 
 [[technologies]]
 id = "TECH_Gunpowder"
-runtime_index = 33
 name = "Gunpowder"
-civilopedia_entry = "TECH_Gunpowder"
 cost = 48
 era = 1
-advance_icon = 30
-x = 388
-y = 531
 prerequisites = ["TECH_Invention"]
 flags = []
 required_for_era = true
 
 [[technologies]]
 id = "TECH_Banking"
-runtime_index = 6
 name = "Banking"
-civilopedia_entry = "TECH_Banking"
 cost = 52
 era = 1
-advance_icon = 5
-x = 561
-y = 338
 prerequisites = ["TECH_Education"]
 flags = []
 required_for_era = true
 
 [[technologies]]
 id = "TECH_Astronomy"
-runtime_index = 3
 name = "Astronomy"
-civilopedia_entry = "TECH_Astronomy"
 cost = 56
 era = 1
-advance_icon = 3
-x = 526
-y = 429
 prerequisites = ["TECH_Education"]
 flags = []
 required_for_era = true
 
 [[technologies]]
 id = "TECH_Chemistry"
-runtime_index = 10
 name = "Chemistry"
-civilopedia_entry = "TECH_Chemistry"
 cost = 60
 era = 1
-advance_icon = 8
-x = 562
-y = 531
 prerequisites = ["TECH_Gunpowder"]
 flags = []
 required_for_era = true
 
 [[technologies]]
 id = "TECH_Democracy"
-runtime_index = 20
 name = "Democracy"
-civilopedia_entry = "TECH_Democracy"
 cost = 68
 era = 1
-advance_icon = 16
-x = 606
-y = 180
 prerequisites = ["TECH_Printing_Press", "TECH_Banking"]
 flags = []
 required_for_era = false
 
 [[technologies]]
 id = "TECH_Economics"
-runtime_index = 21
 name = "Economics"
-civilopedia_entry = "TECH_Economics"
 cost = 56
 era = 1
-advance_icon = 18
-x = 735
-y = 276
 prerequisites = ["TECH_Banking"]
 flags = []
 required_for_era = false
 
 [[technologies]]
 id = "TECH_Navigation"
-runtime_index = 55
 name = "Navigation"
-civilopedia_entry = "TECH_Navigation"
 cost = 56
 era = 1
-advance_icon = 52
-x = 766
-y = 361
 prerequisites = ["TECH_Astronomy"]
 flags = []
 required_for_era = false
 
 [[technologies]]
 id = "TECH_Physics"
-runtime_index = 59
 name = "Physics"
-civilopedia_entry = "TECH_Physics"
 cost = 64
 era = 1
-advance_icon = 55
-x = 703
-y = 458
 prerequisites = ["TECH_Astronomy", "TECH_Chemistry"]
 flags = []
 required_for_era = true
 
 [[technologies]]
 id = "TECH_Metallurgy"
-runtime_index = 49
 name = "Metallurgy"
-civilopedia_entry = "TECH_Metallurgy"
 cost = 64
 era = 1
-advance_icon = 43
-x = 590
-y = 629
 prerequisites = ["TECH_Chemistry"]
 flags = []
 required_for_era = true
 
 [[technologies]]
 id = "TECH_Free_Artistry"
-runtime_index = 87
 name = "Free Artistry"
-civilopedia_entry = "TECH_Free_Artistry"
 cost = 52
 era = 1
-advance_icon = 27
-x = 686
-y = 83
 prerequisites = ["TECH_Democracy"]
 flags = []
 required_for_era = false
 
 [[technologies]]
 id = "TECH_Theory_of_Gravity"
-runtime_index = 82
 name = "Theory of Gravity"
-civilopedia_entry = "TECH_Theory_of_Gravity"
 cost = 68
 era = 1
-advance_icon = 80
-x = 850
-y = 440
 prerequisites = ["TECH_Physics"]
 flags = []
 required_for_era = true
 
 [[technologies]]
 id = "TECH_Magnetism"
-runtime_index = 43
 name = "Magnetism"
-civilopedia_entry = "TECH_Magnetism"
 cost = 68
 era = 1
-advance_icon = 37
-x = 786
-y = 533
 prerequisites = ["TECH_Physics"]
 flags = []
 required_for_era = true
 
 [[technologies]]
 id = "TECH_Military_Tradition"
-runtime_index = 91
 name = "Military Tradition"
-civilopedia_entry = "TECH_Military_Tradition"
 cost = 64
 era = 1
-advance_icon = 44
-x = 807
-y = 633
 prerequisites = ["TECH_Metallurgy"]
 flags = []
 required_for_era = false
 
 [[technologies]]
 id = "TECH_Nationalism"
-runtime_index = 17
 name = "Nationalism"
-civilopedia_entry = "TECH_Nationalism"
 cost = 120
 era = 2
-advance_icon = 51
-x = 75
-y = 116
 prerequisites = []
 flags = []
 required_for_era = false
@@ -624,14 +404,9 @@ era_gate = 1
 
 [[technologies]]
 id = "TECH_Steam_Power"
-runtime_index = 97
 name = "Steam Power"
-civilopedia_entry = "TECH_Steam_Power"
 cost = 120
 era = 2
-advance_icon = 71
-x = 73
-y = 369
 prerequisites = []
 flags = []
 required_for_era = true
@@ -639,14 +414,9 @@ era_gate = 1
 
 [[technologies]]
 id = "TECH_Medicine"
-runtime_index = 48
 name = "Medicine"
-civilopedia_entry = "TECH_Medicine"
 cost = 100
 era = 2
-advance_icon = 42
-x = 76
-y = 548
 prerequisites = []
 flags = []
 required_for_era = true
@@ -654,267 +424,172 @@ era_gate = 1
 
 [[technologies]]
 id = "TECH_Communism"
-runtime_index = 15
 name = "Communism"
-civilopedia_entry = "TECH_Communism"
 cost = 120
 era = 2
-advance_icon = 12
-x = 325
-y = 77
 prerequisites = ["TECH_Nationalism"]
 flags = []
 required_for_era = false
 
 [[technologies]]
 id = "TECH_Industrialization"
-runtime_index = 35
 name = "Industrialization"
-civilopedia_entry = "TECH_Industrialization"
 cost = 120
 era = 2
-advance_icon = 32
-x = 225
-y = 255
 prerequisites = ["TECH_Steam_Power"]
 flags = []
 required_for_era = true
 
 [[technologies]]
 id = "TECH_Electricity"
-runtime_index = 22
 name = "Electricity"
-civilopedia_entry = "TECH_Electricity"
 cost = 140
 era = 2
-advance_icon = 20
-x = 204
-y = 464
 prerequisites = ["TECH_Steam_Power"]
 flags = []
 required_for_era = true
 
 [[technologies]]
 id = "TECH_Scientific_Method"
-runtime_index = 96
 name = "Scientific Method"
-civilopedia_entry = "TECH_Scientific_Method"
 cost = 100
 era = 2
-advance_icon = 67
-x = 315
-y = 549
 prerequisites = ["TECH_Medicine", "TECH_Electricity"]
 flags = []
 required_for_era = true
 
 [[technologies]]
 id = "TECH_Sanitation"
-runtime_index = 70
 name = "Sanitation"
-civilopedia_entry = "TECH_Sanitation"
 cost = 90
 era = 2
-advance_icon = 65
-x = 202
-y = 632
 prerequisites = ["TECH_Medicine"]
 flags = []
 required_for_era = false
 
 [[technologies]]
 id = "TECH_Espionage"
-runtime_index = 26
 name = "Espionage"
-civilopedia_entry = "TECH_Espionage"
 cost = 90
 era = 2
-advance_icon = 23
-x = 325
-y = 169
 prerequisites = ["TECH_Nationalism", "TECH_Industrialization"]
 flags = []
 required_for_era = false
 
 [[technologies]]
 id = "TECH_The_Corporation"
-runtime_index = 78
 name = "The Corporation"
-civilopedia_entry = "TECH_The_Corporation"
 cost = 100
 era = 2
-advance_icon = 75
-x = 304
-y = 345
 prerequisites = ["TECH_Industrialization"]
 flags = []
 required_for_era = true
 
 [[technologies]]
 id = "TECH_Refining"
-runtime_index = 66
 name = "Refining"
-civilopedia_entry = "TECH_Refining"
 cost = 160
 era = 2
-advance_icon = 61
-x = 433
-y = 245
 prerequisites = ["TECH_The_Corporation"]
 flags = []
 required_for_era = true
 
 [[technologies]]
 id = "TECH_Steel"
-runtime_index = 75
 name = "Steel"
-civilopedia_entry = "TECH_Steel"
 cost = 140
 era = 2
-advance_icon = 72
-x = 409
-y = 427
 prerequisites = ["TECH_The_Corporation"]
 flags = []
 required_for_era = true
 
 [[technologies]]
 id = "TECH_Atomic_Theory"
-runtime_index = 4
 name = "Atomic Theory"
-civilopedia_entry = "TECH_Atomic_Theory"
 cost = 200
 era = 2
-advance_icon = 4
-x = 466
-y = 598
 prerequisites = ["TECH_Scientific_Method"]
 flags = []
 required_for_era = true
 
 [[technologies]]
 id = "TECH_Combustion"
-runtime_index = 14
 name = "Combustion"
-civilopedia_entry = "TECH_Combustion"
 cost = 160
 era = 2
-advance_icon = 11
-x = 518
-y = 335
 prerequisites = ["TECH_Refining", "TECH_Steel"]
 flags = []
 required_for_era = true
 
 [[technologies]]
 id = "TECH_Replaceable_Parts"
-runtime_index = 94
 name = "Replaceable Parts"
-civilopedia_entry = "TECH_Replaceable_Parts"
 cost = 140
 era = 2
-advance_icon = 62
-x = 513
-y = 509
 prerequisites = ["TECH_Electricity"]
 flags = []
 required_for_era = true
 
 [[technologies]]
 id = "TECH_Flight"
-runtime_index = 29
 name = "Flight"
-civilopedia_entry = "TECH_Flight"
 cost = 180
 era = 2
-advance_icon = 26
-x = 607
-y = 179
 prerequisites = ["TECH_Combustion"]
 flags = ["Build_Airborne"]
 required_for_era = true
 
 [[technologies]]
 id = "TECH_Amphibious_Warfare"
-runtime_index = 2
 name = "Amphibious War"
 display_name = "Amphibious Warfare"
-civilopedia_entry = "TECH_Amphibious_Warfare"
 cost = 120
 era = 2
-advance_icon = 2
-x = 689
-y = 296
 prerequisites = ["TECH_Mass_Production"]
 flags = []
 required_for_era = false
 
 [[technologies]]
 id = "TECH_Mass_Production"
-runtime_index = 46
 name = "Mass Production"
-civilopedia_entry = "TECH_Mass_Production"
 cost = 140
 era = 2
-advance_icon = 38
-x = 654
-y = 421
 prerequisites = ["TECH_Combustion", "TECH_Replaceable_Parts"]
 flags = []
 required_for_era = true
 
 [[technologies]]
 id = "TECH_Electronics"
-runtime_index = 23
 name = "Electronics"
-civilopedia_entry = "TECH_Electronics"
 cost = 180
 era = 2
-advance_icon = 21
-x = 621
-y = 604
 prerequisites = ["TECH_Atomic_Theory"]
 flags = []
 required_for_era = true
 
 [[technologies]]
 id = "TECH_Motorized_Transportation"
-runtime_index = 51
 name = "Motorized Transportation"
-civilopedia_entry = "TECH_Motorized_Transportation"
 cost = 140
 era = 2
-advance_icon = 48
-x = 741
-y = 509
 prerequisites = ["TECH_Mass_Production"]
 flags = []
 required_for_era = true
 
 [[technologies]]
 id = "TECH_Advanced_Flight"
-runtime_index = 0
 name = "Advanced Flight"
-civilopedia_entry = "TECH_Advanced_Flight"
 cost = 180
 era = 2
-advance_icon = 0
-x = 812
-y = 319
 prerequisites = [ "TECH_Flight", "TECH_Electronics", "TECH_Motorized_Transportation"]
 flags = []
 required_for_era = false
 
 [[technologies]]
 id = "TECH_Rocketry"
-runtime_index = 69
 name = "Rocketry"
-civilopedia_entry = "TECH_Rocketry"
 cost = 240
 era = 3
-advance_icon = 64
-x = 72
-y = 239
 prerequisites = []
 flags = []
 required_for_era = true
@@ -922,14 +597,9 @@ era_gate = 2
 
 [[technologies]]
 id = "TECH_Fission"
-runtime_index = 56
 name = "Fission"
-civilopedia_entry = "TECH_Fission"
 cost = 280
 era = 3
-advance_icon = 25
-x = 72
-y = 398
 prerequisites = []
 flags = []
 required_for_era = true
@@ -937,14 +607,9 @@ era_gate = 2
 
 [[technologies]]
 id = "TECH_Computers"
-runtime_index = 16
 name = "Computers"
-civilopedia_entry = "TECH_Computers"
 cost = 260
 era = 3
-advance_icon = 13
-x = 72
-y = 567
 prerequisites = []
 flags = []
 required_for_era = true
@@ -952,84 +617,54 @@ era_gate = 2
 
 [[technologies]]
 id = "TECH_Recycling"
-runtime_index = 65
 name = "Recycling"
-civilopedia_entry = "TECH_Recycling"
 cost = 240
 era = 3
-advance_icon = 60
-x = 239
-y = 153
 prerequisites = ["TECH_Ecology"]
 flags = []
 required_for_era = true
 
 [[technologies]]
 id = "TECH_Space_Flight"
-runtime_index = 72
 name = "Space Flight"
-civilopedia_entry = "TECH_Space_Flight"
 cost = 300
 era = 3
-advance_icon = 69
-x = 254
-y = 239
 prerequisites = ["TECH_Rocketry"]
 flags = []
 required_for_era = true
 
 [[technologies]]
 id = "TECH_Nuclear_Power"
-runtime_index = 57
 name = "Nuclear Power"
-civilopedia_entry = "TECH_Nuclear_Power"
 cost = 280
 era = 3
-advance_icon = 53
-x = 266
-y = 443
 prerequisites = ["TECH_Fission"]
 flags = []
 required_for_era = true
 
 [[technologies]]
 id = "TECH_Superconductor"
-runtime_index = 76
 name = "Superconductor"
-civilopedia_entry = "TECH_Superconductor"
 cost = 300
 era = 3
-advance_icon = 73
-x = 533
-y = 274
 prerequisites = ["TECH_Fission", "TECH_Space_Flight"]
 flags = []
 required_for_era = true
 
 [[technologies]]
 id = "TECH_Miniaturization"
-runtime_index = 50
 name = "Miniaturization"
-civilopedia_entry = "TECH_Miniaturization"
 cost = 320
 era = 3
-advance_icon = 45
-x = 271
-y = 570
 prerequisites = ["TECH_Computers"]
 flags = []
 required_for_era = true
 
 [[technologies]]
 id = "TECH_Ecology"
-runtime_index = 25
 name = "Ecology"
-civilopedia_entry = "TECH_Ecology"
 cost = 260
 era = 3
-advance_icon = 17
-x = 72
-y = 91
 prerequisites = []
 flags = []
 required_for_era = true
@@ -1037,168 +672,108 @@ era_gate = 2
 
 [[technologies]]
 id = "TECH_Synthetic_Fibers"
-runtime_index = 60
 name = "Synthetic Fibers"
-civilopedia_entry = "TECH_Synthetic_Fibers"
 cost = 280
 era = 3
-advance_icon = 74
-x = 415
-y = 88
 prerequisites = ["TECH_Ecology"]
 flags = []
 required_for_era = true
 
 [[technologies]]
 id = "TECH_Satellites"
-runtime_index = 95
 name = "Satellites"
-civilopedia_entry = "TECH_Satellites"
 cost = 260
 era = 3
-advance_icon = 66
-x = 537
-y = 382
 prerequisites = ["TECH_Space_Flight"]
 flags = []
 required_for_era = true
 
 [[technologies]]
 id = "TECH_The_Laser"
-runtime_index = 39
 name = "The Laser"
-civilopedia_entry = "TECH_The_Laser"
 cost = 280
 era = 3
-advance_icon = 76
-x = 464
-y = 505
 prerequisites = ["TECH_Nuclear_Power", "TECH_Computers"]
 flags = []
 required_for_era = true
 
 [[technologies]]
 id = "TECH_Genetics"
-runtime_index = 88
 name = "Genetics"
-civilopedia_entry = "TECH_Genetics"
 cost = 320
 era = 3
-advance_icon = 29
-x = 437
-y = 625
 prerequisites = ["TECH_Miniaturization"]
 flags = []
 required_for_era = true
 
 [[technologies]]
 id = "TECH_Stealth"
-runtime_index = 73
 name = "Stealth"
-civilopedia_entry = "TECH_Stealth"
 cost = 300
 era = 3
-advance_icon = 70
-x = 630
-y = 87
 prerequisites = ["TECH_Synthetic_Fibers"]
 flags = []
 required_for_era = true
 
 [[technologies]]
 id = "TECH_Smart_Weapons"
-runtime_index = 98
 name = "Smart Weapons"
-civilopedia_entry = "TECH_Smart_Weapons"
 cost = 280
 era = 3
-advance_icon = 68
-x = 682
-y = 479
 prerequisites = ["TECH_Satellites", "TECH_The_Laser"]
 flags = []
 required_for_era = true
 
 [[technologies]]
 id = "TECH_Robotics"
-runtime_index = 68
 name = "Robotics"
-civilopedia_entry = "TECH_Robotics"
 cost = 320
 era = 3
-advance_icon = 63
-x = 663
-y = 573
 prerequisites = ["TECH_The_Laser", "TECH_Miniaturization"]
 flags = []
 required_for_era = true
 
 [[technologies]]
 id = "TECH_Integrated_Defense"
-runtime_index = 89
 name = "Integrated Defense"
-civilopedia_entry = "TECH_Integrated_Defense"
 cost = 360
 era = 3
-advance_icon = 33
-x = 816
-y = 376
 prerequisites = [ "TECH_Superconductor", "TECH_Satellites", "TECH_Smart_Weapons"]
 flags = []
 required_for_era = true
 
 [[technologies]]
 id = "TECH_Ironclads"
-runtime_index = 100
 name = "Ironclads"
-civilopedia_entry = "TECH_Ironclads"
 cost = 100
 era = 2
-advance_icon = -858993460
-x = 105
-y = 215
 prerequisites = ["TECH_Steam_Power"]
 flags = []
 required_for_era = true
 
 [[technologies]]
 id = "TECH_Fascism"
-runtime_index = 99
 name = "Fascism"
-civilopedia_entry = "TECH_Fascism"
 cost = 130
 era = 2
-advance_icon = -858993460
-x = 497
-y = 115
 prerequisites = ["TECH_Nationalism"]
 flags = []
 required_for_era = false
 
 [[technologies]]
 id = "TECH_Meditation"
-runtime_index = 103
 name = "Meditation"
-civilopedia_entry = "TECH_Meditation"
 cost = 6
 era = 0
-advance_icon = 50
-x = 475
-y = 735
 prerequisites = ["TECH_Mysticism"]
 flags = []
 required_for_era = false
 
 [[technologies]]
 id = "TECH_Divine_Right"
-runtime_index = 104
 name = "Divine Right"
-civilopedia_entry = "TECH_Divine_Right"
 cost = 48
 era = 1
-advance_icon = 79
-x = 430
-y = 90
 prerequisites = ["TECH_Theology", "TECH_Monarchy"]
 flags = []
 required_for_era = false
