@@ -66,7 +66,7 @@ fn derive(kind: UnitKind) -> UnitCapabilities {
         ),
         ("Paratroopers", rule.has_capability("Paradrop")),
         ("AddToCity", rule.has_capability("JoinCity")),
-        ("Cant_Fortify", !rule.has_capability("Fortify")),
+        ("Cant_Fortify", !rule.can_fortify()),
     ] {
         if enabled {
             flags.push(name.to_owned());
@@ -80,7 +80,7 @@ fn derive(kind: UnitKind) -> UnitCapabilities {
         ("TerrainSpeed", ground),
         ("TerrainDefense", ground),
         ("ZOC", ground),
-        ("CanFortify", rule.has_capability("Fortify")),
+        ("CanFortify", rule.can_fortify()),
         ("CanPillage", ground && rule.attack > 0),
         ("CanOccupyCity", rule.can_occupy_city()),
         ("BuildAnywhere", ground),
@@ -202,6 +202,8 @@ mod single_definition_tests {
             let movement = &MovementRules::campaign_unit_movement_data(kind).1;
             assert_eq!(kind.can_occupy_city(), flag("CanOccupyCity"), "{kind:?}");
             assert_eq!(kind.can_occupy_city(), movement.can_occupy_city, "{kind:?}");
+            assert_eq!(kind.can_fortify(), flag("CanFortify"), "{kind:?}");
+            assert_eq!(kind.can_fortify(), !kind.has_flag(UnitFlag::CantFortify));
             assert_eq!(
                 kind.unit_class().has_barracks(),
                 flag("Barracks"),

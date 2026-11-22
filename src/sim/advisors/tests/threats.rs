@@ -87,13 +87,15 @@ fn counter_defender_selection_accounts_for_attacker_class_and_naval_city_penalty
     let city = &game.cities[0];
     let air = game.make_unit(0, 1, UnitKind::Fighter, city.x, city.y);
     let land = game.make_unit(0, 1, UnitKind::Swordsman, city.x, city.y);
+    // Civ III: only land units fortify, so a ship in port gets no city
+    // fortify bonus and cannot beat a cheap land defender per shield.
     assert_eq!(
         game.defender_versus(city, &air).unwrap().kind,
-        UnitKind::AegisCruiser
+        UnitKind::Warrior
     );
     assert_eq!(
         game.defender_versus(city, &land).unwrap().kind,
-        UnitKind::AegisCruiser
+        UnitKind::Musketman
     );
     assert!(
         game.production_city_defender(city, 100)

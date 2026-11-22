@@ -274,6 +274,9 @@ zero, or an Army, can capture a city. Zero-attack bombard units (Catapult,
 Cannon, Artillery) and Helicopters cannot. This is defined once in
 `UnitRule::can_occupy_city` (`src/sim/civ3_unit_rules.rs`) and read by the
 movement table, the `CanOccupyCity` class flag and `UnitKind::can_occupy_city`.
+Fortifying follows the same rule: only land units fortify, so ships and
+aircraft get neither the Fortify order nor the fortified/city-fortified defense
+bonus (`UnitRule::can_fortify`, owner-confirmed 2026-11-22).
 Derive new unit properties the same way, once on `UnitRule`, rather than
 re-deriving them per consumer. This narrows the aircraft exception's statement
 that helicopters retain their existing rules; their capture rule follows Civ III.

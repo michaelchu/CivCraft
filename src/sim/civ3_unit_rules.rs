@@ -149,9 +149,10 @@ impl UnitRule {
         self.unit_class().is_ground() && (self.attack > 0 || self.id == "army")
     }
 
-    /// May be given the Fortify order: land units only. The separate
-    /// `CanFortify` class flag (city defense bonus) is data-driven and still
-    /// covers every unit with the `Fortify` capability.
+    /// Civ III: only land units fortify, so ships and aircraft neither take
+    /// the Fortify order nor get the fortified/city-fortified defense bonus.
+    /// The `CanFortify` class flag, `UnitKind::can_fortify` and `CantFortify`
+    /// all read this one result.
     pub(super) fn can_fortify(&self) -> bool {
         self.unit_class().is_ground() && self.has_capability("Fortify")
     }
@@ -180,7 +181,7 @@ impl UnitRule {
         let can_gain_ranks =
             (self.attack > 0 || self.defense > 0) && class != C::Missile && self.id != "leader";
         set_flag(F::NoVeteran, !can_gain_ranks);
-        set_flag(F::CantFortify, !self.has_capability("Fortify"));
+        set_flag(F::CantFortify, !self.can_fortify());
         set_flag(
             F::HasNoZOC,
             matches!(class, C::Air | C::Helicopter | C::Missile),
