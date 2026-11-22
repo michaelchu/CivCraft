@@ -22,7 +22,7 @@ impl Simulation {
                     })
             })
             .flat_map(|city| {
-                CIV3_DIRS.into_iter().filter_map(move |(dx, dy)| {
+                EIGHT_WAY_DIRS.into_iter().filter_map(move |(dx, dy)| {
                     self.map_wrap.eight_way_offset(city.x, city.y, dx, dy)
                 })
             })
@@ -40,7 +40,7 @@ impl Simulation {
                 self.map_wrap
                     .eight_way_neighbors(lx, ly)
                     .filter_map(move |water| {
-                        let direction = CIV3_DIRS.iter().copied().find(|&(dx, dy)| {
+                        let direction = EIGHT_WAY_DIRS.iter().copied().find(|&(dx, dy)| {
                             self.map_wrap.eight_way_offset(water.0, water.1, dx, dy)
                                 == Some((lx, ly))
                         })?;
@@ -386,7 +386,7 @@ impl Simulation {
                 if self
                     .unit_by_id(boat.id)
                     .is_some_and(|ship| (ship.x, ship.y) == (x, y))
-                    && let Some(direction) = CIV3_DIRS.iter().position(|&(dx, dy)| {
+                    && let Some(direction) = EIGHT_WAY_DIRS.iter().position(|&(dx, dy)| {
                         self.map_wrap.eight_way_offset(x, y, dx, dy) == Some(beach)
                     })
                 {
@@ -409,22 +409,27 @@ impl Simulation {
         }
 
         if let Some((direction, (dx, dy))) =
-            CIV3_DIRS.into_iter().enumerate().find(|&(_, (dx, dy))| {
-                let location = self.map_wrap.eight_way_offset(boat.x, boat.y, dx, dy);
-                self.cities.iter().any(|city| {
-                    Some((city.x, city.y)) == location
-                        && self.at_war(city.owner, boat.owner)
-                        && (boat.owner == BARBARIANS
-                            || cargo.iter().any(|id| {
-                                self.units
-                                    .iter()
-                                    .find(|unit| unit.id == *id && unit.kind.has_marine_attack())
-                                    .is_some_and(|marine| {
-                                        self.assault_capture_chance(city, &[marine]) >= 0.5
-                                    })
-                            }))
+            EIGHT_WAY_DIRS
+                .into_iter()
+                .enumerate()
+                .find(|&(_, (dx, dy))| {
+                    let location = self.map_wrap.eight_way_offset(boat.x, boat.y, dx, dy);
+                    self.cities.iter().any(|city| {
+                        Some((city.x, city.y)) == location
+                            && self.at_war(city.owner, boat.owner)
+                            && (boat.owner == BARBARIANS
+                                || cargo.iter().any(|id| {
+                                    self.units
+                                        .iter()
+                                        .find(|unit| {
+                                            unit.id == *id && unit.kind.has_marine_attack()
+                                        })
+                                        .is_some_and(|marine| {
+                                            self.assault_capture_chance(city, &[marine]) >= 0.5
+                                        })
+                                }))
+                    })
                 })
-            })
         {
             for &id in &cargo {
                 if self.units.iter().any(|unit| {
@@ -484,7 +489,7 @@ impl Simulation {
             .any(|unit| unit.id == boat.id && (unit.x, unit.y) == (x, y))
         {
             for id in cargo {
-                if let Some(direction) = CIV3_DIRS.iter().position(|&step| step == (dx, dy)) {
+                if let Some(direction) = EIGHT_WAY_DIRS.iter().position(|&step| step == (dx, dy)) {
                     self.try_move_unit(id, direction);
                 }
                 if self

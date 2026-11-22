@@ -20,7 +20,7 @@ struct DangerRouteCache {
     steps: std::collections::BTreeMap<(usize, usize), DangerStepCosts>,
 }
 
-type DangerStepCosts = std::collections::HashMap<usize, [i32; CIV3_DIRS.len()]>;
+type DangerStepCosts = std::collections::HashMap<usize, [i32; EIGHT_WAY_DIRS.len()]>;
 
 #[derive(Clone, Default)]
 pub(super) struct ThreatCaches {
@@ -220,7 +220,7 @@ impl Simulation {
             let remaining = allowance - spent % allowance;
             let steps = steps
                 .entry(index)
-                .or_insert([UNSAMPLED_STEP; CIV3_DIRS.len()]);
+                .or_insert([UNSAMPLED_STEP; EIGHT_WAY_DIRS.len()]);
             for (neighbor, (x, y)) in self
                 .map_wrap
                 .eight_way_neighbors(actor.x, actor.y)

@@ -218,11 +218,13 @@ impl Simulation {
                 // toward each other. Freeciv keeps their stored facings.
                 // FLC rows use SW, S, SE, E, NE, N, NW, W order. Combatants
                 // should face one another regardless of their last move.
-                if let Some(direction) = (0..super::topology::CIV3_DIRS.len()).find(|&direction| {
-                    self.map_wrap
-                        .eight_way_neighbor(attacker.x, attacker.y, direction)
-                        == Some((defender.x, defender.y))
-                }) && let Some(facing) = self.map_wrap.flic_direction_index(direction)
+                if let Some(direction) =
+                    (0..super::topology::EIGHT_WAY_DIRS.len()).find(|&direction| {
+                        self.map_wrap
+                            .eight_way_neighbor(attacker.x, attacker.y, direction)
+                            == Some((defender.x, defender.y))
+                    })
+                    && let Some(facing) = self.map_wrap.flic_direction_index(direction)
                 {
                     attacker.facing = facing;
                     defender.facing = (facing + 4) % 8;
@@ -441,7 +443,7 @@ mod tests {
         let sim = Simulation::new(crate::mapgen::generate(42));
         let attacker_at = (10, 24);
 
-        for direction in 0..super::super::topology::CIV3_DIRS.len() {
+        for direction in 0..super::super::topology::EIGHT_WAY_DIRS.len() {
             let defender_at = sim
                 .map_wrap
                 .eight_way_neighbor(attacker_at.0, attacker_at.1, direction)
@@ -597,7 +599,7 @@ mod tests {
     fn native_facing_between_matches_all_eight_neighbor_directions() {
         let sim = Simulation::new(crate::mapgen::generate(42));
         let origin = (10, 24);
-        for direction in 0..super::topology::CIV3_DIRS.len() {
+        for direction in 0..super::topology::EIGHT_WAY_DIRS.len() {
             let target = sim
                 .map_wrap
                 .eight_way_neighbor(origin.0, origin.1, direction)

@@ -456,7 +456,7 @@ mod tests {
                 .veteran_level = top - 1;
             game.spawn_unit(1, UnitKind::Warrior, nx, ny);
             let direction = game.direction_for_unit_offset(attacker, 1, 0).unwrap();
-            game.apply(Command::MoveCiv3(attacker, direction));
+            game.apply(Command::MoveByDirection(attacker, direction));
             let promoted = game
                 .unit_by_id(attacker)
                 .is_some_and(|unit| unit.veteran_level == top);
@@ -488,7 +488,7 @@ mod tests {
                 game.spawn_unit(HUMAN, UnitKind::Warrior, 10, 24)
             };
             let direction = game.direction_for_unit_offset(attacker, 1, 0).unwrap();
-            game.apply(Command::MoveCiv3(attacker, direction));
+            game.apply(Command::MoveByDirection(attacker, direction));
             if game.units.iter().any(|u| u.kind == UnitKind::Leader) {
                 return true;
             }

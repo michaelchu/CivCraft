@@ -335,7 +335,7 @@ fn a_capital_attack_does_not_guarantee_free_peace_after_twelve_turns() {
     assert!(game.negotiate(1, Pact::Ceasefire));
     game.players[HUMAN].government = Government::DESPOTISM;
     assert!(game.cancel_pact(HUMAN, 1));
-    assert!(game.apply(Command::MoveCiv3(id, direction)));
+    assert!(game.apply(Command::MoveByDirection(id, direction)));
     game.end_turn();
     assert!(game.negotiate(1, Pact::Ceasefire));
     game.diplomacy_test_technologies(false);

@@ -11,28 +11,28 @@ use crate::world::Resource;
 /// the mapped terrain's Civ III base yield.
 fn start_tile_value(
     tile: &GeneratedTile,
-    freeciv_terrain_properties: Option<&[TerrainMapgenProperties]>,
+    terrain_property_table: Option<&[TerrainMapgenProperties]>,
     scoring_settings: Option<StartPositionScoringSettings>,
 ) -> i32 {
-    if let (Some(terrains), Some(scoring)) = (freeciv_terrain_properties, scoring_settings)
-        && let Some((freeciv_terrain, civ3_base_terrain)) =
+    if let (Some(terrains), Some(scoring)) = (terrain_property_table, scoring_settings)
+        && let Some((property_terrain, base_terrain_choice)) =
             super::terrain::start_scoring_properties(tile.terrain, terrains)
     {
         let current_yields = tile.yields();
-        let retained_civ3_delta = current_yields.0 + current_yields.1 + current_yields.2
-            - civ3_base_terrain.base_yields().0
-            - civ3_base_terrain.base_yields().1
-            - civ3_base_terrain.base_yields().2;
-        let base = freeciv_terrain.food
-            + freeciv_terrain.shield
-            + freeciv_terrain.trade
-            + retained_civ3_delta;
-        let road = if freeciv_terrain.road_time > 0 {
-            freeciv_terrain.road_trade_incr_pct * scoring.road_trade_increment / 100
+        let retained_native_delta = current_yields.0 + current_yields.1 + current_yields.2
+            - base_terrain_choice.base_yields().0
+            - base_terrain_choice.base_yields().1
+            - base_terrain_choice.base_yields().2;
+        let base = property_terrain.food
+            + property_terrain.shield
+            + property_terrain.trade
+            + retained_native_delta;
+        let road = if property_terrain.road_time > 0 {
+            property_terrain.road_trade_incr_pct * scoring.road_trade_increment / 100
         } else {
             0
         };
-        let desert_river_irrigation = if civ3_base_terrain == Terrain::Desert
+        let desert_river_irrigation = if base_terrain_choice == Terrain::Desert
             && tile.river
             && tile.resource != Some(Resource::Oasis)
         {
@@ -40,15 +40,15 @@ fn start_tile_value(
         } else {
             0
         };
-        let irrigation = if freeciv_terrain.irrigation_time > 0 {
-            freeciv_terrain.irrigation_food_incr
+        let irrigation = if property_terrain.irrigation_time > 0 {
+            property_terrain.irrigation_food_incr
                 * (scoring.irrigation_percent + desert_river_irrigation)
                 / 100
         } else {
             0
         };
-        let mining = if freeciv_terrain.mining_time > 0 {
-            freeciv_terrain.mining_shield_incr * scoring.mining_percent / 100
+        let mining = if property_terrain.mining_time > 0 {
+            property_terrain.mining_shield_incr * scoring.mining_percent / 100
         } else {
             0
         };
@@ -56,7 +56,7 @@ fn start_tile_value(
         // In Freeciv the virtual road is only used when comparing a buildable
         // irrigation/mine result against the original, unroaded tile.
         let improvement_delta =
-            if freeciv_terrain.irrigation_time > 0 || freeciv_terrain.mining_time > 0 {
+            if property_terrain.irrigation_time > 0 || property_terrain.mining_time > 0 {
                 road + best_improvement
             } else {
                 0
@@ -449,10 +449,10 @@ impl super::Generator {
         &self,
         tiles: &mut [GeneratedTile],
         rng: &mut R,
-        freeciv_settings: Option<MapGenerationSettings>,
+        generation_rules: Option<MapGenerationSettings>,
         terrain_properties: Option<&[TerrainMapgenProperties]>,
     ) {
-        if let Some(settings) = freeciv_settings {
+        if let Some(settings) = generation_rules {
             let Some(properties) = terrain_properties else {
                 panic!("Freeciv resource generation requires parsed terrain properties");
             };
@@ -592,10 +592,10 @@ impl super::Generator {
         &self,
         tiles: &mut [GeneratedTile],
         rng: &mut R,
-        freeciv_settings: Option<MapGenerationSettings>,
+        generation_rules: Option<MapGenerationSettings>,
         terrain_properties: Option<&[TerrainMapgenProperties]>,
     ) {
-        if let Some(settings) = freeciv_settings {
+        if let Some(settings) = generation_rules {
             let Some(_properties) = terrain_properties else {
                 panic!("Freeciv hut generation requires parsed terrain properties");
             };
@@ -664,15 +664,15 @@ impl super::Generator {
         terrain: &[Terrain],
         tiles: &[GeneratedTile],
         temperature: &[i32],
-        freeciv_temperature: Option<&TemperatureMap>,
-        freeciv_terrain_properties: Option<&[TerrainMapgenProperties]>,
+        zone_temperature: Option<&TemperatureMap>,
+        terrain_property_table: Option<&[TerrainMapgenProperties]>,
         scoring_settings: Option<StartPositionScoringSettings>,
         civilization_count: usize,
-        rng: &mut FreecivRng,
+        rng: &mut GameRng,
     ) -> Option<Vec<(i32, i32)>> {
         let yields: Vec<_> = tiles
             .iter()
-            .map(|tile| start_tile_value(tile, freeciv_terrain_properties, scoring_settings))
+            .map(|tile| start_tile_value(tile, terrain_property_table, scoring_settings))
             .collect();
         let peaks: Vec<_> = (0..self.wrap.tile_count())
             .map(|tile| {
@@ -715,7 +715,7 @@ impl super::Generator {
         };
         let horizontal = smooth(&peaks, true, [0.13, 0.19, 0.37, 0.19, 0.13]);
         let quality = smooth(&horizontal, false, [0.15, 0.21, 0.29, 0.21, 0.15]);
-        let ruleset_starters = freeciv_terrain_properties.map(super::terrain::starter_terrains);
+        let ruleset_starters = terrain_property_table.map(super::terrain::starter_terrains);
         let starter = |tile: usize| match &ruleset_starters {
             Some(starters) => starters.contains(&terrain[tile]),
             None => matches!(
@@ -753,7 +753,7 @@ impl super::Generator {
             let eligible = |tile: usize| {
                 if score_by_tile[tile] < threshold
                     || tiles[tile].hut
-                    || freeciv_temperature
+                    || zone_temperature
                         .map(|map| map.get(tile).is_frozen_or_cold())
                         .unwrap_or(temperature[tile] < COLD)
                 {
@@ -890,8 +890,8 @@ mod tests {
 
         // The same source trace advances the gameplay RNG by the same amount,
         // including Freeciv's non-advancing bound-1 draw behavior if present.
-        let mut actual = crate::random::FreecivRng::new(42);
-        let mut oracle = crate::random::FreecivRng::new(42);
+        let mut actual = crate::random::GameRng::new(42);
+        let mut oracle = crate::random::GameRng::new(42);
         generator.advance_map_label_randomness(&tiles, &mut actual);
         for bound in source_draw_bounds {
             oracle.draw(bound as u32);
@@ -1258,9 +1258,9 @@ mod tests {
     /// Mirrors Freeciv behavior.
     #[test]
     fn reference_filtered_map_draw_returns_the_first_valid_index() {
-        let mut expected_rng = FreecivRng::new(42);
+        let mut expected_rng = GameRng::new(42);
         let expected = expected_rng.draw(32) as usize;
-        let mut actual_rng = FreecivRng::new(42);
+        let mut actual_rng = GameRng::new(42);
         assert_eq!(
             filtered_rand_map_pos(32, &mut actual_rng, |tile| tile == expected),
             Some(expected)
@@ -1272,7 +1272,7 @@ mod tests {
     #[test]
     fn reference_filtered_map_fallback_draws_from_valid_map_order() {
         let count = 30;
-        let mut expected_rng = FreecivRng::new(314);
+        let mut expected_rng = GameRng::new(314);
         let rejected: Vec<_> = (0..count / 10)
             .map(|_| expected_rng.draw(count as u32) as usize)
             .collect();
@@ -1282,7 +1282,7 @@ mod tests {
             .collect();
         let expected = candidates[expected_rng.draw(candidates.len() as u32) as usize];
 
-        let mut actual_rng = FreecivRng::new(314);
+        let mut actual_rng = GameRng::new(314);
         assert_eq!(
             filtered_rand_map_pos(count, &mut actual_rng, |tile| {
                 candidates.contains(&tile)

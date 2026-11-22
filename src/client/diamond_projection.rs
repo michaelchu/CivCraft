@@ -1,6 +1,6 @@
 //! Civ III screen/world projection and tile picking.
 
-use super::diamond_geometry::Civ3Geometry;
+use super::diamond_geometry::DiamondGeometry;
 use crate::world::topology::{MAP_W, MapWrap};
 use macroquad::prelude::*;
 
@@ -15,7 +15,7 @@ pub(super) fn screen_to_world(
         (camera.x - camera.y + MAP_W as f32).rem_euclid(2.0 * wrap.width() as f32),
         camera.x + camera.y - MAP_W as f32,
     );
-    let geometry = Civ3Geometry::new(wrap.width() * 2, wrap.height(), true).ok()?;
+    let geometry = DiamondGeometry::new(wrap.width() * 2, wrap.height(), true).ok()?;
     let (x, y) = geometry.screen_to_storage(
         point.x - (viewport.x + viewport.w * 0.5),
         point.y - (viewport.y + viewport.h * 0.5),

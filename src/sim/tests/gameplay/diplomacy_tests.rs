@@ -72,7 +72,7 @@ impl Simulation {
         let city = self.cities_owned_by(rival).next()?;
         let (x, y) = (city.x, city.y);
         let (start_x, start_y, direction) =
-            (0..topology::CIV3_DIRS.len()).find_map(|neighbor| {
+            (0..topology::EIGHT_WAY_DIRS.len()).find_map(|neighbor| {
                 let (start_x, start_y) = self.map_wrap.eight_way_neighbor(x, y, neighbor)?;
                 if self
                     .units
@@ -81,7 +81,7 @@ impl Simulation {
                 {
                     return None;
                 }
-                let direction = (0..topology::CIV3_DIRS.len()).find(|&direction| {
+                let direction = (0..topology::EIGHT_WAY_DIRS.len()).find(|&direction| {
                     self.map_wrap
                         .eight_way_neighbor(start_x, start_y, direction)
                         == Some((x, y))
@@ -99,7 +99,7 @@ impl Simulation {
         let city = self.cities_owned_by(HUMAN).next()?;
         let (x, y) = (city.x, city.y);
         let (direction, (capital_x, capital_y)) =
-            (0..topology::CIV3_DIRS.len()).find_map(|direction| {
+            (0..topology::EIGHT_WAY_DIRS.len()).find_map(|direction| {
                 let target = self.map_wrap.eight_way_neighbor(x, y, direction)?;
                 self.cities
                     .iter()

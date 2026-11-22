@@ -112,7 +112,7 @@ impl Simulation {
         let adjacent: Vec<_> = self.map_wrap.eight_way_neighbors(x, y).collect();
         // CivCraft uses eight directional slots. can_reclaim_ocean() counts
         // absent/off-map slots as non-ocean, so the denominator includes bounded-Y slots too.
-        const DIRECTION_SLOTS: i32 = super::topology::CIV3_DIRS.len() as i32;
+        const DIRECTION_SLOTS: i32 = super::topology::EIGHT_WAY_DIRS.len() as i32;
         let adjacent_ocean = adjacent
             .iter()
             .filter(|&&(nx, ny)| {

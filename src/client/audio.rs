@@ -370,7 +370,7 @@ fn resolve_music_file(root: &Path, relative: &Path) -> Option<PathBuf> {
     } else {
         vec![root.to_owned()]
     };
-    super::media::Civ3MediaResolver::new(roots)
+    super::media::MediaResolver::new(roots)
         .resolve(relative.to_str()?)
         .ok()
         .filter(|p| p.is_file())

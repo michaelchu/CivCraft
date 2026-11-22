@@ -130,7 +130,7 @@ enum Status {
 struct Node {
     cost: i32,
     extra: u32,
-    // A predecessor is one of the eight CIV3_DIRS entries.
+    // A predecessor is one of the eight EIGHT_WAY_DIRS entries.
     direction: Option<u8>,
     status: Status,
     behavior: Behavior,
@@ -594,7 +594,7 @@ impl NormalPaths {
             && (self.rate > 0 || node.cost < 0)
         {
             let (x, y) = self.map_wrap.position(current);
-            for (direction, (dx, dy)) in CIV3_DIRS.into_iter().enumerate() {
+            for (direction, (dx, dy)) in EIGHT_WAY_DIRS.into_iter().enumerate() {
                 sim.trace.count_operation("normal_paths.neighbor_checks", 1);
                 sim.trace.count_operation(neighbor_counter, 1);
                 let Some((nx, ny)) = self.map_wrap.eight_way_offset(x, y, dx, dy) else {
@@ -802,7 +802,7 @@ impl NormalPaths {
         let mut path = Vec::new();
         while cursor != self.start {
             let direction = self.nodes[cursor].direction?;
-            let (dx, dy) = CIV3_DIRS[usize::from(direction)];
+            let (dx, dy) = EIGHT_WAY_DIRS[usize::from(direction)];
             path.push((dx, dy));
             let (x, y) = self.map_wrap.position(cursor);
             let (x, y) = self.map_wrap.eight_way_offset(x, y, -dx, -dy)?;
@@ -1007,7 +1007,7 @@ impl Simulation {
             {
                 break;
             }
-            let result = CIV3_DIRS
+            let result = EIGHT_WAY_DIRS
                 .iter()
                 .position(|&step| step == (dx, dy))
                 .map_or(MoveResult::Blocked, |direction| {

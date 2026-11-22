@@ -271,7 +271,7 @@ fn isohex_neighbors_and_wrapping_match_reference_distance() {
         crate::test_support::seeded_map().starts[0],
     ] {
         let mut neighbors = Vec::new();
-        for (dx, dy) in FREECIV_ISOHEX_DIRS {
+        for (dx, dy) in ISOHEX_DIRS {
             let neighbor = offset_native_by_map(start_x, start_y, dx, dy);
             assert_eq!(
                 isohex_vector_distance(

@@ -244,7 +244,7 @@ impl Simulation {
             } else {
                 rate - (spent - initial) % rate
             };
-            for (dx, dy) in CIV3_DIRS {
+            for (dx, dy) in EIGHT_WAY_DIRS {
                 let Some((nx, ny)) = self.map_wrap.eight_way_offset(x, y, dx, dy) else {
                     continue;
                 };

@@ -10,7 +10,7 @@ use crate::{
     },
     world::{
         GeneratedMap, Resource, Terrain,
-        topology::{CIV3_DIRS, offset_native_by_map},
+        topology::{EIGHT_WAY_DIRS, offset_native_by_map},
     },
 };
 use serde_json::{Value, json};
@@ -254,7 +254,7 @@ impl ScenarioRun for ReinforcementAudit {
                         continue;
                     };
                     let distance = game.map_distance(unit.x, unit.y, target.0, target.1);
-                    if let Some(direction) = CIV3_DIRS.iter().position(|&(dx, dy)| {
+                    if let Some(direction) = EIGHT_WAY_DIRS.iter().position(|&(dx, dy)| {
                         game.map_wrap
                             .eight_way_offset(unit.x, unit.y, dx, dy)
                             .is_some_and(|(x, y)| {

@@ -449,7 +449,7 @@ impl Simulation {
     }
 
     pub(super) fn movement_is_cardinal(&self, from: (i32, i32), to: (i32, i32)) -> bool {
-        super::topology::CIV3_DIRS
+        super::topology::EIGHT_WAY_DIRS
             .iter()
             .enumerate()
             .any(|(direction, _)| {
@@ -959,7 +959,7 @@ impl Simulation {
     ) -> Option<usize> {
         let unit = self.unit_by_id(unit_id)?;
         let destination = self.map_wrap.offset(unit.x, unit.y, dx, dy)?;
-        (0..super::topology::CIV3_DIRS.len()).find(|&direction| {
+        (0..super::topology::EIGHT_WAY_DIRS.len()).find(|&direction| {
             self.map_wrap.eight_way_neighbor(unit.x, unit.y, direction) == Some(destination)
         })
     }
@@ -1576,7 +1576,8 @@ impl Simulation {
                         continue;
                     }
                     for (dx, dy) in path {
-                        let Some(direction) = CIV3_DIRS.iter().position(|&step| step == (dx, dy))
+                        let Some(direction) =
+                            EIGHT_WAY_DIRS.iter().position(|&step| step == (dx, dy))
                         else {
                             break;
                         };
@@ -1679,7 +1680,7 @@ impl Simulation {
         let visibility_batch = self.visibility_refresh.begin_batch(defer_visibility);
         let mut moved = false;
         for (dx, dy) in path {
-            let Some(direction) = CIV3_DIRS.iter().position(|&step| step == (dx, dy)) else {
+            let Some(direction) = EIGHT_WAY_DIRS.iter().position(|&step| step == (dx, dy)) else {
                 break;
             };
             let result = self.try_move_unit(unit_id, direction);

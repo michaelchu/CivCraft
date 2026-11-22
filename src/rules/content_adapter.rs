@@ -5,7 +5,8 @@ use crate::rules::Tech;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum EngineTechBinding {
     Bound(Tech),
-    MissingFromCiv3Catalog,
+    /// Absent from the Civ III technology catalog.
+    MissingFromCatalog,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -22,11 +23,11 @@ impl std::error::Error for ContentBindingError {}
 /// Resolve a Freeciv technology universal to a native campaign identity.
 /// Plastics has no counterpart. Radio maps to Flight for the C2C3 airfield rules.
 pub(crate) fn bind_engine_technology(
-    freeciv_name: &str,
+    source_name: &str,
 ) -> Result<EngineTechBinding, ContentBindingError> {
-    let display_name = freeciv_name;
+    let display_name = source_name;
     if display_name.eq_ignore_ascii_case("Plastics") {
-        return Ok(EngineTechBinding::MissingFromCiv3Catalog);
+        return Ok(EngineTechBinding::MissingFromCatalog);
     }
     if display_name.eq_ignore_ascii_case("Radio") {
         // C2C3's Radio advance unlocks airstrips and airbases, but Conquests
@@ -135,7 +136,7 @@ mod tests {
         );
         assert_eq!(
             bind_engine_technology("Plastics"),
-            Ok(EngineTechBinding::MissingFromCiv3Catalog)
+            Ok(EngineTechBinding::MissingFromCatalog)
         );
     }
 }

@@ -1,6 +1,6 @@
 //! Civ III sheet decoding. Both map views keep the same projection and painter passes.
 use super::asset_error::{AssetError, AssetResult};
-use super::media::Civ3MediaResolver;
+use super::media::MediaResolver;
 #[cfg(all(test, feature = "desktop-audio"))]
 use super::media::resolve_case_insensitive_path;
 use super::*;
@@ -69,11 +69,11 @@ pub(crate) fn locate_source_root() -> AssetResult<PathBuf> {
     }
 }
 
-fn locate_default_art(media: &Civ3MediaResolver) -> AssetResult<PathBuf> {
+fn locate_default_art(media: &MediaResolver) -> AssetResult<PathBuf> {
     media.resolve("Art")
 }
 
-pub(crate) fn load_source_fog_atlas(media: &Civ3MediaResolver) -> AssetResult<Image> {
+pub(crate) fn load_source_fog_atlas(media: &MediaResolver) -> AssetResult<Image> {
     // Preserve the selected base-game fog atlas as an explicit policy.
     let path = media.base_policy().resolve("Art/Terrain/FogOfWar.pcx")?;
     let bytes = fs::read(&path).map_err(|error| AssetError::io("read asset", &path, error))?;
@@ -267,13 +267,13 @@ pub(super) enum TerrainBuilding {
 }
 
 pub(crate) enum Tileset {
-    Civ3(PathBuf),
+    Art(PathBuf),
 }
 
 impl Tileset {
-    pub(super) fn select(name: &str, media: &Civ3MediaResolver) -> AssetResult<Self> {
+    pub(super) fn select(name: &str, media: &MediaResolver) -> AssetResult<Self> {
         match name {
-            "civ3" | "conquests" => locate_default_art(media).map(Self::Civ3),
+            "civ3" | "conquests" => locate_default_art(media).map(Self::Art),
             "snoopy" | "snoopy-standard" | "snoopy-greener" | "snoopy-extended" => {
                 let folder = match name {
                     "snoopy-standard" => "Sn00pys Terrain",
@@ -282,7 +282,7 @@ impl Tileset {
                 };
                 media
                     .resolve(&format!("civ3PTW/Scenarios/{folder}/Art"))
-                    .map(Self::Civ3)
+                    .map(Self::Art)
             }
             _ => Err(format!(
                 "Unknown tileset '{name}'. Available: civ3, conquests, snoopy-standard, snoopy-greener, snoopy-extended"
@@ -292,21 +292,21 @@ impl Tileset {
 
     pub(crate) fn name(&self) -> &'static str {
         match self {
-            Self::Civ3(_) => "original-civ3-art",
+            Self::Art(_) => "original-civ3-art",
         }
     }
 }
 
 struct Theme {
-    media: Civ3MediaResolver,
-    images: Civ3MediaResolver,
+    media: MediaResolver,
+    images: MediaResolver,
     paths: HashMap<String, String>,
     transparent_indices: HashMap<String, Vec<u8>>,
     civilization_city_styles: HashMap<String, String>,
 }
 
 impl Theme {
-    fn read_with_media(path: &Path, media: &Civ3MediaResolver) -> AssetResult<Self> {
+    fn read_with_media(path: &Path, media: &MediaResolver) -> AssetResult<Self> {
         Self::read_inner(path, media, true)
     }
     #[cfg(test)]
@@ -325,11 +325,11 @@ impl Theme {
             })
             .and_then(Path::parent);
         let media = install
-            .map(Civ3MediaResolver::installation)
-            .unwrap_or_else(|| Civ3MediaResolver::new(vec![root.to_owned()]));
+            .map(MediaResolver::installation)
+            .unwrap_or_else(|| MediaResolver::new(vec![root.to_owned()]));
         Self::read_inner(path, &media, false)
     }
-    fn read_inner(path: &Path, media: &Civ3MediaResolver, load_units: bool) -> AssetResult<Self> {
+    fn read_inner(path: &Path, media: &MediaResolver, load_units: bool) -> AssetResult<Self> {
         let (root, manifest) = if path.is_dir() {
             (path, path.join("tileset.conf"))
         } else {
@@ -590,10 +590,10 @@ fn load_campaign_unit_ini_paths(
     source: &Path,
     paths: &mut HashMap<String, String>,
 ) -> AssetResult<()> {
-    load_campaign_unit_ini_paths_with_resolver(&Civ3MediaResolver::installation(source), paths)
+    load_campaign_unit_ini_paths_with_resolver(&MediaResolver::installation(source), paths)
 }
 fn load_campaign_unit_ini_paths_with_resolver(
-    media: &Civ3MediaResolver,
+    media: &MediaResolver,
     paths: &mut HashMap<String, String>,
 ) -> AssetResult<()> {
     let mut identities = 0;
@@ -1277,7 +1277,8 @@ struct Atlas {
     pages: Vec<Mesh>,
 }
 
-pub(super) struct Civ3 {
+/// The installed Civ III art, loaded as the game's tileset.
+pub(super) struct ArtTileset {
     art: GroundArt,
     atlas: RefCell<Atlas>,
     overlays: Vec<Option<Texture2D>>,
@@ -1289,12 +1290,12 @@ pub(super) struct Civ3 {
     pollution: Option<Texture2D>,
     craters: Option<Texture2D>,
     optional_improvements: HashMap<&'static str, Texture2D>,
-    unit_art: RefCell<HashMap<String, Civ3UnitArt>>,
+    unit_art: RefCell<HashMap<String, UnitArt>>,
     unit_team_palettes: Vec<UnitTeamPalette>,
-    unit_cursor: Civ3UnitCursor,
-    bomb_effect: Option<Civ3EffectAnimation>,
-    sam_effect: Option<Civ3EffectAnimation>,
-    sdi_effect: Option<Civ3EffectAnimation>,
+    unit_cursor: UnitCursor,
+    bomb_effect: Option<EffectAnimation>,
+    sam_effect: Option<EffectAnimation>,
+    sdi_effect: Option<EffectAnimation>,
     unit_animation_sources: HashMap<String, UnitAnimationSource>,
     unit_sound_sources: HashMap<String, HashMap<String, UnitSoundSource>>,
     animation_pacing: super::unit_animation_pacing::UnitAnimationPacing,
@@ -1468,7 +1469,8 @@ impl TerritoryArt {
     }
 }
 
-struct Civ3UnitCursor {
+/// Civ III unit cursor art.
+struct UnitCursor {
     texture: Texture2D,
     width: f32,
     height: f32,
@@ -1481,7 +1483,8 @@ struct Civ3UnitCursor {
     frame_duration_seconds: f32,
 }
 
-struct Civ3EffectAnimation {
+/// Civ III effect animation data.
+struct EffectAnimation {
     texture: Texture2D,
     width: f32,
     height: f32,
@@ -1497,10 +1500,10 @@ struct Civ3EffectAnimation {
 }
 
 fn load_optional_effect_animation(
-    media: &super::media::Civ3MediaResolver,
+    media: &super::media::MediaResolver,
     relative_path: &str,
     default_palette: Option<&[[u8; 3]; 256]>,
-) -> AssetResult<Option<Civ3EffectAnimation>> {
+) -> AssetResult<Option<EffectAnimation>> {
     let Some(found) = media.base_policy().lookup(relative_path)? else {
         return Ok(None);
     };
@@ -1527,7 +1530,7 @@ fn load_optional_effect_animation(
     // Scale raw FLC frame delay into a crisp 0.55..=0.85s visual clip.
     let raw_seconds = (flic.animation_speed as f64 / 1000.0) * frame_count as f64;
     let duration_seconds = (raw_seconds * 0.5).clamp(0.55, 0.85);
-    Ok(Some(Civ3EffectAnimation {
+    Ok(Some(EffectAnimation {
         texture,
         width: flic.width as f32,
         height: flic.height as f32,
@@ -1543,7 +1546,8 @@ fn load_optional_effect_animation(
     }))
 }
 
-struct Civ3UnitArt {
+/// Civ III unit art.
+struct UnitArt {
     flic: super::flc::Flic,
     untinted: Option<(Texture2D, Texture2D)>,
     team_textures: HashMap<u8, Texture2D>,
@@ -1563,9 +1567,10 @@ struct Civ3UnitArt {
     fast_speed: Option<u32>,
 }
 
+/// Civ III unit animation actions.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[allow(dead_code)] // Retain the full Civ III action vocabulary for INI animation mappings.
-pub(super) enum Civ3UnitAction {
+pub(super) enum UnitArtAction {
     #[default]
     Default,
     Blank,
@@ -1599,7 +1604,7 @@ pub(super) enum Civ3UnitAction {
     Capture,
 }
 
-impl Civ3UnitAction {
+impl UnitArtAction {
     fn fixed_frame(self, frame_count: usize, using_alternate_role: bool) -> Option<usize> {
         match self {
             // Without a dedicated hold clip, the fortify transition's final
@@ -1715,8 +1720,8 @@ fn civilization_city_style<'a>(
     mappings.get(&slug).map(String::as_str)
 }
 
-impl Civ3 {
-    pub(super) fn load(path: &Path, media: &Civ3MediaResolver) -> AssetResult<Self> {
+impl ArtTileset {
+    pub(super) fn load(path: &Path, media: &MediaResolver) -> AssetResult<Self> {
         let animation_pacing = super::unit_animation_pacing::UnitAnimationPacing::load()?;
         let theme = Theme::read_with_media(path, media)?;
         let unit_team_palettes = load_unit_team_palettes(&theme)?;
@@ -1968,7 +1973,7 @@ impl Civ3 {
         let cursor_texture = Texture2D::from_image(&cursor_image);
         cursor_texture.set_filter(FilterMode::Nearest);
         let cursor_frame_count = cursor_flic.animations[0].len();
-        let unit_cursor = Civ3UnitCursor {
+        let unit_cursor = UnitCursor {
             texture: cursor_texture,
             width: cursor_flic.width as f32,
             height: cursor_flic.height as f32,
@@ -2028,7 +2033,7 @@ impl Civ3 {
     }
 
     fn draw_effect_animation(
-        effect: &Civ3EffectAnimation,
+        effect: &EffectAnimation,
         facing: u8,
         progress: f32,
         center: Vec2,
@@ -2284,13 +2289,13 @@ impl Civ3 {
     pub(super) fn combat_clip_seconds(
         &self,
         unit: &RenderedUnitView,
-        action: Civ3UnitAction,
+        action: UnitArtAction,
     ) -> f64 {
         let role = self.unit_animation_role(unit.kind, unit.era_index);
         let primary = action.role_suffix().map(|suffix| format!("{role}{suffix}"));
         let fallback = matches!(
             action,
-            Civ3UnitAction::Attack2 | Civ3UnitAction::Attack3 | Civ3UnitAction::Defend
+            UnitArtAction::Attack2 | UnitArtAction::Attack3 | UnitArtAction::Defend
         )
         .then(|| format!("{role}-attack"));
         let source = primary
@@ -2358,7 +2363,7 @@ impl Civ3 {
         let offset_top = flic.offset_top as f32;
         self.unit_art.borrow_mut().insert(
             role.to_owned(),
-            Civ3UnitArt {
+            UnitArt {
                 flic,
                 untinted,
                 team_textures,
@@ -2466,7 +2471,7 @@ impl Civ3 {
             team_palette_index,
             2,
             era,
-            Civ3UnitAction::Default,
+            UnitArtAction::Default,
             0.0,
             None,
             canvas_center,
@@ -2487,7 +2492,7 @@ impl Civ3 {
         team_palette_index: Option<u8>,
         facing: u8,
         era: usize,
-        action: Civ3UnitAction,
+        action: UnitArtAction,
         progress: f32,
         playback_duration_seconds: Option<f32>,
         center: Vec2,
@@ -2499,15 +2504,15 @@ impl Civ3 {
             .role_suffix()
             .map_or_else(|| role.clone(), |suffix| format!("{role}{suffix}"));
         let alternate_role = match action {
-            Civ3UnitAction::Attack2 | Civ3UnitAction::Attack3 | Civ3UnitAction::Defend => {
+            UnitArtAction::Attack2 | UnitArtAction::Attack3 | UnitArtAction::Defend => {
                 Some(format!("{role}-attack"))
             }
-            Civ3UnitAction::FortifyHold => Some(format!("{role}-fortify")),
-            Civ3UnitAction::PauseRoad => Some(format!("{role}-road")),
-            Civ3UnitAction::PauseMine => Some(format!("{role}-mine")),
-            Civ3UnitAction::PauseIrrigate => Some(format!("{role}-irrigate")),
-            Civ3UnitAction::PauseForest => Some(format!("{role}-forest")),
-            Civ3UnitAction::Plant => Some(format!("{role}-jungle")),
+            UnitArtAction::FortifyHold => Some(format!("{role}-fortify")),
+            UnitArtAction::PauseRoad => Some(format!("{role}-road")),
+            UnitArtAction::PauseMine => Some(format!("{role}-mine")),
+            UnitArtAction::PauseIrrigate => Some(format!("{role}-irrigate")),
+            UnitArtAction::PauseForest => Some(format!("{role}-forest")),
+            UnitArtAction::Plant => Some(format!("{role}-jungle")),
             _ => None,
         };
         let selected_role = [
@@ -2543,7 +2548,7 @@ impl Civ3 {
                 .timing_seconds
                 .filter(|seconds| *seconds > 0.0)
                 .unwrap_or(event_duration);
-            let cycle_duration = if action == Civ3UnitAction::Fidget {
+            let cycle_duration = if action == UnitArtAction::Fidget {
                 event_duration
             } else {
                 source_cycle_duration
@@ -2555,14 +2560,14 @@ impl Civ3 {
             };
             let elapsed_cycles = progress.clamp(0.0, 1.0) * event_duration / cycle_duration;
             let cycle_progress = match action {
-                Civ3UnitAction::StopAtLastFrame
-                | Civ3UnitAction::Attack
-                | Civ3UnitAction::Attack2
-                | Civ3UnitAction::Attack3
-                | Civ3UnitAction::Defend
-                | Civ3UnitAction::Death
-                | Civ3UnitAction::Victory => elapsed_cycles.min(1.0),
-                Civ3UnitAction::Fortify => (progress.max(0.0) / cycle_duration).min(1.0),
+                UnitArtAction::StopAtLastFrame
+                | UnitArtAction::Attack
+                | UnitArtAction::Attack2
+                | UnitArtAction::Attack3
+                | UnitArtAction::Defend
+                | UnitArtAction::Death
+                | UnitArtAction::Victory => elapsed_cycles.min(1.0),
+                UnitArtAction::Fortify => (progress.max(0.0) / cycle_duration).min(1.0),
                 _ => elapsed_cycles.fract(),
             };
             ((cycle_progress * art.frame_count as f32).floor() as usize)
@@ -2615,7 +2620,7 @@ impl Civ3 {
     }
 
     pub(super) fn draw_river(&self, game: &Game, x: i32, y: i32, center: Vec2, size: Vec2) {
-        use super::rivers::Civ3RiverSheet;
+        use super::rivers::RiverSheet;
 
         let wrap = game.sim.map_wrap();
         let at = |direction| {
@@ -2653,8 +2658,8 @@ impl Civ3 {
                         })
             });
         let texture = match super::rivers::river_sheet_cell(index, is_mouth) {
-            Civ3RiverSheet::Delta => &self.river_delta,
-            Civ3RiverSheet::Mountain => &self.river_mountain,
+            RiverSheet::Delta => &self.river_delta,
+            RiverSheet::Mountain => &self.river_mountain,
         };
         draw_texture_ex(
             texture,
@@ -3227,7 +3232,7 @@ mod tests {
 
     #[test]
     fn fortified_units_hold_a_pose_for_each_available_clip() {
-        use super::Civ3UnitAction::{Fortify, FortifyHold};
+        use super::UnitArtAction::{Fortify, FortifyHold};
 
         assert_eq!(Fortify.fixed_frame(8, false), None);
         assert_eq!(FortifyHold.fixed_frame(8, true), Some(7));

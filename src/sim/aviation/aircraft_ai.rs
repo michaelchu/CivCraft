@@ -582,7 +582,7 @@ impl Simulation {
                             .map_wrap
                             .step_distance(live.x, live.y, primary.x, primary.y)
                             == 1
-                        && let Some(direction) = CIV3_DIRS.iter().position(|&(dx, dy)| {
+                        && let Some(direction) = EIGHT_WAY_DIRS.iter().position(|&(dx, dy)| {
                             self.map_wrap.eight_way_offset(live.x, live.y, dx, dy)
                                 == Some((primary.x, primary.y))
                         })

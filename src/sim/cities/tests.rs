@@ -513,7 +513,7 @@ fn conquest_city_transfer_bounce_uses_reference_order_and_preserves_unit_id() {
                 (other.x, other.y) != (x, y) || simulation.allied(bounced.owner, other.owner)
             })
         };
-    let freeciv_destinations = game
+    let ordered_destinations = game
         .map_wrap
         .square_radius_in_source_order(center.0, center.1, 2)
         .into_iter()
@@ -521,7 +521,7 @@ fn conquest_city_transfer_bounce_uses_reference_order_and_preserves_unit_id() {
         .filter(|&(x, y)| game.unit_can_survive_at_tile(&bounced, x, y))
         .filter(|&(x, y)| allied_destination(&game, x, y))
         .collect::<Vec<_>>();
-    let old_civ3_destinations = game
+    let old_order_destinations = game
         .map_wrap
         .tiles_within_steps(center.0, center.1, 2)
         .into_iter()
@@ -530,30 +530,30 @@ fn conquest_city_transfer_bounce_uses_reference_order_and_preserves_unit_id() {
         .filter(|&(x, y, _)| allied_destination(&game, x, y))
         .map(|(x, y, _)| (x, y))
         .collect::<Vec<_>>();
-    assert!(!freeciv_destinations.is_empty());
-    assert!(!old_civ3_destinations.is_empty());
+    assert!(!ordered_destinations.is_empty());
+    assert!(!old_order_destinations.is_empty());
 
     // Choose a stable seed that distinguishes Freeciv's survivability and
     // square-iteration results from the former Civ III radius/movement-cost
     // candidates, so this catches routing back through the old helper.
     let (seed, expected_destination) = (1..=1024)
         .find_map(|seed| {
-            let mut freeciv_rng = game.clone();
-            freeciv_rng.set_random_seed(seed);
-            let freeciv_destination = freeciv_destinations
-                [freeciv_rng.rand_below(freeciv_destinations.len() as i32) as usize];
+            let mut ordered_rng = game.clone();
+            ordered_rng.set_random_seed(seed);
+            let ordered_destination = ordered_destinations
+                [ordered_rng.rand_below(ordered_destinations.len() as i32) as usize];
 
             let mut old_rng = game.clone();
             old_rng.set_random_seed(seed);
-            let old_destination = old_civ3_destinations
-                [old_rng.rand_below(old_civ3_destinations.len() as i32) as usize];
-            (freeciv_destination != old_destination).then_some((seed, freeciv_destination))
+            let old_destination = old_order_destinations
+                [old_rng.rand_below(old_order_destinations.len() as i32) as usize];
+            (ordered_destination != old_destination).then_some((seed, ordered_destination))
         })
         .expect("some seed distinguishes Freeciv and Civ III bounce iteration order");
 
     game.set_random_seed(seed);
     let mut expected_rng = game.clone();
-    expected_rng.rand_below(freeciv_destinations.len() as i32);
+    expected_rng.rand_below(ordered_destinations.len() as i32);
     let expected_random = expected_rng.random_snapshot();
 
     game.transfer_conquered_city_units(city_id, 1, HUMAN, center);

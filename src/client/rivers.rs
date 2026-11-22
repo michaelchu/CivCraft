@@ -2,8 +2,10 @@
 
 use macroquad::prelude::Rect;
 
-const CIV3_RIVER_CELL_W: usize = 128;
-const CIV3_RIVER_CELL_H: usize = 64;
+/// Civ III river sprite sheet cell size.
+const RIVER_CELL_W: usize = 128;
+/// Civ III river sprite sheet cell size.
+const RIVER_CELL_H: usize = 64;
 
 /// OpenCiv3's junction sheet uses north, east, south, and west tile states.
 /// Edge bits follow Civ III's N, NE, E, SE, S, SW, W, NW order.
@@ -29,17 +31,18 @@ pub(super) fn river_junction_index(north: u8, east: u8, south: u8, west: u8) -> 
 }
 
 /// Uses the Civ III river sprite sheet layout.
-pub(super) fn river_sheet_cell(index: usize, is_mouth: bool) -> Civ3RiverSheet {
+pub(super) fn river_sheet_cell(index: usize, is_mouth: bool) -> RiverSheet {
     let diagonal_only = matches!(index, 1 | 2 | 4 | 8);
     if diagonal_only && is_mouth {
-        Civ3RiverSheet::Delta
+        RiverSheet::Delta
     } else {
-        Civ3RiverSheet::Mountain
+        RiverSheet::Mountain
     }
 }
 
+/// Civ III river sprite sheets.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum Civ3RiverSheet {
+pub(super) enum RiverSheet {
     Delta,
     Mountain,
 }
@@ -47,10 +50,10 @@ pub(super) enum Civ3RiverSheet {
 /// Uses the Civ III river sprite sheet layout.
 pub(super) fn river_sprite(index: usize) -> Rect {
     Rect::new(
-        (index % 4 * CIV3_RIVER_CELL_W) as f32,
-        (index / 4 * CIV3_RIVER_CELL_H) as f32,
-        CIV3_RIVER_CELL_W as f32,
-        CIV3_RIVER_CELL_H as f32,
+        (index % 4 * RIVER_CELL_W) as f32,
+        (index / 4 * RIVER_CELL_H) as f32,
+        RIVER_CELL_W as f32,
+        RIVER_CELL_H as f32,
     )
 }
 
@@ -81,8 +84,8 @@ mod tests {
     /// Mirrors Civ III behavior.
     #[test]
     fn native_selects_delta_art_only_for_actual_mouth_junctions() {
-        assert_eq!(river_sheet_cell(1, true), Civ3RiverSheet::Delta);
-        assert_eq!(river_sheet_cell(1, false), Civ3RiverSheet::Mountain);
-        assert_eq!(river_sheet_cell(3, true), Civ3RiverSheet::Mountain);
+        assert_eq!(river_sheet_cell(1, true), RiverSheet::Delta);
+        assert_eq!(river_sheet_cell(1, false), RiverSheet::Mountain);
+        assert_eq!(river_sheet_cell(3, true), RiverSheet::Mountain);
     }
 }

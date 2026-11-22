@@ -685,7 +685,7 @@ impl Simulation {
             .iter()
             .any(|unit| unit.id == ship && (unit.x, unit.y) == (x, y))
         {
-            let direction = CIV3_DIRS.iter().position(|&(dx, dy)| {
+            let direction = EIGHT_WAY_DIRS.iter().position(|&(dx, dy)| {
                 self.map_wrap.eight_way_offset(x, y, dx, dy) == Some(plan.landing)
             });
             if direction.is_some_and(|direction| {

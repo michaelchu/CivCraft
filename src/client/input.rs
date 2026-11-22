@@ -227,7 +227,7 @@ impl Game {
             None
         };
         if let (Some(id), Some(direction)) = (self.selected_unit, direction)
-            && self.move_selected(Command::MoveCiv3(id, direction), id)
+            && self.move_selected(Command::MoveByDirection(id, direction), id)
         {
             self.select_next_if_exhausted(id);
         }

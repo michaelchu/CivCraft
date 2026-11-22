@@ -29,8 +29,11 @@ impl UnitVisionLayer {
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub(crate) struct ObservedCity {
     pub(crate) city: City,
-    pub(crate) civ3_style: u8,
-    pub(crate) civ3_era: u8,
+    /// City art style; the alias reads campaigns saved under the old field name.
+    #[serde(alias = "civ3_style")]
+    pub(crate) art_style: u8,
+    #[serde(alias = "civ3_era")]
+    pub(crate) art_era: u8,
     pub(crate) occupied: bool,
     pub(crate) disorder: bool,
     pub(crate) remembered: bool,
@@ -510,7 +513,7 @@ impl Simulation {
         let luxury = self.city_trade(city, trade)[2];
         drop(_profile);
         let _profile = profiler.scope("observed_city.era");
-        let civ3_era = Tech::all()
+        let art_era = Tech::all()
             .filter(|&tech| self.has_tech(city.owner, tech))
             .map(|tech| match tech.era() {
                 TechEra::Ancient => 0,
@@ -533,13 +536,13 @@ impl Simulation {
             city: observed_city,
             // Civ III supplies five cultural sheets; the default mapping is
             // data on each civilization and can be overridden by its theme.
-            civ3_style: self.players[city.owner]
+            art_style: self.players[city.owner]
                 .civilization_id
                 .as_deref()
                 .and_then(crate::rules::civilizations::by_id)
-                .map(|civilization| civilization.civ3_city_style)
+                .map(|civilization| civilization.city_art_style)
                 .unwrap_or(2),
-            civ3_era,
+            art_era,
             occupied,
             disorder,
             remembered: false,
@@ -949,8 +952,8 @@ impl Simulation {
                         && city.size > 0
                         && *revision <= self.observed_map.revision
                         && observed.remembered
-                        && observed.civ3_style < 5
-                        && observed.civ3_era < 4
+                        && observed.art_style < 5
+                        && observed.art_era < 4
                 })
     }
 }

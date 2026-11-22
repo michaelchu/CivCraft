@@ -71,11 +71,12 @@ impl TechEra {
     }
 }
 
-struct Civ3TechCatalog {
+/// Built from Civ III technology data.
+struct TechCatalog {
     advances: Vec<Option<Advance>>,
 }
 
-impl Civ3TechCatalog {
+impl TechCatalog {
     fn get(&'static self, tech: Tech) -> Option<&'static Advance> {
         self.advances.get(tech.0).and_then(Option::as_ref)
     }
@@ -327,7 +328,8 @@ fn compatibility_name(tech: Tech) -> &'static str {
     }
 }
 
-struct RawCiv3Advance {
+/// An advance as read from Civ III technology data.
+struct RawAdvance {
     tech: Tech,
     prerequisites: Vec<Tech>,
     era: TechEra,
@@ -336,13 +338,13 @@ struct RawCiv3Advance {
 }
 
 /// The catalog is built from Civ III technology data.
-fn tech_catalog() -> &'static Civ3TechCatalog {
-    static CATALOG: OnceLock<Civ3TechCatalog> = OnceLock::new();
+fn tech_catalog() -> &'static TechCatalog {
+    static CATALOG: OnceLock<TechCatalog> = OnceLock::new();
     CATALOG.get_or_init(build_tech_catalog)
 }
 
 /// Builds the catalog from Civ III technology data.
-fn build_tech_catalog() -> Civ3TechCatalog {
+fn build_tech_catalog() -> TechCatalog {
     let mut raw_advances = Vec::new();
     let native_catalog = crate::rules::native::technologies();
     let storage_len = tech_storage_len_for(native_catalog);
@@ -382,7 +384,7 @@ fn build_tech_catalog() -> Civ3TechCatalog {
                 Tech(prerequisite.runtime_index)
             })
             .collect();
-        raw_advances.push(RawCiv3Advance {
+        raw_advances.push(RawAdvance {
             tech,
             prerequisites,
             era: parse_tech_era(native.era),
@@ -419,7 +421,7 @@ fn build_tech_catalog() -> Civ3TechCatalog {
             era_gate: native.era_gate.map(parse_tech_era),
         });
     }
-    Civ3TechCatalog { advances }
+    TechCatalog { advances }
 }
 
 fn parse_tech_era(value: i32) -> TechEra {
@@ -433,7 +435,7 @@ fn parse_tech_era(value: i32) -> TechEra {
 }
 
 /// Freeciv's linear requirement count over the Civ III technology graph.
-fn linear_requirement_count_for(tech: Tech, graph: &[RawCiv3Advance]) -> i32 {
+fn linear_requirement_count_for(tech: Tech, graph: &[RawAdvance]) -> i32 {
     let storage_len = graph
         .iter()
         .map(|advance| advance.tech.0 + 1)
@@ -581,7 +583,8 @@ mod constant_tests {
             .collect()
     }
 
-    const RENAMED_IN_CIV3: [(&str, &str); 4] = [
+    /// Technologies Civ III renamed relative to the legacy names.
+    const RENAMED_IN_CATALOG: [(&str, &str); 4] = [
         ("UNIVERSITY", "Education"),
         ("SUPERCONDUCTORS", "Superconductor"),
         ("MOBILE_WARFARE", "Motorized Transportation"),
@@ -609,9 +612,9 @@ mod constant_tests {
             };
             let actual = Tech(index).name();
             // Freeciv-named constants whose advance carries a Civ III name.
-            let renamed = RENAMED_IN_CIV3
+            let renamed = RENAMED_IN_CATALOG
                 .iter()
-                .any(|(constant, civ3)| *constant == name && *civ3 == actual);
+                .any(|(constant, catalog_name)| *constant == name && *catalog_name == actual);
             assert!(
                 renamed || normalized(name) == normalized(actual),
                 "{name} = Self({index}) but index {index} is {actual}"

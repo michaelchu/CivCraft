@@ -213,7 +213,7 @@ fn island_transport_loads_cargo_and_carries_it_to_a_landing() {
         .iter()
         .any(|unit| unit.owner == BARBARIANS && (unit.x, unit.y) == (x, y));
     assert_eq!(game.units.iter().any(|unit| unit.id == id), !stayed);
-    let (sea_direction, (sx, sy)) = (0..CIV3_DIRS.len())
+    let (sea_direction, (sx, sy)) = (0..EIGHT_WAY_DIRS.len())
         .filter_map(|direction| {
             game.map_wrap
                 .eight_way_neighbor(boat.x, boat.y, direction)
@@ -233,7 +233,7 @@ fn island_transport_loads_cargo_and_carries_it_to_a_landing() {
         let unit = game.units.iter_mut().find(|unit| unit.id == id).unwrap();
         assert_eq!((unit.x, unit.y), (sx, sy));
         unit.moves_left = MOVE_FRAGMENTS;
-        let (land_direction, (lx, ly)) = (0..CIV3_DIRS.len())
+        let (land_direction, (lx, ly)) = (0..EIGHT_WAY_DIRS.len())
             .filter_map(|direction| {
                 game.map_wrap
                     .eight_way_neighbor(sx, sy, direction)

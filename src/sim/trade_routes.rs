@@ -15,7 +15,8 @@ use crate::rules::engine_rules::{
 use super::action_rules::SimulationRequirementContext;
 use super::{City, Pact, Simulation};
 
-const FREECIV_MAX_TRADE_ROUTES: i32 = 20;
+/// Freeciv's trade route limit.
+const MAX_TRADE_ROUTES: i32 = 20;
 
 fn campaign_settings() -> &'static TradeRouteRulesetSettings {
     TradeRouteRulesetSettings::campaign()
@@ -463,7 +464,7 @@ impl Simulation {
             self.players[city.owner].government,
             None,
         )
-        .clamp(0, FREECIV_MAX_TRADE_ROUTES)
+        .clamp(0, MAX_TRADE_ROUTES)
     }
 
     fn city_provides_good(&self, city: &City, good: &TradeGoodRulesetRecord) -> bool {

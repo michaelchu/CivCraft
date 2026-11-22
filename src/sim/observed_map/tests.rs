@@ -160,14 +160,14 @@ fn fog_preserves_terrain_extras_and_native_city_appearance_until_reobserved() {
         .civilization_id
         .as_deref()
         .and_then(crate::rules::civilizations::by_id)
-        .map_or(2, |civilization| civilization.civ3_city_style);
+        .map_or(2, |civilization| civilization.city_art_style);
     let remembered = game
         .render_cities()
         .into_iter()
         .find(|c| c.city.x == 20 && c.city.y == 24)
         .unwrap();
     assert_eq!(
-        remembered.civ3_style, expected_style,
+        remembered.art_style, expected_style,
         "remembered city retains its owner's Civ III style"
     );
     assert!(remembered.city.buildings.contains(&Building::CITY_WALLS));
@@ -183,7 +183,7 @@ fn fog_preserves_terrain_extras_and_native_city_appearance_until_reobserved() {
         .into_iter()
         .find(|c| c.city.x == 20 && c.city.y == 24)
         .unwrap();
-    assert_eq!(current.civ3_style, expected_style);
+    assert_eq!(current.art_style, expected_style);
     assert_eq!(
         observed_random,
         game.random_snapshot(),

@@ -14,7 +14,8 @@ use super::{
 use crate::rules::{Building, Tech};
 
 pub(crate) enum Command {
-    MoveCiv3(u32, usize),
+    /// Moves along Civ III's eight-direction grid.
+    MoveByDirection(u32, usize),
     CaptureUnits(u32, i32, i32),
     Bombard(u32, i32, i32),
     AutoBombard(u32, i32, i32),
@@ -117,7 +118,7 @@ impl Command {
         let direction = simulation
             .direction_for_unit_offset(unit_id, dx, dy)
             .unwrap_or(usize::MAX);
-        Self::MoveCiv3(unit_id, direction)
+        Self::MoveByDirection(unit_id, direction)
     }
 }
 
@@ -130,7 +131,7 @@ impl Simulation {
             return false;
         }
         let unit_id = match command {
-            MoveCiv3(id, _)
+            MoveByDirection(id, _)
             | CaptureUnits(id, ..)
             | Bombard(id, ..)
             | AutoBombard(id, ..)
@@ -173,7 +174,9 @@ impl Simulation {
             return false;
         }
         let applied = match command {
-            MoveCiv3(id, direction) => self.try_move_unit(id, direction) != MoveResult::Blocked,
+            MoveByDirection(id, direction) => {
+                self.try_move_unit(id, direction) != MoveResult::Blocked
+            }
             CaptureUnits(id, x, y) => self.try_capture_units_by_id(id, x, y),
             Bombard(id, x, y) => {
                 let succeeded = self.try_ranged_bombard(id, x, y) != MoveResult::Blocked;

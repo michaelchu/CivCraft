@@ -89,7 +89,7 @@ impl UiReviewSources {
 
 impl Game {
     pub(crate) fn border_cache_stats(&self, assets: &Assets) -> (u64, u64, usize) {
-        assets.civ3.territory_cache_stats()
+        assets.art_tileset.territory_cache_stats()
     }
 
     pub(crate) fn ui_review_polar_edge_has_no_black_gaps(

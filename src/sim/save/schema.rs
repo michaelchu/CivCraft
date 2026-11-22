@@ -65,7 +65,7 @@ struct SavedWorld<'a> {
     city_rapture: Cow<'a, BTreeMap<u32, i32>>,
     unit_goto_tiles: Cow<'a, BTreeMap<u32, (i32, i32)>>,
     list_order: list_order::ListOrder,
-    native_random: Option<FreecivRng>,
+    native_random: Option<GameRng>,
     cargo_order: BTreeMap<u32, Vec<u32>>,
     observed_map: Cow<'a, observed_map::ObservedMap>,
 }

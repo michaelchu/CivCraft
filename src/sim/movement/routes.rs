@@ -177,7 +177,7 @@ impl Simulation {
             } else {
                 allowance - (spent - unit.moves_left.max(0)) % allowance
             };
-            for (dx, dy) in CIV3_DIRS {
+            for (dx, dy) in EIGHT_WAY_DIRS {
                 let Some((nx, ny)) = self.map_wrap.eight_way_offset(cx, cy, dx, dy) else {
                     continue;
                 };

@@ -227,10 +227,10 @@ mod tests {
             Simulation::attack_power(veteran),
             Simulation::attack_power(&regular)
         );
-        let mut freeciv_veteran = regular.clone();
-        freeciv_veteran.veteran_level = 1;
+        let mut ruleset_veteran = regular.clone();
+        ruleset_veteran.veteran_level = 1;
         assert_eq!(
-            Simulation::attack_power(&freeciv_veteran),
+            Simulation::attack_power(&ruleset_veteran),
             UnitKind::Warrior.stats().attack * POWER_FACTOR
         );
     }

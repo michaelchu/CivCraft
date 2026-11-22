@@ -482,7 +482,7 @@ impl Simulation {
             {
                 return;
             }
-            let result = CIV3_DIRS
+            let result = EIGHT_WAY_DIRS
                 .iter()
                 .position(|&step| step == (dx, dy))
                 .map_or(MoveResult::Blocked, |direction| {

@@ -287,7 +287,7 @@ impl Simulation {
         {
             return;
         }
-        let direction = CIV3_DIRS.iter().position(|&(dx, dy)| {
+        let direction = EIGHT_WAY_DIRS.iter().position(|&(dx, dy)| {
             self.map_wrap.eight_way_offset(guard.x, guard.y, dx, dy) == Some((actor.x, actor.y))
         });
         if let Some(unit) = self.units.iter_mut().find(|u| u.id == id) {

@@ -624,7 +624,7 @@ impl Game {
         let mut events = std::mem::take(&mut self.prepared_events);
         if !self.turn_busy() {
             let mut incoming = self.sim.take_presentation_event_views();
-            presentation::configure_combat_timing(&mut incoming, &assets.civ3);
+            presentation::configure_combat_timing(&mut incoming, &assets.art_tileset);
             events.extend(incoming);
         }
         let now = get_time();
@@ -758,7 +758,7 @@ impl Game {
             self.fidget_sound_cycle = None;
             return;
         }
-        let pacing = assets.civ3.fidget_pacing(unit.kind);
+        let pacing = assets.art_tileset.fidget_pacing(unit.kind);
         let period = pacing.play_seconds + pacing.rest_seconds;
         if period <= 0.0 {
             return;

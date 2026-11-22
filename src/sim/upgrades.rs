@@ -109,13 +109,13 @@ impl Simulation {
         let to = target.stats();
         unit.kind = target;
         unit.veteran = unit.veteran.saturating_sub(1);
-        let max_c2c3_veteran = super::veterancy::selected_veteran_system(target)
+        let max_ruleset_veteran = super::veterancy::selected_veteran_system(target)
             .levels
             .len()
             .saturating_sub(1);
         unit.veteran_level = unit
             .veteran_level
-            .min(max_c2c3_veteran)
+            .min(max_ruleset_veteran)
             .saturating_sub(veteran_loss);
         let new_max_hp = unit.max_hit_points();
         unit.hp = (unit.hp * new_max_hp / old_max_hp).clamp(1, new_max_hp);

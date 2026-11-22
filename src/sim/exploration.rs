@@ -186,7 +186,7 @@ impl Simulation {
             .eight_way_neighbors(x, y)
             .filter(|&(nx, ny)| self.tile(nx, ny).known_by[owner])
             .count() as i32;
-        50 + (50 / CIV3_DIRS.len() as i32)
+        50 + (50 / EIGHT_WAY_DIRS.len() as i32)
             * known
             * if self.explorer_native(kind, x, y) {
                 1
@@ -365,7 +365,7 @@ impl Simulation {
             } else {
                 rate - (spent - unit.moves_left.max(0)) % rate
             };
-            for (dx, dy) in CIV3_DIRS {
+            for (dx, dy) in EIGHT_WAY_DIRS {
                 let Some((nx, ny)) = self.map_wrap.eight_way_offset(x, y, dx, dy) else {
                     continue;
                 };
@@ -529,7 +529,7 @@ impl Simulation {
                 break;
             }
             drop(_profile);
-            let Some(direction) = CIV3_DIRS.iter().position(|&step| step == (dx, dy)) else {
+            let Some(direction) = EIGHT_WAY_DIRS.iter().position(|&step| step == (dx, dy)) else {
                 break;
             };
             let _profile = profiler.scope("exploration.follow_goal.try_move");

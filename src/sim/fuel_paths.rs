@@ -304,7 +304,7 @@ impl FuelPaths {
         self.nodes[cursor].pos = Some(tail);
         while let Some(direction) = self.nodes[cursor].direction {
             let (x, y) = self.map_wrap.position(cursor);
-            let (dx, dy) = CIV3_DIRS[direction];
+            let (dx, dy) = EIGHT_WAY_DIRS[direction];
             let Some((px, py)) = self.map_wrap.eight_way_offset(x, y, -dx, -dy) else {
                 continue;
             };
@@ -378,7 +378,7 @@ impl FuelPaths {
                     self.nodes[index].moves = moves_field(budget);
                 }
                 let (x, y) = self.map_wrap.position(index);
-                for (direction, (dx, dy)) in CIV3_DIRS.into_iter().enumerate() {
+                for (direction, (dx, dy)) in EIGHT_WAY_DIRS.into_iter().enumerate() {
                     let Some((nx, ny)) = self.map_wrap.eight_way_offset(x, y, dx, dy) else {
                         continue;
                     };
@@ -557,7 +557,7 @@ impl FuelPaths {
             let Some(direction) = position.direction else {
                 break;
             };
-            let step = CIV3_DIRS[direction];
+            let step = EIGHT_WAY_DIRS[direction];
             backwards.push(step);
             let point = self.map_wrap.position(index);
             let previous = self

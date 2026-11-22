@@ -5,7 +5,7 @@ use super::*;
 use crate::rules::content_adapter::{EngineTechBinding, bind_engine_technology};
 use crate::rules::engine_rules::RequirementKind;
 use crate::rules::engine_rules::{
-    EffectRecord, Requirement as FreecivRequirement, RequirementContext, RequirementRange,
+    EffectRecord, Requirement as EngineRequirement, RequirementContext, RequirementRange,
     RequirementValue, RulesetData,
 };
 
@@ -624,7 +624,7 @@ fn city_effect_techs() -> &'static [Tech] {
 
 /// Resolve only the player-scoped, non-surviving Tech universals that
 /// daitech.c treats as the candidate advance itself.
-fn bound_player_tech(requirement: &FreecivRequirement) -> Option<(Tech, bool)> {
+fn bound_player_tech(requirement: &EngineRequirement) -> Option<(Tech, bool)> {
     if requirement.kind != RequirementKind::Tech
         || requirement.range != RequirementRange::Player
         || requirement.survives
@@ -636,7 +636,7 @@ fn bound_player_tech(requirement: &FreecivRequirement) -> Option<(Tech, bool)> {
         _ => match &requirement.name {
             RequirementValue::String(name) => match bind_engine_technology(name).ok()? {
                 EngineTechBinding::Bound(tech) => tech,
-                EngineTechBinding::MissingFromCiv3Catalog => return None,
+                EngineTechBinding::MissingFromCatalog => return None,
             },
             _ => return None,
         },

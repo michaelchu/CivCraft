@@ -2879,7 +2879,7 @@ fn native_sinking_carrier_in_naval_combat_destroys_embarked_aircraft() {
         let mut probe = game.clone();
         probe.native_random = None;
         probe.rng = seed;
-        assert!(probe.apply(Command::MoveCiv3(battleship, 2)));
+        assert!(probe.apply(Command::MoveByDirection(battleship, 2)));
         if probe.unit_by_id(carrier).is_none() {
             assert!(
                 probe.unit_by_id(embarked).is_none(),

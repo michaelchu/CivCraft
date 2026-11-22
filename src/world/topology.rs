@@ -47,11 +47,14 @@ pub(crate) const MAP_W: i32 = MAP_X_RATIO * MAP_LINEAR_SCALE * MAP_EVEN_FACTOR;
 pub(crate) const MAP_H: i32 = MAP_Y_RATIO * MAP_LINEAR_SCALE * MAP_EVEN_FACTOR * MAP_ISO_FACTOR;
 
 // Freeciv's six-way map-space basis remains useful for its radius metric.
-pub(crate) const FREECIV_ISOHEX_DIRS: [(i32, i32); 6] =
+/// Freeciv's iso-hex neighbor offsets.
+pub(crate) const ISOHEX_DIRS: [(i32, i32); 6] =
     [(0, -1), (1, 0), (1, 1), (0, 1), (-1, 0), (-1, -1)];
 
 /// Eight Civ III directions in staggered-grid coordinates, clockwise from N.
-pub(crate) const CIV3_DIRS: [(i32, i32); 8] = [
+///
+/// Civ III's eight-direction neighbor offsets.
+pub(crate) const EIGHT_WAY_DIRS: [(i32, i32); 8] = [
     (0, -2),
     (1, -1),
     (2, 0),
@@ -243,7 +246,8 @@ impl MapWrap {
         x: i32,
         y: i32,
     ) -> impl Iterator<Item = (i32, i32)> + use<> {
-        (0..CIV3_DIRS.len()).filter_map(move |direction| self.eight_way_neighbor(x, y, direction))
+        (0..EIGHT_WAY_DIRS.len())
+            .filter_map(move |direction| self.eight_way_neighbor(x, y, direction))
     }
     /// Shortest step count on the horizontally wrapped Civ III neighbor graph.
     ///
@@ -455,7 +459,7 @@ impl MapWrap {
     ///
     /// Civ III's eight-direction grid.
     pub(crate) fn eight_way_neighbor(self, x: i32, y: i32, direction: usize) -> Option<(i32, i32)> {
-        let (dx, dy) = *CIV3_DIRS.get(direction)?;
+        let (dx, dy) = *EIGHT_WAY_DIRS.get(direction)?;
         let grid_x = 2 * x + y.rem_euclid(2) + dx;
         let neighbor_y = y + dy;
         let neighbor_y = if (0..self.height()).contains(&neighbor_y) {
@@ -471,7 +475,7 @@ impl MapWrap {
     }
     /// Civ III's eight-direction grid.
     pub(crate) fn eight_way_offset(self, x: i32, y: i32, dx: i32, dy: i32) -> Option<(i32, i32)> {
-        let direction = CIV3_DIRS.iter().position(|&step| step == (dx, dy))?;
+        let direction = EIGHT_WAY_DIRS.iter().position(|&step| step == (dx, dy))?;
         self.eight_way_neighbor(x, y, direction)
     }
 }
@@ -488,7 +492,7 @@ mod flic_direction_tests {
         for (direction, expected) in expected_rows.into_iter().enumerate() {
             assert_eq!(wrap.flic_direction_index(direction), Some(expected));
         }
-        assert_eq!(wrap.flic_direction_index(CIV3_DIRS.len()), None);
+        assert_eq!(wrap.flic_direction_index(EIGHT_WAY_DIRS.len()), None);
     }
 }
 
@@ -512,7 +516,7 @@ pub(crate) fn rebuild_river_edges<T: RiverEdgeTile>(wrap: MapWrap, tiles: &mut [
             continue;
         }
         let (x, y) = wrap.position(index);
-        for direction in 0..CIV3_DIRS.len() {
+        for direction in 0..EIGHT_WAY_DIRS.len() {
             let Some((nx, ny)) = wrap.eight_way_neighbor(x, y, direction) else {
                 continue;
             };
@@ -534,7 +538,7 @@ pub(crate) fn prune_river_edges<T: RiverEdgeTile>(wrap: MapWrap, tiles: &mut [T]
     let original: Vec<_> = tiles.iter().map(RiverEdgeTile::river_edges).collect();
     for index in 0..wrap.tile_count() {
         let (x, y) = wrap.position(index);
-        for direction in 0..CIV3_DIRS.len() {
+        for direction in 0..EIGHT_WAY_DIRS.len() {
             if original[index] & (1 << direction) == 0 {
                 continue;
             }
@@ -585,7 +589,7 @@ mod wrap_tests {
         for wrap in [MapWrap::X] {
             for y in 0..wrap.height() {
                 for x in 0..wrap.width() {
-                    for (direction, &(_, dy)) in CIV3_DIRS.iter().enumerate() {
+                    for (direction, &(_, dy)) in EIGHT_WAY_DIRS.iter().enumerate() {
                         let Some((nx, ny)) = wrap.eight_way_neighbor(x, y, direction) else {
                             assert!(!(0..wrap.height()).contains(&(y + dy)));
                             continue;
@@ -605,9 +609,9 @@ mod wrap_tests {
             }
             for y in 0..wrap.height() {
                 for x in 0..wrap.width() {
-                    for (dx, dy) in FREECIV_ISOHEX_DIRS {
+                    for (dx, dy) in ISOHEX_DIRS {
                         if let Some(neighbor) = wrap.offset(x, y, dx, dy) {
-                            assert!((0..CIV3_DIRS.len()).any(|direction| {
+                            assert!((0..EIGHT_WAY_DIRS.len()).any(|direction| {
                                 wrap.eight_way_neighbor(x, y, direction) == Some(neighbor)
                             }));
                         }
@@ -624,7 +628,7 @@ mod wrap_tests {
             let wrap = MapWrap::X;
             let (x, y) = (wrap.width() / 2, wrap.height() / 2);
             let neighbors: Vec<_> = wrap.eight_way_neighbors(x, y).collect();
-            let expected: Vec<_> = (0..CIV3_DIRS.len())
+            let expected: Vec<_> = (0..EIGHT_WAY_DIRS.len())
                 .filter_map(|direction| wrap.eight_way_neighbor(x, y, direction))
                 .collect();
             assert_eq!(neighbors, expected);
@@ -767,7 +771,7 @@ mod wrap_tests {
         let mut edge_count = 0;
         for (index, tile) in map.tiles.iter().enumerate() {
             let (x, y) = wrap.position(index);
-            for direction in 0..CIV3_DIRS.len() {
+            for direction in 0..EIGHT_WAY_DIRS.len() {
                 if tile.river_edges & (1 << direction) == 0 {
                     continue;
                 }

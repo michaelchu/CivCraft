@@ -88,7 +88,7 @@ impl Game {
             interactive: false,
         };
         let tiles = view.tiles(self.sim.map_wrap());
-        world::Civ3WorldPainter::new(self, assets).draw_view(
+        world::WorldPainter::new(self, assets).draw_view(
             assets,
             view,
             || {

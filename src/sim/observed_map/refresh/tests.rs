@@ -1,5 +1,5 @@
 use super::*;
-use crate::sim::{CIV3_DIRS, HUMAN, Simulation, UnitKind};
+use crate::sim::{EIGHT_WAY_DIRS, HUMAN, Simulation, UnitKind};
 use crate::world::Terrain;
 
 #[test]
@@ -66,7 +66,7 @@ fn ai_path_waits_for_outer_batch_and_matches_the_normal_path_after_flushing() {
     let (mut game, unit) = movement_game();
     let mut normal = game.clone();
     let direction = 2;
-    let step = CIV3_DIRS[direction];
+    let step = EIGHT_WAY_DIRS[direction];
     let mut destination = (10, 24);
     for _ in 0..2 {
         destination = game

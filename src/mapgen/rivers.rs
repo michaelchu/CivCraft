@@ -34,7 +34,7 @@ impl super::Generator {
     /// Uses Civ III's eight-direction neighbor model.
     pub(super) fn eight_way_neighbors(&self, tile: usize) -> impl Iterator<Item = usize> + '_ {
         let (x, y) = self.wrap.position(tile);
-        (0..CIV3_DIRS.len()).filter_map(move |direction| {
+        (0..EIGHT_WAY_DIRS.len()).filter_map(move |direction| {
             self.wrap
                 .eight_way_neighbor(x, y, direction)
                 .map(|(nx, ny)| self.wrap.index(nx, ny))
@@ -46,7 +46,7 @@ impl super::Generator {
     /// atlas cell and cannot draw a continuous river segment.
     fn river_neighbors(&self, tile: usize) -> impl Iterator<Item = usize> + '_ {
         let (x, y) = self.wrap.position(tile);
-        (1..CIV3_DIRS.len())
+        (1..EIGHT_WAY_DIRS.len())
             .step_by(2)
             .filter_map(move |direction| {
                 self.wrap
@@ -61,9 +61,10 @@ impl super::Generator {
     ///
     /// Follows Freeciv's river neighbor selection.
     fn river_flow_neighbors(&self, tile: usize) -> impl Iterator<Item = usize> + '_ {
-        const CIV3_RIVER_DIRS_IN_FREECIV_ORDER: [usize; 4] = [1, 7, 3, 5];
+        /// Civ III river directions in Freeciv's iteration order.
+        const RIVER_DIRS_IN_SOURCE_ORDER: [usize; 4] = [1, 7, 3, 5];
         let (x, y) = self.wrap.position(tile);
-        CIV3_RIVER_DIRS_IN_FREECIV_ORDER
+        RIVER_DIRS_IN_SOURCE_ORDER
             .into_iter()
             .filter_map(move |direction| {
                 self.wrap
@@ -77,17 +78,17 @@ impl super::Generator {
         tiles: &mut [GeneratedTile],
         heights: &[i32],
         temperature: &[i32],
-        freeciv_temperature: Option<&TemperatureMap>,
+        zone_temperature: Option<&TemperatureMap>,
         terrain_properties: Option<&[TerrainMapgenProperties]>,
         rng: &mut MapRng,
     ) {
         assert!(
-            freeciv_temperature.is_none() || terrain_properties.is_some(),
+            zone_temperature.is_none() || terrain_properties.is_some(),
             "Freeciv river generation requires parsed terrain properties"
         );
-        let (target, lowland) = if let Some(freeciv_temperature) = freeciv_temperature {
+        let (target, lowland) = if let Some(zone_temperature) = zone_temperature {
             let (_, target, lowland) =
-                river_parameters(freeciv_temperature.settings, self.wrap.tile_count());
+                river_parameters(zone_temperature.settings, self.wrap.tile_count());
             (target, lowland)
         } else {
             (
@@ -110,11 +111,11 @@ impl super::Generator {
                     && !tiles[tile].river
                     && heights[tile] >= lowland
                     && (attempt >= MAX_TRIES / 2 || heights[tile] >= spring_elevation)
-                    && freeciv_temperature
+                    && zone_temperature
                         .map(|map| map.get(tile).is_not_frozen())
                         .unwrap_or(temperature[tile] >= VERY_COLD)
             };
-            let spring = if freeciv_temperature.is_some() {
+            let spring = if zone_temperature.is_some() {
                 filtered_rand_map_pos(self.wrap.tile_count(), rng, eligible_spring)
             } else {
                 random_tile(self.wrap.tile_count(), rng, eligible_spring)
@@ -124,7 +125,7 @@ impl super::Generator {
             };
 
             if let Some(properties) = terrain_properties
-                && freeciv_temperature.is_some()
+                && zone_temperature.is_some()
             {
                 if !self.spring_is_acceptable(tiles, spring, properties, attempt, MAX_TRIES) {
                     continue;
@@ -219,7 +220,7 @@ impl super::Generator {
     /// visually disconnected.
     fn connect_river_step(&self, tiles: &mut [GeneratedTile], from: usize, to: usize) {
         let (x, y) = self.wrap.position(from);
-        let direction = (0..CIV3_DIRS.len()).find(|&direction| {
+        let direction = (0..EIGHT_WAY_DIRS.len()).find(|&direction| {
             self.wrap.eight_way_neighbor(x, y, direction) == Some(self.wrap.position(to))
         });
         let Some(direction) = direction else {
@@ -268,7 +269,7 @@ impl super::Generator {
 
     fn connect_river_edge(&self, tiles: &mut [GeneratedTile], from: usize, to: usize) {
         let (x, y) = self.wrap.position(from);
-        let direction = (0..CIV3_DIRS.len()).find(|&direction| {
+        let direction = (0..EIGHT_WAY_DIRS.len()).find(|&direction| {
             self.wrap.eight_way_neighbor(x, y, direction) == Some(self.wrap.position(to))
         });
         let Some(direction) = direction else {

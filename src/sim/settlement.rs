@@ -521,7 +521,7 @@ impl Simulation {
         // rejects occupied tiles, which blocked_land already covers; its
         // non-civilian peaceful-border rule does not apply here.
         debug_assert!(traveler.kind.is_civilian());
-        CIV3_DIRS.into_iter().filter_map(move |direction| {
+        EIGHT_WAY_DIRS.into_iter().filter_map(move |direction| {
             let (dx, dy) = direction;
             let (nx, ny) = self
                 .map_wrap

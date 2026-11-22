@@ -251,7 +251,7 @@ impl RequirementContext for CalendarContext<'_> {
                             .map_err(|_| unsupported())?
                         {
                             crate::rules::content_adapter::EngineTechBinding::Bound(tech) => tech,
-                            crate::rules::content_adapter::EngineTechBinding::MissingFromCiv3Catalog => {
+                            crate::rules::content_adapter::EngineTechBinding::MissingFromCatalog => {
                                 return Ok(false);
                             }
                         }

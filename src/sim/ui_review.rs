@@ -479,7 +479,7 @@ pub(crate) fn ui_review_rivers(sim: &mut Simulation, fogged: bool) {
         (4, 4),
         (2, 4),
     ];
-    rivers.extend(FREECIV_ISOHEX_DIRS.map(|(dx, dy)| (-3 + dx, 2 + dy)));
+    rivers.extend(ISOHEX_DIRS.map(|(dx, dy)| (-3 + dx, 2 + dy)));
     for (dx, dy) in rivers {
         let (x, y) = offset_native_by_map(20, 24, dx, dy);
         sim.tile_mut(x, y).river = true;

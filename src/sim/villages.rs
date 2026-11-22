@@ -188,7 +188,7 @@ impl Simulation {
                 while !exits.is_empty() {
                     let direction = self.rand_below(exits.len() as i32) as usize;
                     let (nx, ny) = exits.remove(direction);
-                    let direction = CIV3_DIRS.iter().position(|&(dx, dy)| {
+                    let direction = EIGHT_WAY_DIRS.iter().position(|&(dx, dy)| {
                         self.map_wrap.eight_way_offset(x, y, dx, dy) == Some((nx, ny))
                     });
                     if direction.is_some_and(|direction| {

@@ -115,7 +115,7 @@ mod pf_actions;
 mod pillage;
 mod pollution;
 mod route_preview;
-pub(crate) use crate::random::FreecivRng;
+pub(crate) use crate::random::GameRng;
 #[cfg(feature = "desktop")]
 pub(crate) use route_preview::GotoPoint;
 pub(crate) use route_preview::GotoPreview;
@@ -171,8 +171,10 @@ pub(crate) const MAX_CIVILIZATIONS: usize = 16;
 pub(crate) const HUMAN: usize = 0;
 pub(crate) const PLAYER_SLOTS: usize = 512;
 pub(crate) const BARBARIANS: usize = MAX_CIVILIZATIONS;
-const FREECIV_GAME_IDENTIFIER_DRAWS: usize = 32;
-const FREECIV_BASE64URL_CHARACTERS: u32 = 64;
+/// Follows Freeciv's game identifier generation.
+const GAME_IDENTIFIER_DRAWS: usize = 32;
+/// Follows Freeciv's game identifier alphabet size.
+const BASE64URL_CHARACTERS: u32 = 64;
 const PERCENT_SCALE: i32 = crate::world::PERCENT_SCALE;
 use movement_rules::campaign_move_fragments;
 // Historical movement fixtures use the original six-fragment scale.
@@ -186,7 +188,7 @@ const LARGE_CITY_SIZE: i32 = 9;
 const FORTIFY_DEFENSE_BONUS: i32 = 50;
 
 /// Advances the gameplay stream through `shuffle_players()` after mapgen.
-fn apply_player_shuffle_randomness(rng: &mut crate::random::FreecivRng) {
+fn apply_player_shuffle_randomness(rng: &mut crate::random::GameRng) {
     consume_shuffle_draws(rng, PLAYER_SLOTS);
 }
 
@@ -198,14 +200,11 @@ fn apply_player_shuffle_randomness(rng: &mut crate::random::FreecivRng) {
 /// order. Apply the same Fisher-Yates shuffle to that deterministic order as
 /// an explicit adaptation. Pre-map nation/leader draws remain a separate
 /// parity gap.
-fn apply_start_assignment_randomness(
-    rng: &mut crate::random::FreecivRng,
-    starts: &mut [(i32, i32)],
-) {
+fn apply_start_assignment_randomness(rng: &mut crate::random::GameRng, starts: &mut [(i32, i32)]) {
     // MAX_LEN_GAME_IDENTIFIER is 33, so randomize_base64url_string() draws
     // once for each of the 32 non-terminator characters from a 64-char set.
-    for _ in 0..FREECIV_GAME_IDENTIFIER_DRAWS {
-        rng.draw(FREECIV_BASE64URL_CHARACTERS);
+    for _ in 0..GAME_IDENTIFIER_DRAWS {
+        rng.draw(BASE64URL_CHARACTERS);
     }
 
     // Current generated starts are all unrestricted, so Freeciv shuffles the
@@ -214,7 +213,7 @@ fn apply_start_assignment_randomness(
 }
 
 /// Matches utility/shared.c::array_shuffle(): n - 1 calls with bounds n..2.
-fn consume_shuffle_draws(rng: &mut crate::random::FreecivRng, item_count: usize) {
+fn consume_shuffle_draws(rng: &mut crate::random::GameRng, item_count: usize) {
     for bound in (2..=item_count).rev() {
         rng.draw(bound as u32);
     }
@@ -223,7 +222,7 @@ fn consume_shuffle_draws(rng: &mut crate::random::FreecivRng, item_count: usize)
 /// Matches utility/shared.c::array_shuffle()'s Fisher-Yates swaps and bounds.
 ///
 /// Uses Freeciv's shuffle primitive.
-fn shuffle_with_map_rng<T>(rng: &mut crate::random::FreecivRng, items: &mut [T]) {
+fn shuffle_with_map_rng<T>(rng: &mut crate::random::GameRng, items: &mut [T]) {
     for index in 0..items.len().saturating_sub(1) {
         let bound = items.len() - index;
         let swap_index = index + rng.draw(bound as u32) as usize;
@@ -277,7 +276,7 @@ pub(crate) struct Simulation {
     next_unit_id: u32,
     next_city_id: u32,
     rng: u64,
-    native_random: Option<FreecivRng>,
+    native_random: Option<GameRng>,
     cargo_order: std::collections::BTreeMap<u32, Vec<u32>>,
     /// Text-only mirror retained for source-adjacent legacy assertions.
     #[cfg(test)]
@@ -709,16 +708,16 @@ impl Simulation {
 
     #[cfg(test)]
     fn set_random_seed(&mut self, seed: u32) {
-        self.native_random = Some(FreecivRng::new(seed));
+        self.native_random = Some(GameRng::new(seed));
     }
 
     #[cfg(test)]
-    fn random_snapshot(&self) -> (u64, Option<FreecivRng>) {
+    fn random_snapshot(&self) -> (u64, Option<GameRng>) {
         (self.rng, self.native_random.clone())
     }
 
     #[cfg(test)]
-    fn restore_random(&mut self, snapshot: (u64, Option<FreecivRng>)) {
+    fn restore_random(&mut self, snapshot: (u64, Option<GameRng>)) {
         (self.rng, self.native_random) = snapshot;
     }
 

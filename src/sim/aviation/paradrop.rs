@@ -232,7 +232,7 @@ impl Simulation {
             }
             let mut staged = unit.clone();
             (staged.x, staged.y) = (x, y);
-            for (dx, dy) in CIV3_DIRS {
+            for (dx, dy) in EIGHT_WAY_DIRS {
                 let Some((tx, ty)) = self.map_wrap.eight_way_offset(x, y, dx, dy) else {
                     continue;
                 };

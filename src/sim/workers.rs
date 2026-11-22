@@ -155,7 +155,7 @@ impl Simulation {
             } else {
                 allowance - (spent - unit.moves_left.max(0)) % allowance
             };
-            for (direction, (dx, dy)) in CIV3_DIRS.into_iter().enumerate() {
+            for (direction, (dx, dy)) in EIGHT_WAY_DIRS.into_iter().enumerate() {
                 let Some((x, y)) = self
                     .map_wrap
                     .eight_way_neighbor(actor.x, actor.y, direction)

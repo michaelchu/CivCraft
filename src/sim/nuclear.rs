@@ -450,7 +450,7 @@ impl Simulation {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::random::FreecivRng;
+    use crate::random::GameRng;
 
     fn nuclear_game() -> Simulation {
         let mut game = Simulation::new(crate::mapgen::generate(42));
@@ -699,7 +699,7 @@ mod tests {
         let exposed = game.spawn_unit(HUMAN, UnitKind::Infantry, nearby.0, nearby.1);
         game.units.iter_mut().find(|u| u.id == exposed).unwrap().hp = 4;
         tracked_units.push(exposed);
-        game.native_random = Some(FreecivRng::new(87));
+        game.native_random = Some(GameRng::new(87));
 
         let blast_tiles = game.nuclear_blast_tiles(x, y);
         assert_eq!(blast_tiles.len(), 9);
@@ -794,7 +794,7 @@ mod tests {
                 let sdi_index = game.city_index_at(distant_sdi.0, distant_sdi.1).unwrap();
                 game.cities[sdi_index].buildings.push(Building::SDI_DEFENSE);
                 let weapon = Unit::new(99, HUMAN, kind, 10, 20);
-                game.native_random = Some(FreecivRng::new(seed + 1));
+                game.native_random = Some(GameRng::new(seed + 1));
                 if game.nuclear_sdi_intercepts(&weapon, target.0, target.1) == Some(1) {
                     *counter += 1;
                 }
@@ -822,7 +822,7 @@ mod tests {
         game.cities[city_index]
             .buildings
             .push(Building::SDI_DEFENSE);
-        game.native_random = Some(FreecivRng::new(32));
+        game.native_random = Some(GameRng::new(32));
         assert!(game.apply(Command::NuclearStrike(nuke, x, y)));
         assert!(game.events.iter().any(|event| event.contains("detonated")));
     }

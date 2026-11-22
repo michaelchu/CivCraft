@@ -167,7 +167,7 @@ fn army_combat(game: &mut Simulation, checks: &mut Checks) {
     let combined_health = game.unit_by_id(army).unwrap().hp == max_hp
         && game.unit_by_id(army).unwrap().max_hit_points() == max_hp;
     let retained = !game.apply(Command::BoardOrDeboard(members[0]));
-    let attacked = game.apply(Command::MoveCiv3(army, 2));
+    let attacked = game.apply(Command::MoveByDirection(army, 2));
     let won =
         game.unit_by_id(defender).is_none() && game.city_by_id(enemy_city).unwrap().owner == HUMAN;
     let cohesive = game.unit_by_id(army).is_some_and(|army| {

@@ -6,11 +6,14 @@ use std::collections::VecDeque;
 
 // Values copied from the pinned Freeciv `mapgen_utils.c` implementation and
 // `common/terrain.h`; C2C3's terrain-specific depth values remain ruleset data.
-const FREECIV_OCEAN_DEPTH_MAXIMUM: i32 = 100;
-const FREECIV_OCEAN_DEPTH_STEP: i32 = 25;
-const FREECIV_OCEAN_DEPTH_RANDOM_RANGE: i32 = 15;
-const FREECIV_OCEAN_DISTANCE_MAX: usize =
-    (FREECIV_OCEAN_DEPTH_MAXIMUM / FREECIV_OCEAN_DEPTH_STEP) as usize;
+/// Freeciv's ocean depth maximum.
+const OCEAN_DEPTH_MAXIMUM: i32 = 100;
+/// Freeciv's ocean depth step.
+const OCEAN_DEPTH_STEP: i32 = 25;
+/// Freeciv's ocean depth random range.
+const OCEAN_DEPTH_RANDOM_RANGE: i32 = 15;
+/// Freeciv's ocean distance limit.
+const OCEAN_DISTANCE_MAX: usize = (OCEAN_DEPTH_MAXIMUM / OCEAN_DEPTH_STEP) as usize;
 
 #[derive(Clone, Copy)]
 enum TerrainMapgenProperty {
@@ -238,7 +241,7 @@ pub(super) fn terrain_percentages(
 
 /// Follows Freeciv's ocean depth majority rule.
 fn ocean_depth_majority_threshold() -> usize {
-    (2 * CIV3_DIRS.len()).div_ceil(3)
+    (2 * EIGHT_WAY_DIRS.len()).div_ceil(3)
 }
 
 struct PatchGrowth<'a, Eligible> {
@@ -312,8 +315,8 @@ impl super::Generator {
         relief: &[i32],
         biome_field: &[i32],
         land_mask: Option<&[bool]>,
-        freeciv_temperature: Option<&TemperatureMap>,
-        freeciv_terrain_properties: Option<&[TerrainMapgenProperties]>,
+        zone_temperature: Option<&TemperatureMap>,
+        terrain_property_table: Option<&[TerrainMapgenProperties]>,
         ocean_coverage: i32,
         rng: &mut MapRng,
     ) -> (Vec<Terrain>, Vec<TerrainBase>, Vec<i32>) {
@@ -370,7 +373,7 @@ impl super::Generator {
             .collect();
         let mut available = vec![false; self.wrap.tile_count()];
         if let (Some(temperature_map), Some(terrain_properties)) =
-            (freeciv_temperature, freeciv_terrain_properties)
+            (zone_temperature, terrain_property_table)
         {
             self.assign_relief(
                 &mut terrain,
@@ -451,13 +454,13 @@ impl super::Generator {
                     <= dry_water_limit
         };
         let source_percentages =
-            freeciv_temperature
-                .zip(freeciv_terrain_properties)
+            zone_temperature
+                .zip(terrain_property_table)
                 .map(|(temperature, _)| {
                     terrain_percentages(temperature.settings, self.wrap.tile_count())
                 });
         let source_lowland = source_percentages.map(|(_, _, _, swamp, _, _)| {
-            let shore = freeciv_temperature
+            let shore = zone_temperature
                 .expect("source percentage inputs include a temperature map")
                 .settings
                 .shore_level();
@@ -492,8 +495,8 @@ impl super::Generator {
                 }
                 let eligible = |tile: usize| {
                     let heat = temperature[tile];
-                    let source_zone = freeciv_temperature.map(|map| map.get(tile));
-                    let dry = freeciv_temperature
+                    let source_zone = zone_temperature.map(|map| map.get(tile));
+                    let dry = zone_temperature
                         .map(|map| map.is_dry(self, tile, &terrain_water))
                         .unwrap_or_else(|| opensimplex_dry(tile));
                     match pass {
@@ -531,7 +534,7 @@ impl super::Generator {
                         (Terrain::Desert, 80, 80),
                         (Terrain::Desert, 40, 40),
                     ][pass];
-                    let biome = if let Some(terrain_properties) = freeciv_terrain_properties {
+                    let biome = if let Some(terrain_properties) = terrain_property_table {
                         let (target, prefer, avoid) = match pass {
                             0 => (
                                 Some(TerrainMapgenProperty::Foliage),
@@ -576,7 +579,7 @@ impl super::Generator {
                         heights,
                         eligible: &eligible,
                         rng,
-                        cardinal_growth: freeciv_temperature.is_some(),
+                        cardinal_growth: zone_temperature.is_some(),
                     }
                     .grow(seed, spread, biome);
                 } else {
@@ -592,7 +595,7 @@ impl super::Generator {
                 let tile = random_tile(self.wrap.tile_count(), rng, |tile| available[tile])
                     .expect("unplaced plains quota");
                 terrain[tile] = if let (Some(temperature), Some(properties)) =
-                    (freeciv_temperature, freeciv_terrain_properties)
+                    (zone_temperature, terrain_property_table)
                 {
                     let (target, prefer) = match temperature.get(tile) {
                         TemperatureType::Frozen => (TerrainMapgenProperty::Frozen, None),
@@ -631,7 +634,7 @@ impl super::Generator {
                 } else {
                     Terrain::Plains
                 };
-                if freeciv_terrain_properties.is_some() {
+                if terrain_property_table.is_some() {
                     base_terrain[tile] = match terrain[tile] {
                         Terrain::Grassland => TerrainBase::Grassland,
                         Terrain::Plains => TerrainBase::Plains,
@@ -645,7 +648,7 @@ impl super::Generator {
                 plains -= 1;
             }
         }
-        if let Some(climate) = freeciv_temperature {
+        if let Some(climate) = zone_temperature {
             // Freeciv features have no underlying Civ III biome. Adapt only
             // their presentation base after placement, without random draws.
             // Cold/polar relief gets snow art; dry temperate forest gets the
@@ -821,7 +824,7 @@ impl super::Generator {
             }
             depth +=
                 30 * (ocean_neighbors - land_neighbors) / (ocean_neighbors + land_neighbors).max(1);
-            depth = depth.min(FREECIV_OCEAN_DEPTH_MAXIMUM);
+            depth = depth.min(OCEAN_DEPTH_MAXIMUM);
             terrain[tile] = depths.ocean_for_depth(depth);
         }
     }
@@ -843,11 +846,11 @@ impl super::Generator {
                 continue;
             }
             let distance = distance_to_land[tile];
-            if distance <= FREECIV_OCEAN_DISTANCE_MAX {
+            if distance <= OCEAN_DISTANCE_MAX {
                 // Freeciv requests a terrain at `dist * 25 + fc_rand(15)`.
                 // MapRng draws the same zero-based range from the map stream.
-                let depth = distance as i32 * FREECIV_OCEAN_DEPTH_STEP
-                    + rng.below(FREECIV_OCEAN_DEPTH_RANDOM_RANGE);
+                let depth =
+                    distance as i32 * OCEAN_DEPTH_STEP + rng.below(OCEAN_DEPTH_RANDOM_RANGE);
                 terrain[tile] = depths.ocean_for_depth(depth);
             }
         }
@@ -884,7 +887,7 @@ impl super::Generator {
     }
 
     fn distance_to_land(&self, terrain: &[Terrain]) -> Vec<usize> {
-        let unreachable = FREECIV_OCEAN_DISTANCE_MAX + 1;
+        let unreachable = OCEAN_DISTANCE_MAX + 1;
         let mut distances = vec![unreachable; terrain.len()];
         let mut queue = VecDeque::new();
         for (tile, &ground) in terrain.iter().enumerate() {
@@ -895,7 +898,7 @@ impl super::Generator {
         }
         while let Some(tile) = queue.pop_front() {
             let next_distance = distances[tile] + 1;
-            if next_distance > FREECIV_OCEAN_DISTANCE_MAX {
+            if next_distance > OCEAN_DISTANCE_MAX {
                 continue;
             }
             for neighbor in self.neighbors(tile) {
@@ -997,7 +1000,7 @@ mod terrain_property_tests {
     fn ruleset_label_adapter_preserves_source_terrain_names() {
         use C2c3MapLabelTerrain as Source;
 
-        for (civ3, source) in [
+        for (art_tileset, source) in [
             (Terrain::Coast, Source::Lake),
             (Terrain::Sea, Source::Ocean),
             (Terrain::Ocean, Source::DeepOcean),
@@ -1013,7 +1016,7 @@ mod terrain_property_tests {
             (Terrain::Hills, Source::Hills),
             (Terrain::Mountains, Source::Mountains),
         ] {
-            assert_eq!(map_label_terrain(civ3), Some(source));
+            assert_eq!(map_label_terrain(art_tileset), Some(source));
         }
         assert_eq!(map_label_terrain(Terrain::GrasslandShield), None);
         assert_eq!(map_label_terrain(Terrain::Volcano), None);

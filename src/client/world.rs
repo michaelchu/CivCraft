@@ -1,11 +1,13 @@
 //! World-map rendering and projection from simulation tiles to screen geometry.
 
-use super::diamond_geometry::{CELL_H as CIV3_CELL_H, CELL_W as CIV3_CELL_W, Civ3Geometry};
+use super::diamond_geometry::{
+    CELL_H as DIAMOND_CELL_H, CELL_W as DIAMOND_CELL_W, DiamondGeometry,
+};
 use super::*;
 #[cfg(test)]
 use crate::sim::Simulation;
 mod painter;
-pub(super) use painter::{Civ3WorldPainter, WorldMapView};
+pub(super) use painter::{WorldMapView, WorldPainter};
 mod entities;
 mod map;
 
@@ -68,15 +70,15 @@ pub(super) fn projected_screen_position(
     x: i32,
     y: i32,
 ) -> Vec2 {
-    let geometry = Civ3Geometry::new(wrap.width() * 2, wrap.height(), true)
+    let geometry = DiamondGeometry::new(wrap.width() * 2, wrap.height(), true)
         .expect("valid Civ III world geometry");
     let (grid_x, grid_y) = geometry
         .storage_to_grid(x, y)
         .unwrap_or((2 * x + y.rem_euclid(2), y));
     let (tile_px, tile_py) = geometry.tile_center_virtual(grid_x, grid_y);
-    let camera_px = (camera.x + 1.0) * CIV3_CELL_W;
-    let camera_py = (camera.y + 1.0) * CIV3_CELL_H;
-    let width_px = wrap.width() as f32 * 2.0 * CIV3_CELL_W;
+    let camera_px = (camera.x + 1.0) * DIAMOND_CELL_W;
+    let camera_py = (camera.y + 1.0) * DIAMOND_CELL_H;
+    let width_px = wrap.width() as f32 * 2.0 * DIAMOND_CELL_W;
     let dx = (tile_px - camera_px + width_px * 0.5).rem_euclid(width_px) - width_px * 0.5;
     let dy = tile_py - camera_py;
     vec2(

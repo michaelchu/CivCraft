@@ -290,7 +290,7 @@ fn defender_reachability_uses_ruleset_target_classes_and_city_exception() {
     game.remove_units_with_cargo(vec![heli]);
     let fighter = game.spawn_unit(1, UnitKind::Fighter, x + 1, y);
     assert_eq!(game.best_defender_id(&attacker, x + 1, y), None);
-    assert!(game.apply(Command::MoveCiv3(ground, 2)));
+    assert!(game.apply(Command::MoveByDirection(ground, 2)));
     assert_eq!(game.city_at(x + 1, y).unwrap().owner, HUMAN);
     assert!(game.unit_by_id(fighter).is_none());
 }
@@ -1064,7 +1064,7 @@ fn native_move_commands_cover_all_eight_neighbors_and_facing_rows() {
             .unwrap();
         let id = game.spawn_unit(HUMAN, UnitKind::Warrior, start.0, start.1);
 
-        assert!(game.apply(Command::MoveCiv3(id, direction)));
+        assert!(game.apply(Command::MoveByDirection(id, direction)));
         let moved = game.unit_by_id(id).unwrap();
         assert_eq!((moved.x, moved.y), destination);
         assert_eq!(moved.facing, expected_row);
@@ -1076,7 +1076,7 @@ fn native_move_commands_cover_all_eight_neighbors_and_facing_rows() {
 fn native_move_command_rejects_an_invalid_direction_without_moving() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     let id = game.spawn_unit(HUMAN, UnitKind::Warrior, 10, 20);
-    assert!(!game.apply(Command::MoveCiv3(id, CIV3_DIRS.len())));
+    assert!(!game.apply(Command::MoveByDirection(id, EIGHT_WAY_DIRS.len())));
     assert_eq!(
         (
             game.unit_by_id(id).unwrap().x,
@@ -1481,7 +1481,7 @@ fn reference_zoc_blocks_a_step_between_two_enemy_controlled_tiles() {
     let unit = game.unit_by_id(mover).unwrap().clone();
 
     assert!(game.zone_blocks_step(&unit, start, destination));
-    assert!(!game.apply(Command::MoveCiv3(mover, 2)));
+    assert!(!game.apply(Command::MoveByDirection(mover, 2)));
     assert_eq!(
         (
             game.unit_by_id(mover).unwrap().x,
@@ -1544,7 +1544,7 @@ fn route_zone_caches_match_live_checks_for_every_map_step() {
     let mut cache = WorkerRouteZoneCache::new(&game);
     for y in 0..game.map_wrap.height() {
         for x in 0..game.map_wrap.width() {
-            for (direction, _) in CIV3_DIRS.into_iter().enumerate() {
+            for (direction, _) in EIGHT_WAY_DIRS.into_iter().enumerate() {
                 let Some(destination) = game.map_wrap.eight_way_neighbor(x, y, direction) else {
                     continue;
                 };
@@ -1597,7 +1597,7 @@ fn reference_zoc_allows_one_step_into_enemy_control_from_a_safe_tile() {
     let unit = game.unit_by_id(mover).unwrap().clone();
 
     assert!(!game.zone_blocks_step(&unit, start, destination));
-    assert!(game.apply(Command::MoveCiv3(mover, 2)));
+    assert!(game.apply(Command::MoveByDirection(mover, 2)));
     assert_eq!(
         (
             game.unit_by_id(mover).unwrap().x,
@@ -1624,7 +1624,7 @@ fn zoc_legality_does_not_preempt_the_existing_attack_action_path() {
     assert!(game.zone_blocks_step(&unit, start, destination));
     game.set_random_seed(42);
     let random_before_attack = game.random_snapshot();
-    assert!(game.apply(Command::MoveCiv3(attacker, 2)));
+    assert!(game.apply(Command::MoveByDirection(attacker, 2)));
     assert_ne!(game.random_snapshot(), random_before_attack);
 }
 
@@ -1995,7 +1995,7 @@ fn enemy_entering_a_lone_leader_destroys_it() {
     game.spawn_unit(1, UnitKind::Leader, target.0, target.1);
     game.sign_pact(HUMAN, 1, Pact::War);
 
-    assert!(game.apply(Command::MoveCiv3(attacker, 2)));
+    assert!(game.apply(Command::MoveByDirection(attacker, 2)));
 
     assert!(
         game.units.iter().all(|unit| unit.kind != UnitKind::Leader),

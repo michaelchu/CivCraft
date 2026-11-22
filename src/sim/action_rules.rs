@@ -441,7 +441,7 @@ impl<'a> SimulationRequirementContext<'a> {
                         .map_err(|_| Self::unsupported(requirement))?
                     {
                         crate::rules::content_adapter::EngineTechBinding::Bound(tech) => tech,
-                        crate::rules::content_adapter::EngineTechBinding::MissingFromCiv3Catalog => {
+                        crate::rules::content_adapter::EngineTechBinding::MissingFromCatalog => {
                             if self.unbound_content_is_absent {
                                 return Ok(false);
                             }
@@ -2644,17 +2644,17 @@ mod tests {
         game.players[crate::sim::HUMAN]
             .known
             .push(Tech::MACHINE_TOOLS);
-        let stale_freeciv_alias =
+        let stale_alias =
             SimulationRequirementContext::for_player_at(&game, crate::sim::HUMAN, None);
-        assert!(!stale_freeciv_alias.is_present(&requirement).unwrap());
+        assert!(!stale_alias.is_present(&requirement).unwrap());
 
         game.players[crate::sim::HUMAN]
             .known
             .retain(|tech| *tech != Tech::MACHINE_TOOLS);
         game.players[crate::sim::HUMAN].known.push(Tech::ROBOTICS);
-        let civ3_context =
+        let native_context =
             SimulationRequirementContext::for_player_at(&game, crate::sim::HUMAN, None);
-        assert!(civ3_context.is_present(&requirement).unwrap());
+        assert!(native_context.is_present(&requirement).unwrap());
     }
 
     #[test]

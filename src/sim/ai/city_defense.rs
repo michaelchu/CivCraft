@@ -265,7 +265,7 @@ impl Simulation {
                     {
                         continue;
                     }
-                    for (direction, (dx, dy)) in CIV3_DIRS.into_iter().enumerate() {
+                    for (direction, (dx, dy)) in EIGHT_WAY_DIRS.into_iter().enumerate() {
                         let Some((tx, ty)) = self.map_wrap.eight_way_offset(x, y, dx, dy) else {
                             continue;
                         };

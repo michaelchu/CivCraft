@@ -25,12 +25,12 @@ impl Simulation {
             .iter()
             .find(|u| u.id == unit_id)
             .is_some_and(|u| u.moves_left > 0)
-            && safety < CIV3_DIRS.len()
+            && safety < EIGHT_WAY_DIRS.len()
         {
-            let start = self.rand_below(CIV3_DIRS.len() as i32) as usize;
+            let start = self.rand_below(EIGHT_WAY_DIRS.len() as i32) as usize;
             let mut moved = false;
-            for offset in 0..CIV3_DIRS.len() {
-                let direction = (start + offset) % CIV3_DIRS.len();
+            for offset in 0..EIGHT_WAY_DIRS.len() {
+                let direction = (start + offset) % EIGHT_WAY_DIRS.len();
                 if self.try_move_unit(unit_id, direction) != MoveResult::Blocked {
                     moved = true;
                     break;

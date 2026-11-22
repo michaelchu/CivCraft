@@ -6,7 +6,8 @@
 
 use super::*;
 
-const FREECIV_MAX_COLATITUDE: i32 = 1000;
+/// Freeciv's MAX_COLATITUDE.
+const MAX_COLATITUDE: i32 = 1000;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum TemperatureType {
@@ -93,7 +94,7 @@ impl Generator {
             debug_assert_eq!(land_mask.len(), tile_count);
 
             let shore = settings.shore_level();
-            let height_range = FREECIV_MAX_COLATITUDE - shore;
+            let height_range = MAX_COLATITUDE - shore;
             for tile in 0..tile_count {
                 let colatitude = values[tile];
                 let (mut ocean_neighbors, mut neighbor_count) = (0, 0);
@@ -118,22 +119,22 @@ impl Generator {
                 // Preserve the integer divisions in Freeciv's C expression.
                 let temperate =
                     0.15 * f64::from(
-                        (settings.temperature / 100 - colatitude / FREECIV_MAX_COLATITUDE)
+                        (settings.temperature / 100 - colatitude / MAX_COLATITUDE)
                             * 2
                             * ocean_percent.min(50),
                     ) / 100.0;
                 values[tile] = (f64::from(colatitude) * (1.0 + temperate) * (1.0 + height)) as i32;
             }
 
-            if real_max - real_min >= FREECIV_MAX_COLATITUDE * 2 / 5 {
+            if real_max - real_min >= MAX_COLATITUDE * 2 / 5 {
                 rank_field_between(&mut values, real_min, real_max);
             }
         }
 
         let (frozen_level, cold_level, tropical_level) =
             temperature_thresholds(settings.temperature, tile_count);
-        let dry_min = (FREECIV_MAX_COLATITUDE * (7300 - settings.temperature * 18) / 10000).max(0);
-        let dry_max = FREECIV_MAX_COLATITUDE * (7300 + settings.temperature * 17) / 10000;
+        let dry_min = (MAX_COLATITUDE * (7300 - settings.temperature * 18) / 10000).max(0);
+        let dry_max = MAX_COLATITUDE * (7300 + settings.temperature * 17) / 10000;
         TemperatureMap {
             zones: values
                 .into_iter()
@@ -171,17 +172,16 @@ fn rank_field_between(values: &mut [i32], minimum: i32, maximum: i32) {
 
 /// Follows Freeciv's temperature zone thresholds.
 pub(super) fn temperature_thresholds(temperature: i32, tile_count: usize) -> (i32, i32, i32) {
-    let cold_level = (FREECIV_MAX_COLATITUDE * (60 * 7 - temperature * 6) / 700).max(0);
-    let tropical_level = (FREECIV_MAX_COLATITUDE * (143 * 7 - temperature * 10) / 700)
-        .clamp(0, FREECIV_MAX_COLATITUDE * 9 / 10);
+    let cold_level = (MAX_COLATITUDE * (60 * 7 - temperature * 6) / 700).max(0);
+    let tropical_level =
+        (MAX_COLATITUDE * (143 * 7 - temperature * 10) / 700).clamp(0, MAX_COLATITUDE * 9 / 10);
 
     // C2C3 leaves `separatepoles` unset, so use Freeciv's server default
     // (TRUE). The current campaign topology keeps default full-range latitude
     // bounds; Freeciv's short-latitude correction therefore does not apply.
     let square_size = ((tile_count / 1000) as f64).sqrt() as i32;
     let square_size = square_size.max(1);
-    let ice_base = ((100 * cold_level / 3 - FREECIV_MAX_COLATITUDE).max(0)
-        + FREECIV_MAX_COLATITUDE * square_size)
+    let ice_base = ((100 * cold_level / 3 - MAX_COLATITUDE).max(0) + MAX_COLATITUDE * square_size)
         / (100 * square_size);
 
     (2 * ice_base, cold_level, tropical_level)

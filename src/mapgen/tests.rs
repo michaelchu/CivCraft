@@ -52,7 +52,7 @@ fn map_rng_uses_the_shared_reference_primitive() {
     for seed in [0, 42, u64::MAX] {
         let mut map = MapRng::new(seed);
         let folded_seed = seed as u32 ^ (seed >> 32) as u32;
-        let mut game = crate::random::FreecivRng::new(folded_seed);
+        let mut game = crate::random::GameRng::new(folded_seed);
         // Cross many ring boundaries and rejection-heavy ranges.
         for _ in 0..137 {
             assert_eq!(map.draw(2_147_483_649), game.draw(2_147_483_649));
@@ -67,7 +67,7 @@ fn map_rng_uses_the_shared_reference_primitive() {
 fn campaign_seed_draws_a_distinct_map_seed_and_preserves_game_rng_state() {
     for seed in [1, 42, 12345, u64::MAX] {
         let (map_seed, gameplay_rng) = campaign_randomness(seed);
-        let mut expected_rng = crate::random::FreecivRng::new(seed as u32);
+        let mut expected_rng = crate::random::GameRng::new(seed as u32);
         let mut expected_seed = expected_rng.draw(u32::MAX) & (u32::MAX >> 1);
         while expected_seed == 0 {
             expected_seed = expected_rng.draw(u32::MAX) & (u32::MAX >> 1);
@@ -86,7 +86,7 @@ fn reference_mapgen_retries_draw_fresh_seeds_from_the_gameplay_stream() {
     let second = draw_map_seed(&mut gameplay_rng);
     let third = draw_map_seed(&mut gameplay_rng);
 
-    let mut source_rng = crate::random::FreecivRng::new(seed as u32);
+    let mut source_rng = crate::random::GameRng::new(seed as u32);
     let source_seeds = (0..3)
         .map(|_| {
             loop {
@@ -101,7 +101,7 @@ fn reference_mapgen_retries_draw_fresh_seeds_from_the_gameplay_stream() {
     assert_eq!([first, second, third], source_seeds.as_slice());
     assert_ne!(first, second);
     assert_ne!(second, third);
-    assert_eq!(FREECIV_MAPGEN_MAX_ATTEMPTS, 3);
+    assert_eq!(MAPGEN_MAX_ATTEMPTS, 3);
 }
 
 #[test]
@@ -123,24 +123,24 @@ fn ruleset_settings_change_reference_height_resolution_and_shore_mask() {
         settings: WorldSettings::default(),
         civilization_count: 8,
     };
-    let c2c3 = defaults::default_map_generation_settings();
+    let ruleset_defaults = defaults::default_map_generation_settings();
     let request = map_generation_request(42, wrap, WorldSettings::default(), 8);
-    assert_eq!(request.map_generation_settings, c2c3);
+    assert_eq!(request.map_generation_settings, ruleset_defaults);
 
     let mut default_rng = MapRng::new(123);
     let default_field = generator.fractal_height_field(
         &mut default_rng,
-        c2c3.startpos.fractal_divisions(8),
-        c2c3.landmass_percent,
+        ruleset_defaults.startpos.fractal_divisions(8),
+        ruleset_defaults.landmass_percent,
         true,
     );
-    let default_land_tiles = fractal_land_mask(&default_field, c2c3)
+    let default_land_tiles = fractal_land_mask(&default_field, ruleset_defaults)
         .into_iter()
         .filter(|is_land| *is_land)
         .count();
     let more_land = MapGenerationSettings {
         landmass_percent: 40,
-        ..c2c3
+        ..ruleset_defaults
     };
     let more_land_tiles = fractal_land_mask(&default_field, more_land)
         .into_iter()
@@ -150,7 +150,7 @@ fn ruleset_settings_change_reference_height_resolution_and_shore_mask() {
 
     let more_divisions = MapGenerationSettings {
         startpos: defaults::StartPositionSetting::Single,
-        ..c2c3
+        ..ruleset_defaults
     };
     let mut single_start_rng = MapRng::new(123);
     let single_start_field = generator.fractal_height_field(
@@ -186,7 +186,7 @@ fn reference_fractal_height_consumes_jitter_for_shared_and_bounded_midpoints() {
     let settings = defaults::default_map_generation_settings();
     let divisions = settings.startpos.fractal_divisions(8);
     let step = wrap.width() + wrap.height();
-    let mut expected = crate::random::FreecivRng::new(123);
+    let mut expected = crate::random::GameRng::new(123);
 
     // Initial grid, five midpoint calculations per recursive call, then
     // Freeciv's final per-tile fuzz pass.
@@ -301,7 +301,7 @@ fn generated_rivers_reach_the_ocean_and_resources_are_spaced() {
         settings: WorldSettings::default(),
         civilization_count: crate::world::DEFAULT_CIVILIZATION_COUNT,
     };
-    let freeciv_settings = defaults::default_map_generation_settings();
+    let generation_rules = defaults::default_map_generation_settings();
     let terrain_properties = defaults::default_terrain_mapgen_properties();
     for seed in [0, 42, 12345] {
         let map = generate(seed);
@@ -341,7 +341,7 @@ fn generated_rivers_reach_the_ocean_and_resources_are_spaced() {
             assert!((0..=1000).contains(&tile.altitude));
             if tile.terrain.is_water() {
                 let (x, y) = map.map_wrap.position(index);
-                for direction in 0..CIV3_DIRS.len() {
+                for direction in 0..EIGHT_WAY_DIRS.len() {
                     if tile.river_edges & (1 << direction) == 0 {
                         continue;
                     }
@@ -387,7 +387,7 @@ fn generated_rivers_reach_the_ocean_and_resources_are_spaced() {
                                 tiles[near].terrain,
                                 placement::terrain_is_unsafe_coast(
                                     tiles[near].terrain,
-                                    freeciv_settings.ocean_depths,
+                                    generation_rules.ocean_depths,
                                     &terrain_properties,
                                 ),
                             )
@@ -403,7 +403,7 @@ fn generated_rivers_reach_the_ocean_and_resources_are_spaced() {
                     assert!(
                         near_safe_tile || next_to_polar_override,
                         "aquatic resource at {index} has no safe tile within radius one for seed {seed}; C2C3 ocean_resources={} neighbors={neighborhood:?}",
-                        freeciv_settings.ocean_resources,
+                        generation_rules.ocean_resources,
                     );
                 }
             }
@@ -1356,7 +1356,7 @@ fn generated_worlds_match_civcraft_resource_goldens_for_each_wrap() {
 #[test]
 fn fractal_generator_applies_world_settings_deterministically() {
     let default_map = generate_for_map_size_with(
-        &FreecivFractalMapGenerator,
+        &FractalMapGenerator,
         42,
         MapSize::Tiny,
         WorldSettings::default(),
@@ -1367,7 +1367,7 @@ fn fractal_generator_applies_world_settings_deterministically() {
     );
 
     let custom_a = generate_for_map_size_with(
-        &FreecivFractalMapGenerator,
+        &FractalMapGenerator,
         42,
         MapSize::Tiny,
         WorldSettings {
@@ -1379,7 +1379,7 @@ fn fractal_generator_applies_world_settings_deterministically() {
         },
     );
     let custom_b = generate_for_map_size_with(
-        &FreecivFractalMapGenerator,
+        &FractalMapGenerator,
         42,
         MapSize::Tiny,
         WorldSettings {
@@ -1419,7 +1419,7 @@ fn terrain_biome_census() {
                     ..WorldSettings::default()
                 };
                 let map = generate_with_map_generator(
-                    &FreecivFractalMapGenerator,
+                    &FractalMapGenerator,
                     map_generation_request(
                         seed,
                         MapWrap::X,
@@ -1450,7 +1450,7 @@ fn fractal_feature_biomes_cover_cold_dry_and_temperate_art_without_changing_pole
     for seed in [42, 7, 99] {
         for temperature in [Temperature::Cool, Temperature::Temperate, Temperature::Warm] {
             let map = generate_with_map_generator(
-                &FreecivFractalMapGenerator,
+                &FractalMapGenerator,
                 map_generation_request(
                     seed,
                     MapWrap::X,

@@ -1,8 +1,6 @@
 //! World options shared by the desktop and headless entry points.
 
-use crate::mapgen::{
-    self, FreecivFractalMapGenerator, MapSize, OpenSimplexMapGenerator, WorldSettings,
-};
+use crate::mapgen::{self, FractalMapGenerator, MapSize, OpenSimplexMapGenerator, WorldSettings};
 use crate::world::GeneratedMap;
 use serde_json::{Value, json};
 
@@ -105,7 +103,7 @@ impl WorldSetup {
     pub(crate) fn generate(self, seed: u64) -> GeneratedMap {
         match self.generator {
             Generator::Fractal => mapgen::generate_for_map_size_with(
-                &FreecivFractalMapGenerator,
+                &FractalMapGenerator,
                 seed,
                 self.size,
                 self.settings,

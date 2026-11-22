@@ -2,9 +2,10 @@
 //! Keep the entire state: restoring a seed cannot resume an ongoing game.
 use serde::{Deserialize, Serialize};
 
+/// Freeciv's random number generator, ported so seeded draws match.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(try_from = "SavedState", into = "SavedState")]
-pub(crate) struct FreecivRng {
+pub(crate) struct GameRng {
     values: Vec<u32>,
     j: u8,
     k: u8,
@@ -21,8 +22,8 @@ struct SavedState {
     initialized: bool,
 }
 
-impl From<FreecivRng> for SavedState {
-    fn from(state: FreecivRng) -> Self {
+impl From<GameRng> for SavedState {
+    fn from(state: GameRng) -> Self {
         Self {
             values: state.values,
             j: state.j,
@@ -33,7 +34,7 @@ impl From<FreecivRng> for SavedState {
     }
 }
 
-impl TryFrom<SavedState> for FreecivRng {
+impl TryFrom<SavedState> for GameRng {
     type Error = &'static str;
     fn try_from(state: SavedState) -> Result<Self, Self::Error> {
         let result = Self {
@@ -51,7 +52,7 @@ impl TryFrom<SavedState> for FreecivRng {
     }
 }
 
-impl Default for FreecivRng {
+impl Default for GameRng {
     fn default() -> Self {
         Self {
             values: vec![0; 56],
@@ -63,7 +64,7 @@ impl Default for FreecivRng {
     }
 }
 
-impl FreecivRng {
+impl GameRng {
     pub(crate) fn new(seed: u32) -> Self {
         let mut state = Self::default();
         state.values[0] = seed;
@@ -129,7 +130,7 @@ impl FreecivRng {
 mod tests {
     use super::*;
 
-    fn state_hash(state: &FreecivRng) -> u32 {
+    fn state_hash(state: &GameRng) -> u32 {
         state
             .values
             .iter()
@@ -148,14 +149,14 @@ mod tests {
     #[test]
     fn native_c_oracle_matches_values_and_entire_state_after_rejections() {
         let mut current_seed = None;
-        let mut state = FreecivRng::default();
+        let mut state = GameRng::default();
         for line in include_str!("../tests/fixtures/freeciv_random_vectors.tsv").lines() {
             if line.starts_with('#') {
                 continue;
             }
             let fields: Vec<u32> = line.split('\t').map(|s| s.parse().unwrap()).collect();
             if current_seed != Some(fields[0]) {
-                state = FreecivRng::new(fields[0]);
+                state = GameRng::new(fields[0]);
                 current_seed = Some(fields[0]);
             }
             assert_eq!(state.draw(fields[1]), fields[2], "{line}");
@@ -166,10 +167,10 @@ mod tests {
 
     #[test]
     fn small_limits_uninitialized_and_save_resume_preserve_draw_order() {
-        let mut state = FreecivRng::default();
+        let mut state = GameRng::default();
         assert!(!state.is_initialized());
         assert_eq!(state.draw(100), 0);
-        let mut state = FreecivRng::new(42);
+        let mut state = GameRng::new(42);
         let saved = state.clone();
         assert_eq!(state.draw(0), 0);
         assert_eq!(state.draw(1), 0);
@@ -178,7 +179,7 @@ mod tests {
             state.draw(100);
         }
         let bytes = bincode::serialize(&state).unwrap();
-        let mut restored: FreecivRng = bincode::deserialize(&bytes).unwrap();
+        let mut restored: GameRng = bincode::deserialize(&bytes).unwrap();
         for limit in [u32::MAX, 2, 2_147_483_649, 100, 7] {
             assert_eq!(state.draw(limit), restored.draw(limit));
         }
@@ -192,7 +193,7 @@ mod tests {
     #[test]
     fn loading_rejects_truncated_words_invalid_indices_and_inconsistent_phase() {
         for mutation in 0..4 {
-            let mut saved = SavedState::from(FreecivRng::new(7));
+            let mut saved = SavedState::from(GameRng::new(7));
             match mutation {
                 0 => {
                     saved.values.pop();
@@ -202,13 +203,13 @@ mod tests {
                 _ => saved.x = 255,
             }
             let bytes = bincode::serialize(&saved).unwrap();
-            assert!(bincode::deserialize::<FreecivRng>(&bytes).is_err());
+            assert!(bincode::deserialize::<GameRng>(&bytes).is_err());
         }
     }
 
     #[test]
     fn rejected_maximum_advances_before_drawing_again() {
-        let mut state = FreecivRng {
+        let mut state = GameRng {
             values: vec![0; 56],
             j: 0,
             k: 31,

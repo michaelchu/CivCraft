@@ -277,7 +277,7 @@ mod tests {
             game.unit_by_id(army).unwrap()
         ));
         assert!(!game.combat_unit_can_defend_here(game.unit_by_id(members[0]).unwrap()));
-        assert!(!game.apply(Command::MoveCiv3(members[0], 2)));
+        assert!(!game.apply(Command::MoveByDirection(members[0], 2)));
         assert_eq!(
             game.unit_move_rate(game.unit_by_id(army).unwrap()),
             2 * MOVE_FRAGMENTS
@@ -320,7 +320,7 @@ mod tests {
         let city = game.city_at(target.0, target.1).unwrap().id;
         game.cities.iter_mut().find(|c| c.id == city).unwrap().size = 3;
         let defender = game.spawn_unit(1, UnitKind::Warrior, target.0, target.1);
-        assert!(game.apply(Command::MoveCiv3(army, 2)));
+        assert!(game.apply(Command::MoveByDirection(army, 2)));
         assert!(game.unit_by_id(defender).is_none());
         assert_eq!(game.city_by_id(city).unwrap().owner, HUMAN);
         let unit = game.unit_by_id(army).unwrap();

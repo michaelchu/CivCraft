@@ -542,7 +542,7 @@ mod tests {
             seed: 42,
             map_seed: 42,
             map_wrap,
-            game_random: crate::random::FreecivRng::new(42),
+            game_random: crate::random::GameRng::new(42),
             tiles: vec![grassland; map_wrap.tile_count()],
             starts: Vec::new(),
             civilization_count: crate::world::DEFAULT_CIVILIZATION_COUNT,
