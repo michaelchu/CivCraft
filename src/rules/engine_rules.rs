@@ -11,12 +11,16 @@ use std::sync::OnceLock;
 use super::section_file;
 use super::section_file::{Entry, Section, SectionFile, Value};
 
+#[path = "engine_rules/action_enablers.rs"]
+mod action_enablers;
 #[path = "engine_rules/campaign.rs"]
 mod campaign;
 #[path = "engine_rules/civil_war.rs"]
 mod civil_war;
 #[path = "engine_rules/combat.rs"]
 mod combat;
+#[path = "engine_rules/disasters.rs"]
+mod disasters;
 #[path = "engine_rules/great_leader.rs"]
 mod great_leader;
 #[path = "engine_rules/identifiers.rs"]
@@ -34,6 +38,7 @@ pub(crate) use civil_war::CivilWarRulesetSettings;
 pub(crate) use combat::{
     CombatBonusKind, CombatRulesetSettings, TransportDefense, UnitCombatBonus,
 };
+pub(crate) use disasters::{Disaster, DisasterEffect, campaign_disasters};
 pub(crate) use great_leader::GreatLeaderSettings;
 pub(crate) use identifiers::{EffectKind, RequirementKind};
 #[cfg(test)]
@@ -570,25 +575,6 @@ impl RuleRecord {
         }
     }
 
-    /// Read a scalar boolean field without exposing the native parser's
-    /// value representation to gameplay adapters.
-    pub(crate) fn boolean_field(&self, key: &str) -> Result<Option<bool>, String> {
-        let Some(entry) = self
-            .fields
-            .iter()
-            .find(|entry| entry.key.eq_ignore_ascii_case(key))
-        else {
-            return Ok(None);
-        };
-        match &entry.value {
-            Value::Bool(value) => Ok(Some(*value)),
-            other => Err(format!(
-                "{}.{} must be a boolean, found {other:?}",
-                self.section, key
-            )),
-        }
-    }
-
     /// Read a string-list field without exposing the native parser's value
     /// representation to gameplay adapters. A single quoted string is
     /// normalized to a one-item list, as several ruleset fields permit either
@@ -709,12 +695,13 @@ impl RulesetData {
     #[cfg(test)]
     pub(crate) fn with_test_units(&self, units_source: &str) -> Self {
         let mut files = self.files.clone();
-        let units_file = files
-            .iter_mut()
-            .find(|file| file.name == "units.ruleset")
-            .expect("campaign ruleset includes units.ruleset");
         let parsed = super::section_file::parse(units_source).expect("valid test units.ruleset");
-        units_file.parsed.sections.extend(parsed.sections);
+        files.push(LoadedRuleFile {
+            name: "units.ruleset".to_owned(),
+            path: PathBuf::from("engine_data/units.ruleset"),
+            source: RuleFileSource::SelectedRuleset,
+            parsed,
+        });
         Self::from_files(&self.name, files).expect("valid campaign + test units ruleset")
     }
 
@@ -1254,35 +1241,11 @@ mod tests {
     }
 
     #[test]
-    fn rule_record_reads_validated_boolean_fields() {
-        let record = super::RuleRecord {
-            file: "game.ruleset".to_owned(),
-            namespace: "disaster".to_owned(),
-            section: "disaster_test".to_owned(),
-            rule_name: "Test".to_owned(),
-            display_name: Some("Test".to_owned()),
-            requirements: vec![],
-            fields: vec![Entry {
-                key: "enabled".to_owned(),
-                value: Value::Bool(true),
-                line: 1,
-            }],
-        };
-        assert_eq!(record.boolean_field("enabled").unwrap(), Some(true));
-        assert_eq!(record.boolean_field("missing").unwrap(), None);
-        assert!(record.string_field("enabled").is_err());
-    }
-
-    #[test]
     fn loader_builds_typed_settings_effects_actions_and_content() {
         let files = files_with_overrides(&[
             (
                 "game.ruleset",
                 "[settings]\nset =\n { \"name\", \"value\"\n \"citymindist\", 3\n \"generator\", \"FRACTAL\"\n }\n[clause_advance]\ntype = \"Advance\"\n",
-            ),
-            (
-                "actions.ruleset",
-                "[action_found_city]\naction = \"Found City\"\n[enabler_found_city]\naction = \"Found City\"\nactor_reqs =\n { \"type\", \"name\", \"range\", \"present\"\n \"Tech\", \"civ3_literacy\", \"Player\", TRUE\n }\ntarget_reqs =\n { \"type\", \"name\", \"range\"\n \"Terrain\", \"Ocean\", \"Tile\"\n }\n",
             ),
             (
                 "effects.ruleset",
@@ -1305,7 +1268,7 @@ mod tests {
                 "[terrain_ocean]\nname = \"Ocean\"\n[resource_iron]\nname = \"Iron\"\nreqs =\n { \"type\", \"name\", \"range\"\n \"Terrain\", \"Ocean\", \"tile\"\n }\n[extra_mine]\nname = _(\"?extra:Mine\")\n[unitclass_land]\nname = \"Land\"\n",
             ),
         ]);
-        let rules = RulesetData::from_files("fixture", files).unwrap();
+        let rules = RulesetData::from_files_with_enablers("fixture", files, Vec::new()).unwrap();
 
         assert!(
             rules
@@ -1317,12 +1280,6 @@ mod tests {
         assert_eq!(
             rules.effects[0].requirements[0].range,
             RequirementRange::City
-        );
-        assert_eq!(rules.action_enablers.len(), 1);
-        assert!(rules.action_enablers[0].actor_requirements[0].present);
-        assert_eq!(
-            rules.action_enablers[0].target_requirements[0].range,
-            RequirementRange::Tile
         );
         assert!(rules.content.iter().any(|record| {
             record.kind == ContentKind::Building
@@ -1370,11 +1327,6 @@ mod tests {
                 "unknown Freeciv requirement type",
             ),
             (
-                "actions.ruleset",
-                "[enabler_test]\naction = \"Not An Action\"\n",
-                "unknown Freeciv action",
-            ),
-            (
                 "effects.ruleset",
                 "[effect_test]\ntype = \"Not_An_Effect\"\n",
                 "unknown Freeciv effect type",
@@ -1383,7 +1335,8 @@ mod tests {
 
         for (file, contents, expected_error) in invalid_cases {
             let files = files_with_overrides(&[(file, contents)]);
-            let error = RulesetData::from_files("fixture", files).unwrap_err();
+            let error =
+                RulesetData::from_files_with_enablers("fixture", files, Vec::new()).unwrap_err();
             assert!(
                 error.message.contains(expected_error),
                 "unexpected error for {file}: {error}"
@@ -1397,8 +1350,25 @@ mod tests {
                 "[building_library]\nname = \"Library\"\nreqs =\n { \"type\", \"name\", \"range\"\n \"Tech\", \"Writng\", \"Player\"\n }\n",
             ),
         ]);
-        let error = RulesetData::from_files("fixture", files).unwrap_err();
+        let error =
+            RulesetData::from_files_with_enablers("fixture", files, Vec::new()).unwrap_err();
         assert!(error.message.contains("unknown or unsupported value"));
         assert_eq!(error.section.as_deref(), Some("building_library"));
+    }
+
+    #[test]
+    fn campaign_enablers_name_known_actions() {
+        let enablers = &RulesetData::campaign_default().action_enablers;
+        assert_eq!(enablers.len(), 89);
+        for enabler in enablers {
+            assert!(
+                super::identifiers::ACTION_NAMES
+                    .iter()
+                    .any(|name| name.eq_ignore_ascii_case(&enabler.action)),
+                "enabler {} names unknown action {:?}",
+                enabler.rule_name,
+                enabler.action
+            );
+        }
     }
 }

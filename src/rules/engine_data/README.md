@@ -12,10 +12,7 @@ The layer is being moved into Rust. What remains here:
 | File | Still used for |
 | --- | --- |
 | `effects.ruleset` | The effect graph: government rate caps, vision, empire size, civil war and similar effects |
-| `actions.ruleset` | Action enablers only |
 | `terrain.ruleset` | Extras, roads, resources and movement parameters |
-| `units.ruleset` | Unit class records, plus the flag names used to validate requirements |
-| `game.ruleset` | `[disaster_*]` and `[achievement_*]` records |
 
 ## What moved to code
 
@@ -27,6 +24,13 @@ engine default where the ruleset leaves the value unset. Economy, settlement,
 strategy, diplomacy, vassalage and government data are in
 `src/rules/native.rs` and `src/rules/policies.rs`. Terrain yields and climate
 are in `src/rules/terrain_catalog.rs`.
+
+The action enablers are a Rust table in
+[`src/rules/engine_rules/action_enablers.rs`](../engine_rules/action_enablers.rs),
+the disasters are in `src/rules/engine_rules/disasters.rs`, and the achievements
+are in `src/sim/achievements.rs`. The unit class behavior is in
+`src/sim/movement_rules.rs`, and the flag and class names that requirements are
+checked against are in `src/rules/engine_rules/identifiers.rs`.
 
 A few action parameters that were in `actions.ruleset` are constants next to
 the code that uses them: the bombard block list in `src/sim/aviation.rs`, the

@@ -12,7 +12,7 @@ are outside this migration.
 | Owner | Contents |
 | --- | --- |
 | `data/rulesets/civcraft/content/` | Player-tuneable unit, building, technology, civilization, experience, and religion catalogs |
-| `src/rules/engine_data/` | Internal generic effects, action enablers, unit classes, extras/resources, and remaining engine settings |
+| `src/rules/engine_data/` | Internal generic effects and terrain extras/resources/movement parameters; the rest of the engine data is Rust (`src/rules/engine_rules/`) |
 | Rust simulation modules | Formulas, rule interpretation, state execution, validation, and turn processing |
 | `data/presentation/` | Animation pacing, independent of gameplay rules |
 | Campaign saves | Current health, activities, discovered technologies, research progress, owned buildings, and other mutable state |

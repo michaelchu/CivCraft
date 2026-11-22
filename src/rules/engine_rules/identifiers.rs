@@ -569,6 +569,38 @@ pub(super) const UNIT_TYPE_FLAG_NAMES: &[&str] = &[
     "RandomMovement",
     "Flagless",
     "ProvidesRansom",
+    // Flags the campaign defines itself (Freeciv's custom unit flags).
+    "Fortress",
+    "Transform",
+    "AirAttacker",
+    "Submarine",
+    "Unbribable",
+    "TradeRoute",
+    "HelpWonder",
+    "Capturer",
+    "Capturable",
+    "Bombarder",
+    "Cities",
+    "AddToCity",
+    "Nuclear",
+    "Paratroopers",
+    "Marines",
+    "Cant_Fortify",
+    "OneAttack",
+    "NoVeteran",
+    "ShieldToGold",
+];
+
+/// The campaign's unit classes, matching `UnitClass` in the simulation.
+pub(super) const UNIT_CLASS_NAMES: &[&str] = &[
+    "Land",
+    "Small Land",
+    "Big Land",
+    "Sea",
+    "Trireme",
+    "Helicopter",
+    "Air",
+    "Missile",
 ];
 
 pub(super) const UNIT_CLASS_FLAG_NAMES: &[&str] = &[
@@ -585,6 +617,15 @@ pub(super) const UNIT_CLASS_FLAG_NAMES: &[&str] = &[
     "KillCitizen",
     "HutFrighten",
     "NonNatBombardTgt",
+    // Flags the campaign defines itself (Freeciv's custom class flags).
+    "Airliftable",
+    "AttFromNonNative",
+    "Missile",
+    "CanPillage",
+    "CanFortify",
+    "Barracks",
+    "Ground",
+    "Aerial",
 ];
 
 pub(super) const DIPLO_REL_NAMES: &[&str] = &[

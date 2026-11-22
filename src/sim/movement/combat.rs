@@ -154,9 +154,7 @@ impl Simulation {
         let defender_class = movement_rules
             .unit_class_for_kind(unit.kind)
             .expect("campaign C2C3 defender unit class is explicitly mapped");
-        let class_rules = movement_rules
-            .unit_class_movement_data(defender_class)
-            .expect("campaign C2C3 defender class rules are valid");
+        let class_rules = movement_rules.unit_class_movement_data(defender_class);
         let tile = self.tile(x, y);
         if class_rules.terrain_defense {
             let terrain_bonus = movement_rules
@@ -536,9 +534,7 @@ impl Simulation {
         let Some(class) = movement.unit_class_for_kind(unit.kind).ok() else {
             return false;
         };
-        let Ok(class_rules) = movement.unit_class_movement_data(class) else {
-            return false;
-        };
+        let class_rules = movement.unit_class_movement_data(class);
         let native_at = |tx, ty| {
             let tile = self.tile(tx, ty);
             movement

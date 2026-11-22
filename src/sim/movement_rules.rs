@@ -38,11 +38,7 @@ impl<'a> MovementRules<'a> {
     pub(super) fn campaign_class_data(class: UnitClass) -> &'static UnitClassMovementData {
         static CLASSES: [OnceLock<UnitClassMovementData>; UnitClass::Missile as usize + 1] =
             [const { OnceLock::new() }; UnitClass::Missile as usize + 1];
-        CLASSES[class as usize].get_or_init(|| {
-            Self::campaign()
-                .unit_class_movement_data(class)
-                .expect("campaign C2C3 unit-class movement data")
-        })
+        CLASSES[class as usize].get_or_init(|| Self::campaign().unit_class_movement_data(class))
     }
 
     pub(super) fn campaign_unit_class(kind: UnitKind) -> UnitClass {
@@ -468,7 +464,7 @@ impl<'a> MovementRules<'a> {
     ) -> Result<i32, MovementRulesError> {
         let move_fragments = self.move_fragments()?;
         let igter_cost = self.igter_cost()?;
-        if !self.unit_class_movement_data(class)?.terrain_speed {
+        if !self.unit_class_movement_data(class).terrain_speed {
             return Ok(move_fragments);
         }
         if !self.movement_tile_native_to_class(
@@ -527,7 +523,7 @@ impl<'a> MovementRules<'a> {
     /// action-enabler cache, which this ruleset-only adapter does not model.
     pub(super) fn unknown_tile_move_cost(&self, kind: UnitKind) -> Result<i32, MovementRulesError> {
         let class = self.unit_class_for_kind(kind)?;
-        let class_data = self.unit_class_movement_data(class)?;
+        let class_data = self.unit_class_movement_data(class);
         let fragments = self.move_fragments()?;
         let ignores_terrain =
             super::action_rules::unit_type_flag(kind, "IgTer").ok_or_else(|| {
@@ -595,29 +591,10 @@ impl<'a> MovementRules<'a> {
         Ok(movement_cost)
     }
 
-    /// Read C2C3 unit-class flags. Civ III unit identity and class membership
-    /// remain source-catalog inputs; the name conversion is deliberately
-    /// explicit so unsupported source classes cannot silently use a default.
-    pub(super) fn unit_class_movement_data(
-        &self,
-        class: UnitClass,
-    ) -> Result<UnitClassMovementData, MovementRulesError> {
-        let rule_name = class.rule_name();
-        let record = unique_rule_record(self.rules, "unit_class", rule_name)?;
-        let flags = required_rule_string_list(record, "flags")?;
-        Ok(UnitClassMovementData {
-            rule_name: record.rule_name.clone(),
-            min_speed: required_nonnegative_rule_integer(record, "min_speed")?,
-            non_native_def_pct: required_nonnegative_rule_integer(record, "non_native_def_pct")?,
-            build_anywhere: has_flag(&flags, "BuildAnywhere"),
-            can_occupy_city: has_flag(&flags, "CanOccupyCity"),
-            kills_citizens: has_flag(&flags, "KillCitizen"),
-            missile: has_flag(&flags, "Missile"),
-            terrain_defense: has_flag(&flags, "TerrainDefense"),
-            terrain_speed: has_flag(&flags, "TerrainSpeed"),
-            zoc: has_flag(&flags, "ZOC"),
-            damage_slows: has_flag(&flags, "DamageSlows"),
-        })
+    /// The movement-relevant behavior of a Freeciv unit class. Civ III unit
+    /// identity and class membership remain source-catalog inputs.
+    pub(super) fn unit_class_movement_data(&self, class: UnitClass) -> UnitClassMovementData {
+        UnitClassMovementData::campaign(class)
     }
 
     /// Resolve the Freeciv class for a retained Civ III unit identity. Mapped
@@ -660,7 +637,7 @@ impl<'a> MovementRules<'a> {
         kind: UnitKind,
     ) -> Result<UnitClassMovementData, MovementRulesError> {
         Ok(self
-            .unit_class_movement_data(self.unit_class_for_kind(kind)?)?
+            .unit_class_movement_data(self.unit_class_for_kind(kind)?)
             .with_unit(kind))
     }
 
@@ -885,6 +862,73 @@ pub(super) struct UnitClassMovementData {
 }
 
 impl UnitClassMovementData {
+    /// The pinned `civ2civ3` class records. Every class defends at full
+    /// strength off native terrain (`non_native_def_pct = 100`).
+    fn campaign(class: UnitClass) -> Self {
+        let none = Self {
+            rule_name: class.rule_name().to_owned(),
+            min_speed: 1,
+            non_native_def_pct: 100,
+            build_anywhere: false,
+            can_occupy_city: false,
+            kills_citizens: false,
+            missile: false,
+            terrain_defense: false,
+            terrain_speed: false,
+            zoc: false,
+            damage_slows: false,
+        };
+        match class {
+            UnitClass::Land => Self {
+                build_anywhere: true,
+                can_occupy_city: true,
+                terrain_defense: true,
+                terrain_speed: true,
+                zoc: true,
+                damage_slows: true,
+                ..none
+            },
+            UnitClass::SmallLand => Self {
+                build_anywhere: true,
+                terrain_defense: true,
+                terrain_speed: true,
+                zoc: true,
+                damage_slows: true,
+                ..none
+            },
+            UnitClass::BigLand => Self {
+                build_anywhere: true,
+                can_occupy_city: true,
+                kills_citizens: true,
+                terrain_speed: true,
+                zoc: true,
+                damage_slows: true,
+                ..none
+            },
+            UnitClass::Sea => Self {
+                min_speed: 2,
+                damage_slows: true,
+                ..none
+            },
+            UnitClass::Trireme => Self {
+                min_speed: 2,
+                zoc: true,
+                damage_slows: true,
+                ..none
+            },
+            UnitClass::Helicopter => Self {
+                can_occupy_city: true,
+                ..none
+            },
+            UnitClass::Air => none,
+            UnitClass::Missile => Self {
+                min_speed: 0,
+                missile: true,
+                ..none
+            },
+        }
+    }
+
     fn with_unit(mut self, kind: UnitKind) -> Self {
         let source = kind.conquests_rule();
         if source.unit_type == 0 {
@@ -1644,66 +1688,130 @@ mod tests {
     }
 
     #[test]
-    fn full_civ3_class_adapter_reads_movement_flags_from_c2c3_records() {
-        let rules = campaign_rules();
-        let adapter = MovementRules::new(rules);
-        for (class, source_name) in UNIT_CLASS_ADAPTER {
-            assert_eq!(class.rule_name(), source_name);
-            let record = rules
-                .rule_records
-                .iter()
-                .find(|record| {
-                    record.namespace == "unit_class"
-                        && record.rule_name.eq_ignore_ascii_case(source_name)
-                })
-                .expect("mapped C2C3 unit class");
-            let flags = raw_class_flags(record);
-            let adapted = adapter.unit_class_movement_data(class).unwrap();
-            assert_eq!(adapted.rule_name, record.rule_name);
-            assert_eq!(adapted.min_speed, raw_rule_integer(record, "min_speed"));
+    fn unit_class_movement_data_matches_the_pinned_class_records() {
+        let adapter = MovementRules::new(campaign_rules());
+        // class, min_speed, build_anywhere, occupy, kills_citizens, missile,
+        // terrain_defense, terrain_speed, zoc, damage_slows
+        let expected = [
+            (
+                UnitClass::Land,
+                1,
+                true,
+                true,
+                false,
+                false,
+                true,
+                true,
+                true,
+                true,
+            ),
+            (
+                UnitClass::SmallLand,
+                1,
+                true,
+                false,
+                false,
+                false,
+                true,
+                true,
+                true,
+                true,
+            ),
+            (
+                UnitClass::BigLand,
+                1,
+                true,
+                true,
+                true,
+                false,
+                false,
+                true,
+                true,
+                true,
+            ),
+            (
+                UnitClass::Sea,
+                2,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                true,
+            ),
+            (
+                UnitClass::Trireme,
+                2,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                true,
+                true,
+            ),
+            (
+                UnitClass::Air,
+                1,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+            ),
+            (
+                UnitClass::Helicopter,
+                1,
+                false,
+                true,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+            ),
+            (
+                UnitClass::Missile,
+                0,
+                false,
+                false,
+                false,
+                true,
+                false,
+                false,
+                false,
+                false,
+            ),
+        ];
+        for (class, speed, anywhere, occupy, kills, missile, defense, terrain, zoc, slows) in
+            expected
+        {
+            let data = adapter.unit_class_movement_data(class);
+            assert_eq!(data.rule_name, class.rule_name());
+            assert_eq!(data.non_native_def_pct, 100, "{class:?}");
             assert_eq!(
-                adapted.non_native_def_pct,
-                raw_rule_integer(record, "non_native_def_pct")
-            );
-            assert_eq!(
-                adapted.build_anywhere,
-                flags
-                    .iter()
-                    .any(|flag| flag.eq_ignore_ascii_case("BuildAnywhere"))
-            );
-            assert_eq!(
-                adapted.can_occupy_city,
-                flags
-                    .iter()
-                    .any(|flag| flag.eq_ignore_ascii_case("CanOccupyCity"))
-            );
-            assert_eq!(
-                adapted.missile,
-                flags
-                    .iter()
-                    .any(|flag| flag.eq_ignore_ascii_case("Missile"))
-            );
-            assert_eq!(
-                adapted.terrain_defense,
-                flags
-                    .iter()
-                    .any(|flag| flag.eq_ignore_ascii_case("TerrainDefense"))
-            );
-            assert_eq!(
-                adapted.terrain_speed,
-                flags
-                    .iter()
-                    .any(|flag| flag.eq_ignore_ascii_case("TerrainSpeed"))
-            );
-            assert_eq!(
-                adapted.zoc,
-                flags.iter().any(|flag| flag.eq_ignore_ascii_case("ZOC"))
-            );
-            assert_eq!(
-                adapted.damage_slows,
-                flags
-                    .iter()
-                    .any(|flag| flag.eq_ignore_ascii_case("DamageSlows"))
+                (
+                    data.min_speed,
+                    data.build_anywhere,
+                    data.can_occupy_city,
+                    data.kills_citizens,
+                    data.missile,
+                    data.terrain_defense,
+                    data.terrain_speed,
+                    data.zoc,
+                    data.damage_slows,
+                ),
+                (
+                    speed, anywhere, occupy, kills, missile, defense, terrain, zoc, slows
+                ),
+                "{class:?}"
             );
         }
     }
@@ -1738,18 +1846,7 @@ mod tests {
         for kind in UnitKind::all() {
             let class = adapter.unit_class_for_kind(kind).unwrap();
             let class_name = class.rule_name();
-            let class_record = rules
-                .rule_records
-                .iter()
-                .find(|record| {
-                    record.namespace.eq_ignore_ascii_case("unit_class")
-                        && record.rule_name.eq_ignore_ascii_case(class_name)
-                })
-                .expect("mapped C2C3 unit class");
-            let class_flags = raw_class_flags(class_record);
-            let terrain_speed = class_flags
-                .iter()
-                .any(|flag| flag.eq_ignore_ascii_case("TerrainSpeed"));
+            let terrain_speed = adapter.unit_class_movement_data(class).terrain_speed;
             let ignores_terrain = super::super::action_rules::unit_type_flag(kind, "IgTer")
                 .expect("explicit C2C3 IgTer binding");
 
@@ -2200,15 +2297,6 @@ mod tests {
         assert!(matches!(
             adapter.terrain_has_flag(Terrain::Volcano, TerrainFlag::NoZoc),
             Err(MovementRulesError::UnsupportedTerrain(Terrain::Volcano))
-        ));
-
-        let mut missing_class = rules.clone();
-        missing_class.rule_records.retain(|record| {
-            !(record.namespace == "unit_class" && record.rule_name == "Small Land")
-        });
-        assert!(matches!(
-            MovementRules::new(&missing_class).unit_class_movement_data(UnitClass::SmallLand),
-            Err(MovementRulesError::MissingRecord { .. })
         ));
 
         let mut missing_road = rules.clone();

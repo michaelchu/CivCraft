@@ -30,13 +30,7 @@ macro_rules! campaign_files {
     };
 }
 
-campaign_files!(
-    "game.ruleset",
-    "actions.ruleset",
-    "units.ruleset",
-    "terrain.ruleset",
-    "effects.ruleset",
-);
+campaign_files!("terrain.ruleset", "effects.ruleset",);
 
 impl RulesetData {
     /// Load a ruleset whose selected files live in a package subdirectory.
@@ -76,6 +70,18 @@ impl RulesetData {
     }
 
     pub(crate) fn from_files(name: &str, files: Vec<LoadedRuleFile>) -> Result<Self, LoadError> {
+        Self::from_files_with_enablers(
+            name,
+            files,
+            super::action_enablers::campaign_action_enablers(),
+        )
+    }
+
+    pub(crate) fn from_files_with_enablers(
+        name: &str,
+        files: Vec<LoadedRuleFile>,
+        action_enablers: Vec<ActionEnabler>,
+    ) -> Result<Self, LoadError> {
         for required in RULESET_FILES {
             if !files.iter().any(|file| file.name == *required) {
                 return Err(LoadError::new(format!(
@@ -86,7 +92,6 @@ impl RulesetData {
 
         let mut parameters = Vec::new();
         let mut effects = Vec::new();
-        let mut action_enablers = Vec::new();
         let mut content = Vec::new();
         let mut rule_records = Vec::new();
 
@@ -106,9 +111,6 @@ impl RulesetData {
 
                 if file_name == "effects.ruleset" && section.name.starts_with("effect_") {
                     effects.push(parse_effect(&loaded.path, section)?);
-                }
-                if file_name == "actions.ruleset" && section.name.starts_with("enabler_") {
-                    action_enablers.push(parse_action_enabler(&loaded.path, section)?);
                 }
                 if let Some(kind) = content_kind(file_name, &section.name) {
                     content.push(parse_content(&loaded.path, section, kind)?);
@@ -163,7 +165,7 @@ pub(super) fn resolve_requirement_values(rules: &mut RulesetData) {
     }
 }
 
-fn resolve_requirements(requirements: &mut [Requirement]) {
+pub(super) fn resolve_requirements(requirements: &mut [Requirement]) {
     for requirement in requirements {
         let RequirementValue::String(name) = &requirement.name else {
             continue;
@@ -428,27 +430,6 @@ fn parse_effect(file: &Path, section: &Section) -> Result<EffectRecord, LoadErro
         value,
         multiplier,
         requirements,
-    })
-}
-
-fn parse_action_enabler(file: &Path, section: &Section) -> Result<ActionEnabler, LoadError> {
-    let action = field_string(file, section, "action")?.ok_or_else(|| {
-        LoadError::in_section(file, section, "action enabler is missing `action`")
-    })?;
-    validate_identifier(
-        file,
-        section,
-        "action",
-        &action,
-        super::identifiers::ACTION_NAMES,
-        "action",
-    )?;
-    Ok(ActionEnabler {
-        rule_name: section_suffix(section, "enabler_"),
-        action,
-        actor_requirements: field_requirements(file, section, "actor_reqs")?,
-        target_requirements: field_requirements(file, section, "target_reqs")?,
-        fields: section.entries.clone(),
     })
 }
 
@@ -893,24 +874,21 @@ fn requirement_value_is_valid(requirement: &Requirement, rules: &RulesetData) ->
         RequirementKind::Topology => {
             super::identifiers::contains_case_insensitive(super::identifiers::TOPOLOGY_NAMES, &name)
         }
-        RequirementKind::UnitClassFlag => flag_name_exists(
-            rules,
-            &name,
-            "units.ruleset",
-            "class_flags",
+        RequirementKind::UnitClassFlag => super::identifiers::contains_case_insensitive(
             super::identifiers::UNIT_CLASS_FLAG_NAMES,
+            &name,
         ),
-        RequirementKind::UnitClass => record_name_exists(rules, "unit_class", &name),
+        RequirementKind::UnitClass => super::identifiers::contains_case_insensitive(
+            super::identifiers::UNIT_CLASS_NAMES,
+            &name,
+        ),
         RequirementKind::UnitState => super::identifiers::contains_case_insensitive(
             super::identifiers::UNIT_STATE_NAMES,
             &name,
         ),
-        RequirementKind::UnitTypeFlag => flag_name_exists(
-            rules,
-            &name,
-            "units.ruleset",
-            "flags",
+        RequirementKind::UnitTypeFlag => super::identifiers::contains_case_insensitive(
             super::identifiers::UNIT_TYPE_FLAG_NAMES,
+            &name,
         ),
         RequirementKind::UnitType => unit_name_exists(rules, &name),
         RequirementKind::Wrap => {
