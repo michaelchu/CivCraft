@@ -826,7 +826,7 @@ pub(crate) fn selected_building_is_obsolete(
             let BuildingRequirement::Tech(index) = requirement else {
                 return None;
             };
-            Tech::all().find(|technology| technology.0 == *index)
+            Tech::from_index(*index)
         });
     Some(obsolete_technology.is_some_and(|technology| {
         granted == Some(technology) || simulation.has_tech(city.owner, technology)

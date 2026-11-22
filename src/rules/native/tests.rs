@@ -210,3 +210,23 @@ fn unified_content_ruleset_loads_all_campaign_toml_files_from_directory() {
     );
     assert_eq!(loaded.religion.faiths.len(), religion().faiths.len());
 }
+
+#[test]
+fn indexed_lookups_match_linear_scans() {
+    use crate::rules::Tech;
+    for index in 0..Tech::storage_len() + 4 {
+        assert_eq!(
+            Tech::from_index(index),
+            Tech::all().find(|tech| tech.0 == index),
+            "tech index {index}"
+        );
+    }
+    let rules = &buildings().rules;
+    for index in 0..rules.len() + 2 {
+        let linear = rules.iter().find(|rule| rule.legacy_runtime_index == index);
+        assert_eq!(
+            building_rule(index).map(|rule| &rule.id),
+            linear.map(|rule| &rule.id)
+        );
+    }
+}

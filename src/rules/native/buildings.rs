@@ -155,8 +155,6 @@ pub(crate) fn buildings() -> &'static BuildingCatalog {
 }
 
 pub(crate) fn building_rule(runtime_index: usize) -> Option<&'static NativeBuildingRule> {
-    buildings()
-        .rules
-        .iter()
-        .find(|rule| rule.legacy_runtime_index == runtime_index)
+    // `parse_buildings` assigns `legacy_runtime_index` from the rule's position.
+    buildings().rules.get(runtime_index)
 }
