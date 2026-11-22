@@ -127,7 +127,7 @@ fn nonworker_autoexploration_does_not_start_unsolicited_cleanup() {
 }
 
 #[test]
-fn idle_ferry_recovery_prefers_the_nearest_allied_port() {
+fn idle_ferry_recovery_uses_allied_harbors_and_native_regeneration_penalty() {
     let mut game = world();
     for tile in &mut game.tiles {
         tile.terrain = Terrain::Sea;
@@ -141,9 +141,15 @@ fn idle_ferry_recovery_prefers_the_nearest_allied_port() {
         game.tile_mut(point.0, point.1).terrain = Terrain::Grassland;
         game.create_city(owner, point.0, point.1);
     }
+    game.cities
+        .iter_mut()
+        .find(|city| (city.x, city.y) == far)
+        .unwrap()
+        .buildings
+        .push(Building::HARBOR);
     game.run_idle_ai_ferry(ship);
     let unit = game.unit_by_id(ship).unwrap();
-    assert_eq!((unit.x, unit.y), near);
+    assert_eq!((unit.x, unit.y), far);
 }
 
 #[test]

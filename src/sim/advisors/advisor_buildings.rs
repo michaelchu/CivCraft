@@ -333,6 +333,14 @@ impl Simulation {
                     .count() as i32;
                 8 + 2 * land
             }
+            // Sea and Trireme each have distinct veteran/healing effects.
+            Building::HARBOR => {
+                let naval = self
+                    .units_owned_by(city.owner)
+                    .filter(|unit| unit.kind.is_naval())
+                    .count() as i32;
+                16 + 2 * naval
+            }
             // Air, Helicopter, Missile veteran; Air/Helicopter healing; airlift.
             Building::AIRPORT => {
                 let mut land = 0;

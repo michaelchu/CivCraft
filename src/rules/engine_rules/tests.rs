@@ -230,7 +230,7 @@ fn campaign_enablers_name_known_actions() {
 #[test]
 fn campaign_effects_are_loaded_in_table_order() {
     let effects = &RulesetData::campaign_default().effects;
-    assert_eq!(effects.len(), 473);
+    assert_eq!(effects.len(), 477);
     assert_eq!(effects[0].rule_name, "ai_cheat_food");
     assert!(effects.of_kind(EffectKind::MaxRates).count() > 0);
 }

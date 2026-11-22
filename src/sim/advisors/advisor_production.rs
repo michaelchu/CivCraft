@@ -606,7 +606,7 @@ impl Simulation {
         let candidates: &[Building] = if kind.is_aircraft() || kind.is_missile() {
             &[Building::AIRPORT]
         } else if kind.is_naval() {
-            &[]
+            &[Building::HARBOR]
         } else {
             &[Building::BARRACKS]
         };
