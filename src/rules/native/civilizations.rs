@@ -52,6 +52,21 @@ pub(crate) fn parse_civilizations(source: &str) -> Result<CivilizationCatalog, S
     Ok(catalog)
 }
 
+/// The civilization with this exact `id`, using a map built once.
+pub(crate) fn civilization(id: &str) -> Option<&'static NativeCivilization> {
+    static BY_ID: OnceLock<std::collections::HashMap<&'static str, usize>> = OnceLock::new();
+    let by_id = BY_ID.get_or_init(|| {
+        let mut map = std::collections::HashMap::new();
+        for (index, civ) in civilizations().civilizations.iter().enumerate() {
+            map.entry(civ.id.as_str()).or_insert(index);
+        }
+        map
+    });
+    by_id
+        .get(id)
+        .map(|&index| &civilizations().civilizations[index])
+}
+
 pub(crate) fn civilizations() -> &'static CivilizationCatalog {
     static CATALOG: OnceLock<CivilizationCatalog> = OnceLock::new();
     CATALOG.get_or_init(|| {

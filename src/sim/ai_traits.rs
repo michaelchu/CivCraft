@@ -22,10 +22,7 @@ impl super::Simulation {
         owner: usize,
     ) -> Option<&crate::rules::native::NativeCivilization> {
         let id = self.players[owner].civilization_id.as_deref()?;
-        crate::rules::native::civilizations()
-            .civilizations
-            .iter()
-            .find(|civ| civ.id == id)
+        crate::rules::native::civilization(id)
     }
 }
 
