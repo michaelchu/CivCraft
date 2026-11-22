@@ -285,3 +285,49 @@ mod migration_tests {
         assert_eq!(Building::from_id("building_nonexistent"), None);
     }
 }
+
+#[cfg(test)]
+mod constant_tests {
+    use super::*;
+
+    fn normalized(text: &str) -> String {
+        text.chars()
+            .filter(char::is_ascii_alphanumeric)
+            .map(|c| c.to_ascii_lowercase())
+            .collect()
+    }
+
+    /// Every `const NAME: Self = Self(N);` must still name the entry that the
+    /// native catalog holds at index N, so reordering the TOML cannot silently
+    /// retarget a hand-written constant.
+    #[test]
+    fn index_constants_name_the_catalog_entry_at_their_index() {
+        let source = include_str!("buildings.rs");
+        let mut checked = 0;
+        for line in source.lines() {
+            let Some(rest) = line.trim().strip_prefix("pub(crate) const ") else {
+                continue;
+            };
+            let Some((name, tail)) = rest.split_once(": Self = Self(") else {
+                continue;
+            };
+            let Some(index) = tail
+                .strip_suffix(");")
+                .and_then(|n| n.parse::<usize>().ok())
+            else {
+                continue;
+            };
+            let data = Building(index).data();
+            let id = data.id.strip_prefix("building_").unwrap_or(data.id);
+            let expected = normalized(name);
+            assert!(
+                expected == normalized(data.name) || expected == normalized(id),
+                "{name} = Self({index}) but index {index} is {} ({})",
+                data.name,
+                data.id
+            );
+            checked += 1;
+        }
+        assert!(checked >= 80, "only checked {checked} building constants");
+    }
+}

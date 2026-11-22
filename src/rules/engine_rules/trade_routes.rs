@@ -4,6 +4,13 @@
 //! Values omitted by that ruleset use the pinned Freeciv engine defaults; this
 //! module only describes rules and does not choose a CivCraft route actor.
 
+// Every enum here mirrors a complete Freeciv option set; the campaign selects a
+// subset, so unused variants are intentional.
+#![allow(
+    dead_code,
+    reason = "complete Freeciv option set; the campaign selects a subset"
+)]
+
 use super::Requirement;
 
 // Defaults below were checked against Freeciv revision
@@ -30,13 +37,7 @@ pub(crate) enum TradeRouteType {
     TeamIntercontinental,
 }
 
-impl TradeRouteType {}
-
 /// Behavior when a previously established route becomes illegal.
-#[allow(
-    dead_code,
-    reason = "complete Freeciv option set; the campaign selects a subset"
-)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum TradeRouteCancellation {
     Active,
@@ -45,10 +46,6 @@ pub(crate) enum TradeRouteCancellation {
 }
 
 /// One-time bonus granted when a route is established.
-#[allow(
-    dead_code,
-    reason = "complete Freeciv option set; the campaign selects a subset"
-)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum TradeRouteBonus {
     None,
@@ -66,10 +63,6 @@ pub(crate) struct TradeRouteTypeSettings {
 }
 
 /// Revenue calculation selected by the Freeciv server setting.
-#[allow(
-    dead_code,
-    reason = "complete Freeciv option set; the campaign selects a subset"
-)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum TradeRevenueStyle {
     Classic,
@@ -77,10 +70,6 @@ pub(crate) enum TradeRevenueStyle {
 }
 
 /// One-time caravan bonus calculation selected by the Freeciv server setting.
-#[allow(
-    dead_code,
-    reason = "complete Freeciv option set; the campaign selects a subset"
-)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum CaravanBonusStyle {
     Classic,
@@ -88,10 +77,6 @@ pub(crate) enum CaravanBonusStyle {
 }
 
 /// When Freeciv selects the Goods carried by a route actor.
-#[allow(
-    dead_code,
-    reason = "complete Freeciv option set; the campaign selects a subset"
-)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum GoodsSelection {
     Leaving,
@@ -99,10 +84,6 @@ pub(crate) enum GoodsSelection {
 }
 
 /// Flags supported by pinned Freeciv `common/traderoutes.h` Goods records.
-#[allow(
-    dead_code,
-    reason = "complete Freeciv option set; the campaign selects a subset"
-)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum TradeGoodFlag {
     Bidirectional,
