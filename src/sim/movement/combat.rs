@@ -580,33 +580,18 @@ impl Simulation {
 
         let base_refuels = self.tile(x, y).base.is_some_and(|base| {
             let extra_name = base.extra_rule_name();
-            RulesetData::campaign_default()
-                .rule_records
-                .iter()
-                .find(|record| {
-                    record.namespace.eq_ignore_ascii_case("extra")
-                        && record.rule_name.eq_ignore_ascii_case(extra_name)
-                })
-                .is_some_and(|record| {
-                    let flags = record
-                        .string_list_field("flags")
-                        .ok()
-                        .flatten()
-                        .unwrap_or_default();
-                    let native_to = record
-                        .string_list_field("native_to")
-                        .ok()
-                        .flatten()
-                        .unwrap_or_default();
-                    flags.iter().any(|flag| flag.eq_ignore_ascii_case("Refuel"))
-                        && super::super::action_rules::unit_class_rule_name(unit.kind).is_some_and(
-                            |class| {
-                                native_to
-                                    .iter()
-                                    .any(|name| name.eq_ignore_ascii_case(&class))
-                            },
-                        )
-                })
+            crate::rules::engine_rules::extra_by_name(extra_name).is_some_and(|record| {
+                record.has_flag("Refuel")
+                    && super::super::action_rules::unit_class_rule_name(unit.kind).is_some_and(
+                        |class| {
+                            record
+                                .native_to
+                                .unwrap_or_default()
+                                .iter()
+                                .any(|name| name.eq_ignore_ascii_case(&class))
+                        },
+                    )
+            })
         });
         if base_refuels {
             return true;

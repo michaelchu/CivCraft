@@ -22,54 +22,8 @@ pub(crate) mod native;
 // The shared model keeps engine mechanics data separate from Civ III source
 // content; simulation adapters bind source identities to stable wrappers.
 pub(crate) mod engine_rules;
-mod section_file;
 
 pub(crate) mod policies;
 pub(crate) mod technologies;
 pub(crate) mod terrain_catalog;
 pub(crate) mod unit_capabilities;
-
-/// Complete campaign ruleset pairing editable native TOML catalogs (`content/`)
-/// with internal engine mechanics (`src/rules/engine_data/`).
-#[allow(dead_code)]
-pub(crate) struct Ruleset {
-    pub(crate) content: native::ContentRuleset,
-    pub(crate) engine: engine_rules::RulesetData,
-}
-
-#[allow(dead_code)]
-impl Ruleset {
-    pub(crate) fn load_from_directory(
-        content_dir: &std::path::Path,
-        engine_dir: &std::path::Path,
-        name: &str,
-    ) -> Result<Self, String> {
-        let content = native::ContentRuleset::load_from_directory(content_dir)?;
-        let engine = engine_rules::RulesetData::load_from_directory(engine_dir, engine_dir, name)
-            .map_err(|error| error.to_string())?;
-        Ok(Self { content, engine })
-    }
-
-    pub(crate) fn load_civcraft(repo_root: &std::path::Path) -> Result<Self, String> {
-        Self::load_from_directory(
-            &repo_root.join("data/rulesets/civcraft/content"),
-            &repo_root.join("src/rules/engine_data"),
-            "civcraft",
-        )
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::Ruleset;
-
-    #[test]
-    fn loads_full_civcraft_ruleset_package_from_directory() {
-        let repo_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-        let ruleset = Ruleset::load_civcraft(repo_root)
-            .expect("full civcraft ruleset package (content + engine) must load");
-        assert!(!ruleset.content.buildings.rules.is_empty());
-        assert!(!ruleset.content.technologies.technologies.is_empty());
-        assert!(!ruleset.engine.effects.is_empty());
-    }
-}

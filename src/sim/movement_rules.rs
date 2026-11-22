@@ -7,18 +7,19 @@
 
 use std::sync::OnceLock;
 
-use crate::rules::engine_rules::{ContentKind, ContentRecord, RuleRecord, RulesetData};
+use crate::rules::engine_rules::{ExtraRule, RoadRule, RulesetData, extra_by_name, road_by_name};
 
 use super::unit_catalog::UnitClass;
 use super::{Base, Terrain, UnitKind};
 
-pub(super) fn campaign_move_fragments() -> i32 {
-    static FRAGMENTS: OnceLock<i32> = OnceLock::new();
-    *FRAGMENTS.get_or_init(|| {
-        MovementRules::campaign()
-            .move_fragments()
-            .expect("campaign terrain rules define a positive movement scale")
-    })
+/// `move_fragments`: fragments in one movement point.
+const MOVE_FRAGMENTS: i32 = 6;
+
+/// `igter_cost`: the cost of a step for a unit that ignores terrain.
+const IGTER_COST: i32 = 2;
+
+pub(super) const fn campaign_move_fragments() -> i32 {
+    MOVE_FRAGMENTS
 }
 
 #[derive(Clone, Copy)]
@@ -136,63 +137,15 @@ impl<'a> MovementRules<'a> {
         Ok(self.terrain_data(movement_terrain)?.movement_cost)
     }
 
-    /// Selected ruleset movement-point fragments; road move_cost values are
-    /// already expressed in these fragments.
-    pub(super) fn move_fragments(&self) -> Result<i32, MovementRulesError> {
-        self.integer_parameter("terrain.ruleset", "parameters", "move_fragments", true)
+    /// Movement-point fragments per whole movement point; road `move_cost`
+    /// values are already expressed in these fragments.
+    pub(super) const fn move_fragments(&self) -> i32 {
+        MOVE_FRAGMENTS
     }
 
     /// Cost applied to unit types that ignore terrain movement costs.
-    pub(super) fn igter_cost(&self) -> Result<i32, MovementRulesError> {
-        self.integer_parameter("terrain.ruleset", "parameters", "igter_cost", true)
-    }
-
-    fn integer_parameter(
-        &self,
-        file: &str,
-        section: &str,
-        key: &str,
-        strictly_positive: bool,
-    ) -> Result<i32, MovementRulesError> {
-        let mut matches = self.rules.parameters.iter().filter(|parameter| {
-            parameter.file.eq_ignore_ascii_case(file)
-                && parameter.section.eq_ignore_ascii_case(section)
-                && parameter.key.eq_ignore_ascii_case(key)
-        });
-        let Some(parameter) = matches.next() else {
-            return Err(MovementRulesError::MissingRecord {
-                namespace: format!("{file} [{section}]"),
-                rule_name: key.to_owned(),
-            });
-        };
-        if matches.next().is_some() {
-            return Err(MovementRulesError::DuplicateRecord {
-                namespace: format!("{file} [{section}]"),
-                rule_name: key.to_owned(),
-            });
-        }
-        let value = parameter
-            .integer_value()
-            .map_err(|reason| invalid_field(&parameter.section, key, reason))?
-            .ok_or_else(|| {
-                invalid_field(&parameter.section, key, "required parameter is missing")
-            })?;
-        let value = checked_i32(&parameter.section, key, value)?;
-        if value < 0 || strictly_positive && value == 0 {
-            return Err(invalid_field(
-                &parameter.section,
-                key,
-                format!(
-                    "expected a {} integer, found {value}",
-                    if strictly_positive {
-                        "positive"
-                    } else {
-                        "nonnegative"
-                    }
-                ),
-            ));
-        }
-        Ok(value)
+    pub(super) const fn igter_cost(&self) -> i32 {
+        IGTER_COST
     }
 
     pub(super) fn terrain_activity_times(
@@ -267,56 +220,9 @@ impl<'a> MovementRules<'a> {
     fn extra_removal_config(
         &self,
         extra_rule_name: &str,
-    ) -> Result<(&RuleRecord, i32, i32), MovementRulesError> {
-        let extra = unique_rule_record(self.rules, "extra", extra_rule_name)?;
-        let direct = optional_nonnegative_rule_integer(extra, "removal_time", 0)?;
-        let factor = optional_nonnegative_rule_integer(extra, "removal_time_factor", 1)?;
-        Ok((extra, direct, factor))
-    }
-
-    fn terrain_extra_setting(
-        &self,
-        terrain: &ContentRecord,
-        extra_rule_name: &str,
-    ) -> Result<i32, MovementRulesError> {
-        let count = terrain
-            .fields
-            .iter()
-            .filter(|entry| entry.key.eq_ignore_ascii_case("extra_settings"))
-            .count();
-        if count > 1 {
-            return Err(invalid_field(
-                &terrain.section,
-                "extra_settings",
-                "field occurs more than once",
-            ));
-        }
-        let rows = terrain
-            .string_integer_table_field("extra_settings", "extra", "removal_time")
-            .map_err(|reason| invalid_field(&terrain.section, "extra_settings", reason))?
-            .unwrap_or_default();
-        let mut matches = rows
-            .iter()
-            .filter(|(name, _)| name.eq_ignore_ascii_case(extra_rule_name));
-        let Some((_, value)) = matches.next() else {
-            return Ok(0);
-        };
-        if matches.next().is_some() {
-            return Err(invalid_field(
-                &terrain.section,
-                "extra_settings",
-                format!("extra {extra_rule_name:?} occurs more than once"),
-            ));
-        }
-        let value = checked_i32(&terrain.section, "extra_settings.removal_time", *value)?;
-        if value < 0 {
-            return Err(invalid_field(
-                &terrain.section,
-                "extra_settings.removal_time",
-                format!("expected a nonnegative integer, found {value}"),
-            ));
-        }
-        Ok(value)
+    ) -> Result<(&'static ExtraRule, i32, i32), MovementRulesError> {
+        let extra = campaign_extra(extra_rule_name)?;
+        Ok((extra, extra.removal_time, extra.removal_time_factor))
     }
 
     /// Return the selected terrain record's Freeciv `native_to` unit-class
@@ -462,8 +368,8 @@ impl<'a> MovementRules<'a> {
         restricted_infra: bool,
         ignores_terrain: bool,
     ) -> Result<i32, MovementRulesError> {
-        let move_fragments = self.move_fragments()?;
-        let igter_cost = self.igter_cost()?;
+        let move_fragments = self.move_fragments();
+        let igter_cost = self.igter_cost();
         if !self.unit_class_movement_data(class).terrain_speed {
             return Ok(move_fragments);
         }
@@ -524,7 +430,7 @@ impl<'a> MovementRules<'a> {
     pub(super) fn unknown_tile_move_cost(&self, kind: UnitKind) -> Result<i32, MovementRulesError> {
         let class = self.unit_class_for_kind(kind)?;
         let class_data = self.unit_class_movement_data(class);
-        let fragments = self.move_fragments()?;
+        let fragments = self.move_fragments();
         let ignores_terrain =
             super::action_rules::unit_type_flag(kind, "IgTer").ok_or_else(|| {
                 invalid_field(
@@ -537,7 +443,7 @@ impl<'a> MovementRules<'a> {
         let mut movement_cost = if !class_data.terrain_speed {
             fragments
         } else if ignores_terrain {
-            self.igter_cost()?
+            self.igter_cost()
         } else {
             let mut worst_terrain_cost = 1;
             for terrain in crate::rules::terrain_catalog::TERRAIN_SPECS {
@@ -668,8 +574,11 @@ impl<'a> MovementRules<'a> {
         &self,
         extra_rule_name: &str,
     ) -> Result<Vec<String>, MovementRulesError> {
-        let record = unique_rule_record(self.rules, "extra", extra_rule_name)?;
-        required_rule_string_list(record, "native_to")
+        let extra = campaign_extra(extra_rule_name)?;
+        let native_to = extra.native_to.ok_or_else(|| {
+            invalid_field(&extra.section(), "native_to", "required field is missing")
+        })?;
+        Ok(native_to.iter().map(|class| (*class).to_owned()).collect())
     }
 
     pub(super) fn extra_is_native_to_class(
@@ -688,28 +597,26 @@ impl<'a> MovementRules<'a> {
         extra_rule_name: &str,
         class: UnitClass,
     ) -> Result<i32, MovementRulesError> {
-        let record = unique_rule_record(self.rules, "extra", extra_rule_name)?;
+        let extra = campaign_extra(extra_rule_name)?;
         if !self.extra_is_native_to_class(extra_rule_name, class)? {
             return Ok(0);
         }
-        optional_nonnegative_rule_integer(record, "defense_bonus", 0)
+        Ok(extra.defense_bonus)
     }
 
     pub(super) fn road_move_cost(&self, road: RoadType) -> Result<i32, MovementRulesError> {
-        let rule_name = road.rule_name();
-        let record = unique_rule_record(self.rules, "road", rule_name)?;
-        required_road_move_cost(record, "move_cost")
+        Ok(campaign_road(road.rule_name())?.move_cost)
     }
 
     pub(super) fn road_move_mode(
         &self,
         road: RoadType,
     ) -> Result<RoadMoveMode, MovementRulesError> {
-        let rule_name = road.rule_name();
-        let record = unique_rule_record(self.rules, "road", rule_name)?;
-        let mode =
-            optional_rule_string(record, "move_mode")?.unwrap_or_else(|| "FastAlways".to_owned());
-        RoadMoveMode::parse(&record.section, &mode)
+        let road = campaign_road(road.rule_name())?;
+        RoadMoveMode::parse(
+            &format!("road_{}", road.id),
+            road.move_mode.unwrap_or("FastAlways"),
+        )
     }
 }
 
@@ -1092,35 +999,6 @@ impl Base {
     }
 }
 
-fn optional_terrain_result_name(
-    record: &ContentRecord,
-    key: &str,
-) -> Result<Option<String>, MovementRulesError> {
-    let count = record
-        .fields
-        .iter()
-        .filter(|entry| entry.key.eq_ignore_ascii_case(key))
-        .count();
-    if count > 1 {
-        return Err(invalid_field(
-            &record.section,
-            key,
-            "field occurs more than once",
-        ));
-    }
-    let Some(value) = record
-        .string_field(key)
-        .map_err(|reason| invalid_field(&record.section, key, reason))?
-    else {
-        return Ok(None);
-    };
-    if value.eq_ignore_ascii_case("no") || value.eq_ignore_ascii_case("none") {
-        Ok(None)
-    } else {
-        Ok(Some(value.to_owned()))
-    }
-}
-
 fn c2c3_terrain_result_to_civ3(name: &str) -> Result<Terrain, MovementRulesError> {
     let terrain = match name.trim().to_ascii_lowercase().as_str() {
         "ocean" => Terrain::Sea,
@@ -1147,211 +1025,18 @@ fn c2c3_terrain_result_to_civ3(name: &str) -> Result<Terrain, MovementRulesError
     Ok(terrain)
 }
 
-fn unique_content_record<'a>(
-    rules: &'a RulesetData,
-    kind: ContentKind,
-    rule_name: &str,
-    namespace: &str,
-) -> Result<&'a ContentRecord, MovementRulesError> {
-    let mut records = rules
-        .content
-        .iter()
-        .filter(|record| record.kind == kind && record.rule_name.eq_ignore_ascii_case(rule_name));
-    let Some(record) = records.next() else {
-        return Err(MovementRulesError::MissingRecord {
-            namespace: namespace.to_owned(),
-            rule_name: rule_name.to_owned(),
-        });
-    };
-    if records.next().is_some() {
-        return Err(MovementRulesError::DuplicateRecord {
-            namespace: namespace.to_owned(),
-            rule_name: rule_name.to_owned(),
-        });
-    }
-    Ok(record)
+fn campaign_extra(name: &str) -> Result<&'static ExtraRule, MovementRulesError> {
+    extra_by_name(name).ok_or_else(|| MovementRulesError::MissingRecord {
+        namespace: "extra".to_owned(),
+        rule_name: name.to_owned(),
+    })
 }
 
-fn unique_rule_record<'a>(
-    rules: &'a RulesetData,
-    namespace: &str,
-    rule_name: &str,
-) -> Result<&'a RuleRecord, MovementRulesError> {
-    let mut records = rules.rule_records.iter().filter(|record| {
-        record.namespace.eq_ignore_ascii_case(namespace)
-            && record.rule_name.eq_ignore_ascii_case(rule_name)
-    });
-    let Some(record) = records.next() else {
-        return Err(MovementRulesError::MissingRecord {
-            namespace: namespace.to_owned(),
-            rule_name: rule_name.to_owned(),
-        });
-    };
-    if records.next().is_some() {
-        return Err(MovementRulesError::DuplicateRecord {
-            namespace: namespace.to_owned(),
-            rule_name: rule_name.to_owned(),
-        });
-    }
-    Ok(record)
-}
-
-fn required_nonnegative_integer(
-    record: &ContentRecord,
-    key: &str,
-) -> Result<i32, MovementRulesError> {
-    let value = required_content_integer(record, key)?;
-    if value < 0 {
-        return Err(invalid_field(
-            &record.section,
-            key,
-            format!("expected a nonnegative integer, found {value}"),
-        ));
-    }
-    Ok(value)
-}
-
-fn optional_nonnegative_content_integer(
-    record: &ContentRecord,
-    key: &str,
-    default: i32,
-) -> Result<i32, MovementRulesError> {
-    let count = record
-        .fields
-        .iter()
-        .filter(|entry| entry.key.eq_ignore_ascii_case(key))
-        .count();
-    if count > 1 {
-        return Err(invalid_field(
-            &record.section,
-            key,
-            "field occurs more than once",
-        ));
-    }
-    let Some(value) = record
-        .integer_field(key)
-        .map_err(|reason| invalid_field(&record.section, key, reason))?
-    else {
-        return Ok(default);
-    };
-    let value = checked_i32(&record.section, key, value)?;
-    if value < 0 {
-        return Err(invalid_field(
-            &record.section,
-            key,
-            format!("expected a nonnegative integer, found {value}"),
-        ));
-    }
-    Ok(value)
-}
-
-fn optional_nonnegative_rule_integer(
-    record: &RuleRecord,
-    key: &str,
-    default: i32,
-) -> Result<i32, MovementRulesError> {
-    let count = record
-        .fields
-        .iter()
-        .filter(|entry| entry.key.eq_ignore_ascii_case(key))
-        .count();
-    if count > 1 {
-        return Err(invalid_field(
-            &record.section,
-            key,
-            "field occurs more than once",
-        ));
-    }
-    let Some(value) = record
-        .integer_field(key)
-        .map_err(|reason| invalid_field(&record.section, key, reason))?
-    else {
-        return Ok(default);
-    };
-    let value = checked_i32(&record.section, key, value)?;
-    if value < 0 {
-        return Err(invalid_field(
-            &record.section,
-            key,
-            format!("expected a nonnegative integer, found {value}"),
-        ));
-    }
-    Ok(value)
-}
-
-fn required_road_move_cost(record: &RuleRecord, key: &str) -> Result<i32, MovementRulesError> {
-    let value = required_rule_integer(record, key)?;
-    if value < -1 {
-        return Err(invalid_field(
-            &record.section,
-            key,
-            format!("expected -1 or a nonnegative integer, found {value}"),
-        ));
-    }
-    Ok(value)
-}
-
-fn required_content_integer(record: &ContentRecord, key: &str) -> Result<i32, MovementRulesError> {
-    let count = record
-        .fields
-        .iter()
-        .filter(|entry| entry.key.eq_ignore_ascii_case(key))
-        .count();
-    if count != 1 {
-        return Err(invalid_field(
-            &record.section,
-            key,
-            if count == 0 {
-                "required field is missing"
-            } else {
-                "field occurs more than once"
-            },
-        ));
-    }
-    let value = record
-        .integer_field(key)
-        .map_err(|reason| invalid_field(&record.section, key, reason))?
-        .ok_or_else(|| invalid_field(&record.section, key, "required field is missing"))?;
-    checked_i32(&record.section, key, value)
-}
-
-fn required_rule_integer(record: &RuleRecord, key: &str) -> Result<i32, MovementRulesError> {
-    let count = record
-        .fields
-        .iter()
-        .filter(|entry| entry.key.eq_ignore_ascii_case(key))
-        .count();
-    if count != 1 {
-        return Err(invalid_field(
-            &record.section,
-            key,
-            if count == 0 {
-                "required field is missing"
-            } else {
-                "field occurs more than once"
-            },
-        ));
-    }
-    let value = record
-        .integer_field(key)
-        .map_err(|reason| invalid_field(&record.section, key, reason))?
-        .ok_or_else(|| invalid_field(&record.section, key, "required field is missing"))?;
-    checked_i32(&record.section, key, value)
-}
-
-fn required_nonnegative_rule_integer(
-    record: &RuleRecord,
-    key: &str,
-) -> Result<i32, MovementRulesError> {
-    let value = required_rule_integer(record, key)?;
-    if value < 0 {
-        return Err(invalid_field(
-            &record.section,
-            key,
-            format!("expected a nonnegative integer, found {value}"),
-        ));
-    }
-    Ok(value)
+fn campaign_road(name: &str) -> Result<&'static RoadRule, MovementRulesError> {
+    road_by_name(name).ok_or_else(|| MovementRulesError::MissingRecord {
+        namespace: "road".to_owned(),
+        rule_name: name.to_owned(),
+    })
 }
 
 fn checked_i32(section: &str, key: &str, value: i64) -> Result<i32, MovementRulesError> {
@@ -1362,72 +1047,6 @@ fn checked_i32(section: &str, key: &str, value: i64) -> Result<i32, MovementRule
             format!("integer is outside i32 range: {value}"),
         )
     })
-}
-
-fn required_content_string_list(
-    record: &ContentRecord,
-    key: &str,
-) -> Result<Vec<String>, MovementRulesError> {
-    record
-        .string_list_field(key)
-        .map_err(|reason| invalid_field(&record.section, key, reason))?
-        .ok_or_else(|| invalid_field(&record.section, key, "required field is missing"))
-}
-
-fn required_content_string_values(
-    record: &ContentRecord,
-    key: &str,
-) -> Result<Vec<String>, MovementRulesError> {
-    match record.string_list_field(key) {
-        Ok(Some(values)) => Ok(values),
-        Ok(None) => Err(invalid_field(
-            &record.section,
-            key,
-            "required field is missing",
-        )),
-        Err(list_error) => match record.string_field(key) {
-            Ok(Some(value)) => Ok(vec![value.to_owned()]),
-            Ok(None) => Err(invalid_field(
-                &record.section,
-                key,
-                "required field is missing",
-            )),
-            Err(_) => Err(invalid_field(&record.section, key, list_error)),
-        },
-    }
-}
-
-fn required_rule_string_list(
-    record: &RuleRecord,
-    key: &str,
-) -> Result<Vec<String>, MovementRulesError> {
-    record
-        .string_list_field(key)
-        .map_err(|reason| invalid_field(&record.section, key, reason))?
-        .ok_or_else(|| invalid_field(&record.section, key, "required field is missing"))
-}
-
-fn optional_rule_string(
-    record: &RuleRecord,
-    key: &str,
-) -> Result<Option<String>, MovementRulesError> {
-    if record
-        .fields
-        .iter()
-        .filter(|entry| entry.key.eq_ignore_ascii_case(key))
-        .count()
-        > 1
-    {
-        return Err(invalid_field(
-            &record.section,
-            key,
-            "field occurs more than once",
-        ));
-    }
-    record
-        .string_field(key)
-        .map_err(|reason| invalid_field(&record.section, key, reason))
-        .map(|value| value.map(str::to_owned))
 }
 
 fn has_flag(flags: &[String], expected: &str) -> bool {
@@ -1490,62 +1109,6 @@ mod tests {
 
     fn campaign_rules() -> &'static RulesetData {
         RulesetData::campaign_default()
-    }
-
-    fn terrain_record<'a>(rules: &'a RulesetData, rule_name: &str) -> &'a ContentRecord {
-        rules
-            .content
-            .iter()
-            .find(|record| {
-                record.kind == ContentKind::Terrain
-                    && record.rule_name.eq_ignore_ascii_case(rule_name)
-            })
-            .expect("C2C3 terrain record")
-    }
-
-    fn raw_integer(record: &ContentRecord, key: &str) -> i32 {
-        i32::try_from(record.integer_field(key).unwrap().unwrap()).unwrap()
-    }
-
-    fn raw_rule_integer(record: &RuleRecord, key: &str) -> i32 {
-        i32::try_from(record.integer_field(key).unwrap().unwrap()).unwrap()
-    }
-
-    fn raw_class_flags(record: &RuleRecord) -> Vec<String> {
-        record.string_list_field("flags").unwrap().unwrap()
-    }
-
-    fn swap_content_fields(
-        rules: &mut RulesetData,
-        first_record: usize,
-        first_field: usize,
-        second_record: usize,
-        second_field: usize,
-    ) {
-        if first_record < second_record {
-            let (before, after) = rules.content.split_at_mut(second_record);
-            std::mem::swap(
-                &mut before[first_record].fields[first_field],
-                &mut after[0].fields[second_field],
-            );
-        } else {
-            let (before, after) = rules.content.split_at_mut(first_record);
-            std::mem::swap(
-                &mut after[0].fields[first_field],
-                &mut before[second_record].fields[second_field],
-            );
-        }
-    }
-
-    fn raw_content_native_classes(record: &ContentRecord) -> Vec<String> {
-        record
-            .string_list_field("native_to")
-            .unwrap()
-            .unwrap_or_default()
-    }
-
-    fn raw_rule_native_classes(record: &RuleRecord) -> Vec<String> {
-        record.string_list_field("native_to").unwrap().unwrap()
     }
 
     #[test]
@@ -1624,19 +1187,9 @@ mod tests {
             let pillage_time = spec.pillage_time();
             for extra_name in ["Pollution", "Fallout"] {
                 let terrain_time = spec.extra_removal_time(extra_name);
-                let extra = rules
-                    .rule_records
-                    .iter()
-                    .find(|record| {
-                        record.namespace.eq_ignore_ascii_case("extra")
-                            && record.rule_name.eq_ignore_ascii_case(extra_name)
-                    })
-                    .expect("C2C3 extra record");
-                let direct_time = extra.integer_field("removal_time").unwrap().unwrap_or(0) as i32;
-                let factor = extra
-                    .integer_field("removal_time_factor")
-                    .unwrap()
-                    .unwrap_or(1) as i32;
+                let extra = extra_by_name(extra_name).expect("campaign extra");
+                let direct_time = extra.removal_time;
+                let factor = extra.removal_time_factor;
                 let clean_expected = if direct_time != 0 {
                     direct_time
                 } else {
@@ -1841,8 +1394,8 @@ mod tests {
     fn unknown_tile_costs_match_c2c3_terrain_class_and_igter_data() {
         let rules = campaign_rules();
         let adapter = MovementRules::new(rules);
-        let fragments = adapter.move_fragments().unwrap();
-        let igter_cost = adapter.igter_cost().unwrap();
+        let fragments = adapter.move_fragments();
+        let igter_cost = adapter.igter_cost();
         for kind in UnitKind::all() {
             let class = adapter.unit_class_for_kind(kind).unwrap();
             let class_name = class.rule_name();
@@ -1929,33 +1482,29 @@ mod tests {
             }
         }
 
-        let extra_records: Vec<_> = rules
-            .rule_records
+        let extra_records: Vec<_> = crate::rules::engine_rules::campaign_extras()
             .iter()
-            .filter(|record| {
-                record.namespace == "extra"
-                    && record.fields.iter().any(|entry| entry.key == "native_to")
-            })
+            .filter(|extra| extra.native_to.is_some())
             .collect();
         assert!(!extra_records.is_empty());
         for record in extra_records {
-            let expected = raw_rule_native_classes(record);
+            let expected = record.native_to.unwrap();
             assert_eq!(
-                adapter.extra_native_classes(&record.rule_name).unwrap(),
+                adapter.extra_native_classes(record.name).unwrap(),
                 expected,
                 "{}",
-                record.rule_name
+                record.name
             );
             for (class, class_name) in UNIT_CLASS_ADAPTER {
                 assert_eq!(
                     adapter
-                        .extra_is_native_to_class(&record.rule_name, class)
+                        .extra_is_native_to_class(record.name, class)
                         .unwrap(),
                     expected
                         .iter()
                         .any(|candidate| candidate.eq_ignore_ascii_case(class_name)),
                     "{} / {class:?}",
-                    record.rule_name
+                    record.name
                 );
             }
         }
@@ -2132,52 +1681,10 @@ mod tests {
     }
 
     #[test]
-    fn move_fragment_parameters_are_validated_from_c2c3_terrain_ruleset() {
-        let rules = campaign_rules();
-        let adapter = MovementRules::new(rules);
-        let move_fragments = rules
-            .parameters
-            .iter()
-            .find(|parameter| {
-                parameter.file == "terrain.ruleset"
-                    && parameter.section == "parameters"
-                    && parameter.key == "move_fragments"
-            })
-            .unwrap()
-            .integer_value()
-            .unwrap()
-            .unwrap() as i32;
-        assert_eq!(adapter.move_fragments().unwrap(), move_fragments);
-
-        let igter_cost = rules
-            .parameters
-            .iter()
-            .find(|parameter| {
-                parameter.file == "terrain.ruleset"
-                    && parameter.section == "parameters"
-                    && parameter.key == "igter_cost"
-            })
-            .unwrap()
-            .integer_value()
-            .unwrap()
-            .unwrap() as i32;
-        assert_eq!(adapter.igter_cost().unwrap(), igter_cost);
-        assert_eq!(MovementRules::campaign().igter_cost().unwrap(), igter_cost);
-        assert_eq!(
-            MovementRules::new(&rules.clone()).igter_cost().unwrap(),
-            igter_cost
-        );
-
-        let mut missing_parameter = rules.clone();
-        missing_parameter.parameters.retain(|parameter| {
-            !(parameter.file == "terrain.ruleset"
-                && parameter.section == "parameters"
-                && parameter.key == "move_fragments")
-        });
-        assert!(matches!(
-            MovementRules::new(&missing_parameter).move_fragments(),
-            Err(MovementRulesError::MissingRecord { .. })
-        ));
+    fn movement_scale_and_igter_cost_match_the_pinned_ruleset() {
+        let adapter = MovementRules::campaign();
+        assert_eq!(adapter.move_fragments(), 6);
+        assert_eq!(adapter.igter_cost(), 2);
     }
 
     #[test]
@@ -2185,9 +1692,7 @@ mod tests {
         use crate::sim::{HUMAN, Simulation, Unit};
 
         let rules = MovementRules::campaign();
-        let scale = rules
-            .integer_parameter("terrain.ruleset", "parameters", "move_fragments", true)
-            .unwrap();
+        let scale = rules.move_fragments();
         let game = Simulation::new(crate::test_support::seeded_map());
         assert!(!game.units().is_empty());
         assert!(
@@ -2217,26 +1722,14 @@ mod tests {
 
     #[test]
     fn road_move_costs_come_from_all_selected_c2c3_road_records() {
-        let rules = campaign_rules();
-        let adapter = MovementRules::new(rules);
-        for road in [
-            RoadType::Road,
-            RoadType::Railroad,
-            RoadType::Maglev,
-            RoadType::River,
+        let adapter = MovementRules::campaign();
+        for (road, expected) in [
+            (RoadType::Road, 2),
+            (RoadType::Railroad, 1),
+            (RoadType::Maglev, 0),
+            (RoadType::River, 2),
         ] {
-            let source_name = road.rule_name();
-            let record = rules
-                .rule_records
-                .iter()
-                .find(|record| {
-                    record.namespace == "road" && record.rule_name.eq_ignore_ascii_case(source_name)
-                })
-                .expect("mapped C2C3 road record");
-            assert_eq!(
-                adapter.road_move_cost(road).unwrap(),
-                raw_rule_integer(record, "move_cost")
-            );
+            assert_eq!(adapter.road_move_cost(road).unwrap(), expected, "{road:?}");
         }
     }
 
@@ -2246,7 +1739,7 @@ mod tests {
         let ground = MovementTile::new(Terrain::Grassland, false, false, false, None);
         let hills = MovementTile::new(Terrain::Hills, false, false, false, None);
         let base_cost =
-            rules.terrain_movement_cost(Terrain::Hills).unwrap() * rules.move_fragments().unwrap();
+            rules.terrain_movement_cost(Terrain::Hills).unwrap() * rules.move_fragments();
         assert_eq!(
             rules
                 .step_cost(ground, hills, UnitClass::SmallLand, true, false, false)
@@ -2260,29 +1753,26 @@ mod tests {
             rules
                 .step_cost(river, river, UnitClass::SmallLand, true, false, false)
                 .unwrap(),
-            (rules.terrain_movement_cost(Terrain::Grassland).unwrap()
-                * rules.move_fragments().unwrap())
-            .min(river_cost)
+            (rules.terrain_movement_cost(Terrain::Grassland).unwrap() * rules.move_fragments())
+                .min(river_cost)
         );
         assert_eq!(
             rules
                 .step_cost(river, river, UnitClass::SmallLand, false, false, false)
                 .unwrap(),
-            rules.terrain_movement_cost(Terrain::Grassland).unwrap()
-                * rules.move_fragments().unwrap()
+            rules.terrain_movement_cost(Terrain::Grassland).unwrap() * rules.move_fragments()
         );
         assert_eq!(
             rules
                 .step_cost(river, river, UnitClass::SmallLand, true, true, false)
                 .unwrap(),
-            rules.terrain_movement_cost(Terrain::Grassland).unwrap()
-                * rules.move_fragments().unwrap()
+            rules.terrain_movement_cost(Terrain::Grassland).unwrap() * rules.move_fragments()
         );
         assert_eq!(
             rules
                 .step_cost(ground, hills, UnitClass::SmallLand, true, false, true)
                 .unwrap(),
-            rules.igter_cost().unwrap()
+            rules.igter_cost()
         );
     }
 
@@ -2299,50 +1789,9 @@ mod tests {
             Err(MovementRulesError::UnsupportedTerrain(Terrain::Volcano))
         ));
 
-        let mut missing_road = rules.clone();
-        missing_road.rule_records.retain(|record| {
-            !(record.namespace.eq_ignore_ascii_case("road")
-                && record.rule_name.eq_ignore_ascii_case("Railroad"))
-        });
-        assert!(matches!(
-            MovementRules::new(&missing_road).road_move_cost(RoadType::Railroad),
-            Err(MovementRulesError::MissingRecord { .. })
-        ));
-
         assert!(matches!(
             adapter.extra_native_classes("No Such Extra"),
             Err(MovementRulesError::MissingRecord { .. })
-        ));
-    }
-
-    #[test]
-    fn malformed_or_invalid_fields_are_reported() {
-        let mut rules = campaign_rules().clone();
-        let railroad = rules
-            .rule_records
-            .iter_mut()
-            .find(|record| {
-                record.namespace.eq_ignore_ascii_case("road")
-                    && record.rule_name.eq_ignore_ascii_case("Railroad")
-            })
-            .unwrap();
-        let wrong_type = railroad
-            .fields
-            .iter()
-            .find(|entry| entry.key == "extra")
-            .unwrap()
-            .clone();
-        let move_index = railroad
-            .fields
-            .iter()
-            .position(|entry| entry.key == "move_cost")
-            .unwrap();
-        let mut wrong_type = wrong_type;
-        wrong_type.key = "move_cost".to_owned();
-        railroad.fields[move_index] = wrong_type;
-        assert!(matches!(
-            MovementRules::new(&rules).road_move_cost(RoadType::Railroad),
-            Err(MovementRulesError::InvalidField { .. })
         ));
     }
 

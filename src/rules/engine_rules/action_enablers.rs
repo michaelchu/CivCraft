@@ -21,6 +21,11 @@ pub(super) struct Req {
     pub(super) name: &'static str,
     pub(super) range: RequirementRange,
     pub(super) present: bool,
+    /// The requirement is still met after the source (a building or
+    /// technology) is gone.
+    pub(super) survives: bool,
+    /// The requirement is omitted from help text.
+    pub(super) quiet: bool,
 }
 
 /// The requirement holds.
@@ -30,6 +35,8 @@ pub(super) const fn is(kind: RequirementKind, name: &'static str, range: Require
         name,
         range,
         present: true,
+        survives: false,
+        quiet: false,
     }
 }
 
@@ -40,6 +47,20 @@ pub(super) const fn not(kind: RequirementKind, name: &'static str, range: Requir
         name,
         range,
         present: false,
+        survives: false,
+        quiet: false,
+    }
+}
+
+impl Req {
+    pub(super) const fn surviving(mut self) -> Self {
+        self.survives = true;
+        self
+    }
+
+    pub(super) const fn quietly(mut self) -> Self {
+        self.quiet = true;
+        self
     }
 }
 
@@ -1051,8 +1072,8 @@ pub(super) fn requirements(label: &str, key: &str, reqs: &[Req]) -> Vec<Requirem
             resolved: None::<ResolvedRequirementValue>,
             range: req.range,
             present: req.present,
-            survives: false,
-            quiet: false,
+            survives: req.survives,
+            quiet: req.quiet,
             source: RuleSourceLocation {
                 file: "action_enablers.rs".into(),
                 section: label.to_owned(),
@@ -1080,7 +1101,6 @@ pub(super) fn campaign_action_enablers() -> Vec<ActionEnabler> {
                 "target_reqs",
                 enabler.target,
             ),
-            fields: Vec::new(),
         })
         .collect()
 }

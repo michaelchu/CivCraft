@@ -21,13 +21,17 @@ macro_rules! identifier_enum {
         pub(super) const $names: &[&str] = &[$($text,)*];
 
         impl $name {
+            #[allow(dead_code, reason = "enumerates every identifier")]
             pub(crate) const ALL: &[Self] = &[$(Self::$variant,)*];
 
             /// The identifier exactly as the Freeciv engine spells it.
             pub(crate) const fn name(self) -> &'static str {
                 $names[self as usize]
             }
+        }
 
+        #[cfg(test)]
+        impl $name {
             /// Freeciv's case-insensitive identifier lookup.
             pub(crate) fn parse(value: &str) -> Option<Self> {
                 Self::ALL
@@ -47,6 +51,7 @@ macro_rules! identifier_enum {
 
 identifier_enum! {
     /// Freeciv universal (requirement source) types, in engine enum order.
+    #[allow(dead_code, reason = "complete Freeciv vocabulary; the tables use a subset")]
     pub(crate) enum RequirementKind, names = REQUIREMENT_KINDS {
         None => "None",
         Achievement => "Achievement",
@@ -265,6 +270,7 @@ pub(super) const ACTION_NAMES: &[&str] = &[
 
 identifier_enum! {
     /// Freeciv engine effect types, in engine enum order.
+    #[allow(dead_code, reason = "complete Freeciv vocabulary; the tables use a subset")]
     pub(crate) enum EffectKind, names = EFFECT_NAMES {
         TechParasite => "Tech_Parasite",
         Airlift => "Airlift",
@@ -455,6 +461,11 @@ pub(super) const TERRAIN_FLAG_NAMES: &[&str] = &[
     "NoZoc",
     "Starter",
     "UnsafeCoast",
+    // Flags the campaign defines itself.
+    "Oil",
+    "Sea",
+    "NoPollution",
+    "NoFortify",
 ];
 
 pub(super) const ACTIVITY_NAMES: &[&str] = &[
@@ -536,6 +547,11 @@ pub(super) const EXTRA_FLAG_NAMES: &[&str] = &[
     "NaturalDefense",
     "NoStackDeath",
     "CauseZoC",
+    // Flags the campaign defines itself.
+    "ParadropFrom",
+    "DiplomatDefense",
+    "IrrigationSource",
+    "AllowsFarmlandOnDesert",
 ];
 
 pub(super) const UNIT_TYPE_FLAG_NAMES: &[&str] = &[

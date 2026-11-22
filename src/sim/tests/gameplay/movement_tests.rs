@@ -405,10 +405,7 @@ impl Simulation {
             .find(|u| u.id == explorer)
             .map(|unit| (unit.moves_left, unit.transport))
             .unwrap();
-        let expected_after = before
-            - super::movement_rules::MovementRules::campaign()
-                .igter_cost()
-                .unwrap();
+        let expected_after = before - super::movement_rules::MovementRules::campaign().igter_cost();
         let boarding = embark_result == MoveResult::Moved
             && carrier.is_some()
             && after_moves == expected_after;

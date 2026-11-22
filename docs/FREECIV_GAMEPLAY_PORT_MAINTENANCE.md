@@ -11,8 +11,8 @@ scope, status, and subsystem-difference ledger.
 - Freeciv engine behavior and the initial gameplay baseline come only from the
   pinned revision and its `civ2civ3` ruleset. The current pin is
   `9ff184b6eb128ca636c7ad6269e27aa959600006`.
-- Editable engine mechanics data belongs in
-  `src/rules/engine_data/`. `classic` and other rulesets must not be
+- Engine mechanics data belongs in the Rust tables under
+  `src/rules/engine_rules/`. `classic` and other rulesets must not be
   used to fill gaps. The sibling `default/` and `nation/` files are dependencies
   in the selected ruleset's include closure, not alternate gameplay baselines.
 - Civ III: Conquests source records provide retained campaign identities,
@@ -25,19 +25,19 @@ scope, status, and subsystem-difference ledger.
 
 ## Change the CivCraft ruleset
 
-1. Edit the corresponding file under `src/rules/engine_data/`.
-   `actions.ruleset` owns actions and enablers, `effects.ruleset` owns
-   effects and their requirements, and `terrain.ruleset` owns
-   `[parameters].move_fragments`. Record the reason and intended Freeciv
+1. Edit the corresponding table under `src/rules/engine_rules/`.
+   `action_enablers.rs` owns actions and enablers, `effect_table.rs` owns
+   effects and their requirements, `extras.rs` owns extras and roads, and
+   `campaign.rs` owns the game settings. Record the reason and intended Freeciv
    behavior in the change description.
 2. Keep inherited engine defaults that affect gameplay explicit in
-   `game.ruleset` when the campaign relies on them. Do not silently fall back
+   `campaign.rs` when the campaign relies on them. Do not silently fall back
    to values from another Freeciv ruleset.
 3. If a rule name, requirement, effect, action, or content universal changes,
    update the owning adapter in `src/rules/` or `src/sim/` and its focused
    source-backed checks. Avoid adding a second subsystem-specific calculation.
 4. If copied upstream files change, update
-   `src/rules/engine_data/UPSTREAM_MANIFEST.tsv` with the pinned
+   `src/rules/engine_rules/upstream/UPSTREAM_MANIFEST.tsv` with the pinned
    source and destination SHA-256 values. Keep `identical` and `modified`
    statuses accurate; the modified destination is an intentional CivCraft
    override, not a new upstream source. Compute both values with
@@ -81,7 +81,7 @@ order or a similar display name.
 | Buildings | `data/rulesets/civcraft/content/buildings.toml` contains 91 active native rules. | Native building rules are authoritative; `src/rules/compatibility.rs` preserves serialized IDs and the existing obsolescence policy. The unused source records have been removed. Never infer save identities from author record order. |
 | Technologies | `src/rules/technologies.rs` is the sole source for all 83 researchable native advances, stable runtime indices, display aliases, prerequisites, eras, and era gates. | `src/rules/research.rs` builds the runtime catalog from the native records; `src/rules/content_adapter.rs` maps Freeciv compatibility names into it. Current explicit bridges include Superconductors/Superconductor, Amphibious Warfare/Amphibious War, Conscription/Nationalism, Environmentalism/Ecology, Laser/The Laser, Mobile Warfare/Motorized Transportation, and Nuclear Fission/Fission. C2C3 Radio maps to Civ III Flight; Freeciv-only Plastics has no Civ III advance. `engine/techs.ruleset` remains a generic compatibility/schema input and must not be edited to change the Civ III research graph. |
 | Civilizations | `data/rulesets/civcraft/content/civilizations.toml` preserves 31 playable Conquests identities and their campaign start profiles. | `src/rules/civilizations.rs` and `src/sim/civilization_start_rules.rs` load them. The `city_style` field is a CivCraft renderer mapping, not a BIQ field. Keep roster IDs and art style bindings explicit. |
-| Terrain and resources | `engine/terrain.ruleset` owns terrain and road rules, including yields and climate. `content/economy.toml` owns the campaign resource yield overrides. | Terrain name adaptation is in `src/mapgen/terrain.rs`; resource identities, habitats, and yields are in `src/world/terrain.rs`; Freeciv placement adapted to those resources is in `src/mapgen/placement.rs`. Record this as code-owned mapping when changing it; do not claim it is editable through the C2C3 ruleset. |
+| Terrain and resources | `src/rules/terrain_catalog.rs` owns terrain yields and climate, and `src/rules/engine_rules/extras.rs` owns extras and roads. `content/economy.toml` owns the campaign resource yield overrides. | Terrain name adaptation is in `src/mapgen/terrain.rs`; resource identities, habitats, and yields are in `src/world/terrain.rs`; Freeciv placement adapted to those resources is in `src/mapgen/placement.rs`. Record this as code-owned mapping when changing it; do not claim it is editable through the C2C3 ruleset. |
 | Other art | Unit art roots come from `civcraft/content/units.toml`; civilization city styles come from `civcraft/content/civilizations.toml`. Other terrain, improvement, road, river, and UI sprite selection is resolved by the existing client tileset/theme loaders. | Update the owning mapping in `src/client/tileset.rs` and its asset/theme coverage checks. Keep presentation mapping out of simulation rules. |
 
 `src/rules/content_adapter.rs` maps engine technology names to compiled native

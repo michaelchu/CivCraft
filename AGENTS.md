@@ -8,8 +8,7 @@ content and artwork. The authority split is:
 - **Gameplay logic** (rules, formulas, state transitions, turn processing,
   AI behavior, and rule interpretation) follows the pinned Freeciv source
   (`reference/freeciv`) and its `civ2civ3` ruleset, as copied into the
-  `src/rules/engine_data/` layer and the `src/rules/engine_rules/campaign.rs`
-  constants. Civ III game logic is no longer an authority for mechanics.
+  tables in `src/rules/engine_rules/` (see its `upstream/README.md`). Civ III game logic is no longer an authority for mechanics.
 - **Civ III content and artwork** are retained only where the port explicitly
   maps them into the Freeciv model. The installed Conquests data and checked-in
   native catalogs provide identity and asset provenance; they are not gameplay

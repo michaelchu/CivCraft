@@ -2,8 +2,8 @@
 
 This directory is the CivCraft campaign content package. Its editable layer is
 `content/`, containing CivCraft-owned native TOML catalogs. Internal engine
-mechanics (`actions`, `effects`, `game`, `terrain`, `units`) live inside Rust at
-`src/rules/engine_data/`.
+mechanics (actions, effects, extras, settings) are Rust tables in
+`src/rules/engine_rules/`.
 
 The catalogs under `content/` are the runtime source for the migrated campaign systems.  The
 legacy extraction tables and one-time conversion tool have been removed after
@@ -27,12 +27,12 @@ Economy/resource overrides, settlement/Great Leader/village tables, AI strategy,
 diplomacy/vassalage policies, and the eight campaign governments live directly in
 Rust (`src/rules/native.rs` and `src/rules/policies.rs`).
 
-The campaign embeds its internal engine ruleset and native catalogs when built. The
-effect graph, including government rate caps, empire size and civil-war chance, comes from
-`src/rules/engine_data/effects.ruleset`, and action enablers come from
-`src/rules/engine_data/actions.ruleset`. Terrain yields, movement, activity timing, and climate
-live in `src/rules/terrain_catalog.rs`, while `src/rules/engine_data/terrain.ruleset` retains
-extras, resources, and movement parameters.
+The campaign embeds its native catalogs when built. The
+effect graph, including government rate caps, empire size and civil-war chance, is
+`src/rules/engine_rules/effect_table.rs`, and action enablers are
+`src/rules/engine_rules/action_enablers.rs`. Terrain yields, movement, activity timing, and climate
+live in `src/rules/terrain_catalog.rs`, while `src/rules/engine_rules/extras.rs` holds
+extras and roads.
 
 Unit shield costs are authoritative in `content/units.toml` (`cost_shields`). Production,
 settlement AI valuation, and shield-recovery base values share that cost.

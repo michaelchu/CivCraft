@@ -1,139 +1,23 @@
-//! Filesystem loading and typed decoding for native Freeciv rulesets.
+//! Builds the campaign's rule tables into one validated, indexed ruleset.
 
 use crate::rules::content_adapter::{EngineTechBinding, bind_engine_technology};
 use crate::rules::engine_rules::RequirementKind;
 use crate::rules::{Building, Tech};
 use crate::world::Terrain;
-use std::collections::BTreeMap;
-use std::fs;
-use std::path::{Path, PathBuf};
 
-use super::super::section_file::{self, Entry, Section, SectionFile, Value};
 use super::{
-    ActionEnabler, ContentKind, ContentRecord, EffectRecord, LoadError, LoadedRuleFile,
-    Requirement, RequirementRange, RequirementValue, ResolvedRequirementValue, RuleFileSource,
-    RuleParameter, RuleRecord, RuleSourceLocation, RulesetData,
+    EffectSet, LoadError, Requirement, RequirementValue, ResolvedRequirementValue, RulesetData,
 };
 
-// The bundle and the filesystem loader use the same file list and order.
-macro_rules! campaign_files {
-    ($($name:literal),+ $(,)?) => {
-        pub(crate) const RULESET_FILES: &[&str] = &[$($name),+];
-        fn embedded_ruleset_source(path: &Path) -> Option<&'static str> {
-            match path.strip_prefix("engine_data").ok().and_then(Path::to_str) {
-                $(Some($name) => Some(include_str!(
-                    concat!("../engine_data/", $name)
-                )),)+
-                _ => None,
-            }
-        }
-    };
-}
-
-campaign_files!("terrain.ruleset", "effects.ruleset",);
-
 impl RulesetData {
-    /// Load a ruleset whose selected files live in a package subdirectory.
-    /// Shared Freeciv fallback files remain rooted at `data_root`.
-    pub(crate) fn load_from_directory(
-        data_root: &Path,
-        ruleset_dir: &Path,
-        name: &str,
-    ) -> Result<Self, LoadError> {
-        let mut files = Vec::new();
-        for file_name in RULESET_FILES {
-            let (path, source) = resolve_ruleset_file(data_root, ruleset_dir, name, file_name)?;
-            let parsed = load_section_file(data_root, &path, &mut Vec::new())?;
-            files.push(LoadedRuleFile {
-                name: (*file_name).to_owned(),
-                path,
-                source,
-                parsed,
-            });
-        }
-        Self::from_files(name, files)
-    }
-
-    pub(super) fn load_bundled_campaign() -> Result<Self, LoadError> {
-        let mut files = Vec::new();
-        for &name in RULESET_FILES {
-            let path = Path::new("engine_data").join(name);
-            let parsed = load_embedded_section_file(&path, &mut Vec::new())?;
-            files.push(LoadedRuleFile {
-                name: name.to_owned(),
-                path,
-                source: RuleFileSource::SelectedRuleset,
-                parsed,
-            });
-        }
-        Self::from_files("civcraft", files)
-    }
-
-    pub(crate) fn from_files(name: &str, files: Vec<LoadedRuleFile>) -> Result<Self, LoadError> {
-        Self::from_files_with_enablers(
-            name,
-            files,
-            super::action_enablers::campaign_action_enablers(),
-        )
-    }
-
-    pub(crate) fn from_files_with_enablers(
-        name: &str,
-        files: Vec<LoadedRuleFile>,
-        action_enablers: Vec<ActionEnabler>,
-    ) -> Result<Self, LoadError> {
-        for required in RULESET_FILES {
-            if !files.iter().any(|file| file.name == *required) {
-                return Err(LoadError::new(format!(
-                    "missing required ruleset file {required}"
-                )));
-            }
-        }
-
-        let mut parameters = Vec::new();
-        let mut effects = Vec::new();
-        let mut content = Vec::new();
-        let mut rule_records = Vec::new();
-
-        for loaded in &files {
-            let file_name = &loaded.name;
-            for section in &loaded.parsed.sections {
-                for entry in &section.entries {
-                    if !is_record_section(&section.name) && entry.key != "*include" {
-                        parameters.push(RuleParameter {
-                            file: file_name.clone(),
-                            section: section.name.clone(),
-                            key: entry.key.clone(),
-                            value: entry.value.clone(),
-                        });
-                    }
-                }
-
-                if file_name == "effects.ruleset" && section.name.starts_with("effect_") {
-                    effects.push(parse_effect(&loaded.path, section)?);
-                }
-                if let Some(kind) = content_kind(file_name, &section.name) {
-                    content.push(parse_content(&loaded.path, section, kind)?);
-                } else if let Some(namespace) = record_namespace(&section.name) {
-                    rule_records.push(parse_rule_record(
-                        &loaded.path,
-                        file_name,
-                        section,
-                        namespace,
-                    )?);
-                }
-            }
-        }
-
+    /// Build the campaign ruleset from its Rust tables. The tables are fixed
+    /// at compile time, so this fails only when a table names a flag, class,
+    /// technology or building that does not exist.
+    pub(super) fn build_campaign() -> Result<Self, LoadError> {
         let mut rules = Self {
-            name: name.to_owned(),
-            files,
-            parameters,
-            effects: effects.into(),
-            action_enablers,
+            effects: EffectSet::from(super::effect_table::campaign_effects()),
+            action_enablers: super::action_enablers::campaign_action_enablers(),
             action_index: Default::default(),
-            content,
-            rule_records,
         };
         validate_requirement_values(&rules)?;
         resolve_requirement_values(&mut rules);
@@ -155,13 +39,6 @@ pub(super) fn resolve_requirement_values(rules: &mut RulesetData) {
     for enabler in &mut rules.action_enablers {
         resolve_requirements(&mut enabler.actor_requirements);
         resolve_requirements(&mut enabler.target_requirements);
-    }
-    for record in &mut rules.content {
-        resolve_requirements(&mut record.requirements);
-        resolve_requirements(&mut record.obsolete_by);
-    }
-    for record in &mut rules.rule_records {
-        resolve_requirements(&mut record.requirements);
     }
 }
 
@@ -235,438 +112,6 @@ fn resolve_terrain(name: &str) -> Option<Terrain> {
     }
 }
 
-fn resolve_ruleset_file(
-    data_root: &Path,
-    ruleset_dir: &Path,
-    ruleset_name: &str,
-    file_name: &str,
-) -> Result<(PathBuf, RuleFileSource), LoadError> {
-    let selected = ruleset_dir.join(file_name);
-    if selected.is_file() {
-        return Ok((selected, RuleFileSource::SelectedRuleset));
-    }
-    let default = data_root.join("default").join(file_name);
-    if default.is_file() {
-        return Ok((default, RuleFileSource::DefaultRuleset));
-    }
-    let stem = file_name.strip_suffix(".ruleset").unwrap_or(file_name);
-    let legacy = data_root.join(format!("{ruleset_name}_{stem}.ruleset"));
-    if legacy.is_file() {
-        return Ok((legacy, RuleFileSource::LegacyFilename));
-    }
-    Err(LoadError::new(format!(
-        "no {file_name} found in {} or {}",
-        ruleset_dir.display(),
-        data_root.join("default").display()
-    )))
-}
-
-fn load_section_file(
-    data_root: &Path,
-    path: &Path,
-    include_stack: &mut Vec<PathBuf>,
-) -> Result<SectionFile, LoadError> {
-    let canonical_root = data_root
-        .canonicalize()
-        .map_err(|error| LoadError::at(data_root, format!("cannot resolve data root: {error}")))?;
-    let canonical_path = path
-        .canonicalize()
-        .map_err(|error| LoadError::at(path, format!("cannot read ruleset file: {error}")))?;
-    if !canonical_path.starts_with(&canonical_root) {
-        return Err(LoadError::at(path, "ruleset include escapes the data root"));
-    }
-    let source = fs::read_to_string(&canonical_path).map_err(|error| {
-        LoadError::at(
-            &canonical_path,
-            format!("cannot read ruleset file: {error}"),
-        )
-    })?;
-    parse_with_includes(&canonical_path, &source, include_stack, |name, stack| {
-        load_section_file(data_root, &data_root.join(name), stack)
-    })
-}
-
-fn load_embedded_section_file(
-    path: &Path,
-    include_stack: &mut Vec<PathBuf>,
-) -> Result<SectionFile, LoadError> {
-    let source = embedded_ruleset_source(path)
-        .ok_or_else(|| LoadError::at(path, "file is absent from the embedded campaign ruleset"))?;
-    parse_with_includes(path, source, include_stack, |name, stack| {
-        load_embedded_section_file(Path::new(name), stack)
-    })
-}
-
-fn parse_with_includes(
-    path: &Path,
-    source: &str,
-    include_stack: &mut Vec<PathBuf>,
-    load_include: impl Fn(&str, &mut Vec<PathBuf>) -> Result<SectionFile, LoadError>,
-) -> Result<SectionFile, LoadError> {
-    if include_stack.iter().any(|ancestor| ancestor == path) {
-        return Err(LoadError::at(path, "recursive ruleset include"));
-    }
-    include_stack.push(path.to_owned());
-    let parsed = section_file::parse(source).map_err(|error| LoadError {
-        file: Some(path.to_owned()),
-        section: (!error.context.is_empty()).then_some(error.context),
-        key: None,
-        line: Some(error.line),
-        message: error.message,
-    })?;
-    let mut expanded = SectionFile::default();
-
-    for section in parsed.sections {
-        let mut current = Section {
-            name: section.name.clone(),
-            entries: Vec::new(),
-        };
-        for entry in section.entries {
-            if entry.key == "*include" {
-                let Value::String(include_name) = entry.value else {
-                    return Err(LoadError::at_line(
-                        path,
-                        &section.name,
-                        &entry.key,
-                        entry.line,
-                        "include path must be a string",
-                    ));
-                };
-                if !current.entries.is_empty() {
-                    expanded.sections.push(current);
-                    current = Section {
-                        name: section.name.clone(),
-                        entries: Vec::new(),
-                    };
-                }
-                let included = load_include(&include_name, include_stack)?;
-                expanded.sections.extend(included.sections);
-            } else {
-                current.entries.push(entry);
-            }
-        }
-        expanded.sections.push(current);
-    }
-
-    include_stack.pop();
-    merge_repeated_sections(expanded, path)
-}
-
-fn merge_repeated_sections(
-    file: SectionFile,
-    source_path: &Path,
-) -> Result<SectionFile, LoadError> {
-    let mut sections: Vec<Section> = Vec::new();
-    let mut positions: BTreeMap<String, usize> = BTreeMap::new();
-    for section in file.sections {
-        if let Some(position) = positions.get(&section.name).copied() {
-            let existing = &mut sections[position].entries;
-            for entry in section.entries {
-                if existing.iter().any(|previous| previous.key == entry.key) {
-                    return Err(LoadError::at_line(
-                        source_path,
-                        &section.name,
-                        &entry.key,
-                        entry.line,
-                        format!(
-                            "duplicate ruleset entry {:?} after include expansion",
-                            entry.key
-                        ),
-                    ));
-                }
-                existing.push(entry);
-            }
-        } else {
-            for (index, entry) in section.entries.iter().enumerate() {
-                if section.entries[..index]
-                    .iter()
-                    .any(|previous| previous.key == entry.key)
-                {
-                    return Err(LoadError::at_line(
-                        source_path,
-                        &section.name,
-                        &entry.key,
-                        entry.line,
-                        format!("duplicate ruleset entry {:?}", entry.key),
-                    ));
-                }
-            }
-            positions.insert(section.name.clone(), sections.len());
-            sections.push(section);
-        }
-    }
-    Ok(SectionFile { sections })
-}
-
-fn parse_effect(file: &Path, section: &Section) -> Result<EffectRecord, LoadError> {
-    let kind = field_string(file, section, "type")?
-        .ok_or_else(|| LoadError::in_section(file, section, "effect record is missing `type`"))?;
-    validate_identifier(
-        file,
-        section,
-        "type",
-        &kind,
-        super::identifiers::EFFECT_NAMES,
-        "effect type",
-    )?;
-    let kind = super::EffectKind::parse(&kind).expect("validated effect type");
-    let value = match field_value(section, "value") {
-        Some(Value::Integer(value)) => *value,
-        None | Some(Value::Empty) => 1,
-        Some(_) => {
-            return Err(LoadError::in_key(
-                file,
-                section,
-                "value",
-                "expected an integer",
-            ));
-        }
-    };
-    let multiplier = field_string(file, section, "multiplier")?;
-    let requirements = field_requirements(file, section, "reqs")?;
-    Ok(EffectRecord {
-        rule_name: section_suffix(section, "effect_"),
-        kind,
-        value,
-        multiplier,
-        requirements,
-    })
-}
-
-fn parse_content(
-    file: &Path,
-    section: &Section,
-    kind: ContentKind,
-) -> Result<ContentRecord, LoadError> {
-    let display_name = field_string(file, section, "name")?
-        .ok_or_else(|| LoadError::in_section(file, section, "content record is missing `name`"))?;
-    let display_name = strip_translation_qualifier(&display_name);
-    let rule_name =
-        field_string(file, section, "rule_name")?.unwrap_or_else(|| display_name.clone());
-    let requirements = match kind {
-        ContentKind::Building => field_requirements(file, section, "reqs")?,
-        ContentKind::Unit => field_requirements(file, section, "reqs")?,
-        ContentKind::Technology => field_requirements(file, section, "research_reqs")?,
-        ContentKind::Terrain => field_requirements(file, section, "reqs")?,
-        ContentKind::Government => field_requirements(file, section, "reqs")?,
-        ContentKind::GovernmentMultiplier => field_requirements(file, section, "reqs")?,
-        ContentKind::Nation | ContentKind::Style => Vec::new(),
-    };
-    let obsolete_by = if kind == ContentKind::Building {
-        field_requirements(file, section, "obsolete_by")?
-    } else {
-        Vec::new()
-    };
-    Ok(ContentRecord {
-        kind,
-        rule_name,
-        section: section.name.clone(),
-        display_name: Some(display_name),
-        requirements,
-        obsolete_by,
-        fields: section.entries.clone(),
-    })
-}
-
-fn parse_rule_record(
-    file: &Path,
-    file_name: &str,
-    section: &Section,
-    namespace: &str,
-) -> Result<RuleRecord, LoadError> {
-    if namespace == "user_effect" {
-        for key in ["type", "ai_valued_as"] {
-            let value = field_string(file, section, key)?.ok_or_else(|| {
-                LoadError::in_section(file, section, format!("user effect is missing `{key}`"))
-            })?;
-            validate_identifier(
-                file,
-                section,
-                key,
-                &value,
-                super::identifiers::EFFECT_NAMES,
-                "effect type",
-            )?;
-        }
-    }
-    let display_name =
-        field_string(file, section, "name")?.map(|name| strip_translation_qualifier(&name));
-    // Some Freeciv record families have no display name. In those cases the
-    // section suffix is their native stable identifier (for example
-    // [clause_advance] and [resource_iron]).
-    let section_id = record_section_id(section, namespace);
-    let rule_name = field_string(file, section, "rule_name")?
-        .or_else(|| display_name.clone())
-        .unwrap_or(section_id);
-    let mut requirements = field_requirements(file, section, "reqs")?;
-    requirements.extend(field_requirements(file, section, "research_reqs")?);
-    Ok(RuleRecord {
-        file: file_name.to_owned(),
-        namespace: namespace.to_owned(),
-        section: section.name.clone(),
-        rule_name,
-        display_name,
-        requirements,
-        fields: section.entries.clone(),
-    })
-}
-
-fn strip_translation_qualifier(name: &str) -> String {
-    if let Some(qualified) = name.strip_prefix('?')
-        && let Some((_, untranslated)) = qualified.split_once(':')
-    {
-        return untranslated.to_owned();
-    }
-    name.to_owned()
-}
-
-fn validate_identifier(
-    file: &Path,
-    section: &Section,
-    key: &str,
-    value: &str,
-    names: &[&str],
-    kind: &str,
-) -> Result<(), LoadError> {
-    if names.iter().any(|known| known.eq_ignore_ascii_case(value)) {
-        Ok(())
-    } else {
-        Err(LoadError::in_key(
-            file,
-            section,
-            key,
-            format!("unknown Freeciv {kind} {value:?}"),
-        ))
-    }
-}
-
-fn record_section_id(section: &Section, namespace: &str) -> String {
-    let prefix = match namespace {
-        "super_specialist" => "super_specialist_",
-        "citystyle" => "citystyle_",
-        "musicstyle" => "musicstyle_",
-        "nation_set" => "nset_",
-        "nation_group" => "ngroup_",
-        "nation" => "nation_",
-        "clause" => "clause_",
-        "extra" => "extra_",
-        "base" => "base_",
-        "road" => "road_",
-        "resource" => "resource_",
-        "goods" => "goods_",
-        "specialist" => "specialist_",
-        "unit_class" => "unitclass_",
-        "disaster" => "disaster_",
-        "achievement" => "achievement_",
-        "tech_class" => "techclass_",
-        "tile_definition" => "tiledef_",
-        "counter" => "counter_",
-        "user_effect" => "ueff_",
-        "multiplier" => "multiplier_",
-        _ => "",
-    };
-    section
-        .name
-        .strip_prefix(prefix)
-        .unwrap_or(&section.name)
-        .to_owned()
-}
-
-fn field_requirements(
-    file: &Path,
-    section: &Section,
-    key: &str,
-) -> Result<Vec<Requirement>, LoadError> {
-    let Some(entry) = section.entries.iter().find(|entry| entry.key == key) else {
-        return Ok(Vec::new());
-    };
-    table_rows(file, section, entry)?
-        .into_iter()
-        .map(|row| parse_requirement(file, section, entry, &row))
-        .collect()
-}
-
-fn parse_requirement(
-    file: &Path,
-    section: &Section,
-    entry: &Entry,
-    row: &BTreeMap<String, Value>,
-) -> Result<Requirement, LoadError> {
-    for column in row.keys() {
-        if !matches!(
-            column.as_str(),
-            "type" | "name" | "range" | "present" | "survives" | "quiet"
-        ) {
-            return Err(LoadError::in_key(
-                file,
-                section,
-                &entry.key,
-                format!("unsupported requirement column {column:?}"),
-            ));
-        }
-    }
-    let kind = row_string(file, section, entry, row, "type")?;
-    validate_identifier(
-        file,
-        section,
-        &entry.key,
-        &kind,
-        super::identifiers::REQUIREMENT_KINDS,
-        "requirement type",
-    )?;
-    let kind = super::RequirementKind::parse(&kind).expect("validated requirement type");
-    let name = match row_value(file, section, entry, row, "name")? {
-        Value::String(value) => RequirementValue::String(value.clone()),
-        Value::Integer(value) => RequirementValue::Integer(*value),
-        Value::Bool(value) => RequirementValue::Bool(*value),
-        _ => {
-            return Err(LoadError::in_key(
-                file,
-                section,
-                &entry.key,
-                "requirement name must be scalar",
-            ));
-        }
-    };
-    let range_name = row_string(file, section, entry, row, "range")?;
-    let range = match range_name.to_ascii_lowercase().as_str() {
-        "local" => RequirementRange::Local,
-        "tile" => RequirementRange::Tile,
-        "cadjacent" => RequirementRange::CAdjacent,
-        "adjacent" => RequirementRange::Adjacent,
-        "city" => RequirementRange::City,
-        "traderoute" => RequirementRange::Traderoute,
-        "continent" => RequirementRange::Continent,
-        "player" => RequirementRange::Player,
-        "team" => RequirementRange::Team,
-        "alliance" => RequirementRange::Alliance,
-        "world" => RequirementRange::World,
-        _ => {
-            return Err(LoadError::in_key(
-                file,
-                section,
-                &entry.key,
-                format!("unknown requirement range {range_name:?}"),
-            ));
-        }
-    };
-    Ok(Requirement {
-        kind,
-        name,
-        resolved: None,
-        range,
-        present: row_bool(file, section, entry, row, "present", true)?,
-        survives: row_bool(file, section, entry, row, "survives", false)?,
-        quiet: row_bool(file, section, entry, row, "quiet", false)?,
-        source: RuleSourceLocation {
-            file: file.to_owned(),
-            section: section.name.clone(),
-            key: entry.key.clone(),
-            line: entry.line,
-        },
-    })
-}
-
 fn validate_requirement_values(rules: &RulesetData) -> Result<(), LoadError> {
     let mut requirements = Vec::new();
     requirements.extend(rules.effects.iter().flat_map(|record| &record.requirements));
@@ -676,21 +121,9 @@ fn validate_requirement_values(rules: &RulesetData) -> Result<(), LoadError> {
             .iter()
             .chain(&record.target_requirements)
     }));
-    requirements.extend(
-        rules
-            .content
-            .iter()
-            .flat_map(|record| record.requirements.iter().chain(&record.obsolete_by)),
-    );
-    requirements.extend(
-        rules
-            .rule_records
-            .iter()
-            .flat_map(|record| &record.requirements),
-    );
 
     for requirement in requirements {
-        if requirement_value_is_valid(requirement, rules) {
+        if requirement_value_is_valid(requirement) {
             continue;
         }
         let source = &requirement.source;
@@ -710,23 +143,27 @@ fn validate_requirement_values(rules: &RulesetData) -> Result<(), LoadError> {
     Ok(())
 }
 
-fn requirement_value_is_valid(requirement: &Requirement, rules: &RulesetData) -> bool {
+fn requirement_value_is_valid(requirement: &Requirement) -> bool {
     let Some(name) = requirement_name_text(&requirement.name) else {
         return false;
     };
     match requirement.kind {
         RequirementKind::None => true,
-        RequirementKind::Achievement => record_name_exists(rules, "achievement", &name),
+        // The campaign defines no named achievements, counters, goods or tile
+        // definitions for requirements to refer to.
+        RequirementKind::Achievement
+        | RequirementKind::Counter
+        | RequirementKind::Good
+        | RequirementKind::Tiledef
+        | RequirementKind::TiledefConnected
+        | RequirementKind::Style => false,
         RequirementKind::Action => {
             super::identifiers::contains_case_insensitive(super::identifiers::ACTION_NAMES, &name)
         }
         RequirementKind::Activity => {
             super::identifiers::contains_case_insensitive(super::identifiers::ACTIVITY_NAMES, &name)
         }
-        RequirementKind::Tech => {
-            content_name_exists(rules, ContentKind::Technology, &name)
-                || (rules.name == "civcraft" && bind_engine_technology(&name).is_ok())
-        }
+        RequirementKind::Tech => bind_engine_technology(&name).is_ok(),
         RequirementKind::Age => integer_value(&name).is_some_and(|value| value > 0),
         RequirementKind::Ai => {
             super::identifiers::contains_case_insensitive(super::identifiers::AI_LEVEL_NAMES, &name)
@@ -739,7 +176,6 @@ fn requirement_value_is_valid(requirement: &Requirement, rules: &RulesetData) ->
             super::identifiers::CITY_TILE_NAMES,
             &name,
         ),
-        RequirementKind::Counter => record_name_exists(rules, "counter", &name),
         RequirementKind::DiplRel
         | RequirementKind::DiplRelTile
         | RequirementKind::DiplRelTileOther
@@ -748,39 +184,26 @@ fn requirement_value_is_valid(requirement: &Requirement, rules: &RulesetData) ->
             super::identifiers::DIPLO_REL_NAMES,
             &name,
         ),
-        RequirementKind::Extra => record_name_exists(rules, "extra", &name),
-        RequirementKind::ExtraFlag => flag_name_exists(
-            rules,
-            &name,
-            "terrain.ruleset",
-            "extra_flags",
+        RequirementKind::Extra => super::extra_by_name(&name).is_some(),
+        RequirementKind::ExtraFlag => super::identifiers::contains_case_insensitive(
             super::identifiers::EXTRA_FLAG_NAMES,
+            &name,
         ),
         RequirementKind::FormAge => integer_value(&name).is_some_and(|value| value > 0),
         RequirementKind::FutureTechs => integer_value(&name).is_some_and(|value| value > 0),
-        RequirementKind::Good => record_name_exists(rules, "goods", &name),
         RequirementKind::Gov => {
-            content_name_exists(rules, ContentKind::Government, &name)
-                || (rules.name == "civcraft"
-                    && (crate::rules::native::governments().get(&name).is_some()
-                        || ["Tribal", "Fundamentalism", "Federation"]
-                            .iter()
-                            .any(|gov| gov.eq_ignore_ascii_case(&name))))
+            crate::rules::native::governments().get(&name).is_some()
+                || ["Tribal", "Fundamentalism", "Federation"]
+                    .iter()
+                    .any(|gov| gov.eq_ignore_ascii_case(&name))
         }
-        RequirementKind::GovFlag => flag_name_exists(
-            rules,
-            &name,
-            "governments.ruleset",
-            "flags",
-            super::identifiers::GOV_FLAG_NAMES,
-        ),
-        RequirementKind::Building => building_name_exists(rules, &name),
-        RequirementKind::BuildingFlag => flag_name_exists(
-            rules,
-            &name,
-            "buildings.ruleset",
-            "building_flags",
+        RequirementKind::GovFlag => {
+            super::identifiers::contains_case_insensitive(super::identifiers::GOV_FLAG_NAMES, &name)
+        }
+        RequirementKind::Building => building_name_exists(&name),
+        RequirementKind::BuildingFlag => super::identifiers::contains_case_insensitive(
             super::identifiers::BUILDING_FLAG_NAMES,
+            &name,
         ),
         RequirementKind::BuildingGenus => super::identifiers::contains_case_insensitive(
             super::identifiers::IMPR_GENUS_NAMES,
@@ -809,13 +232,9 @@ fn requirement_value_is_valid(requirement: &Requirement, rules: &RulesetData) ->
             }
         }),
         RequirementKind::Nation | RequirementKind::Nationality | RequirementKind::OriginalOwner => {
-            content_name_exists(rules, ContentKind::Nation, &name)
-                || name.eq_ignore_ascii_case("Animal Kingdom")
+            name.eq_ignore_ascii_case("Animal Kingdom")
         }
-        RequirementKind::NationGroup => {
-            record_name_exists(rules, "nation_group", &name)
-                || name.eq_ignore_ascii_case("Barbarian")
-        }
+        RequirementKind::NationGroup => name.eq_ignore_ascii_case("Barbarian"),
         RequirementKind::OutputType => super::identifiers::contains_case_insensitive(
             super::identifiers::OUTPUT_TYPE_NAMES,
             &name,
@@ -828,29 +247,19 @@ fn requirement_value_is_valid(requirement: &Requirement, rules: &RulesetData) ->
             super::identifiers::PLAYER_STATE_NAMES,
             &name,
         ),
-        RequirementKind::RoadFlag => flag_name_exists(
-            rules,
-            &name,
-            "terrain.ruleset",
-            "road_flags",
+        RequirementKind::RoadFlag => super::identifiers::contains_case_insensitive(
             super::identifiers::ROAD_FLAG_NAMES,
+            &name,
         ),
         // The campaign's server settings are code constants, not ruleset names.
         RequirementKind::ServerSetting => false,
-        RequirementKind::Site => building_name_exists(rules, &name),
-        RequirementKind::Specialist => {
-            record_name_exists(rules, "specialist", &name)
-                || ["Elvis", "scientist", "taxman"]
-                    .iter()
-                    .any(|s| s.eq_ignore_ascii_case(&name))
-        }
-        RequirementKind::Style => content_name_exists(rules, ContentKind::Style, &name),
-        RequirementKind::TechFlag => flag_name_exists(
-            rules,
-            &name,
-            "techs.ruleset",
-            "flags",
+        RequirementKind::Site => building_name_exists(&name),
+        RequirementKind::Specialist => ["Elvis", "scientist", "taxman"]
+            .iter()
+            .any(|s| s.eq_ignore_ascii_case(&name)),
+        RequirementKind::TechFlag => super::identifiers::contains_case_insensitive(
             super::identifiers::TECH_FLAG_NAMES,
+            &name,
         ),
         RequirementKind::Terrain => crate::rules::terrain_catalog::terrain_spec(&name).is_some(),
         RequirementKind::TerrainAlter => super::identifiers::contains_case_insensitive(
@@ -861,16 +270,10 @@ fn requirement_value_is_valid(requirement: &Requirement, rules: &RulesetData) ->
             super::identifiers::TERRAIN_CLASS_NAMES,
             &name,
         ),
-        RequirementKind::TerrainFlag => flag_name_exists(
-            rules,
-            &name,
-            "terrain.ruleset",
-            "flags",
+        RequirementKind::TerrainFlag => super::identifiers::contains_case_insensitive(
             super::identifiers::TERRAIN_FLAG_NAMES,
+            &name,
         ),
-        RequirementKind::Tiledef | RequirementKind::TiledefConnected => {
-            record_name_exists(rules, "tile_definition", &name)
-        }
         RequirementKind::Topology => {
             super::identifiers::contains_case_insensitive(super::identifiers::TOPOLOGY_NAMES, &name)
         }
@@ -890,7 +293,7 @@ fn requirement_value_is_valid(requirement: &Requirement, rules: &RulesetData) ->
             super::identifiers::UNIT_TYPE_FLAG_NAMES,
             &name,
         ),
-        RequirementKind::UnitType => unit_name_exists(rules, &name),
+        RequirementKind::UnitType => unit_name_exists(&name),
         RequirementKind::Wrap => {
             super::identifiers::contains_case_insensitive(super::identifiers::WRAP_NAMES, &name)
         } // A known type without a source-backed resolver is rejected explicitly.
@@ -912,269 +315,24 @@ fn integer_value(value: &str) -> Option<i64> {
         .filter(|number| i32::try_from(*number).is_ok())
 }
 
-fn content_name_exists(rules: &RulesetData, kind: ContentKind, name: &str) -> bool {
-    rules
-        .content
+fn building_name_exists(name: &str) -> bool {
+    crate::rules::native::buildings()
+        .rules
         .iter()
-        .any(|record| record.kind == kind && record.rule_name.eq_ignore_ascii_case(name))
-}
-
-fn building_name_exists(rules: &RulesetData, name: &str) -> bool {
-    content_name_exists(rules, ContentKind::Building, name)
-        || (rules.name == "civcraft"
-            && (crate::rules::native::buildings()
-                .rules
-                .iter()
-                .any(|building| building.name.eq_ignore_ascii_case(name))
-                || ["Harbour", "Shakespeare's Theatre"]
-                    .iter()
-                    .any(|alias| alias.eq_ignore_ascii_case(name))))
-}
-
-fn unit_name_exists(rules: &RulesetData, name: &str) -> bool {
-    content_name_exists(rules, ContentKind::Unit, name)
-        || (rules.name == "civcraft"
-            && (crate::rules::native::units()
-                .units
-                .iter()
-                .any(|unit| unit.name.eq_ignore_ascii_case(name))
-                || ["Barbarian Leader", "Nuclear"]
-                    .iter()
-                    .any(|alias| alias.eq_ignore_ascii_case(name))))
-}
-
-fn record_name_exists(rules: &RulesetData, namespace: &str, name: &str) -> bool {
-    rules
-        .rule_records
-        .iter()
-        .any(|record| record.namespace == namespace && record.rule_name.eq_ignore_ascii_case(name))
-}
-
-fn flag_name_exists(
-    rules: &RulesetData,
-    name: &str,
-    file: &str,
-    key: &str,
-    built_in: &[&str],
-) -> bool {
-    super::identifiers::contains_case_insensitive(built_in, name)
-        || rules.parameters.iter().any(|parameter| {
-            parameter.file == file
-                && parameter.section == "control"
-                && parameter.key == key
-                && value_contains_name(&parameter.value, name)
-        })
-}
-
-fn value_contains_name(value: &Value, name: &str) -> bool {
-    match value {
-        Value::String(value) => value.eq_ignore_ascii_case(name),
-        Value::List(values) => values.iter().any(|value| value_contains_name(value, name)),
-        Value::Table { rows, .. } => rows
+        .any(|building| building.name.eq_ignore_ascii_case(name))
+        || ["Harbour", "Shakespeare's Theatre"]
             .iter()
-            .flatten()
-            .any(|value| value_contains_name(value, name)),
-        Value::Integer(value) => value.to_string().eq_ignore_ascii_case(name),
-        Value::Bool(value) => (if *value { "TRUE" } else { "FALSE" }).eq_ignore_ascii_case(name),
-        Value::Float(value) => value.eq_ignore_ascii_case(name),
-        Value::Empty => false,
-    }
+            .any(|alias| alias.eq_ignore_ascii_case(name))
 }
 
-fn table_rows(
-    file: &Path,
-    section: &Section,
-    entry: &Entry,
-) -> Result<Vec<BTreeMap<String, Value>>, LoadError> {
-    match &entry.value {
-        Value::Empty => Ok(Vec::new()),
-        Value::Table { columns, rows } => rows
-            .iter()
-            .map(|row| {
-                Ok(row
-                    .iter()
-                    .enumerate()
-                    .map(|(index, value)| {
-                        let key = columns
-                            .get(index)
-                            .cloned()
-                            .unwrap_or_else(|| format!("extra_column_{}", index + 1));
-                        (key, value.clone())
-                    })
-                    .collect())
-            })
-            .collect(),
-        _ => Err(LoadError::in_key(
-            file,
-            section,
-            &entry.key,
-            "expected a brace table",
-        )),
-    }
-}
-
-fn row_value<'a>(
-    file: &Path,
-    section: &Section,
-    entry: &Entry,
-    row: &'a BTreeMap<String, Value>,
-    column: &str,
-) -> Result<&'a Value, LoadError> {
-    row.get(column).ok_or_else(|| {
-        LoadError::in_key(
-            file,
-            section,
-            &entry.key,
-            format!("table row is missing required column {column:?}"),
-        )
-    })
-}
-
-fn row_string(
-    file: &Path,
-    section: &Section,
-    entry: &Entry,
-    row: &BTreeMap<String, Value>,
-    column: &str,
-) -> Result<String, LoadError> {
-    match row_value(file, section, entry, row, column)? {
-        Value::String(value) => Ok(value.clone()),
-        Value::Integer(value) => Ok(value.to_string()),
-        Value::Bool(value) => Ok(value.to_string()),
-        _ => Err(LoadError::in_key(
-            file,
-            section,
-            &entry.key,
-            format!("table column {column:?} must contain a scalar"),
-        )),
-    }
-}
-
-fn row_bool(
-    file: &Path,
-    section: &Section,
-    entry: &Entry,
-    row: &BTreeMap<String, Value>,
-    column: &str,
-    default: bool,
-) -> Result<bool, LoadError> {
-    match row.get(column) {
-        None => Ok(default),
-        Some(Value::Bool(value)) => Ok(*value),
-        Some(Value::String(value)) if value.eq_ignore_ascii_case("true") => Ok(true),
-        Some(Value::String(value)) if value.eq_ignore_ascii_case("false") => Ok(false),
-        Some(_) => Err(LoadError::in_key(
-            file,
-            section,
-            &entry.key,
-            format!("table column {column:?} must be boolean"),
-        )),
-    }
-}
-
-fn field_value<'a>(section: &'a Section, key: &str) -> Option<&'a Value> {
-    section
-        .entries
+fn unit_name_exists(name: &str) -> bool {
+    crate::rules::native::units()
+        .units
         .iter()
-        .find(|entry| entry.key == key)
-        .map(|entry| &entry.value)
-}
-
-fn field_string(file: &Path, section: &Section, key: &str) -> Result<Option<String>, LoadError> {
-    match field_value(section, key) {
-        None | Some(Value::Empty) => Ok(None),
-        Some(Value::String(value)) => Ok(Some(value.clone())),
-        Some(_) => Err(LoadError::in_key(file, section, key, "expected a string")),
-    }
-}
-
-fn section_suffix(section: &Section, prefix: &str) -> String {
-    section
-        .name
-        .strip_prefix(prefix)
-        .unwrap_or(&section.name)
-        .to_owned()
-}
-
-fn record_namespace(section: &str) -> Option<&'static str> {
-    [
-        ("super_specialist_", "super_specialist"),
-        ("citystyle_", "citystyle"),
-        ("musicstyle_", "musicstyle"),
-        ("nset_", "nation_set"),
-        ("ngroup_", "nation_group"),
-        ("nation_", "nation"),
-        ("clause_", "clause"),
-        ("extra_", "extra"),
-        ("base_", "base"),
-        ("road_", "road"),
-        ("resource_", "resource"),
-        ("goods_", "goods"),
-        ("specialist_", "specialist"),
-        ("unitclass_", "unit_class"),
-        ("disaster_", "disaster"),
-        ("achievement_", "achievement"),
-        ("techclass_", "tech_class"),
-        ("tiledef_", "tile_definition"),
-        ("counter_", "counter"),
-        ("ueff_", "user_effect"),
-        ("multiplier_", "multiplier"),
-    ]
-    .iter()
-    .find_map(|(prefix, namespace)| section.starts_with(prefix).then_some(*namespace))
-}
-
-fn is_record_section(name: &str) -> bool {
-    if record_namespace(name).is_some() {
-        return true;
-    }
-    [
-        "unit_",
-        "building_",
-        "advance_",
-        "terrain_",
-        "government_",
-        "nation_",
-        "style_",
-        "multiplier_",
-        "action_",
-        "enabler_",
-        "effect_",
-        "ueff_",
-    ]
-    .iter()
-    .any(|prefix| name.starts_with(prefix))
-}
-
-fn content_kind(file: &str, section: &str) -> Option<ContentKind> {
-    let (expected_file, prefix, kind) = if section.starts_with("unit_") {
-        ("units.ruleset", "unit_", ContentKind::Unit)
-    } else if section.starts_with("building_") {
-        ("buildings.ruleset", "building_", ContentKind::Building)
-    } else if section.starts_with("advance_") {
-        ("techs.ruleset", "advance_", ContentKind::Technology)
-    } else if section.starts_with("terrain_") {
-        ("terrain.ruleset", "terrain_", ContentKind::Terrain)
-    } else if section.starts_with("government_") {
-        (
-            "governments.ruleset",
-            "government_",
-            ContentKind::Government,
-        )
-    } else if section.starts_with("nation_") {
-        ("nations.ruleset", "nation_", ContentKind::Nation)
-    } else if section.starts_with("style_") {
-        ("styles.ruleset", "style_", ContentKind::Style)
-    } else if section.starts_with("multiplier_") {
-        (
-            "governments.ruleset",
-            "multiplier_",
-            ContentKind::GovernmentMultiplier,
-        )
-    } else {
-        return None;
-    };
-    (expected_file == file && section.starts_with(prefix)).then_some(kind)
+        .any(|unit| unit.name.eq_ignore_ascii_case(name))
+        || ["Barbarian Leader", "Nuclear"]
+            .iter()
+            .any(|alias| alias.eq_ignore_ascii_case(name))
 }
 
 #[cfg(test)]
@@ -1195,16 +353,9 @@ mod bundle_tests {
             })
             .chain(rules.effects.iter().flat_map(|effect| &effect.requirements))
             .chain(
-                rules
-                    .content
+                crate::rules::engine_rules::campaign_extras()
                     .iter()
-                    .flat_map(|record| record.requirements.iter().chain(&record.obsolete_by)),
-            )
-            .chain(
-                rules
-                    .rule_records
-                    .iter()
-                    .flat_map(|record| &record.requirements),
+                    .flat_map(|extra| &extra.requirements),
             )
             .filter(|requirement| requirement.kind == RequirementKind::Tech)
             .collect::<Vec<_>>();
@@ -1231,17 +382,5 @@ mod bundle_tests {
             Ok(EngineTechBinding::MissingFromCiv3Catalog)
         );
         assert!(bind_engine_technology("Unknown modification").is_err());
-    }
-
-    #[test]
-    fn embedded_campaign_matches_the_filesystem_ruleset() {
-        let engine_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/rules/engine_data");
-        let disk = RulesetData::load_civcraft(&engine_dir).unwrap();
-        let bundled = RulesetData::campaign_default();
-        assert_eq!(disk.files.len(), bundled.files.len());
-        for (disk, bundled) in disk.files.iter().zip(&bundled.files) {
-            assert_eq!(disk.name, bundled.name);
-            assert_eq!(disk.parsed, bundled.parsed);
-        }
     }
 }

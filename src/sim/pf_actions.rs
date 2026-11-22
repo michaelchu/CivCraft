@@ -408,7 +408,7 @@ mod tests {
     #[test]
     fn pf_terrain_costs_use_campaign_terrain_records_and_move_fragments() {
         let rules = MovementRules::campaign();
-        let fragments = rules.move_fragments().unwrap();
+        let fragments = rules.move_fragments();
         let mut sim = Simulation::new(crate::mapgen::generate(42));
         sim.units.clear();
         sim.cities.clear();
@@ -456,8 +456,8 @@ mod tests {
         let diagonal = sim.map_wrap.civ3_neighbor(from.0, from.1, 2).unwrap();
         sim.spawn_unit(HUMAN, UnitKind::Warrior, from.0, from.1);
         let actor = sim.units[0].clone();
-        let base_cost = rules.terrain_movement_cost(Terrain::Grassland).unwrap()
-            * rules.move_fragments().unwrap();
+        let base_cost =
+            rules.terrain_movement_cost(Terrain::Grassland).unwrap() * rules.move_fragments();
         let river_cost = rules.road_move_cost(RoadType::River).unwrap();
         let road_cost = rules.road_move_cost(RoadType::Road).unwrap();
         assert_eq!(
@@ -523,7 +523,7 @@ mod tests {
 
     #[test]
     fn attack_move_cost_uses_c2c3_one_attack_and_missile_rules() {
-        let fragments = MovementRules::campaign().move_fragments().unwrap();
+        let fragments = MovementRules::campaign().move_fragments();
         let rate = 3 * fragments;
         assert_eq!(
             Simulation::pf_action_move_cost(UnitKind::Warrior, PfAction::Attack, rate),

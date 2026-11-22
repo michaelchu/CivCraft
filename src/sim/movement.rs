@@ -12,7 +12,6 @@
 
 use super::movement_rules::{MovementRules, MovementTile, campaign_move_fragments};
 use super::*;
-use crate::rules::engine_rules::RulesetData;
 use std::collections::BTreeMap;
 
 type PlayerGotoGroupKey = ((i32, i32), (i32, i32));
@@ -1059,9 +1058,7 @@ impl Simulation {
                 && unit.kind.is_military()
                 && self.best_defender_id(&unit, nx, ny).is_some() =>
             {
-                MovementRules::campaign()
-                    .move_fragments()
-                    .expect("campaign C2C3 movement fragment setting")
+                MovementRules::campaign().move_fragments()
             }
             None => return MoveResult::Blocked,
         };

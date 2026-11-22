@@ -13,9 +13,9 @@ use crate::rules::engine_rules::RequirementKind;
 #[cfg(test)]
 use crate::rules::engine_rules::effect_value;
 use crate::rules::engine_rules::{
-    ActionEvaluationError, EffectContext, EffectKind, Requirement, RequirementContext,
+    ActionEvaluationError, EffectContext, EffectKind, ExtraRule, Requirement, RequirementContext,
     RequirementEvaluationError, RequirementRange, RequirementValue, ResolvedRequirementValue,
-    RuleRecord, RulesetData, campaign_effect, requirements_met,
+    RulesetData, campaign_effect, campaign_extras, extra_by_any_name, requirements_met,
 };
 use crate::rules::{Building, Genus, Requirement as BuildingRequirement, Tech};
 use crate::world::{Resource, Terrain};
@@ -42,13 +42,12 @@ pub(crate) struct SimulationRequirementContext<'a> {
     granted_tech: Option<Tech>,
     celebrating: Option<bool>,
     disordered: Option<bool>,
-    unit_type_flag_record: Option<&'static crate::rules::engine_rules::ContentRecord>,
     native_unit_capabilities: Option<&'static super::native_unit_rules::UnitCapabilities>,
     unbound_content_is_absent: bool,
 }
 
 struct CampaignExtra {
-    record: &'static RuleRecord,
+    record: &'static ExtraRule,
     present: fn(&Tile) -> bool,
 }
 
@@ -58,21 +57,8 @@ impl CampaignExtra {
             std::sync::OnceLock::new();
         let extras = EXTRAS.get_or_init(|| {
             let mut by_name = std::collections::BTreeMap::new();
-            for record in &RulesetData::campaign_default().rule_records {
-                let section_alias = record
-                    .section
-                    .get(..6)
-                    .filter(|prefix| prefix.eq_ignore_ascii_case("extra_"))
-                    .map(|_| &record.section[6..]);
-                for alias in [
-                    Some(record.rule_name.as_str()),
-                    section_alias,
-                    record.rule_name.strip_prefix("extra_"),
-                    record.display_name.as_deref(),
-                ]
-                .into_iter()
-                .flatten()
-                {
+            for record in campaign_extras() {
+                for alias in [record.name, record.id, record.display_name] {
                     let name = alias.to_ascii_lowercase();
                     let present = Self::tile_test(&name);
                     // Keep the first loaded record when names or aliases collide.
@@ -163,7 +149,6 @@ impl<'a> SimulationRequirementContext<'a> {
             granted_tech: None,
             celebrating: None,
             disordered: None,
-            unit_type_flag_record: None,
             native_unit_capabilities: native_unit_capabilities(unit.kind),
             unbound_content_is_absent: false,
         }
@@ -192,7 +177,6 @@ impl<'a> SimulationRequirementContext<'a> {
             granted_tech: None,
             celebrating: None,
             disordered: None,
-            unit_type_flag_record: None,
             native_unit_capabilities: None,
             unbound_content_is_absent: false,
         }
@@ -221,7 +205,6 @@ impl<'a> SimulationRequirementContext<'a> {
             granted_tech: None,
             celebrating: None,
             disordered: None,
-            unit_type_flag_record: None,
             native_unit_capabilities: None,
             unbound_content_is_absent: true,
         }
@@ -243,19 +226,6 @@ impl<'a> SimulationRequirementContext<'a> {
 
     pub(crate) fn with_output_type(mut self, output_type: &str) -> Self {
         self.output_type = Some(output_type.to_owned());
-        self
-    }
-
-    pub(crate) fn with_unit_type_flag_record(
-        mut self,
-        record: &'static crate::rules::engine_rules::ContentRecord,
-    ) -> Self {
-        self.unit_type_flag_record = Some(record);
-        // Upkeep and production callers intentionally supply the selected
-        // archetype record for a mapped identity.  That explicit adapter
-        // must take precedence over the actor's Civ III native binding while
-        // the shared action requirements are evaluated.
-        self.native_unit_capabilities = None;
         self
     }
 
@@ -334,7 +304,6 @@ impl<'a> SimulationRequirementContext<'a> {
             granted_tech: self.granted_tech,
             celebrating: self.celebrating,
             disordered: self.disordered,
-            unit_type_flag_record: self.unit_type_flag_record,
             native_unit_capabilities: self.native_unit_capabilities,
             unbound_content_is_absent: self.unbound_content_is_absent,
         }
@@ -692,13 +661,8 @@ impl<'a> SimulationRequirementContext<'a> {
         // Roads and railroads declare River in `bridged_over`. Freeciv checks
         // the player's technology flag, not Civ III Engineering. The selected
         // ruleset's tech binding resolves which Civ III tech grants that flag.
-        let bridged_over = extra
-            .record
-            .string_list_field("bridged_over")
-            .map_err(|_| Self::unsupported(requirement))?
-            .unwrap_or_default();
-        for bridged_extra in bridged_over {
-            if self.extra_present(&bridged_extra, tile)
+        for bridged_extra in extra.record.bridged_over {
+            if self.extra_present(bridged_extra, tile)
                 && !self.player_has_technology_flag("Bridge", requirement)?
             {
                 return Ok(false);
@@ -714,25 +678,13 @@ impl<'a> SimulationRequirementContext<'a> {
         let flag = Self::string_name(requirement)?;
         let positions = self.tile_positions(requirement)?;
         let mut known_flag = false;
-        for record in self
-            .ruleset
-            .rule_records
-            .iter()
-            .filter(|record| record.namespace.eq_ignore_ascii_case("extra"))
-        {
-            let flags = record
-                .string_list_field("flags")
-                .map_err(|_| Self::unsupported(requirement))?;
-            if !flags
-                .unwrap_or_default()
-                .iter()
-                .any(|candidate| candidate.eq_ignore_ascii_case(flag))
-            {
+        for record in campaign_extras() {
+            if !record.has_flag(flag) {
                 continue;
             }
             known_flag = true;
             for tile in &positions {
-                if self.extra_present(&record.rule_name, *tile) {
+                if self.extra_present(record.name, *tile) {
                     return Ok(true);
                 }
             }
@@ -1020,13 +972,6 @@ impl RequirementContext for SimulationRequirementContext<'_> {
                                 .iter()
                                 .any(|flag| flag.eq_ignore_ascii_case("Nuclear"))));
                 }
-                if let Some(record) = self.unit_type_flag_record {
-                    return Ok(record.rule_name.eq_ignore_ascii_case(name)
-                        || record
-                            .display_name
-                            .as_deref()
-                            .is_some_and(|display| display.eq_ignore_ascii_case(name)));
-                }
                 if !name.eq_ignore_ascii_case("Nuclear") {
                     return Err(unsupported());
                 }
@@ -1057,18 +1002,10 @@ impl RequirementContext for SimulationRequirementContext<'_> {
                         .iter()
                         .any(|flag| flag.eq_ignore_ascii_case(name)));
                 }
-                if let Some(record) = self.unit_type_flag_record {
-                    let flags = record
-                        .string_list_field("flags")
-                        .map_err(|_| unsupported())?
-                        .unwrap_or_default();
-                    Ok(flags.iter().any(|flag| flag.eq_ignore_ascii_case(name)))
-                } else {
-                    let Some(unit) = self.unit else {
-                        return Ok(false);
-                    };
-                    unit_type_flag(unit.kind, name).ok_or_else(unsupported)
-                }
+                let Some(unit) = self.unit else {
+                    return Ok(false);
+                };
+                unit_type_flag(unit.kind, name).ok_or_else(unsupported)
             }
             RequirementKind::Terrain if requirement.range == RequirementRange::Tile => {
                 let tile = self.tile.ok_or_else(unsupported)?;
@@ -1348,7 +1285,6 @@ impl Simulation {
             Some(target_state),
             None,
             None,
-            None,
             Some((target_xy, target_is_city_center)),
         ) {
             Ok(available) => available,
@@ -1400,7 +1336,6 @@ impl Simulation {
             (target.x, target.y),
             (actor.x, actor.y),
             None,
-            None,
             Some(target),
             None,
             None,
@@ -1438,34 +1373,7 @@ impl Simulation {
             (actor.x, actor.y),
             None,
             None,
-            None,
             Some(target),
-            None,
-        )
-    }
-
-    /// Evaluate an action for a Civ III actor using the selected Freeciv
-    /// unit record that supplies its ruleset flags. Automatic upkeep actions
-    /// use this path because their identities come from the explicit
-    /// C2C3 economics crosswalk rather than the movement/action identity map.
-    #[cfg(test)]
-    pub(crate) fn action_available_for_unit_with_record(
-        &self,
-        actor: &Unit,
-        action: &str,
-        target_xy: (i32, i32),
-        unit_record: &'static crate::rules::engine_rules::ContentRecord,
-        target_city: Option<&super::City>,
-    ) -> Result<bool, ActionEvaluationError> {
-        self.action_available_for_unit_with_context(
-            actor,
-            action,
-            target_xy,
-            (actor.x, actor.y),
-            None,
-            Some(unit_record),
-            None,
-            target_city,
             None,
         )
     }
@@ -1503,7 +1411,6 @@ impl Simulation {
             None,
             None,
             None,
-            None,
         )
     }
 
@@ -1518,7 +1425,6 @@ impl Simulation {
         target_xy: (i32, i32),
         actor_tile_xy: (i32, i32),
         target_state: Option<&Tile>,
-        unit_record: Option<&'static crate::rules::engine_rules::ContentRecord>,
         target_unit_override: Option<&Unit>,
         target_city: Option<&super::City>,
         city_tile_center_override: Option<((i32, i32), bool)>,
@@ -1548,9 +1454,6 @@ impl Simulation {
             SimulationRequirementContext::for_unit_at(self, actor, actor_tile_xy)
                 .with_relation_target(Some(target_owner.unwrap_or(actor.owner)))
                 .with_action(action);
-        if let Some(record) = unit_record {
-            actor_context = actor_context.with_unit_type_flag_record(record);
-        }
         if let Some(state) = target_state
             && actor_tile_xy == target_xy
         {
@@ -1976,36 +1879,12 @@ impl Simulation {
             return Err(SimulationRequirementContext::unsupported(&requirement).into());
         };
         let requirement = SimulationRequirementContext::extra_requirement(extra_name);
-        let extra = RulesetData::campaign_default()
-            .rule_records
-            .iter()
-            .find(|record| {
-                record.rule_name.eq_ignore_ascii_case(extra_name)
-                    || record
-                        .section
-                        .eq_ignore_ascii_case(&format!("extra_{extra_name}"))
-                    || record
-                        .rule_name
-                        .strip_prefix("extra_")
-                        .is_some_and(|rule_name| rule_name.eq_ignore_ascii_case(extra_name))
-                    || record
-                        .display_name
-                        .as_deref()
-                        .is_some_and(|display| display.eq_ignore_ascii_case(extra_name))
-            })
+        let extra = extra_by_any_name(extra_name)
             .ok_or_else(|| SimulationRequirementContext::unsupported(&requirement))?;
-        let build_time = extra
-            .integer_field("build_time")
-            .map_err(|_| SimulationRequirementContext::unsupported(&requirement))?
-            .unwrap_or(0);
-        if build_time > 0 {
-            return i32::try_from(build_time)
-                .map_err(|_| SimulationRequirementContext::unsupported(&requirement).into());
+        if extra.build_time > 0 {
+            return Ok(extra.build_time);
         }
-        let factor = extra
-            .integer_field("build_time_factor")
-            .map_err(|_| SimulationRequirementContext::unsupported(&requirement))?
-            .unwrap_or(1);
+        let factor = i64::from(extra.build_time_factor);
         if factor <= 0 {
             return Err(SimulationRequirementContext::unsupported(&requirement).into());
         }
@@ -2087,31 +1966,11 @@ pub(crate) fn apply_work_extra(tile: &mut Tile, kind: WorkKind) -> bool {
     let Some(extra_name) = build_extra_for_work(kind) else {
         return false;
     };
-    let Some(extra) = RulesetData::campaign_default()
-        .rule_records
-        .iter()
-        .find(|record| {
-            record.rule_name.eq_ignore_ascii_case(extra_name)
-                || record
-                    .section
-                    .eq_ignore_ascii_case(&format!("extra_{extra_name}"))
-                || record
-                    .rule_name
-                    .strip_prefix("extra_")
-                    .is_some_and(|rule_name| rule_name.eq_ignore_ascii_case(extra_name))
-                || record
-                    .display_name
-                    .as_deref()
-                    .is_some_and(|display| display.eq_ignore_ascii_case(extra_name))
-        })
-    else {
+    let Some(extra) = extra_by_any_name(extra_name) else {
         return false;
     };
-    let Ok(conflicts) = extra.string_list_field("conflicts") else {
-        return false;
-    };
-    for conflict in conflicts.unwrap_or_default() {
-        if !clear_conflicting_tile_extra(tile, &conflict) {
+    for conflict in extra.conflicts {
+        if !clear_conflicting_tile_extra(tile, conflict) {
             return false;
         }
     }
@@ -2349,33 +2208,27 @@ mod tests {
 
     #[test]
     fn campaign_extra_index_preserves_loaded_record_order_and_aliases() {
-        let records = &RulesetData::campaign_default().rule_records;
         for name in [
             "Road",
             "RiVeR",
             "buoy",
             "Fortress",
+            "oil_well",
+            "Minor Tribe Village",
             "extra_road",
             "missing_extra",
         ] {
-            let section = format!("extra_{name}");
-            let expected = records.iter().find(|record| {
-                record.rule_name.eq_ignore_ascii_case(name)
-                    || record.section.eq_ignore_ascii_case(&section)
-                    || record
-                        .rule_name
-                        .strip_prefix("extra_")
-                        .is_some_and(|alias| alias.eq_ignore_ascii_case(name))
-                    || record
-                        .display_name
-                        .as_deref()
-                        .is_some_and(|alias| alias.eq_ignore_ascii_case(name))
-            });
             assert_eq!(
-                CampaignExtra::find(name).map(|extra| extra.record),
-                expected
+                CampaignExtra::find(name).map(|extra| extra.record.id),
+                extra_by_any_name(name).map(|extra| extra.id),
+                "{name}"
             );
         }
+        assert!(CampaignExtra::find("extra_road").is_none());
+        assert_eq!(
+            CampaignExtra::find("oil_well").unwrap().record.name,
+            "Oil Well"
+        );
     }
 
     #[test]
@@ -3249,68 +3102,6 @@ mod tests {
                     .unwrap()
             );
         }
-    }
-
-    #[test]
-    fn upkeep_actions_use_mapped_unit_flags_and_target_city_production() {
-        let mut game = flat_game();
-        let (x, y) = (10, 20);
-        game.create_city(crate::sim::HUMAN, x, y);
-        game.cities[0].production = super::super::Production::Building(Building::PYRAMIDS);
-        static CARAVAN: std::sync::OnceLock<crate::rules::engine_rules::ContentRecord> =
-            std::sync::OnceLock::new();
-        let caravan_record = CARAVAN.get_or_init(|| {
-            RulesetData::test_unit_record_from_ruleset(
-                "[unit_caravan]\nname = \"Caravan\"\ntp_defense = \"Alight\"\nflags = \"TradeRoute\", \"HelpWonder\", \"NonMil\", \"HasNoZOC\", \"Capturable\", \"ShieldToGold\"\n",
-                "unit_caravan",
-            )
-        });
-        let warrior_id = game.spawn_unit(crate::sim::HUMAN, UnitKind::Warrior, x, y);
-        let warrior = game.unit_by_id(warrior_id).unwrap().clone();
-
-        assert!(
-            game.action_available_for_unit_with_record(
-                &warrior,
-                "Help Wonder",
-                (x, y),
-                caravan_record,
-                Some(&game.cities[0]),
-            )
-            .unwrap()
-        );
-        assert!(
-            game.action_available_for_unit_with_record(
-                &warrior,
-                "Disband Unit Recover",
-                (x, y),
-                caravan_record,
-                Some(&game.cities[0]),
-            )
-            .unwrap()
-        );
-        assert!(
-            game.action_available_for_unit_with_record(
-                &warrior,
-                "Disband Unit",
-                (x, y),
-                caravan_record,
-                None,
-            )
-            .unwrap()
-        );
-
-        game.cities[0].production = super::super::Production::Building(Building::TEMPLE);
-        assert!(
-            !game
-                .action_available_for_unit_with_record(
-                    &warrior,
-                    "Help Wonder",
-                    (x, y),
-                    caravan_record,
-                    Some(&game.cities[0]),
-                )
-                .unwrap()
-        );
     }
 
     #[test]

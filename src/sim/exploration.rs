@@ -298,9 +298,7 @@ impl Simulation {
         }
         self.movement_cost_with_profile(unit, x, y, profile)
             .or_else(|| {
-                let fragments = MovementRules::campaign()
-                    .move_fragments()
-                    .expect("selected C2C3 movement fragments");
+                let fragments = MovementRules::campaign().move_fragments();
                 self.boarding_target(unit, x, y).map(|_| fragments)
             })
     }
@@ -669,6 +667,6 @@ mod selected_unknown_cost_tests {
         );
         let rules = MovementRules::campaign();
         assert!(super::action_rules::unit_type_flag(actor.kind, "IgTer").unwrap());
-        assert_eq!(expected, rules.igter_cost().unwrap() * 2);
+        assert_eq!(expected, rules.igter_cost() * 2);
     }
 }

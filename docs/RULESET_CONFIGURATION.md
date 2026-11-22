@@ -12,7 +12,7 @@ are outside this migration.
 | Owner | Contents |
 | --- | --- |
 | `data/rulesets/civcraft/content/` | Player-tuneable unit, building, technology, civilization, experience, and religion catalogs |
-| `src/rules/engine_data/` | Internal generic effects and terrain extras/resources/movement parameters; the rest of the engine data is Rust (`src/rules/engine_rules/`) |
+| `src/rules/engine_rules/` | Internal generic effects, action enablers, extras and roads, disasters, and campaign settings, all as Rust tables |
 | Rust simulation modules | Formulas, rule interpretation, state execution, validation, and turn processing |
 | `data/presentation/` | Animation pacing, independent of gameplay rules |
 | Campaign saves | Current health, activities, discovered technologies, research progress, owned buildings, and other mutable state |
@@ -75,13 +75,13 @@ directly from `content/buildings.toml` via data-driven `Building` handles.
 ## Terrain and governments
 
 Base terrain yields, road/railroad bonuses, and movement costs live in
-`src/rules/terrain_catalog.rs`, paired with `src/rules/engine_data/terrain.ruleset` for Freeciv
-extras, resources, and worker activity parameters. Civ III terrain/resource
+`src/rules/terrain_catalog.rs`, paired with `src/rules/engine_rules/extras.rs` for Freeciv
+extras and roads. Civ III terrain/resource
 identities and artwork mappings stay in their existing Rust adapters, and city
 economy and resource yield overrides live directly in `src/rules/native.rs`.
 
 Government definitions, prerequisites, and unit-support rules live directly in Rust
-(`src/rules/native.rs` and `src/sim/government.rs`), while `src/rules/engine_data/effects.ruleset`
+(`src/rules/native.rs` and `src/sim/government.rs`), while `src/rules/engine_rules/effect_table.rs`
 supplies the rate cap, empire size, and civil-war chance for every campaign
 government. Diplomacy policy parameters live directly in `src/rules/policies.rs`.
 
