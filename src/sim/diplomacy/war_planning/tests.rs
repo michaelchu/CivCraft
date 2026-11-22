@@ -595,4 +595,89 @@ fn overseas_naval_transport_boards_stages_and_lands_after_war_declaration() {
     assert!(landed, "staged troops should disembark onto target continent after war starts");
 }
 
+#[test]
+fn combined_arms_bombard_units_build_stage_and_bombard_objective() {
+    let mut game = war_planning_game();
+    game.cities.clear();
+    game.units.clear();
+    for tile in &mut game.tiles {
+        tile.terrain = Terrain::Grassland;
+        tile.river = false;
+        tile.road = true;
+        tile.known_by.set(1, true);
+    }
+    let home = (10, 24);
+    let target = (16, 24);
+    game.tile_mut(target.0, target.1).terrain = Terrain::Hills;
+    game.create_city(1, home.0, home.1);
+    let home_city = game.city_at(home.0, home.1).unwrap().id;
+    game.create_city(HUMAN, target.0, target.1);
+    game.players[1]
+        .known
+        .extend([Tech::MATHEMATICS, Tech::IRON_WORKING, Tech::BRONZE_WORKING]);
+    game.players[1].gold = 1000;
+    game.spawn_unit(1, UnitKind::Spearman, home.0, home.1);
+    game.spawn_unit(HUMAN, UnitKind::Spearman, target.0, target.1);
+    let adj = game
+        .map_wrap
+        .eight_way_offset(target.0, target.1, EIGHT_WAY_DIRS[0].0, EIGHT_WAY_DIRS[0].1)
+        .unwrap();
+    game.spawn_unit(HUMAN, UnitKind::Pikeman, adj.0, adj.1);
+
+    game.begin_ai_war_plan(1, HUMAN, 1, WarReason::Hatred);
+    game.advance_ai_war_plans_for(1);
+    let objective = game.coordinated_war_objective(1).unwrap();
+    assert_eq!(objective.kind, WarObjectiveKind::Land);
+
+    // Stage 2 offensive troops at objective.staging; coordinated_muster should now request a Catapult.
+    for _ in 0..2 {
+        game.spawn_unit(
+            1,
+            UnitKind::Swordsman,
+            objective.staging.0,
+            objective.staging.1,
+        );
+    }
+    let city = game.city_by_id(home_city).unwrap().clone();
+    let choice = game.ai_build_choice(&city).unwrap();
+    assert_eq!(choice.production, Production::Unit(UnitKind::Catapult));
+
+    // A Catapult at home marches to objective.staging via run_coordinated_ground_order.
+    let catapult = game.spawn_unit(1, UnitKind::Catapult, home.0, home.1);
+    let actor = game.unit_by_id(catapult).unwrap().clone();
+    assert!(game.run_coordinated_ground_order(&actor, objective));
+    let moved = game.unit_by_id(catapult).unwrap();
+    assert_ne!((moved.x, moved.y), home);
+
+    // Place the Catapult at staging, declare war, and verify it approaches & bombards the target city.
+    game.units
+        .iter_mut()
+        .find(|u| u.id == catapult)
+        .unwrap()
+        .x = objective.staging.0;
+    game.units
+        .iter_mut()
+        .find(|u| u.id == catapult)
+        .unwrap()
+        .y = objective.staging.1;
+    assert_eq!(game.staged_bombard_units(1, objective).len(), 1);
+    game.sign_pact(1, HUMAN, Pact::War);
+    for _ in 0..3 {
+        let unit = game.unit_by_id(catapult).unwrap().clone();
+        if game.run_ai_bombard(&unit) {
+            return;
+        }
+        game.run_ai_bombard_approach(&unit);
+        for u in &mut game.units {
+            u.moves_left = u.kind.stats().moves * 3;
+        }
+    }
+    let unit = game.unit_by_id(catapult).unwrap().clone();
+    assert!(
+        game.run_ai_bombard(&unit),
+        "staged Catapult should reach and bombard the objective city"
+    );
+}
+
+
 

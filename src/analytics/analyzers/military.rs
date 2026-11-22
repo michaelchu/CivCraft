@@ -827,8 +827,14 @@ impl Military {
                     .get("force_ready")
                     .and_then(Value::as_bool)
                     .unwrap_or(false);
-                if ready {
-                    n.objective_ready_turns += 1;
+                let at_war_with_target = obj
+                    .get("at_war_with_target")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(false);
+                if ready || at_war_with_target {
+                    if ready {
+                        n.objective_ready_turns += 1;
+                    }
                     n.objective_stalled_streak = 0;
                 } else {
                     n.objective_stalled_streak += 1;

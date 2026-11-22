@@ -828,26 +828,80 @@ impl Simulation {
                         let carrier = self.city_by_id(objective.muster_city).and_then(|home| {
                             self.available_naval_transport_kind(city.owner, home)
                         });
+                        let owned_offensive = self
+                            .units_owned_by(city.owner)
+                            .filter(|unit| Self::can_join_ground_offensive(unit.kind))
+                            .count();
+                        let owned_bombard = self
+                            .units_owned_by(city.owner)
+                            .filter(|unit| Self::can_join_bombard_support(unit.kind))
+                            .count();
+                        let want_bombard = owned_offensive >= 2 && owned_bombard == 0;
+                        let bombard_kind = want_bombard
+                            .then(|| {
+                                UnitKind::all()
+                                    .filter(|&kind| {
+                                        Self::can_join_bombard_support(kind)
+                                            && self.unit_buildable(city, kind)
+                                            && carrier.is_none_or(|boat| boat.can_carry(kind))
+                                    })
+                                    .max_by_key(|kind| {
+                                        (
+                                            kind.bombard_strength() * kind.bombard_rate(),
+                                            std::cmp::Reverse(kind.stats().cost),
+                                        )
+                                    })
+                            })
+                            .flatten();
+                        bombard_kind.or_else(|| {
+                            UnitKind::all()
+                                .filter(|&kind| {
+                                    Self::can_join_ground_offensive(kind)
+                                        && self.unit_buildable(city, kind)
+                                        && carrier.is_none_or(|boat| boat.can_carry(kind))
+                                })
+                                .max_by_key(|kind| {
+                                    let stats = kind.stats();
+                                    stats.attack * stats.attack * 100 / stats.cost.max(1)
+                                })
+                        })
+                    }
+                } else {
+                    let owned_offensive = self
+                        .units_owned_by(city.owner)
+                        .filter(|unit| Self::can_join_ground_offensive(unit.kind))
+                        .count();
+                    let owned_bombard = self
+                        .units_owned_by(city.owner)
+                        .filter(|unit| Self::can_join_bombard_support(unit.kind))
+                        .count();
+                    let want_bombard = owned_offensive >= 2 && owned_bombard == 0;
+                    let bombard_kind = want_bombard
+                        .then(|| {
+                            UnitKind::all()
+                                .filter(|&kind| {
+                                    Self::can_join_bombard_support(kind)
+                                        && self.unit_buildable(city, kind)
+                                })
+                                .max_by_key(|kind| {
+                                    (
+                                        kind.bombard_strength() * kind.bombard_rate(),
+                                        std::cmp::Reverse(kind.stats().cost),
+                                    )
+                                })
+                        })
+                        .flatten();
+                    bombard_kind.or_else(|| {
                         UnitKind::all()
                             .filter(|&kind| {
                                 Self::can_join_ground_offensive(kind)
                                     && self.unit_buildable(city, kind)
-                                    && carrier.is_none_or(|boat| boat.can_carry(kind))
                             })
                             .max_by_key(|kind| {
                                 let stats = kind.stats();
                                 stats.attack * stats.attack * 100 / stats.cost.max(1)
                             })
-                    }
-                } else {
-                    UnitKind::all()
-                        .filter(|&kind| {
-                            Self::can_join_ground_offensive(kind) && self.unit_buildable(city, kind)
-                        })
-                        .max_by_key(|kind| {
-                            let stats = kind.stats();
-                            stats.attack * stats.attack * 100 / stats.cost.max(1)
-                        })
+                    })
                 };
                 if let Some(kind) = kind {
                     return (
@@ -859,6 +913,44 @@ impl Simulation {
                         pre_offensive_emergency,
                         Some("coordinated_muster"),
                     );
+                }
+            }
+            let at_war = (0..self.players.len()).any(|other| {
+                other != city.owner
+                    && other != BARBARIANS
+                    && self.player_alive(other)
+                    && self.diplomatic_at_war(city.owner, other)
+            });
+            if at_war
+                && self.city_grave_danger(city) == 0
+                && !pre_offensive_emergency
+            {
+                let offensive_count = self
+                    .units_owned_by(city.owner)
+                    .filter(|unit| Self::can_join_ground_offensive(unit.kind))
+                    .count();
+                let bombard_count = self
+                    .units_owned_by(city.owner)
+                    .filter(|unit| Self::can_join_bombard_support(unit.kind))
+                    .count();
+                if offensive_count >= 2
+                    && bombard_count == 0
+                    && let Some(kind) = UnitKind::all()
+                        .filter(|&kind| {
+                            Self::can_join_bombard_support(kind) && self.unit_buildable(city, kind)
+                        })
+                        .max_by_key(|kind| {
+                            (
+                                kind.bombard_strength() * kind.bombard_rate(),
+                                std::cmp::Reverse(kind.stats().cost),
+                            )
+                        })
+                {
+                    military = Some(AiBuildChoice {
+                        production: Production::Unit(kind),
+                        want: DOMESTIC_WANT_MAX,
+                    });
+                    stage = Some("bombard_support");
                 }
             }
         }

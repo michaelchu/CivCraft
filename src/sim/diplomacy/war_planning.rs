@@ -338,6 +338,17 @@ impl Simulation {
             && kind.stats().attack >= 2
     }
 
+    pub(in crate::sim) fn can_join_bombard_support(kind: UnitKind) -> bool {
+        !kind.is_naval()
+            && !kind.is_aircraft()
+            && !kind.is_missile()
+            && !kind.stats().can_found
+            && !kind.is_worker()
+            && kind.stats().attack == 0
+            && kind.bombard_strength() > 0
+            && kind.bombard_rate() > 0
+    }
+
     pub(in crate::sim) fn staged_objective_troops(
         &self,
         owner: usize,
@@ -376,6 +387,44 @@ impl Simulation {
         }
     }
 
+    pub(in crate::sim) fn staged_bombard_units(
+        &self,
+        owner: usize,
+        objective: WarObjective,
+    ) -> Vec<&Unit> {
+        match objective.kind {
+            WarObjectiveKind::Land => self
+                .tile_units_ordered(objective.staging.0, objective.staging.1)
+                .filter(|unit| {
+                    unit.owner == owner
+                        && unit.transport.is_none()
+                        && Self::can_join_bombard_support(unit.kind)
+                })
+                .collect(),
+            WarObjectiveKind::Naval => {
+                let boats: Vec<_> = self
+                    .tile_units_ordered(objective.staging.0, objective.staging.1)
+                    .filter(|unit| {
+                        unit.owner == owner
+                            && Self::is_naval_assault_transport(unit.kind)
+                            && self.military_ferry_ready(unit.id)
+                    })
+                    .map(|boat| boat.id)
+                    .collect();
+                boats
+                    .into_iter()
+                    .flat_map(|boat_id| {
+                        self.cargo_units_ordered(boat_id)
+                            .filter(|unit| {
+                                unit.owner == owner && Self::can_join_bombard_support(unit.kind)
+                            })
+                            .collect::<Vec<_>>()
+                    })
+                    .collect()
+            }
+        }
+    }
+
     pub(in crate::sim) fn war_force_ready(&self, owner: usize, objective: WarObjective) -> bool {
         let Some(city) = self.city_by_id(objective.city) else {
             return false;
@@ -394,6 +443,14 @@ impl Simulation {
         // from troops that can visibly reinforce it from surrounding tiles.
         let mut expected = self.make_unit(0, city.owner, UnitKind::Spearman, city.x, city.y);
         expected.state = UnitState::Fortified;
+        let bombarders = self.staged_bombard_units(owner, objective);
+        let bombard_softening = bombarders
+            .iter()
+            .map(|unit| (unit.kind.bombard_rate() + 1) / 2)
+            .sum::<i32>();
+        if bombard_softening > 0 {
+            expected.hp = (expected.hp - bombard_softening).max(1);
+        }
         let mut defenders = vec![&expected];
         for (x, y, distance) in self.map_wrap.tiles_within_steps(city.x, city.y, 3) {
             if distance == 0 {

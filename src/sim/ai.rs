@@ -481,6 +481,14 @@ impl Simulation {
                         "explore"
                     }
                     _ => {
+                        if owner != BARBARIANS
+                            && Self::can_join_bombard_support(unit.kind)
+                            && coordinated_objective.is_some_and(|objective| {
+                                self.run_coordinated_ground_order(&unit, objective)
+                            })
+                        {
+                            break 'dispatch "coordinated_objective";
+                        }
                         if unit.kind.is_military()
                             && !unit.kind.is_aircraft()
                             && !unit.kind.is_naval()

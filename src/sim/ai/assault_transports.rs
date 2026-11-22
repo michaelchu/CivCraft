@@ -537,7 +537,8 @@ impl Simulation {
                     unit.owner == current_boat.owner
                         && unit.transport.is_none()
                         && Some(unit.id) != muster_guard
-                        && Self::can_join_ground_offensive(unit.kind)
+                        && (Self::can_join_ground_offensive(unit.kind)
+                            || Self::can_join_bombard_support(unit.kind))
                         && current_boat.kind.can_carry(unit.kind)
                 })
                 .map(|unit| unit.id)
@@ -555,7 +556,11 @@ impl Simulation {
         board_at_port(self, boat.id);
         let mut offensive_cargo: Vec<u32> = self
             .cargo_units_ordered(boat.id)
-            .filter(|unit| unit.owner == boat.owner && Self::can_join_ground_offensive(unit.kind))
+            .filter(|unit| {
+                unit.owner == boat.owner
+                    && (Self::can_join_ground_offensive(unit.kind)
+                        || Self::can_join_bombard_support(unit.kind))
+            })
             .map(|unit| unit.id)
             .collect();
 
@@ -568,7 +573,9 @@ impl Simulation {
                     offensive_cargo = self
                         .cargo_units_ordered(boat.id)
                         .filter(|unit| {
-                            unit.owner == boat.owner && Self::can_join_ground_offensive(unit.kind)
+                            unit.owner == boat.owner
+                                && (Self::can_join_ground_offensive(unit.kind)
+                                    || Self::can_join_bombard_support(unit.kind))
                         })
                         .map(|unit| unit.id)
                         .collect();
@@ -597,7 +604,9 @@ impl Simulation {
                 offensive_cargo = self
                     .cargo_units_ordered(boat.id)
                     .filter(|unit| {
-                        unit.owner == boat.owner && Self::can_join_ground_offensive(unit.kind)
+                        unit.owner == boat.owner
+                            && (Self::can_join_ground_offensive(unit.kind)
+                                || Self::can_join_bombard_support(unit.kind))
                     })
                     .map(|unit| unit.id)
                     .collect();
@@ -635,8 +644,13 @@ impl Simulation {
                     .is_some_and(|unit| unit.transport.is_none())
                 {
                     self.release_ai_ferry(id);
-                    self.ai_ground_targets.insert(id, objective.city);
-                    self.unit_goto_tiles.insert(id, goal);
+                    if self
+                        .unit_by_id(id)
+                        .is_some_and(|unit| Self::can_join_ground_offensive(unit.kind))
+                    {
+                        self.ai_ground_targets.insert(id, objective.city);
+                        self.unit_goto_tiles.insert(id, goal);
+                    }
                 }
             }
         }

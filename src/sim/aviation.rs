@@ -696,7 +696,7 @@ impl Simulation {
     }
 
     /// Civ III Conquests bombard range.
-    fn fixed_wing_bombard_range(kind: UnitKind) -> i32 {
+    pub(in crate::sim) fn fixed_wing_bombard_range(kind: UnitKind) -> i32 {
         if kind.bombard_range() > 0 {
             kind.bombard_range()
         } else if kind.is_aircraft() {
@@ -997,6 +997,15 @@ impl Simulation {
         }
         let blocked_by = BOMBARD_BLOCKED_BY;
         let range = Self::fixed_wing_bombard_range(unit.kind);
+        let coordinated_city = self
+            .coordinated_war_objective(unit.owner)
+            .and_then(|obj| self.city_by_id(obj.city))
+            .filter(|city| {
+                city.owner != unit.owner
+                    && self.at_war(unit.owner, city.owner)
+                    && self.tile(city.x, city.y).known_by[unit.owner]
+            })
+            .map(|city| (city.x, city.y));
         let mut target_tiles = std::collections::BTreeSet::new();
         for city in self.cities.iter().filter(|city| {
             city.owner != unit.owner
@@ -1004,6 +1013,10 @@ impl Simulation {
                 && self.tile(city.x, city.y).known_by[unit.owner]
         }) {
             target_tiles.insert((city.x, city.y));
+        }
+        if let Some(pos) = coordinated_city {
+            target_tiles.clear();
+            target_tiles.insert(pos);
         }
         for target in self.units.iter().filter(|target| {
             target.owner != unit.owner

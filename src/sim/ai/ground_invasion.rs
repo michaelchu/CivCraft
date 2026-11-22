@@ -11,7 +11,9 @@ impl Simulation {
         actor: &Unit,
         objective: diplomacy::WarObjective,
     ) -> bool {
-        if !Self::can_join_ground_offensive(actor.kind) || actor.transport.is_some() {
+        let offensive = Self::can_join_ground_offensive(actor.kind);
+        let bombard = Self::can_join_bombard_support(actor.kind);
+        if (!offensive && !bombard) || actor.transport.is_some() {
             return false;
         }
         let Some(city) = self.city_by_id(objective.city).cloned() else {
@@ -27,14 +29,22 @@ impl Simulation {
         match objective.kind {
             diplomacy::WarObjectiveKind::Land => {
                 let goal = if attacking {
-                    (city.x, city.y)
+                    if bombard {
+                        let range = Self::fixed_wing_bombard_range(actor.kind);
+                        if self.map_wrap.step_distance(actor.x, actor.y, city.x, city.y) <= range {
+                            return false;
+                        }
+                        objective.staging
+                    } else {
+                        (city.x, city.y)
+                    }
                 } else {
                     objective.staging
                 };
                 if actor_continent != continents[self.map_wrap.index(goal.0, goal.1)] {
                     return false;
                 }
-                let mut routes = if attacking {
+                let mut routes = if attacking && offensive {
                     normal_paths::NormalPaths::attack_map(self, actor)
                 } else {
                     normal_paths::NormalPaths::goto_map(self, actor, GotoTask::None)
@@ -42,7 +52,7 @@ impl Simulation {
                 let Some((path, _)) = routes.path(self, goal.0, goal.1) else {
                     return false;
                 };
-                if attacking {
+                if attacking && offensive {
                     self.ai_ground_targets.insert(actor.id, objective.city);
                 } else {
                     self.ai_ground_targets.remove(&actor.id);
@@ -55,6 +65,9 @@ impl Simulation {
                 if attacking
                     && actor_continent == continents[self.map_wrap.index(city.x, city.y)]
                 {
+                    if bombard {
+                        return false;
+                    }
                     let goal = (city.x, city.y);
                     let mut routes = normal_paths::NormalPaths::attack_map(self, actor);
                     let Some((path, _)) = routes.path(self, goal.0, goal.1) else {
