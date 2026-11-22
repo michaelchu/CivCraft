@@ -35,6 +35,7 @@ const REMEMBERED_FOG_ALPHA_GAMMA: f32 = 1.2;
 pub(super) struct TerrainOverlayContext {
     /// NW, NE, SW, SE bits used by the four-by-four hill/mountain atlases.
     pub(super) hilly_neighbors: u8,
+    pub(super) base_terrain: TerrainBase,
     pub(super) dominant_vegetation: Option<Terrain>,
 }
 
@@ -151,7 +152,7 @@ const LAND_SHEETS: [(&str, &str, [Ground; 3]); 6] = [
     ("tundra-grass-coast", "XTGC", [Tundra, Grass, Coast]),
     ("grass-coast", "XGGC", [Grass, Grass, Coast]),
 ];
-const OVERLAYS: [(&str, &str, u16, u16, usize); 13] = [
+const OVERLAYS: [(&str, &str, u16, u16, usize); 16] = [
     ("vegetation", "grassland forests", 768, 616, 88),
     ("marsh", "marsh", 768, 264, 88),
     ("hills", "xhills", 512, 288, 72),
@@ -165,7 +166,73 @@ const OVERLAYS: [(&str, &str, u16, u16, usize); 13] = [
     ("mountains-jungle", "mountain jungles", 512, 352, 88),
     ("volcano-forest", "Volcanos forests", 512, 352, 88),
     ("volcano-jungle", "Volcanos jungles", 512, 352, 88),
+    ("vegetation-plains", "plains forests", 768, 616, 88),
+    ("vegetation-tundra", "tundra forests", 768, 880, 88),
+    ("volcano-snow", "Volcanos-snow", 512, 352, 88),
 ];
+/// Native small vegetation rows and four-by-four connected relief cells.
+fn overlay_cell(
+    terrain: Terrain,
+    context: TerrainOverlayContext,
+    x: i32,
+    y: i32,
+) -> Option<(usize, usize, usize)> {
+    let variant = |count| (i64::from(x) * 37 + i64::from(y) * 13).rem_euclid(count) as usize;
+    let cold = matches!(context.base_terrain, TerrainBase::Tundra | TerrainBase::Ice);
+    Some(match terrain {
+        Terrain::Forest => match context.base_terrain {
+            TerrainBase::Plains => (13, 6, variant(5)),
+            TerrainBase::Tundra | TerrainBase::Ice => (14, 8 + variant(12) / 6, variant(6)),
+            _ => (0, 6, variant(5)),
+        },
+        Terrain::Jungle => (0, 2, variant(6)),
+        Terrain::Marsh => (1, 2, variant(6)),
+        Terrain::Hills => {
+            let index = match context.dominant_vegetation {
+                Some(Terrain::Forest) => 6,
+                Some(Terrain::Jungle) => 7,
+                _ => 2,
+            };
+            let shape = usize::from(context.hilly_neighbors & 0x0f);
+            (index, shape / 4, shape % 4)
+        }
+        Terrain::Mountains => {
+            let index = match context.dominant_vegetation {
+                _ if cold => 8,
+                Some(Terrain::Forest) => 9,
+                Some(Terrain::Jungle) => 10,
+                _ => 3,
+            };
+            let shape = usize::from(context.hilly_neighbors & 0x0f);
+            (index, shape / 4, shape % 4)
+        }
+        Terrain::FloodPlains => (4, 0, variant(4)),
+        Terrain::Volcano => {
+            let index = match context.dominant_vegetation {
+                _ if cold => 15,
+                Some(Terrain::Forest) => 11,
+                Some(Terrain::Jungle) => 12,
+                _ => 5,
+            };
+            let shape = usize::from(context.hilly_neighbors & 0x0f);
+            (index, shape / 4, shape % 4)
+        }
+        _ => return None,
+    })
+}
+
+/// Optional biome sheets fall back to the original manifest roles. A legacy
+/// 616px vegetation sheet cannot supply pine rows, so also restore its row.
+fn overlay_fallback(index: usize, row: usize, col: usize) -> Option<(usize, usize, usize)> {
+    Some(match index {
+        13 | 14 => (0, 6, col % 5),
+        8..=10 => (3, row, col),
+        11 | 12 | 15 => (5, row, col),
+        6 | 7 => (2, row, col),
+        _ => return None,
+    })
+}
+
 const IRRIGATION: [(&str, &str); 4] = [
     ("irrigation", "irrigation"),
     ("irrigation-plains", "irrigation PLAINS"),
@@ -898,7 +965,6 @@ fn load_unit_team_palettes(theme: &Theme) -> AssetResult<Vec<UnitTeamPalette>> {
 struct Junction {
     ground: [Ground; 4],
     variant: u8,
-    straight_ice: bool,
 }
 
 fn spatial_variant_hash(x: i32, y: i32, choices: u8) -> u8 {
@@ -991,16 +1057,6 @@ fn is_water(ground: Ground) -> bool {
     matches!(ground, Coast | Sea | Ocean)
 }
 
-fn ice_row(ground: [Ground; 4]) -> Option<usize> {
-    match ground.map(|tile| tile == Ice) {
-        [true, true, false, true] => Some(0),
-        [true, false, false, false] => Some(1),
-        [false, true, true, true] => Some(2),
-        [false, false, true, false] => Some(3),
-        _ => None,
-    }
-}
-
 impl GroundArt {
     fn land_sheet(&self, ground: [Ground; 4], tip: Option<Ground>) -> usize {
         if tip.is_none()
@@ -1022,11 +1078,97 @@ impl GroundArt {
     }
 
     fn rasterize_base(&self, key: Junction) -> Image {
-        let ground = key.ground;
+        let mut image = self.rasterize_cell(key);
+        if key.ground.iter().all(|&ground| ground == key.ground[0])
+            || key.ground.iter().all(|&ground| is_water(ground))
+        {
+            return image;
+        }
+        // A junction's remote corners may require another atlas. Along a
+        // shared edge, however, both junctions must use only its two endpoints.
+        // Blend a narrow rim from that canonical two-terrain cell so changing
+        // either remote corner cannot cut a different biome into the edge.
+        let [n, e, south, w] = key.ground;
+        let edges = [
+            [n, e, e, n],
+            [e, e, south, south],
+            [w, south, south, w],
+            [n, n, w, w],
+        ];
+        let rims = edges.map(|ground| self.rasterize_cell(Junction { ground, variant: 0 }));
+        for (index, pixel) in image.get_image_data_mut().iter_mut().enumerate() {
+            let y = (index / CELL_W).saturating_sub(1).clamp(1, HEIGHT - 2);
+            let half = (2 * y.min(HEIGHT - 1 - y)).saturating_sub(1).max(1);
+            let x = (index % CELL_W)
+                .saturating_sub(1)
+                .clamp(64 - half, 63 + half);
+            let dx = (x as f32 + 0.5) / 64.0 - 1.0;
+            let dy = (y as f32 + 0.5) / 32.0 - 1.0;
+            let distances = [1.0 - dx + dy, 1.0 - dx - dy, 1.0 + dx - dy, 1.0 + dx + dy];
+            for (edge, distance) in distances.into_iter().enumerate() {
+                let weight = 1.0 - smooth((distance - 0.05) / 0.20);
+                if weight > 0.0 {
+                    *pixel = mix(*pixel, rims[edge].get_image_data()[index], weight);
+                }
+            }
+        }
+        image
+    }
+
+    fn rasterize_land_blend(&self, ground: [Ground; 4]) -> Image {
+        // No native atlas contains both tundra and desert/plains. Blend the
+        // actual biome textures directly instead of leaving the grass proxy
+        // around a snowy tile and cutting another atlas into a triangular tip.
+        let cells = ground.map(|tile| {
+            let sheet = self.land_sheet([tile; 4], Some(tile));
+            let code = LAND_SHEETS[sheet]
+                .2
+                .iter()
+                .position(|&g| g == tile)
+                .unwrap();
+            SheetCell::lookup(&self.land[sheet], [code; 4])
+        });
+        let mut image = Image::gen_image_color(CELL_W as u16, CELL_H as u16, BLANK);
+        for (index, pixel) in image.get_image_data_mut().iter_mut().enumerate() {
+            let y = (index / CELL_W).saturating_sub(1).clamp(1, HEIGHT - 2);
+            let half = (2 * y.min(HEIGHT - 1 - y)).saturating_sub(1).max(1);
+            let x = (index % CELL_W)
+                .saturating_sub(1)
+                .clamp(64 - half, 63 + half);
+            let dx = (x as f32 + 0.5) / 64.0 - 1.0;
+            let dy = (y as f32 + 0.5) / 32.0 - 1.0;
+            let weights = [-dy - dx.abs(), dx - dy.abs(), dy - dx.abs(), -dx - dy.abs()]
+                .map(|distance| smooth(0.5 + distance / 0.75));
+            let total: f32 = weights.iter().sum();
+            let colors = cells.map(|cell| cell.pixel(x, y));
+            // Normalize all four contributions, including three-biome corners.
+            *pixel = std::array::from_fn(|channel| {
+                (colors
+                    .iter()
+                    .zip(weights)
+                    .map(|(color, weight)| f32::from(color[channel]) * weight)
+                    .sum::<f32>()
+                    / total)
+                    .round() as u8
+            });
+        }
+        image
+    }
+
+    fn rasterize_cell(&self, key: Junction) -> Image {
+        // Ice is a legacy land marker, not a water depth. Bounded off-map
+        // water is supplied by junctions rather than masquerading as Ice.
+        let ground = key
+            .ground
+            .map(|tile| if tile == Ice { Tundra } else { tile });
+        if ground.contains(&Tundra)
+            && ground.iter().any(|&tile| matches!(tile, Desert | Plains))
+            && !ground.iter().any(|&tile| is_water(tile))
+        {
+            return self.rasterize_land_blend(ground);
+        }
         let variant = usize::from(key.variant);
         let pure_water = ground.iter().all(|&tile| is_water(tile));
-        let pure_ice = ground == [Ice; 4];
-        let ice_over_water = ground.iter().all(|&tile| is_water(tile) || tile == Ice);
         let depths = ground.map(water_depth);
         let water_transition = SheetCell::lookup(&self.water, depths);
         let land_water_transition = SheetCell::lookup(
@@ -1042,16 +1184,12 @@ impl GroundArt {
         );
         let mut patch = [None, None, None, None];
         let mut tundra_blend = false;
-        let blend_land_water =
-            !pure_water && !ice_over_water && ground.iter().any(|&tile| is_water(tile));
-        // Polar PCX cells are keyed overlays; keep ocean art beneath the cap.
-        let main = if pure_ice || key.straight_ice {
-            SheetCell::new(&self.ocean, variant, (variant * 5) % 9)
-        } else if pure_water && depths == [1; 4] {
+        let blend_land_water = !pure_water && ground.iter().any(|&tile| is_water(tile));
+        let main = if pure_water && depths == [1; 4] {
             SheetCell::new(&self.sea, variant, (variant * 5) % 9)
         } else if pure_water && depths == [2; 4] {
             SheetCell::new(&self.ocean, variant, (variant * 5) % 9)
-        } else if ice_over_water {
+        } else if pure_water {
             water_transition
         } else {
             let land = ground.map(|tile| match tile {
@@ -1098,7 +1236,6 @@ impl GroundArt {
                 }),
             )
         };
-        let blend_ice = ground.contains(&Ice) && !pure_ice && !key.straight_ice;
         let mut image = Image::gen_image_color(CELL_W as u16, CELL_H as u16, BLANK);
         for (index, pixel) in image.get_image_data_mut().iter_mut().enumerate() {
             let y = (index / CELL_W).saturating_sub(1).clamp(1, HEIGHT - 2);
@@ -1126,12 +1263,6 @@ impl GroundArt {
                 } else if let Some(other) = &patch[i] {
                     let width = if tundra_blend { 0.28 } else { 0.08 };
                     color = mix(color, other.pixel(x, y), smooth(0.5 + distance / width));
-                } else if blend_ice && !ice_over_water && is_water(ground[i]) && depths[i] != 0 {
-                    color = mix(
-                        color,
-                        water_transition.pixel(x, y),
-                        smooth(0.5 + distance / 0.28),
-                    );
                 }
             }
             *pixel = [color[0], color[1], color[2], 255];
@@ -2676,23 +2807,16 @@ impl Civ3 {
         // unexplored cells. This preserves terrain transitions at the known
         // frontier without drawing hidden overlays or units.
         let ground = |x: i32, y: i32| {
-            wrap.normalize(x.div_euclid(2), y).map_or(Ice, |(nx, ny)| {
-                render_ground(&game.sim.render_tile_view(nx, ny))
-            })
+            wrap.normalize(x.div_euclid(2), y)
+                .map_or(Ocean, |(nx, ny)| {
+                    render_ground(&game.sim.render_tile_view(nx, ny))
+                })
         };
         std::array::from_fn(|side| {
             let (dx, dy) = SIDES[side];
             let (jx, jy) = (px + dx, y + dy);
             let tiles = SIDES.map(|(sx, sy)| ground(jx + sx, jy + sy));
-            let straight_ice = ice_row(tiles).is_some()
-                && tiles.iter().all(|&t| t == Ice || t == Ocean)
-                && [-2, 2].into_iter().all(|offset| {
-                    SIDES
-                        .into_iter()
-                        .zip(tiles)
-                        .all(|((sx, sy), tile)| ground(jx + sx + offset, jy + sy) == tile)
-                });
-            let variant = if tiles.contains(&Ice) || tiles == [Ocean; 4] {
+            let variant = if tiles == [Ocean; 4] {
                 let x = jx.rem_euclid(2 * wrap.width());
                 let y = jy;
                 spatial_variant_hash(x, y, 8)
@@ -2702,7 +2826,6 @@ impl Civ3 {
             Junction {
                 ground: tiles,
                 variant,
-                straight_ice,
             }
         })
     }
@@ -2739,40 +2862,14 @@ impl Civ3 {
             );
             return true;
         }
-        let (index, row, col) = match terrain {
-            Terrain::Forest => (0, 6, (x * 37 + y * 13).rem_euclid(5) as usize),
-            Terrain::Jungle => (0, 2, (x * 37 + y * 13).rem_euclid(6) as usize),
-            Terrain::Marsh => (1, 2, (x * 37 + y * 13).rem_euclid(6) as usize),
-            Terrain::Hills => {
-                let index = match context.dominant_vegetation {
-                    Some(Terrain::Forest) => 6,
-                    Some(Terrain::Jungle) => 7,
-                    _ => 2,
-                };
-                let shape = usize::from(context.hilly_neighbors & 0x0f);
-                (index, shape / 4, shape % 4)
-            }
-            Terrain::Mountains => {
-                let index = match context.dominant_vegetation {
-                    Some(Terrain::Forest) => 9,
-                    Some(Terrain::Jungle) => 10,
-                    _ => 3,
-                };
-                let shape = usize::from(context.hilly_neighbors & 0x0f);
-                (index, shape / 4, shape % 4)
-            }
-            Terrain::FloodPlains => (4, 0, (x * 37 + y * 13).rem_euclid(4) as usize),
-            Terrain::Volcano => {
-                let index = match context.dominant_vegetation {
-                    Some(Terrain::Forest) => 11,
-                    Some(Terrain::Jungle) => 12,
-                    _ => 5,
-                };
-                let shape = usize::from(context.hilly_neighbors & 0x0f);
-                (index, shape / 4, shape % 4)
-            }
-            _ => return true,
+        let Some((mut index, mut row, mut col)) = overlay_cell(terrain, context, x, y) else {
+            return true;
         };
+        if self.overlays[index].is_none()
+            && let Some(fallback) = overlay_fallback(index, row, col)
+        {
+            (index, row, col) = fallback;
+        }
         let Some(texture) = &self.overlays[index] else {
             return false;
         };
@@ -2926,6 +3023,206 @@ fn draw_sprite(texture: &Texture2D, center: Vec2, size: Vec2, source: Rect) {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn tundra_transition_uses_only_the_biomes_that_are_present() {
+        // Green is a sentinel for the old grass proxy. Only native pure-biome
+        // cells are white/red/blue, so any proxy halo fails these assertions.
+        let land = LAND_SHEETS
+            .iter()
+            .map(|(_, _, codes)| {
+                let mut image = Image::gen_image_color(1152, 576, GREEN);
+                for (code, ground) in codes.iter().enumerate() {
+                    let color = match ground {
+                        Tundra => WHITE,
+                        Desert => Color::from_rgba(255, 0, 0, 255),
+                        Plains => Color::from_rgba(0, 0, 255, 255),
+                        _ => continue,
+                    };
+                    for y in code * 4 * HEIGHT..(code * 4 + 1) * HEIGHT {
+                        for x in code * 4 * WIDTH..(code * 4 + 1) * WIDTH {
+                            image.set_pixel(x as u32, y as u32, color);
+                        }
+                    }
+                }
+                image
+            })
+            .collect::<Vec<_>>();
+        let art = GroundArt {
+            land,
+            water: Image::gen_image_color(1152, 576, GREEN),
+            sea: Image::gen_image_color(1152, 576, GREEN),
+            ocean: Image::gen_image_color(1152, 576, GREEN),
+        };
+        for neighbor in [Desert, Plains] {
+            for rotation in 0..4 {
+                let mut ground = [Tundra, neighbor, neighbor, Tundra];
+                ground.rotate_left(rotation);
+                let image = art.rasterize_base(Junction { ground, variant: 0 });
+                let channel = if neighbor == Desert { 0 } else { 2 };
+                for pixel in image.get_image_data() {
+                    assert_eq!(pixel[channel], 255, "grass proxy at {ground:?}");
+                    assert_eq!(pixel[3], 255);
+                }
+                let channel_values: std::collections::HashSet<_> =
+                    image.get_image_data().iter().map(|p| p[1]).collect();
+                assert!(channel_values.len() > 32, "transition must fade, not cut");
+            }
+        }
+    }
+
+    #[test]
+    fn shared_edge_art_does_not_depend_on_remote_junction_corners() {
+        let sheet = |color| Image::gen_image_color(1152, 576, color);
+        let art = GroundArt {
+            land: (0..6)
+                .map(|i| sheet(Color::from_rgba(30 + i * 20, 90, 40, 255)))
+                .collect(),
+            water: sheet(BLUE),
+            sea: sheet(DARKBLUE),
+            ocean: sheet(BLACK),
+        };
+        for (edge, (x, y)) in [(94, 16), (94, 47), (33, 47), (33, 16)]
+            .into_iter()
+            .enumerate()
+        {
+            let mut a = [Grass, Coast, Desert, Tundra];
+            let mut b = [Grass, Coast, Plains, Ocean];
+            a.rotate_right(edge);
+            b.rotate_right(edge);
+            let a = art.rasterize_base(Junction {
+                ground: a,
+                variant: 0,
+            });
+            let b = art.rasterize_base(Junction {
+                ground: b,
+                variant: 0,
+            });
+            let index = (y + 1) * CELL_W + x + 1;
+            assert_eq!(
+                a.get_image_data()[index],
+                b.get_image_data()[index],
+                "edge {edge}"
+            );
+        }
+    }
+
+    #[test]
+    fn legacy_ice_uses_land_transitions_in_every_neighbor_context() {
+        // Distinct atlas colors expose the old switch from water to land
+        // when a third terrain entered an Ice/Sea junction.
+        let sheet = |color| Image::gen_image_color(1152, 576, color);
+        let art = GroundArt {
+            land: (0..6)
+                .map(|i| sheet(Color::from_rgba(30 + i * 20, 90, 40, 255)))
+                .collect(),
+            water: sheet(BLUE),
+            sea: sheet(DARKBLUE),
+            ocean: sheet(BLACK),
+        };
+        for neighbor in [Grass, Plains, Desert, Tundra, Coast, Sea, Ocean, Ice] {
+            for position in 0..4 {
+                let mut ground = [Ice, Sea, neighbor, neighbor];
+                ground.rotate_left(position);
+                let ice = art.rasterize_base(Junction { ground, variant: 0 });
+                let tundra = art.rasterize_base(Junction {
+                    ground: ground.map(|g| if g == Ice { Tundra } else { g }),
+                    variant: 0,
+                });
+                assert_eq!(ice.bytes, tundra.bytes, "{ground:?}");
+            }
+        }
+        let land = art.rasterize_base(Junction {
+            ground: [Ice; 4],
+            variant: 0,
+        });
+        assert_ne!(
+            land.bytes,
+            art.rasterize_base(Junction {
+                ground: [Ocean; 4],
+                variant: 0
+            })
+            .bytes
+        );
+    }
+
+    #[test]
+    fn biome_overlay_selection_keeps_native_cells_and_safe_fallbacks() {
+        use super::*;
+        for base in [
+            TerrainBase::Grassland,
+            TerrainBase::Plains,
+            TerrainBase::Tundra,
+            TerrainBase::Ice,
+        ] {
+            for x in -16..16 {
+                let context = TerrainOverlayContext {
+                    base_terrain: base,
+                    hilly_neighbors: x as u8,
+                    dominant_vegetation: Some(Terrain::Forest),
+                };
+                for terrain in [
+                    Terrain::Forest,
+                    Terrain::Jungle,
+                    Terrain::Mountains,
+                    Terrain::Volcano,
+                ] {
+                    let (sheet, row, col) = overlay_cell(terrain, context, x, 7).unwrap();
+                    let (_, _, width, height, cell_height) = OVERLAYS[sheet];
+                    assert!((col + 1) * WIDTH <= width as usize);
+                    assert!((row + 1) * cell_height <= height as usize);
+                    if terrain == Terrain::Jungle {
+                        assert_eq!((sheet, row), (0, 2));
+                    }
+                    if terrain == Terrain::Forest && base == TerrainBase::Plains {
+                        assert_eq!((sheet, row), (13, 6));
+                    }
+                    if terrain == Terrain::Forest && base == TerrainBase::Tundra {
+                        assert_eq!(sheet, 14);
+                        assert!((8..=9).contains(&row));
+                    }
+                    if matches!(base, TerrainBase::Tundra | TerrainBase::Ice)
+                        && terrain == Terrain::Mountains
+                    {
+                        assert_eq!(sheet, 8);
+                    }
+                    if matches!(base, TerrainBase::Tundra | TerrainBase::Ice)
+                        && terrain == Terrain::Volcano
+                    {
+                        assert_eq!(sheet, 15);
+                    }
+                    if let Some((fallback, r, c)) = overlay_fallback(sheet, row, col) {
+                        let (_, _, w, h, cell) = OVERLAYS[fallback];
+                        assert!((c + 1) * WIDTH <= w as usize && (r + 1) * cell <= h as usize);
+                    }
+                }
+            }
+        }
+        assert_eq!(overlay_fallback(14, 9, 5), Some((0, 6, 0)));
+        assert_eq!(overlay_fallback(15, 3, 3), Some((5, 3, 3)));
+    }
+
+    #[test]
+    fn biome_manifest_roles_are_optional_and_preserve_legacy_vegetation() {
+        use super::*;
+        let directory =
+            std::env::temp_dir().join(format!("civ3-biome-theme-{}", std::process::id()));
+        fs::create_dir_all(&directory).unwrap();
+        let manifest = directory.join("tileset.conf");
+        fs::write(&manifest, "vegetation = Terrain/legacy.png\nvegetation-plains = Terrain/plains.pcx\nvegetation-tundra = Terrain/pines.pcx\nvolcano-snow = Terrain/snow.pcx\n").unwrap();
+        let theme = Theme::read(&directory).unwrap();
+        assert_eq!(theme.paths["vegetation"], "Terrain/legacy.png");
+        assert_eq!(theme.paths["vegetation-tundra"], "Terrain/pines.pcx");
+        fs::remove_file(&manifest).unwrap();
+        let theme = Theme::read(&directory).unwrap();
+        assert!(
+            theme
+                .image("vegetation-tundra", "missing.pcx", (768, 880), false)
+                .unwrap()
+                .is_none()
+        );
+        fs::remove_dir(directory).unwrap();
+    }
+
     #[test]
     fn fortified_units_hold_a_pose_for_each_available_clip() {
         use super::Civ3UnitAction::{Fortify, FortifyHold};

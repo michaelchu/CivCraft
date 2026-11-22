@@ -1389,3 +1389,274 @@ fn fractal_generator_applies_world_settings_deterministically() {
         "80% ocean coverage should produce more water than 60%: {water_b} vs {water_a}"
     );
 }
+
+/// Reproducible, zero-turn diagnostic; deliberately excluded from routine tests.
+#[test]
+#[ignore]
+fn terrain_biome_census() {
+    for seed in [42, 7, 99] {
+        for climate in [Climate::Arid, Climate::Normal, Climate::Wet] {
+            for temperature in [Temperature::Cool, Temperature::Temperate, Temperature::Warm] {
+                let settings = WorldSettings {
+                    climate,
+                    temperature,
+                    ..WorldSettings::default()
+                };
+                let map = generate_with_map_generator(
+                    &FreecivFractalMapGenerator,
+                    map_generation_request(
+                        seed,
+                        MapWrap::X,
+                        settings,
+                        crate::world::DEFAULT_CIVILIZATION_COUNT,
+                    ),
+                );
+                let mut counts = std::collections::BTreeMap::new();
+                for tile in &map.tiles {
+                    if TerrainBase::is_feature_terrain(tile.terrain) {
+                        *counts
+                            .entry(format!("{:?},{:?}", tile.terrain, tile.base_terrain))
+                            .or_insert(0usize) += 1;
+                    }
+                }
+                for (pair, count) in counts {
+                    println!("CENSUS,{seed},{climate:?},{temperature:?},{pair},{count}");
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn fractal_feature_biomes_cover_cold_dry_and_temperate_art_without_changing_poles() {
+    let mut forest_bases = [false; 3];
+    let mut snowy_relief = 0;
+    for seed in [42, 7, 99] {
+        for temperature in [Temperature::Cool, Temperature::Temperate, Temperature::Warm] {
+            let map = generate_with_map_generator(
+                &FreecivFractalMapGenerator,
+                map_generation_request(
+                    seed,
+                    MapWrap::X,
+                    WorldSettings {
+                        temperature,
+                        ..WorldSettings::default()
+                    },
+                    crate::world::DEFAULT_CIVILIZATION_COUNT,
+                ),
+            );
+            for (i, tile) in map.tiles.iter().enumerate() {
+                if i < map.map_wrap.width() as usize
+                    || i >= map.tiles.len() - map.map_wrap.width() as usize
+                {
+                    assert_eq!(
+                        (tile.terrain, tile.base_terrain),
+                        (Terrain::Ocean, TerrainBase::Ocean)
+                    );
+                }
+                if tile.terrain == Terrain::Forest {
+                    match tile.base_terrain {
+                        TerrainBase::Grassland => forest_bases[0] = true,
+                        TerrainBase::Plains => forest_bases[1] = true,
+                        TerrainBase::Tundra => forest_bases[2] = true,
+                        other => panic!("unexpected forest base {other:?}"),
+                    }
+                }
+                if matches!(tile.terrain, Terrain::Mountains | Terrain::Volcano)
+                    && tile.base_terrain == TerrainBase::Tundra
+                {
+                    snowy_relief += 1;
+                }
+                if tile.terrain == Terrain::Jungle {
+                    assert_eq!(tile.base_terrain, TerrainBase::Grassland);
+                }
+            }
+        }
+    }
+    assert_eq!(forest_bases, [true; 3]);
+    assert!(snowy_relief > 0);
+}
+
+/// Explicit zero-turn audit of the alternate generator and its native-art inputs.
+#[test]
+#[ignore]
+fn opensimplex_tileset_audit() {
+    for (size, wrap, ages) in [
+        (
+            "canonical",
+            MapWrap::X,
+            vec![WorldAge::Billion3, WorldAge::Billion4, WorldAge::Billion5],
+        ),
+        (
+            "small",
+            MapSize::Small.topology().unwrap(),
+            vec![WorldAge::Billion4],
+        ),
+    ] {
+        for seed in [42, 7, 99] {
+            for climate in [Climate::Arid, Climate::Normal, Climate::Wet] {
+                for temperature in [Temperature::Cool, Temperature::Temperate, Temperature::Warm] {
+                    for &age in &ages {
+                        let settings = WorldSettings {
+                            climate,
+                            temperature,
+                            age,
+                            ..WorldSettings::default()
+                        };
+                        let map = generate_opensimplex(seed, wrap, settings);
+                        let repeat = generate_opensimplex(seed, wrap, settings);
+                        if let Some(directory) =
+                            std::env::var_os("CIVCRAFT_OPENSIMPLEX_BASELINE_DIR")
+                        {
+                            // Compare every generated field except the forest art base
+                            // intentionally changed by this fix. Recording is explicit
+                            // and create_new prevents overwriting an existing baseline.
+                            let mut normalized_tiles = map.tiles.clone();
+                            for tile in &mut normalized_tiles {
+                                if tile.terrain == Terrain::Forest {
+                                    tile.base_terrain = TerrainBase::Grassland;
+                                }
+                            }
+                            let bytes = bincode::serialize(&(
+                                normalized_tiles,
+                                &map.starts,
+                                &map.game_random,
+                                map.map_seed,
+                                map.civilization_count,
+                            ))
+                            .unwrap();
+                            let path = std::path::PathBuf::from(directory).join(format!(
+                                "{size}-{seed}-{climate:?}-{temperature:?}-{}.bin",
+                                age.billions()
+                            ));
+                            if std::env::var("CIVCRAFT_OPENSIMPLEX_BASELINE_RECORD").as_deref()
+                                == Ok("1")
+                            {
+                                use std::io::Write;
+                                let mut file = std::fs::OpenOptions::new()
+                                    .write(true)
+                                    .create_new(true)
+                                    .open(&path)
+                                    .unwrap();
+                                file.write_all(&bytes).unwrap();
+                            } else {
+                                assert_eq!(
+                                    std::fs::read(&path).unwrap(),
+                                    bytes,
+                                    "unexpected generation change: {}",
+                                    path.display()
+                                );
+                            }
+                        }
+                        assert_eq!(
+                            bincode::serialize(&map.tiles).unwrap(),
+                            bincode::serialize(&repeat.tiles).unwrap()
+                        );
+                        assert_eq!(map.starts, repeat.starts);
+                        assert_eq!(map.game_random, repeat.game_random);
+                        assert_eq!(map.tiles.len(), wrap.tile_count());
+                        assert_eq!(map.starts.len(), crate::world::DEFAULT_CIVILIZATION_COUNT);
+                        let mut counts = std::collections::BTreeMap::new();
+                        let mut examples = std::collections::BTreeMap::new();
+                        let mut rivers = 0;
+                        let mut resources = 0;
+                        for (index, tile) in map.tiles.iter().enumerate() {
+                            let (x, y) = wrap.position(index);
+                            let pair = (
+                                format!("{:?}", tile.terrain),
+                                format!("{:?}", tile.base_terrain),
+                            );
+                            *counts.entry(pair.clone()).or_insert(0usize) += 1;
+                            examples.entry(pair).or_insert([x, y]);
+                            rivers += usize::from(tile.river);
+                            resources += usize::from(tile.resource.is_some());
+                            if y == 0 || y == wrap.height() - 1 {
+                                assert_eq!(
+                                    (tile.terrain, tile.base_terrain),
+                                    (Terrain::Ocean, TerrainBase::Ocean)
+                                );
+                                assert!(!tile.river && tile.resource.is_none() && !tile.hut);
+                            }
+                            let expected_water = match tile.terrain {
+                                Terrain::Coast | Terrain::Lake => Some(TerrainBase::Coast),
+                                Terrain::Sea => Some(TerrainBase::Sea),
+                                Terrain::Ocean => Some(TerrainBase::Ocean),
+                                _ => None,
+                            };
+                            if let Some(expected) = expected_water {
+                                assert_eq!(tile.base_terrain, expected);
+                            } else if TerrainBase::is_feature_terrain(tile.terrain) {
+                                assert!(matches!(
+                                    tile.base_terrain,
+                                    TerrainBase::Grassland
+                                        | TerrainBase::Plains
+                                        | TerrainBase::Desert
+                                        | TerrainBase::Tundra
+                                ));
+                            }
+                        }
+                        let counts: Vec<_> = counts
+                            .into_iter()
+                            .map(|((terrain, base), count)| {
+                                serde_json::json!({"terrain": terrain, "base": base, "count": count,
+                                "example": examples[&(terrain.clone(), base.clone())]})
+                            })
+                            .collect();
+                        println!(
+                            "OPENSIMPLEX_AUDIT {}",
+                            serde_json::json!({
+                                "size": size, "width": wrap.width(), "height": wrap.height(),
+                                "seed": seed, "climate": format!("{climate:?}"), "temperature": format!("{temperature:?}"),
+                                "age": age.billions(), "tiles": map.tiles.len(), "starts": map.starts.len(),
+                                "rivers": rivers, "resources": resources, "deterministic": true,
+                                "generation_baseline_verified": std::env::var_os("CIVCRAFT_OPENSIMPLEX_BASELINE_DIR").is_some()
+                                    && std::env::var("CIVCRAFT_OPENSIMPLEX_BASELINE_RECORD").as_deref() != Ok("1"),
+                                "water_bases_valid": true, "feature_bases_valid": true, "poles_valid": true, "counts": counts
+                            })
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn opensimplex_forests_reach_all_supported_biome_art() {
+    let mut seen = [false; 3];
+    for seed in [42, 7, 99] {
+        for climate in [Climate::Arid, Climate::Normal, Climate::Wet] {
+            for temperature in [Temperature::Cool, Temperature::Temperate, Temperature::Warm] {
+                let map = generate_opensimplex(
+                    seed,
+                    MapWrap::X,
+                    WorldSettings {
+                        climate,
+                        temperature,
+                        ..WorldSettings::default()
+                    },
+                );
+                for tile in &map.tiles {
+                    match tile.terrain {
+                        Terrain::Forest => {
+                            seen[match tile.base_terrain {
+                                TerrainBase::Grassland => 0,
+                                TerrainBase::Plains => 1,
+                                TerrainBase::Tundra => 2,
+                                other => panic!("unsupported forest art base {other:?}"),
+                            }] = true
+                        }
+                        Terrain::Jungle | Terrain::Marsh => {
+                            assert_eq!(tile.base_terrain, TerrainBase::Grassland)
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+    }
+    assert_eq!(
+        seen, [true; 3],
+        "OpenSimplex must reach grassland, plains and pine forest art"
+    );
+}

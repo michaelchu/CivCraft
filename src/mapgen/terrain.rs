@@ -434,6 +434,14 @@ impl super::Generator {
             super::Climate::Normal => (16, 4, 7, 2),
             super::Climate::Arid => (8, 2, 3, 3),
         };
+        let opensimplex_dry = |tile: usize| {
+            (623..=832).contains(&self.colatitude(tile))
+                && self
+                    .neighbors(tile)
+                    .filter(|&next| terrain_water[next])
+                    .count()
+                    <= dry_water_limit
+        };
         let source_percentages =
             freeciv_temperature
                 .zip(freeciv_terrain_properties)
@@ -479,14 +487,7 @@ impl super::Generator {
                     let source_zone = freeciv_temperature.map(|map| map.get(tile));
                     let dry = freeciv_temperature
                         .map(|map| map.is_dry(self, tile, &terrain_water))
-                        .unwrap_or_else(|| {
-                            (623..=832).contains(&self.colatitude(tile))
-                                && self
-                                    .neighbors(tile)
-                                    .filter(|&next| terrain_water[next])
-                                    .count()
-                                    <= dry_water_limit
-                        });
+                        .unwrap_or_else(|| opensimplex_dry(tile));
                     match pass {
                         0 => source_zone
                             .map(TemperatureType::is_not_frozen)
@@ -634,6 +635,36 @@ impl super::Generator {
                 }
                 available[tile] = false;
                 plains -= 1;
+            }
+        }
+        if let Some(climate) = freeciv_temperature {
+            // Freeciv features have no underlying Civ III biome. Adapt only
+            // their presentation base after placement, without random draws.
+            // Cold/polar relief gets snow art; dry temperate forest gets the
+            // plains sheet. This is a CivCraft heuristic, not a native rule.
+            for tile in 0..terrain.len() {
+                if matches!(
+                    terrain[tile],
+                    Terrain::Forest | Terrain::Hills | Terrain::Mountains | Terrain::Volcano
+                ) {
+                    base_terrain[tile] = feature_presentation_base(
+                        climate.get(tile),
+                        climate.is_dry(self, tile, &terrain_water),
+                    );
+                }
+            }
+        } else {
+            // OpenSimplex already assigns relief bases above, but its forest
+            // pool contains only original grassland. Adapt forest art from
+            // the same heat, latitude and dry-belt fields after placement, without RNG.
+            let (_, _, cold_latitude, _, _, _, _) =
+                self.settings.temperature.biome_bands(self.settings.climate);
+            for (tile, &kind) in terrain.iter().enumerate() {
+                if kind == Terrain::Forest {
+                    let cold = temperature[tile] < COLD || self.colatitude(tile) < cold_latitude;
+                    base_terrain[tile] =
+                        opensimplex_forest_presentation_base(cold, opensimplex_dry(tile));
+                }
             }
         }
         (terrain, base_terrain, temperature)
@@ -1003,5 +1034,57 @@ mod tests {
         assert_eq!(find_sea_level(&heights, 60), 153);
         assert_eq!(find_sea_level(&heights, 54), 138);
         assert_eq!(find_sea_level(&heights, 42), 107);
+    }
+}
+
+/// CivCraft art heuristic using OpenSimplex's existing heat/latitude cold
+/// criteria and dry belt. Cold takes precedence; even a hot dry forest uses
+/// the plains sheet. No original Civ III algorithm or placement change is claimed.
+fn opensimplex_forest_presentation_base(cold: bool, dry: bool) -> TerrainBase {
+    if cold {
+        TerrainBase::Tundra
+    } else if dry {
+        TerrainBase::Plains
+    } else {
+        TerrainBase::Grassland
+    }
+}
+
+/// Presentation-only bridge from the source temperature field to Civ III art.
+fn feature_presentation_base(zone: TemperatureType, dry: bool) -> TerrainBase {
+    match zone {
+        TemperatureType::Frozen | TemperatureType::Cold => TerrainBase::Tundra,
+        TemperatureType::Temperate if dry => TerrainBase::Plains,
+        _ => TerrainBase::Grassland,
+    }
+}
+
+#[cfg(test)]
+mod presentation_tests {
+    use super::*;
+    #[test]
+    fn feature_biomes_use_existing_climate_without_drawing_randomness() {
+        for dry in [false, true] {
+            assert_eq!(
+                feature_presentation_base(TemperatureType::Frozen, dry),
+                TerrainBase::Tundra
+            );
+            assert_eq!(
+                feature_presentation_base(TemperatureType::Cold, dry),
+                TerrainBase::Tundra
+            );
+            assert_eq!(
+                feature_presentation_base(TemperatureType::Tropical, dry),
+                TerrainBase::Grassland
+            );
+        }
+        assert_eq!(
+            feature_presentation_base(TemperatureType::Temperate, true),
+            TerrainBase::Plains
+        );
+        assert_eq!(
+            feature_presentation_base(TemperatureType::Temperate, false),
+            TerrainBase::Grassland
+        );
     }
 }
