@@ -1104,8 +1104,9 @@ mod tests {
         ("transform_time", |times| times.transform),
     ];
 
+    /// Mirrors the civ2civ3 ruleset and Civ III behavior.
     #[test]
-    fn full_civ3_terrain_adapter_reads_costs_and_activity_times_from_c2c3_records() {
+    fn full_native_terrain_adapter_reads_costs_and_activity_times_from_ruleset_records() {
         let adapter = MovementRules::campaign();
         for (terrain, source_name) in TERRAIN_ADAPTER {
             let Some(source_name) = source_name else {
@@ -1205,8 +1206,9 @@ mod tests {
         }
     }
 
+    /// Mirrors the civ2civ3 ruleset behavior.
     #[test]
-    fn c2c3_terrain_result_names_map_explicitly_to_civcraft_ids() {
+    fn ruleset_terrain_result_names_map_explicitly_to_civcraft_ids() {
         let adapter = MovementRules::campaign();
         for (name, expected) in [
             ("Ocean", Terrain::Sea),
@@ -1381,8 +1383,9 @@ mod tests {
         }
     }
 
+    /// Mirrors the civ2civ3 ruleset behavior.
     #[test]
-    fn unknown_tile_costs_match_c2c3_terrain_class_and_igter_data() {
+    fn unknown_tile_costs_match_ruleset_terrain_class_and_igter_data() {
         let adapter = MovementRules::campaign();
         let fragments = adapter.move_fragments();
         let igter_cost = adapter.igter_cost();
@@ -1439,8 +1442,9 @@ mod tests {
         }
     }
 
+    /// Mirrors the civ2civ3 ruleset behavior.
     #[test]
-    fn full_terrain_and_extra_nativity_adapters_read_c2c3_lists() {
+    fn full_terrain_and_extra_nativity_adapters_read_ruleset_lists() {
         let adapter = MovementRules::campaign();
         for (terrain, source_name) in TERRAIN_ADAPTER {
             let Some(source_name) = source_name else {
@@ -1627,8 +1631,9 @@ mod tests {
         );
     }
 
+    /// Mirrors the civ2civ3 ruleset behavior.
     #[test]
-    fn unit_igzoc_comes_from_selected_c2c3_unit_type_flags() {
+    fn unit_igzoc_comes_from_selected_ruleset_unit_type_flags() {
         let adapter = MovementRules::campaign();
         for kind in UnitKind::all() {
             let adapted = adapter.unit_movement_data(kind).unwrap();
@@ -1709,8 +1714,9 @@ mod tests {
         );
     }
 
+    /// Mirrors the civ2civ3 ruleset behavior.
     #[test]
-    fn road_move_costs_come_from_all_selected_c2c3_road_records() {
+    fn road_move_costs_come_from_all_selected_ruleset_road_records() {
         let adapter = MovementRules::campaign();
         for (road, expected) in [
             (RoadType::Road, 2),
@@ -1783,8 +1789,9 @@ mod tests {
         ));
     }
 
+    /// Mirrors Freeciv behavior.
     #[test]
-    fn road_move_modes_use_rule_values_and_the_freeciv_default() {
+    fn road_move_modes_use_rule_values_and_the_reference_default() {
         let adapter = MovementRules::campaign();
         assert_eq!(
             adapter.road_move_mode(RoadType::River).unwrap(),

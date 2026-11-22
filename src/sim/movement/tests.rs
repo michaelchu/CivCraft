@@ -105,8 +105,9 @@ fn native_leaders_do_not_inherit_foreign_unique_or_king_flags_during_capture() {
     assert!(game.unit_by_id(second).is_some());
 }
 
+/// Mirrors Civ III behavior.
 #[test]
-fn defender_choice_uses_civ3_build_cost_when_win_chance_and_rating_tie() {
+fn defender_choice_uses_native_build_cost_when_win_chance_and_rating_tie() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
@@ -265,8 +266,9 @@ fn tired_attack_scales_power_by_selected_ruleset_setting() {
     );
 }
 
+/// Mirrors the civ2civ3 ruleset behavior.
 #[test]
-fn defender_reachability_uses_c2c3_target_classes_and_city_exception() {
+fn defender_reachability_uses_ruleset_target_classes_and_city_exception() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     game.sign_pact(HUMAN, 1, Pact::War);
     game.units.clear();
@@ -660,8 +662,9 @@ fn capture_bounce_handles_city_tiles_and_unlisted_non_allied_units() {
     assert_eq!(listed_stack.random_snapshot(), before_rng);
 }
 
+/// Mirrors Freeciv behavior.
 #[test]
-fn freeciv_bounce_uses_survivable_tiles_and_keeps_source_iteration_order() {
+fn reference_bounce_uses_survivable_tiles_and_keeps_source_iteration_order() {
     let mut game = Simulation::new(crate::mapgen::generate(45));
     game.units.clear();
     game.cities.clear();
@@ -716,11 +719,12 @@ fn civilian_capture_flags_come_from_native_combat_capability() {
 fn enslave_result_ids_resolve_separately_from_capture_eligibility() {
     let result = UnitKind::JavelinThrower.conquests_rule().enslave_result;
     assert_eq!(result, "worker");
-    assert!(crate::sim::civ3_unit_rules::get(result).is_some());
+    assert!(crate::sim::unit_rules::get(result).is_some());
 }
 
+/// Mirrors Civ III behavior.
 #[test]
-fn combat_uses_the_selected_attack_action_and_skips_civ3_enslavement_rng() {
+fn combat_uses_the_selected_attack_action_and_skips_native_enslavement_rng() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
@@ -1015,8 +1019,9 @@ fn native_movement_costs_nativity_boarding_and_zoc_flags() {
     assert_eq!(game.native_movement_rules_test(), (true, true, true));
 }
 
+/// Mirrors Civ III behavior.
 #[test]
-fn moved_units_retain_the_matching_civ3_flic_direction_row() {
+fn moved_units_retain_the_matching_native_flic_direction_row() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
@@ -1041,8 +1046,9 @@ fn moved_units_retain_the_matching_civ3_flic_direction_row() {
     assert_eq!(unit.facing, 4);
 }
 
+/// Mirrors Civ III behavior.
 #[test]
-fn civ3_move_commands_cover_all_eight_neighbors_and_facing_rows() {
+fn native_move_commands_cover_all_eight_neighbors_and_facing_rows() {
     let expected_rows = [5, 4, 3, 2, 1, 0, 7, 6];
     for (direction, &expected_row) in expected_rows.iter().enumerate() {
         let mut game = Simulation::new(crate::test_support::seeded_map());
@@ -1065,8 +1071,9 @@ fn civ3_move_commands_cover_all_eight_neighbors_and_facing_rows() {
     }
 }
 
+/// Mirrors Civ III behavior.
 #[test]
-fn civ3_move_command_rejects_an_invalid_direction_without_moving() {
+fn native_move_command_rejects_an_invalid_direction_without_moving() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     let id = game.spawn_unit(HUMAN, UnitKind::Warrior, 10, 20);
     assert!(!game.apply(Command::MoveCiv3(id, CIV3_DIRS.len())));
@@ -1137,8 +1144,9 @@ fn mountain_movement_effect_and_river_defense_follow_native_classes() {
     );
 }
 
+/// Mirrors the civ2civ3 ruleset behavior.
 #[test]
-fn combat_terrain_defense_uses_selected_c2c3_terrain_and_class_rules() {
+fn combat_terrain_defense_uses_selected_ruleset_terrain_and_class_rules() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     game.cities.clear();
     let (x, y) = (10, 24);
@@ -1274,8 +1282,9 @@ fn combat_occupancy_uses_selected_chance_and_consumes_its_rng_draw() {
     assert_eq!(game.rng, expected_rng);
 }
 
+/// Mirrors the civ2civ3 ruleset behavior.
 #[test]
-fn combat_firepower_uses_selected_c2c3_unit_flags() {
+fn combat_firepower_uses_selected_ruleset_unit_flags() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
@@ -1461,8 +1470,9 @@ fn pathfinding_routes_around_control_and_friendly_stacks_allow_entry() {
     assert!(game.apply(Command::move_by_offset(&game, friendly_mover, 1, 0)));
 }
 
+/// Mirrors Freeciv behavior.
 #[test]
-fn freeciv_zoc_blocks_a_step_between_two_enemy_controlled_tiles() {
+fn reference_zoc_blocks_a_step_between_two_enemy_controlled_tiles() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     prepare_zoc_test_map(&mut game);
     let (start, destination, enemy) = blocked_zoc_positions(&game);
@@ -1558,8 +1568,9 @@ fn route_zone_caches_match_live_checks_for_every_map_step() {
     assert!(cache.cache_hits().1 > 0);
 }
 
+/// Mirrors Freeciv behavior.
 #[test]
-fn freeciv_zoc_allows_one_step_into_enemy_control_from_a_safe_tile() {
+fn reference_zoc_allows_one_step_into_enemy_control_from_a_safe_tile() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     prepare_zoc_test_map(&mut game);
     let start = (10, 20);
@@ -1617,8 +1628,9 @@ fn zoc_legality_does_not_preempt_the_existing_attack_action_path() {
     assert_ne!(game.random_snapshot(), random_before_attack);
 }
 
+/// Mirrors Freeciv behavior.
 #[test]
-fn freeciv_zoc_allied_stack_city_nozoc_terrain_and_igzoc_exemptions_apply() {
+fn reference_zoc_allied_stack_city_nozoc_terrain_and_igzoc_exemptions_apply() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     prepare_zoc_test_map(&mut game);
     let (start, destination, enemy) = blocked_zoc_positions(&game);
@@ -1650,8 +1662,9 @@ fn freeciv_zoc_allied_stack_city_nozoc_terrain_and_igzoc_exemptions_apply() {
     assert!(!game.zone_blocks_step(&carrier, start, destination));
 }
 
+/// Mirrors Freeciv behavior.
 #[test]
-fn freeciv_route_zoc_uses_only_observed_enemy_units() {
+fn reference_route_zoc_uses_only_observed_enemy_units() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     prepare_zoc_test_map(&mut game);
     let (start, destination, enemy) = blocked_zoc_positions(&game);

@@ -350,8 +350,9 @@ mod tests {
         );
     }
 
+    /// Mirrors Freeciv behavior.
     #[test]
-    fn culture_percent_uses_freeciv_integer_truncation() {
+    fn culture_percent_uses_reference_integer_truncation() {
         assert_eq!(apply_culture_percent(5, 50), 7);
         assert_eq!(apply_culture_percent(5, -50), 2);
         assert_eq!(apply_culture_percent(0, 100), 0);

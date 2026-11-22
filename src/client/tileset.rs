@@ -3354,8 +3354,9 @@ mod tests {
         );
     }
 
+    /// Mirrors Civ III behavior.
     #[test]
-    fn theme_manifest_accepts_original_civ3_river_sheet_roles() {
+    fn theme_manifest_accepts_original_native_river_sheet_roles() {
         let directory = std::env::temp_dir().join(format!(
             "civ3-river-theme-{}-{}",
             std::process::id(),
@@ -3383,8 +3384,9 @@ mod tests {
         fs::remove_dir(directory).unwrap();
     }
 
+    /// Mirrors Civ III behavior.
     #[test]
-    fn theme_manifest_maps_civilizations_to_civ3_city_styles() {
+    fn theme_manifest_maps_civilizations_to_native_city_styles() {
         let directory = std::env::temp_dir().join(format!(
             "civ3-city-style-theme-{}-{}",
             std::process::id(),
@@ -3446,8 +3448,9 @@ mod tests {
         fs::remove_dir(directory).unwrap();
     }
 
+    /// Mirrors Civ III behavior.
     #[test]
-    fn theme_manifest_accepts_civ3_improvement_sheet_roles() {
+    fn theme_manifest_accepts_native_improvement_sheet_roles() {
         let directory = std::env::temp_dir().join(format!(
             "civ3-improvement-theme-{}-{}",
             std::process::id(),
@@ -3484,8 +3487,9 @@ mod tests {
         fs::remove_dir(directory).unwrap();
     }
 
+    /// Mirrors Civ III behavior.
     #[test]
-    fn civ3_unit_ini_expands_all_states_timings_and_shared_windows_paths() {
+    fn native_unit_ini_expands_all_states_timings_and_shared_windows_paths() {
         let directory = std::env::temp_dir().join(format!(
             "civ3-unit-ini-theme-{}-{}",
             std::process::id(),
@@ -3559,8 +3563,9 @@ mod tests {
         assert_eq!(pixels[302], [0, 0, 0, 255]);
     }
 
+    /// Mirrors Civ III behavior.
     #[test]
-    fn civ3_optional_overlay_key_colors_are_transparent() {
+    fn native_optional_overlay_key_colors_are_transparent() {
         let mut image = Image::gen_image_color(2, 1, BLANK);
         image.get_image_data_mut()[0] = [255, 0, 255, 255];
         image.get_image_data_mut()[1] = [0, 255, 0, 255];

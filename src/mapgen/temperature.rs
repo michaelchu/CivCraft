@@ -203,19 +203,22 @@ mod tests {
         super::super::defaults::default_map_generation_settings()
     }
 
+    /// Mirrors Freeciv and the civ2civ3 ruleset behavior.
     #[test]
-    fn c2c3_temperature_setting_produces_freeciv_zone_boundaries() {
+    fn ruleset_temperature_setting_produces_reference_zone_boundaries() {
         assert_eq!(temperature_thresholds(60, 36 * 48), (56, 85, 572));
     }
 
+    /// Mirrors Freeciv behavior.
     #[test]
-    fn freeciv_ice_base_uses_default_separate_poles_for_larger_maps() {
+    fn reference_ice_base_uses_default_separate_poles_for_larger_maps() {
         assert_eq!(temperature_thresholds(60, 80 * 80), (38, 85, 572));
         assert_eq!(temperature_thresholds(60, 100 * 100), (32, 85, 572));
     }
 
+    /// Mirrors Freeciv behavior.
     #[test]
-    fn latitude_only_temperature_map_matches_freeciv_start_filter_zones() {
+    fn latitude_only_temperature_map_matches_reference_start_filter_zones() {
         let generator = generator(MapWrap::X);
         let settings = ruleset_settings();
         let map = generator.generate_temperature_map(false, None, None, settings);
@@ -227,8 +230,9 @@ mod tests {
         assert!(!map.get(generator.index(x, 2)).is_frozen_or_cold());
     }
 
+    /// Mirrors Freeciv behavior.
     #[test]
-    fn dry_zone_uses_freeciv_latitude_and_adjacent_ocean_percentage() {
+    fn dry_zone_uses_reference_latitude_and_adjacent_ocean_percentage() {
         let generator = generator(MapWrap::X);
         let map = generator.generate_temperature_map(false, None, None, ruleset_settings());
         let tile = generator.index(generator.wrap.width() / 2, 18);

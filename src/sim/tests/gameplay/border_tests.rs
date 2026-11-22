@@ -144,8 +144,9 @@ mod tests {
         assert_eq!(game.fogged_border_test(), (true, true));
     }
 
+    /// Mirrors Civ III behavior.
     #[test]
-    fn city_border_test_uses_civ3_culture_contest_and_radius() {
+    fn city_border_test_uses_native_culture_contest_and_radius() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         assert_eq!(game.city_borders_test(), (true, true, true));
     }

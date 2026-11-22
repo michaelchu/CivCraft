@@ -751,8 +751,9 @@ mod tests {
         game
     }
 
+    /// Mirrors the civ2civ3 ruleset behavior.
     #[test]
-    fn c2c3_classic_route_income_uses_wrapped_map_scale_and_city_sizes() {
+    fn ruleset_classic_route_income_uses_wrapped_map_scale_and_city_sizes() {
         let mut game = route_test_game();
         let from = game.cities[0].id;
         let to = game.cities[1].id;
@@ -800,8 +801,9 @@ mod tests {
         assert!(!game.can_establish_trade_route(from, to, "Goods"));
     }
 
+    /// Mirrors the civ2civ3 ruleset behavior.
     #[test]
-    fn national_route_categories_are_disabled_by_c2c3_and_capacity_is_effect_driven() {
+    fn national_route_categories_are_disabled_by_ruleset_and_capacity_is_effect_driven() {
         let mut game = route_test_game();
         game.cities[1].owner = 0;
         let continents = game.continent_labels();

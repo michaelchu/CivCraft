@@ -2534,8 +2534,9 @@ mod tests {
         assert!(!projected.mine);
     }
 
+    /// Mirrors Civ III behavior.
     #[test]
-    fn oil_platform_uses_ruleset_enabler_without_a_civ3_resource_gate() {
+    fn oil_platform_uses_ruleset_enabler_without_a_native_resource_gate() {
         let mut game = flat_game();
         let (x, y) = (10, 20);
         game.tile_mut(x, y).terrain = Terrain::Ocean;
@@ -2620,8 +2621,9 @@ mod tests {
         );
     }
 
+    /// Mirrors the civ2civ3 ruleset and Civ III behavior.
     #[test]
-    fn c2c3_machine_tools_requirement_uses_the_civ3_robotics_advance() {
+    fn ruleset_machine_tools_requirement_uses_the_native_robotics_advance() {
         let mut game = flat_game();
         let requirement = Requirement {
             kind: RequirementKind::Tech,
@@ -3007,8 +3009,9 @@ mod tests {
         assert_eq!(unit_type_flag(UnitKind::Leader, "GameLoss"), Some(false));
     }
 
+    /// Mirrors Civ III behavior.
     #[test]
-    fn selected_military_roles_use_explicit_civ3_archetype_bindings() {
+    fn selected_military_roles_use_explicit_native_archetype_bindings() {
         assert!(unit_has_role(UnitKind::Warrior, "DefendOk"));
         assert!(unit_has_role(UnitKind::Spearman, "DefendGood"));
         assert!(unit_has_role(UnitKind::Musketman, "DefendGood"));
@@ -3019,8 +3022,9 @@ mod tests {
         assert!(!unit_has_role(UnitKind::Army, "DefendGood"));
     }
 
+    /// Mirrors the civ2civ3 ruleset behavior.
     #[test]
-    fn combat_target_classes_follow_selected_c2c3_rules() {
+    fn combat_target_classes_follow_selected_ruleset_rules() {
         assert_eq!(
             unit_can_target_class(UnitKind::Warrior, UnitKind::Worker),
             Some(true)
@@ -3168,8 +3172,9 @@ mod tests {
         assert!(!game.transport_would_create_cycle(carrier, passenger));
     }
 
+    /// Mirrors the civ2civ3 ruleset behavior.
     #[test]
-    fn clean_and_pillage_durations_use_selected_c2c3_terrain_data() {
+    fn clean_and_pillage_durations_use_selected_ruleset_terrain_data() {
         let game = flat_game();
         assert_eq!(
             game.work_activity_time(WorkKind::Clean(Contamination::Pollution), Terrain::Desert)
@@ -3189,8 +3194,9 @@ mod tests {
         ));
     }
 
+    /// Mirrors the civ2civ3 ruleset and Civ III behavior.
     #[test]
-    fn civ_three_crater_cleaning_is_unavailable_without_a_c2c3_extra() {
+    fn native_crater_cleaning_is_unavailable_without_a_ruleset_extra() {
         let mut game = flat_game();
         let worker = game.spawn_unit(crate::sim::HUMAN, UnitKind::Worker, 10, 20);
         game.tile_mut(10, 20).craters = true;
@@ -3202,8 +3208,9 @@ mod tests {
         ));
     }
 
+    /// Mirrors Civ III behavior.
     #[test]
-    fn civ_three_terrain_crosswalk_keeps_shallow_and_deep_water_distinct() {
+    fn native_terrain_crosswalk_keeps_shallow_and_deep_water_distinct() {
         let rules = super::super::movement_rules::MovementRules::campaign();
         assert_eq!(
             rules.terrain_data(Terrain::Coast).unwrap().rule_name,

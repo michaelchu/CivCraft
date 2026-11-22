@@ -1478,8 +1478,9 @@ mod tests {
         }
     }
 
+    /// Mirrors Civ III behavior.
     #[test]
-    fn air_mission_playback_schedules_authentic_civ3_sounds_and_phases() {
+    fn air_mission_playback_schedules_authentic_native_sounds_and_phases() {
         let mut sim = Simulation::new(crate::mapgen::generate(42));
         let (bomber, (tx, ty)) = crate::sim::ui_review::ui_review_air_combat_setup(&mut sim, false);
         let bomber_unit = sim.unit_by_id(bomber).unwrap().clone();

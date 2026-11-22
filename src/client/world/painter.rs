@@ -798,8 +798,9 @@ mod tests {
         assert_eq!(irrigation_sprite_index([true; 4]), 15);
     }
 
+    /// Mirrors Civ III behavior.
     #[test]
-    fn road_indices_follow_all_eight_civ3_directions() {
+    fn road_indices_follow_all_eight_native_directions() {
         let mut neighbors = [false; 8];
         for (direction, expected) in [0x80, 0x1, 0x2, 0x4, 0x8, 0x10, 0x20, 0x40]
             .into_iter()

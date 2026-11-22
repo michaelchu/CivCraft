@@ -52,8 +52,9 @@ fn actual_human_science_completion_clears_goal_and_retains_valid_automatic_targe
     assert!(sim.tech_available(HUMAN, sim.players[HUMAN].researching));
 }
 
+/// Mirrors Freeciv behavior.
 #[test]
-fn goal_less_research_matches_freeciv_random_frontier_and_draw_order() {
+fn goal_less_research_matches_reference_random_frontier_and_draw_order() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     game.players[HUMAN].research_goal = Tech::UNSET;
     game.players[HUMAN].researching = Tech::UNSET;
@@ -149,8 +150,9 @@ fn switching_respects_investment_and_exempts_discovery_overflow() {
     assert!(game.ai_research_switching_test());
 }
 
+/// Mirrors the civ2civ3 ruleset behavior.
 #[test]
-fn c2c3_tech_switch_suspends_one_project_and_restores_its_bulbs() {
+fn ruleset_tech_switch_suspends_one_project_and_restores_its_bulbs() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     game.players[HUMAN].known.clear();
     game.players[HUMAN].researching = Tech::ALPHABET;

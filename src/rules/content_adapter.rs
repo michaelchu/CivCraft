@@ -97,8 +97,9 @@ pub(crate) fn bind_engine_technology(
 mod tests {
     use super::*;
 
+    /// Mirrors Civ III behavior.
     #[test]
-    fn calendar_technology_effects_use_explicit_civ3_bindings() {
+    fn calendar_technology_effects_use_explicit_native_bindings() {
         assert_eq!(
             bind_engine_technology("Space Flight"),
             Ok(EngineTechBinding::Bound(Tech::SPACE_FLIGHT))

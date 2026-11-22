@@ -1082,7 +1082,7 @@ fn fractal_land_mask(heights: &[i32], settings: MapGenerationSettings) -> Vec<bo
 }
 
 #[cfg(test)]
-mod civ3_base_terrain_tests {
+mod base_terrain_tests {
     use super::*;
 
     #[test]

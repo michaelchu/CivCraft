@@ -147,8 +147,9 @@ fn city_appearance_disorder_matches_full_forecast_after_policy_changes() {
     }
 }
 
+/// Mirrors Civ III behavior.
 #[test]
-fn fog_preserves_terrain_extras_and_civ3_city_appearance_until_reobserved() {
+fn fog_preserves_terrain_extras_and_native_city_appearance_until_reobserved() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     crate::sim::ui_review::ui_review_observed_map(&mut game);
     assert!(crate::sim::ui_review::ui_review_observed_map_valid(
@@ -447,8 +448,9 @@ fn mapped_hidden_layers_need_short_range_detection_inside_main_sight() {
     }
 }
 
+/// Mirrors the civ2civ3 ruleset behavior.
 #[test]
-fn vision_uses_c2c3_effects_for_units_cities_and_reveal() {
+fn vision_uses_ruleset_effects_for_units_cities_and_reveal() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
@@ -577,8 +579,9 @@ fn map_show_circle_uses_base_unit_radius_without_revealing_units() {
     );
 }
 
+/// Mirrors the civ2civ3 ruleset and Civ III behavior.
 #[test]
-fn c2c3_hex_radius_sq_uses_civ3_steps_without_crossing_poles() {
+fn ruleset_hex_radius_sq_uses_native_steps_without_crossing_poles() {
     let game = Simulation::new(crate::test_support::seeded_map());
     let origin = (20, 20);
     let one_step = game

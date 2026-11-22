@@ -40,8 +40,9 @@ fn railroad_research_upgrades_centers_and_enables_worker_tracks() {
 
 use super::*;
 
+/// Mirrors Civ III behavior.
 #[test]
-fn civ3_map_roster_controls_active_players_and_score_standings() {
+fn native_map_roster_controls_active_players_and_score_standings() {
     for (size, expected) in [
         (crate::mapgen::MapSize::Tiny, 4),
         (crate::mapgen::MapSize::Huge, 16),
@@ -133,8 +134,9 @@ fn native_and_map_coordinates_round_trip() {
     }
 }
 
+/// Mirrors Freeciv and Civ III behavior.
 #[test]
-fn new_game_advances_freeciv_post_mapgen_rng_and_keeps_civ3_assignments() {
+fn new_game_advances_reference_post_mapgen_rng_and_keeps_native_assignments() {
     let map = crate::test_support::seeded_map();
     let starts = map.starts.clone();
     let mut expected_starts = starts.clone();
@@ -260,8 +262,9 @@ fn civilization_ai_plans_after_begin_phase_restores_movement_points() {
     assert_ne!((explorer.x, explorer.y), (10, 20));
 }
 
+/// Mirrors Freeciv behavior.
 #[test]
-fn isohex_neighbors_and_wrapping_match_freeciv_distance() {
+fn isohex_neighbors_and_wrapping_match_reference_distance() {
     for &(start_x, start_y) in &[
         (0, 0),
         (MAP_W - 1, MAP_H - 1),
@@ -317,8 +320,9 @@ fn generated_world_uses_reference_dimensions_and_start_positions() {
     }
 }
 
+/// Mirrors Civ III behavior.
 #[test]
-fn wrapped_path_uses_one_legal_civ3_step() {
+fn wrapped_path_uses_one_legal_native_step() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     for tile in &mut game.tiles {
         tile.terrain = Terrain::Grassland;
@@ -435,8 +439,9 @@ fn player_restore_wires_selected_aircraft_recovery_and_fuel_sites() {
     }
 }
 
+/// Mirrors the civ2civ3 ruleset and Civ III behavior.
 #[test]
-fn defense_stages_and_research_costs_match_civ2civ3() {
+fn defense_stages_and_research_costs_match_ruleset() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     let (x, y) = crate::test_support::seeded_map().starts[0];
     game.tile_mut(x, y).terrain = Terrain::Forest;
@@ -494,8 +499,9 @@ fn combat_odds_and_defender_selection_match_native_rules() {
     assert_eq!(game.best_defender_id(&attacker, 1, 0), Some(3));
 }
 
+/// Mirrors Freeciv behavior.
 #[test]
-fn combat_win_chance_matches_pinned_freeciv_source_vectors() {
+fn combat_win_chance_matches_pinned_reference_source_vectors() {
     for line in include_str!("../../tests/fixtures/freeciv_combat_vectors.tsv").lines() {
         if line.starts_with('#') || line.trim().is_empty() {
             continue;

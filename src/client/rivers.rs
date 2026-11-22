@@ -58,8 +58,9 @@ pub(super) fn river_sprite(index: usize) -> Rect {
 mod tests {
     use super::*;
 
+    /// Mirrors Civ III behavior.
     #[test]
-    fn civ3_junction_uses_reciprocal_edge_flags() {
+    fn native_junction_uses_reciprocal_edge_flags() {
         assert_eq!(river_junction_index(1 << 5, 0, 0, 0), Some(1));
         assert_eq!(river_junction_index(0, 1 << 7, 0, 0), Some(2));
         assert_eq!(river_junction_index(0, 0, 0, 1 << 3), Some(4));
@@ -68,16 +69,18 @@ mod tests {
         assert_eq!(river_junction_index(1 << 4, 0, 0, 0), Some(0));
     }
 
+    /// Mirrors Civ III behavior.
     #[test]
-    fn civ3_river_masks_select_full_128_by_64_atlas_cells() {
+    fn native_river_masks_select_full_128_by_64_atlas_cells() {
         assert_eq!(river_sprite(0), Rect::new(0.0, 0.0, 128.0, 64.0));
         assert_eq!(river_sprite(3), Rect::new(384.0, 0.0, 128.0, 64.0));
         assert_eq!(river_sprite(12), Rect::new(0.0, 192.0, 128.0, 64.0));
         assert_eq!(river_sprite(15), Rect::new(384.0, 192.0, 128.0, 64.0));
     }
 
+    /// Mirrors Civ III behavior.
     #[test]
-    fn civ3_selects_delta_art_only_for_actual_mouth_junctions() {
+    fn native_selects_delta_art_only_for_actual_mouth_junctions() {
         assert_eq!(river_sheet_cell(1, true), Civ3RiverSheet::Delta);
         assert_eq!(river_sheet_cell(1, false), Civ3RiverSheet::Mountain);
         assert_eq!(river_sheet_cell(3, true), Civ3RiverSheet::Mountain);

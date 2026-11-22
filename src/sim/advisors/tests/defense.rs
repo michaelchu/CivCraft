@@ -70,8 +70,9 @@ fn static_defender_research_is_gated_by_real_production_need_and_keeps_police_va
     );
 }
 
+/// Mirrors the civ2civ3 ruleset behavior.
 #[test]
-fn city_defense_fixture_uses_selected_c2c3_treasury_support_allowance() {
+fn city_defense_fixture_uses_selected_ruleset_treasury_support_allowance() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();

@@ -184,7 +184,7 @@ impl Simulation {
     }
 
     pub(super) fn trained_rank(&self, city: &City, kind: UnitKind) -> usize {
-        let default_rank = crate::sim::civ3_unit_rules::default_experience_rank();
+        let default_rank = crate::sim::unit_rules::default_experience_rank();
         if kind.no_veteran() || kind.max_veteran_levels() <= 1 {
             return default_rank;
         }
@@ -204,8 +204,9 @@ impl Simulation {
 mod tests {
     use super::*;
 
+    /// Mirrors Civ III behavior.
     #[test]
-    fn civ3_rank_changes_hit_points_without_changing_combat_power() {
+    fn native_rank_changes_hit_points_without_changing_combat_power() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         game.create_city(HUMAN, 10, 20);
         game.cities[0]
@@ -273,8 +274,9 @@ mod tests {
         assert_eq!(combat_veterancy_chances(10, 30, false), (100, 100));
     }
 
+    /// Mirrors Civ III behavior.
     #[test]
-    fn a_real_combat_can_promote_both_survivors_without_changing_civ3_hp_rank() {
+    fn a_real_combat_can_promote_both_survivors_without_changing_native_hp_rank() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         game.units.clear();
         game.cities.clear();
@@ -386,8 +388,9 @@ mod tests {
         );
     }
 
+    /// Mirrors the civ2civ3 ruleset behavior.
     #[test]
-    fn powerless_fights_cannot_promote_under_selected_c2c3_setting() {
+    fn powerless_fights_cannot_promote_under_selected_ruleset_setting() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         game.units.clear();
         game.cities.clear();

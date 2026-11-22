@@ -328,8 +328,9 @@ mod tests {
     use super::super::movement_rules::{RoadMoveMode, RoadType};
     use super::*;
 
+    /// Mirrors the civ2civ3 ruleset behavior.
     #[test]
-    fn unit_zoc_exemptions_use_c2c3_flags_and_native_extras() {
+    fn unit_zoc_exemptions_use_ruleset_flags_and_native_extras() {
         for kind in [
             UnitKind::Chariot,
             UnitKind::Catapult,
@@ -521,8 +522,9 @@ mod tests {
         assert!(sim.map_wrap.eight_way_neighbor(10, 0, 0).is_none());
     }
 
+    /// Mirrors the civ2civ3 ruleset behavior.
     #[test]
-    fn attack_move_cost_uses_c2c3_one_attack_and_missile_rules() {
+    fn attack_move_cost_uses_ruleset_one_attack_and_missile_rules() {
         let fragments = MovementRules::campaign().move_fragments();
         let rate = 3 * fragments;
         assert_eq!(

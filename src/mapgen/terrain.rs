@@ -938,23 +938,25 @@ impl super::Generator {
 }
 
 #[cfg(test)]
-mod freeciv_terrain_tests {
+mod terrain_property_tests {
     use super::*;
 
     fn settings() -> MapGenerationSettings {
         super::super::defaults::default_map_generation_settings()
     }
 
+    /// Mirrors Freeciv and the civ2civ3 ruleset behavior.
     #[test]
-    fn c2c3_map_terrain_percentages_follow_freeciv_defaults() {
+    fn ruleset_map_terrain_percentages_follow_reference_defaults() {
         assert_eq!(
             terrain_percentages(settings(), 36 * 48),
             (20, 16, 4, 7, 8, 6)
         );
     }
 
+    /// Mirrors the civ2civ3 ruleset and Civ III behavior.
     #[test]
-    fn c2c3_starter_flags_drive_civ3_terrain_eligibility() {
+    fn ruleset_starter_flags_drive_native_terrain_eligibility() {
         let terrains = super::super::defaults::default_terrain_mapgen_properties();
         assert_eq!(
             starter_terrains(&terrains),
@@ -967,8 +969,9 @@ mod freeciv_terrain_tests {
         );
     }
 
+    /// Mirrors the civ2civ3 ruleset and Civ III behavior.
     #[test]
-    fn c2c3_property_selection_preserves_civ3_terrain_identity_mapping() {
+    fn ruleset_property_selection_preserves_native_terrain_identity_mapping() {
         let terrains = super::super::defaults::default_terrain_mapgen_properties();
         let frozen = pick_terrain_by_property(
             &terrains,
@@ -989,8 +992,9 @@ mod freeciv_terrain_tests {
         );
     }
 
+    /// Mirrors the civ2civ3 ruleset behavior.
     #[test]
-    fn c2c3_label_adapter_preserves_source_terrain_names() {
+    fn ruleset_label_adapter_preserves_source_terrain_names() {
         use C2c3MapLabelTerrain as Source;
 
         for (civ3, source) in [
@@ -1031,8 +1035,9 @@ mod freeciv_terrain_tests {
 mod tests {
     use super::{find_sea_level, ocean_depth_majority_threshold};
 
+    /// Mirrors Freeciv behavior.
     #[test]
-    fn freeciv_ocean_smoothing_requires_at_least_two_thirds_of_eight_neighbors() {
+    fn reference_ocean_smoothing_requires_at_least_two_thirds_of_eight_neighbors() {
         assert_eq!(ocean_depth_majority_threshold(), 6);
     }
 

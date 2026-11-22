@@ -220,7 +220,7 @@ impl Simulation {
                 game.units.iter().any(|unit| {
                     unit.id == id
                         && unit.work_kind.is_none()
-                        && unit.veteran == crate::sim::civ3_unit_rules::default_experience_rank()
+                        && unit.veteran == crate::sim::unit_rules::default_experience_rank()
                 })
             });
 
@@ -251,8 +251,7 @@ impl Simulation {
         let before = game.random_snapshot();
         game.progress_player_unit_activities(HUMAN);
         let unit = game.unit_by_id(worker).unwrap();
-        let no_zero_mp_activity = unit.veteran
-            == crate::sim::civ3_unit_rules::default_experience_rank()
+        let no_zero_mp_activity = unit.veteran == crate::sim::unit_rules::default_experience_rank()
             && unit.work_done == 0
             && unit.work_left == initial_work
             && game.random_snapshot() == before;
@@ -260,7 +259,7 @@ impl Simulation {
         let full_rate = game.units.last().unwrap().activity_rate();
         game.progress_player_unit_activities(HUMAN);
         let no_work_promotion = game.units.last().unwrap().veteran
-            == crate::sim::civ3_unit_rules::default_experience_rank()
+            == crate::sim::unit_rules::default_experience_rank()
             && game.units.last().unwrap().work_done == full_rate;
         (
             road_order,

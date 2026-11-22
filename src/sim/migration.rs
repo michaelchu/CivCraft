@@ -549,8 +549,9 @@ mod tests {
         }
     }
 
+    /// Mirrors the civ2civ3 ruleset behavior.
     #[test]
-    fn c2c3_engine_defaults_keep_migration_disabled() {
+    fn ruleset_engine_defaults_keep_migration_disabled() {
         assert_eq!(
             MigrationSettings::default(),
             MigrationSettings {
@@ -564,8 +565,9 @@ mod tests {
         );
     }
 
+    /// Mirrors Freeciv behavior.
     #[test]
-    fn migration_score_applies_feelings_and_each_freeciv_multiplier_in_order() {
+    fn migration_score_applies_feelings_and_each_reference_multiplier_in_order() {
         let inputs = MigrationScoreInputs {
             building_shield_cost: 1000,
             trade: 100,
@@ -603,8 +605,9 @@ mod tests {
         assert_eq!(migration_score(zero_outputs), migration_score(upper_clamp));
     }
 
+    /// Mirrors the civ2civ3 ruleset behavior.
     #[test]
-    fn selected_c2c3_migration_parameter_and_nationality_are_present() {
+    fn selected_ruleset_migration_parameter_and_nationality_are_present() {
         assert_eq!(selected_migration_pml(), 50);
         assert!(selected_citizen_nationality());
         let mut game = Simulation::new(crate::mapgen::generate(42));
@@ -615,8 +618,9 @@ mod tests {
         assert_eq!(game.city_work_radius_sq(&city), 5);
     }
 
+    /// Mirrors Freeciv behavior.
     #[test]
-    fn culture_migration_term_truncates_like_freeciv_integer_arithmetic() {
+    fn culture_migration_term_truncates_like_reference_integer_arithmetic() {
         let mut fractional = base_inputs();
         fractional.size = 0;
         fractional.happy = 0;

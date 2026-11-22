@@ -41,8 +41,8 @@ mod city_bar;
 mod city_manager;
 mod city_map;
 #[allow(dead_code)] // Standalone projection helpers are retained for geometry regression fixtures.
-mod civ3_geometry;
-mod civ3_projection;
+mod diamond_geometry;
+mod diamond_projection;
 mod espionage_view;
 mod flc;
 mod fog;

@@ -33,10 +33,10 @@ mod aviation;
 mod bases;
 mod borders;
 mod buildings;
-mod civ3_unit_rules;
 mod civilization_start_rules;
 mod native_unit_rules;
 mod nuclear;
+mod unit_rules;
 pub(crate) use bases::Base;
 mod cities;
 mod civil_war;
@@ -764,7 +764,7 @@ impl Simulation {
             true
         } else {
             kind.conquests_id()
-                .and_then(civ3_unit_rules::get)
+                .and_then(unit_rules::get)
                 .is_some_and(|rule| {
                     self.players[owner]
                         .civilization_id

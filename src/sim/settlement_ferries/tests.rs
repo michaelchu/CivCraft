@@ -62,8 +62,9 @@ fn ocean_game() -> Simulation {
     game
 }
 
+/// Mirrors Civ III behavior.
 #[test]
-fn coastal_ports_and_embarkation_use_all_civ3_directions() {
+fn coastal_ports_and_embarkation_use_all_native_directions() {
     for direction in 0..CIV3_DIRS.len() {
         let mut game = ocean_game();
         let shore = (10, 24);

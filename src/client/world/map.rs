@@ -53,7 +53,7 @@ impl Game {
         self.fog_knowledge(x, y)
     }
 
-    pub(super) fn draw_edge_water(&self, assets: &Assets, view: super::civ3::WorldMapView) {
+    pub(super) fn draw_edge_water(&self, assets: &Assets, view: super::painter::WorldMapView) {
         let viewport = view.viewport;
         let tile_w = TILE_W * view.zoom;
         let tile_h = TILE_H * view.zoom;

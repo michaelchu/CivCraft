@@ -151,8 +151,9 @@ impl Simulation {
 mod tests {
     use super::*;
 
+    /// Mirrors the civ2civ3 ruleset behavior.
     #[test]
-    fn terrain_changes_follow_selected_c2c3_results_and_times() {
+    fn terrain_changes_follow_selected_ruleset_results_and_times() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         let (x, y) = (10, 20);
         let worker = game.spawn_unit(HUMAN, UnitKind::Worker, x, y);

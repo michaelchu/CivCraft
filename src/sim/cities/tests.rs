@@ -498,8 +498,9 @@ fn conquest_transfer_bounces_both_players_from_newly_hostile_mixed_stacks() {
     );
 }
 
+/// Mirrors Freeciv behavior.
 #[test]
-fn conquest_city_transfer_bounce_uses_freeciv_order_and_preserves_unit_id() {
+fn conquest_city_transfer_bounce_uses_reference_order_and_preserves_unit_id() {
     let (mut game, city_id, _attacker, center) = conquest_fixture();
     let bounced_id = game.spawn_unit(2, UnitKind::Worker, center.0, center.1);
     let bounced = game.unit_by_id(bounced_id).unwrap().clone();
@@ -822,8 +823,9 @@ fn sewer_system_allows_growth_past_size_sixteen() {
     assert_eq!(game.cities[0].size, 17);
 }
 
+/// Mirrors the civ2civ3 ruleset behavior.
 #[test]
-fn c2c3_city_growth_limits_come_from_size_effects() {
+fn ruleset_city_growth_limits_come_from_size_effects() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     game.cities.clear();
     game.create_city(HUMAN, 10, 20);

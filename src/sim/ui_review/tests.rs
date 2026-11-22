@@ -26,8 +26,9 @@ fn baseline_clones_preserve_rng_and_normal_campaign_results() {
     assert_eq!(initial.encode_campaign().unwrap(), original);
 }
 
+/// Mirrors Civ III behavior.
 #[test]
-fn resource_shadow_review_scene_contains_every_civ3_resource() {
+fn resource_shadow_review_scene_contains_every_native_resource() {
     use Resource::*;
 
     let mut sim = Simulation::new(crate::test_support::seeded_map());

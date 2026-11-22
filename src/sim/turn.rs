@@ -371,8 +371,9 @@ mod tests {
         next_calendar_state(year, false, global_advances, ruleset()).unwrap()
     }
 
+    /// Mirrors the civ2civ3 ruleset and Civ III behavior.
     #[test]
-    fn calendar_uses_civ2civ3_year_threshold_effects() {
+    fn calendar_uses_ruleset_year_threshold_effects() {
         for (year, expected) in [
             (-1001, -951),
             (-1000, -975),
@@ -403,8 +404,9 @@ mod tests {
         );
     }
 
+    /// Mirrors Freeciv behavior.
     #[test]
-    fn calendar_skip_year_zero_carries_freeciv_hack_state() {
+    fn calendar_skip_year_zero_carries_reference_hack_state() {
         let (year, year_0_hack) = next_calendar_state(-25, false, &[], ruleset()).unwrap();
         assert_eq!((year, year_0_hack), (1, true));
         assert_eq!(

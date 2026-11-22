@@ -142,8 +142,9 @@ fn government_cache_interval_uses_city_count_with_five_and_twenty_turn_bounds() 
     assert_eq!(game.ai_government_cache[&1].next_evaluation, 31);
 }
 
+/// Mirrors the civ2civ3 ruleset behavior.
 #[test]
-fn government_player_bonus_uses_c2c3_fanatics_and_partisans_effects() {
+fn government_player_bonus_uses_ruleset_fanatics_and_partisans_effects() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     game.players[1].known.clear();
     assert_eq!(game.government_player_bonus(1, Government::COMMUNISM), 0);

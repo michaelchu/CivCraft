@@ -298,8 +298,9 @@ mod tests {
         assert_eq!(game.climate_target(x, y, false), None);
     }
 
+    /// Mirrors the civ2civ3 ruleset behavior.
     #[test]
-    fn climate_uses_c2c3_land_channel_requirement_instead_of_worker_thresholds() {
+    fn climate_uses_ruleset_land_channel_requirement_instead_of_worker_thresholds() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         let (x, y) = (10, 20);
         for (nx, ny) in game.map_wrap.eight_way_neighbors(x, y) {

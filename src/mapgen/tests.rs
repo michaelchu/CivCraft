@@ -15,8 +15,9 @@ fn generate_opensimplex(seed: u64, wrap: MapWrap, settings: WorldSettings) -> Ge
     generate_with_map_generator(&OpenSimplexMapGenerator, request)
 }
 
+/// Mirrors Civ III behavior.
 #[test]
-fn civ3_map_sizes_select_their_rosters_and_generate_matching_starts() {
+fn native_map_sizes_select_their_rosters_and_generate_matching_starts() {
     for (size, expected) in [
         (MapSize::Tiny, 4),
         (MapSize::Small, 6),
@@ -45,8 +46,9 @@ fn civ3_map_sizes_select_their_rosters_and_generate_matching_starts() {
     }
 }
 
+/// Mirrors Freeciv behavior.
 #[test]
-fn map_rng_uses_the_shared_freeciv_primitive() {
+fn map_rng_uses_the_shared_reference_primitive() {
     for seed in [0, 42, u64::MAX] {
         let mut map = MapRng::new(seed);
         let folded_seed = seed as u32 ^ (seed >> 32) as u32;
@@ -76,8 +78,9 @@ fn campaign_seed_draws_a_distinct_map_seed_and_preserves_game_rng_state() {
     }
 }
 
+/// Mirrors Freeciv behavior.
 #[test]
-fn freeciv_mapgen_retries_draw_fresh_seeds_from_the_gameplay_stream() {
+fn reference_mapgen_retries_draw_fresh_seeds_from_the_gameplay_stream() {
     let seed = 42;
     let (first, mut gameplay_rng) = campaign_randomness(seed);
     let second = draw_map_seed(&mut gameplay_rng);
@@ -111,8 +114,9 @@ fn generated_campaign_rng_is_restored_for_start_allocation() {
     assert_ne!(map.game_random, initial_gameplay_rng);
 }
 
+/// Mirrors Freeciv and the civ2civ3 ruleset behavior.
 #[test]
-fn c2c3_settings_change_freeciv_height_resolution_and_shore_mask() {
+fn ruleset_settings_change_reference_height_resolution_and_shore_mask() {
     let wrap = MapWrap::with_dimensions(36, 48).unwrap();
     let generator = Generator {
         wrap,
@@ -158,8 +162,9 @@ fn c2c3_settings_change_freeciv_height_resolution_and_shore_mask() {
     assert_ne!(default_field, single_start_field);
 }
 
+/// Mirrors Freeciv behavior.
 #[test]
-fn freeciv_fractal_height_consumes_jitter_for_shared_and_bounded_midpoints() {
+fn reference_fractal_height_consumes_jitter_for_shared_and_bounded_midpoints() {
     fn subdivision_calls(xl: i32, yt: i32, xr: i32, yb: i32) -> usize {
         if xr - xl <= 0 || yb - yt <= 0 || (xr - xl == 1 && yb - yt == 1) {
             return 0;
@@ -211,8 +216,9 @@ fn freeciv_fractal_height_consumes_jitter_for_shared_and_bounded_midpoints() {
     assert_eq!(map_rng.draw(1000), expected.draw(1000));
 }
 
+/// Mirrors the civ2civ3 ruleset and Civ III behavior.
 #[test]
-fn c2c3_ocean_depths_are_parsed_and_mapped_to_civ3_water_labels() {
+fn ruleset_ocean_depths_are_parsed_and_mapped_to_native_water_labels() {
     let settings = defaults::default_map_generation_settings();
     let depths = settings.ocean_depths;
     assert_eq!(
@@ -246,8 +252,9 @@ fn c2c3_ocean_depths_are_parsed_and_mapped_to_civ3_water_labels() {
     assert_eq!(terrain[wrap.index(8, 8)], Terrain::Coast);
 }
 
+/// Mirrors Freeciv and Civ III behavior.
 #[test]
-fn freeciv_ocean_depth_stages_use_height_and_the_civ3_wrap_topology() {
+fn reference_ocean_depth_stages_use_height_and_the_native_wrap_topology() {
     let wrap = MapWrap::with_dimensions(16, 16).unwrap();
     let generator = Generator {
         wrap,
@@ -487,8 +494,9 @@ fn river_test_map(
     (generator, tiles, properties)
 }
 
+/// Mirrors Freeciv behavior.
 #[test]
-fn freeciv_river_ties_follow_ruleset_order_and_wrap_x_without_wrapping_y() {
+fn reference_river_ties_follow_ruleset_order_and_wrap_x_without_wrapping_y() {
     let wrap = MapWrap::X;
     let (generator, tiles, properties) = river_test_map(wrap, Terrain::Grassland);
     let current = wrap.index(0, 0);
@@ -529,8 +537,9 @@ fn freeciv_river_ties_follow_ruleset_order_and_wrap_x_without_wrapping_y() {
     assert_eq!(wrap.position(selected).1, 1);
 }
 
+/// Mirrors Freeciv and the civ2civ3 ruleset behavior.
 #[test]
-fn freeciv_river_density_and_spring_height_follow_c2c3_parameters() {
+fn reference_river_density_and_spring_height_follow_ruleset_parameters() {
     let settings = defaults::default_map_generation_settings();
 
     assert_eq!(
@@ -545,8 +554,9 @@ fn freeciv_river_density_and_spring_height_follow_c2c3_parameters() {
     );
 }
 
+/// Mirrors Freeciv and the civ2civ3 ruleset behavior.
 #[test]
-fn freeciv_river_tests_use_c2c3_mountainous_and_wet_properties() {
+fn reference_river_tests_use_ruleset_mountainous_and_wet_properties() {
     let wrap = MapWrap::X;
     let (generator, mut tiles, properties) = river_test_map(wrap, Terrain::Grassland);
     let current = wrap.index(8, 10);
@@ -580,8 +590,9 @@ fn freeciv_river_tests_use_c2c3_mountainous_and_wet_properties() {
     assert_eq!(selected, candidates[0]);
 }
 
+/// Mirrors Freeciv behavior.
 #[test]
-fn freeciv_spring_filters_apply_adjacent_and_relaxed_terrain_thresholds() {
+fn reference_spring_filters_apply_adjacent_and_relaxed_terrain_thresholds() {
     let wrap = MapWrap::X;
     let (generator, mut tiles, properties) = river_test_map(wrap, Terrain::Grassland);
     let spring = wrap.index(8, 10);
@@ -676,8 +687,9 @@ fn freeciv_spring_filters_apply_adjacent_and_relaxed_terrain_thresholds() {
     ));
 }
 
+/// Mirrors Freeciv behavior.
 #[test]
-fn freeciv_river_blocking_is_fatal_and_rivers_continue_through_frozen_terrain() {
+fn reference_river_blocking_is_fatal_and_rivers_continue_through_frozen_terrain() {
     let wrap = MapWrap::X;
     let (generator, mut tiles, properties) = river_test_map(wrap, Terrain::Grassland);
     let current = wrap.index(8, 10);
@@ -729,9 +741,10 @@ fn freeciv_river_blocking_is_fatal_and_rivers_continue_through_frozen_terrain() 
     );
 }
 
+/// Mirrors Civ III behavior.
 #[cfg(test)]
 #[test]
-fn opensimplex_civ3_generation_does_not_emit_legacy_glacier_or_lake_terrains() {
+fn opensimplex_native_generation_does_not_emit_legacy_glacier_or_lake_terrains() {
     for wrap in [MapWrap::X] {
         for seed in [42, 12345] {
             let map = generate_opensimplex(seed, wrap, WorldSettings::default());
@@ -849,8 +862,9 @@ fn default_worlds_match_civcraft_resource_goldens() {
     }
 }
 
+/// Mirrors Civ III behavior.
 #[test]
-fn opensimplex_civ3_ocean_coverage_choices_change_water_fraction_deterministically() {
+fn opensimplex_native_ocean_coverage_choices_change_water_fraction_deterministically() {
     let wrap = MapWrap::X;
     let coverages = [
         OceanCoverage::Percent60,
@@ -967,8 +981,9 @@ fn generated_polar_coastlines_vary_across_longitudes() {
     }
 }
 
+/// Mirrors Civ III behavior.
 #[test]
-fn civ3_climate_choices_shift_biomes_in_the_expected_direction() {
+fn native_climate_choices_shift_biomes_in_the_expected_direction() {
     let wrap = MapWrap::X;
     let map_for = |climate| {
         generate_opensimplex(
@@ -998,8 +1013,9 @@ fn civ3_climate_choices_shift_biomes_in_the_expected_direction() {
     // normal-versus-wet desert ordering.
 }
 
+/// Mirrors Civ III behavior.
 #[test]
-fn civ3_world_age_controls_relief_and_volcano_frequency() {
+fn native_world_age_controls_relief_and_volcano_frequency() {
     let generate_age = |age| {
         generate_opensimplex(
             42,
@@ -1038,8 +1054,9 @@ fn civ3_world_age_controls_relief_and_volcano_frequency() {
     assert!(volcano_count(&young) > volcano_count(&old));
 }
 
+/// Mirrors Civ III behavior.
 #[test]
-fn opensimplex_civ3_landform_choices_are_deterministic_and_change_landmass_scale() {
+fn opensimplex_native_landform_choices_are_deterministic_and_change_landmass_scale() {
     let forms = [
         Landform::Archipelago,
         Landform::Continents,
@@ -1087,16 +1104,18 @@ fn opensimplex_civ3_landform_choices_are_deterministic_and_change_landmass_scale
     // component count is the stable scale signal at this map size.
 }
 
+/// Mirrors Civ III behavior.
 #[test]
-fn landform_parser_accepts_civ3_world_setup_choices() {
+fn landform_parser_accepts_native_world_setup_choices() {
     assert_eq!("archipelago".parse(), Ok(Landform::Archipelago));
     assert_eq!("CONTINENTS".parse(), Ok(Landform::Continents));
     assert_eq!("pangaea".parse(), Ok(Landform::Pangaea));
     assert!("islands".parse::<Landform>().is_err());
 }
 
+/// Mirrors Civ III behavior.
 #[test]
-fn civ3_temperature_choices_shift_cold_and_dry_terrain() {
+fn native_temperature_choices_shift_cold_and_dry_terrain() {
     let generate_temperature = |temperature| {
         generate_opensimplex(
             42,
@@ -1124,32 +1143,36 @@ fn civ3_temperature_choices_shift_cold_and_dry_terrain() {
     );
 }
 
+/// Mirrors Civ III behavior.
 #[test]
-fn temperature_parser_accepts_civ3_world_setup_choices() {
+fn temperature_parser_accepts_native_world_setup_choices() {
     assert_eq!("cool".parse(), Ok(Temperature::Cool));
     assert_eq!("TEMPERATE".parse(), Ok(Temperature::Temperate));
     assert_eq!("warm".parse(), Ok(Temperature::Warm));
     assert!("hot".parse::<Temperature>().is_err());
 }
 
+/// Mirrors Civ III behavior.
 #[test]
-fn civ3_ocean_coverage_parser_accepts_documented_world_setup_values() {
+fn native_ocean_coverage_parser_accepts_documented_world_setup_values() {
     assert_eq!("60".parse(), Ok(OceanCoverage::Percent60));
     assert_eq!("70".parse(), Ok(OceanCoverage::Percent70));
     assert_eq!("80".parse(), Ok(OceanCoverage::Percent80));
     assert!("75".parse::<OceanCoverage>().is_err());
 }
 
+/// Mirrors Civ III behavior.
 #[test]
-fn civ3_climate_parser_accepts_documented_world_setup_values() {
+fn native_climate_parser_accepts_documented_world_setup_values() {
     assert_eq!("arid".parse(), Ok(Climate::Arid));
     assert_eq!("normal".parse(), Ok(Climate::Normal));
     assert_eq!("wet".parse(), Ok(Climate::Wet));
     assert!("humid".parse::<Climate>().is_err());
 }
 
+/// Mirrors Civ III behavior.
 #[test]
-fn civ3_world_age_parser_accepts_documented_world_setup_values() {
+fn native_world_age_parser_accepts_documented_world_setup_values() {
     assert_eq!("3".parse(), Ok(WorldAge::Billion3));
     assert_eq!("4".parse(), Ok(WorldAge::Billion4));
     assert_eq!("5".parse(), Ok(WorldAge::Billion5));
@@ -1160,8 +1183,9 @@ fn civ3_world_age_parser_accepts_documented_world_setup_values() {
 mod wrap_generation_tests {
     use super::*;
 
+    /// Mirrors Civ III behavior.
     #[test]
-    fn generated_terrain_neighbors_use_reciprocal_civ3_eight_way_topology() {
+    fn generated_terrain_neighbors_use_reciprocal_native_eight_way_topology() {
         for wrap in [MapWrap::X] {
             let generator = Generator {
                 wrap,
@@ -1201,8 +1225,9 @@ mod wrap_generation_tests {
         }));
     }
 
+    /// Mirrors Civ III behavior.
     #[test]
-    fn civ3_cylinder_keeps_polar_edges_ocean_and_has_valid_starts() {
+    fn native_cylinder_keeps_polar_edges_ocean_and_has_valid_starts() {
         for seed in [0, 1, 42, 1337, 12345, 700001, 2147483647] {
             let a = generate_with_wrap(seed, MapWrap::X);
             let b = generate_with_wrap(seed, MapWrap::X);
@@ -1253,8 +1278,9 @@ mod wrap_generation_tests {
         }
     }
 
+    /// Mirrors Civ III behavior.
     #[test]
-    fn civ3_shelf_rules_put_coast_by_land_and_sea_by_coast() {
+    fn native_shelf_rules_put_coast_by_land_and_sea_by_coast() {
         for wrap in [MapWrap::X] {
             let generator = Generator {
                 wrap,

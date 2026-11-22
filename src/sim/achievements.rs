@@ -415,8 +415,9 @@ mod tests {
         assert_eq!(game.nation_scores[HUMAN].score_literacy, 100);
     }
 
+    /// Mirrors Freeciv behavior.
     #[test]
-    fn freeciv_culture_history_unlocks_culture_achievements() {
+    fn reference_culture_history_unlocks_culture_achievements() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         game.create_city(HUMAN, 10, 20);
         game.cities[0].history = 10_000;

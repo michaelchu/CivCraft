@@ -122,8 +122,9 @@ fn late_hostile_village_spawns_land_raiders() {
     assert!(game.units.iter().any(|unit| unit.id == id));
 }
 
+/// Mirrors Freeciv behavior.
 #[test]
-fn hostile_village_uses_the_freeciv_onset_boundary() {
+fn hostile_village_uses_the_reference_onset_boundary() {
     let (mut game, id, (x, y)) = approach(10);
     game.turn = BARBARIAN_ONSET - 1;
     for (nx, ny) in game.map_wrap.eight_way_neighbors(x, y) {

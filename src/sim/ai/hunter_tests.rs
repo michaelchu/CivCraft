@@ -93,8 +93,9 @@ fn hunter_assigns_same_tile_missiles_only_when_a_real_hunt_begins() {
     );
 }
 
+/// Mirrors the civ2civ3 ruleset behavior.
 #[test]
-fn selected_c2c3_hunter_role_dispatches_existing_hunter_management() {
+fn selected_ruleset_hunter_role_dispatches_existing_hunter_management() {
     let mut sim = Simulation::new(crate::test_support::seeded_map());
     sim.units.clear();
     sim.cities.clear();

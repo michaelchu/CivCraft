@@ -592,8 +592,9 @@ mod tests {
         }
     }
 
+    /// Mirrors Civ III behavior.
     #[test]
-    fn civ3_facing_between_matches_all_eight_neighbor_directions() {
+    fn native_facing_between_matches_all_eight_neighbor_directions() {
         let sim = Simulation::new(crate::mapgen::generate(42));
         let origin = (10, 24);
         for direction in 0..super::topology::CIV3_DIRS.len() {

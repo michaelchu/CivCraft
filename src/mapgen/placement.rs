@@ -869,8 +869,9 @@ mod tests {
         )
     }
 
+    /// Mirrors the civ2civ3 ruleset behavior.
     #[test]
-    fn c2c3_label_hook_matches_source_draw_oracle_on_a_plain_map() {
+    fn ruleset_label_hook_matches_source_draw_oracle_on_a_plain_map() {
         let wrap = MapWrap::with_dimensions(16, 16).unwrap();
         let (generator, _, _) = fractal_generator(wrap);
         let tiles = vec![tile(Terrain::Plains, None, false); wrap.tile_count()];
@@ -898,8 +899,9 @@ mod tests {
         assert_eq!(actual, oracle);
     }
 
+    /// Mirrors the civ2civ3 ruleset behavior.
     #[test]
-    fn c2c3_label_hook_uses_the_selected_hill_in_map_order() {
+    fn ruleset_label_hook_uses_the_selected_hill_in_map_order() {
         let wrap = MapWrap::with_dimensions(16, 16).unwrap();
         let (generator, _, _) = fractal_generator(wrap);
         let mut tiles = vec![tile(Terrain::Plains, None, false); wrap.tile_count()];
@@ -941,8 +943,9 @@ mod tests {
         assert_eq!(second_target.limits, common_source_draw_bounds);
     }
 
+    /// Mirrors the civ2civ3 ruleset behavior.
     #[test]
-    fn c2c3_label_hook_matches_source_conditional_branch_draws() {
+    fn ruleset_label_hook_matches_source_conditional_branch_draws() {
         let wrap = MapWrap::with_dimensions(16, 16).unwrap();
         let (generator, _, _) = fractal_generator(wrap);
         let mut tiles = vec![tile(Terrain::Plains, None, false); wrap.tile_count()];
@@ -1007,8 +1010,9 @@ mod tests {
         assert_eq!(rng.limits, source_draw_bounds);
     }
 
+    /// Mirrors the civ2civ3 ruleset behavior.
     #[test]
-    fn c2c3_label_adjacency_wraps_x_and_keeps_y_bounded() {
+    fn ruleset_label_adjacency_wraps_x_and_keeps_y_bounded() {
         let wrap = MapWrap::with_dimensions(16, 16).unwrap();
         let (generator, _, _) = fractal_generator(wrap);
 
@@ -1035,8 +1039,9 @@ mod tests {
         assert_eq!(bounded_rng.limits, bounded_draws);
     }
 
+    /// Mirrors Freeciv behavior.
     #[test]
-    fn freeciv_resource_chance_draw_is_skipped_near_existing_resources() {
+    fn reference_resource_chance_draw_is_skipped_near_existing_resources() {
         let wrap = MapWrap::with_dimensions(16, 16).unwrap();
         let (generator, mut settings, properties) = fractal_generator(wrap);
         settings.specials_per_thousand = 0;
@@ -1058,8 +1063,9 @@ mod tests {
         );
     }
 
+    /// Mirrors Freeciv behavior.
     #[test]
-    fn freeciv_ocean_resource_gate_runs_after_chance_and_respects_setting() {
+    fn reference_ocean_resource_gate_runs_after_chance_and_respects_setting() {
         let wrap = MapWrap::with_dimensions(16, 16).unwrap();
         let (generator, mut settings, properties) = fractal_generator(wrap);
         settings.specials_per_thousand = 1000;
@@ -1080,8 +1086,9 @@ mod tests {
         assert_eq!(&rng.limits[..3], &[1000, 1, 2]);
     }
 
+    /// Mirrors Freeciv behavior.
     #[test]
-    fn freeciv_resource_picker_uses_sequential_weighted_replacement() {
+    fn reference_resource_picker_uses_sequential_weighted_replacement() {
         let mut rng = ScriptedRng {
             values: vec![1, 3],
             ..ScriptedRng::default()
@@ -1093,8 +1100,9 @@ mod tests {
         assert_eq!(rng.limits, [2, 5]);
     }
 
+    /// Mirrors Freeciv behavior.
     #[test]
-    fn freeciv_huts_consume_ineligible_attempts_and_reserve_radius_three() {
+    fn reference_huts_consume_ineligible_attempts_and_reserve_radius_three() {
         let wrap = MapWrap::with_dimensions(16, 16).unwrap();
         let (generator, settings, properties) = fractal_generator(wrap);
         let tiles = &mut vec![tile(Terrain::Plains, None, false); wrap.tile_count()];
@@ -1139,8 +1147,9 @@ mod tests {
         assert!(!tiles[wrap.index(0, 0)].hut);
     }
 
+    /// Mirrors the civ2civ3 ruleset and Civ III behavior.
     #[test]
-    fn start_tile_value_uses_c2c3_outputs_and_retains_civ3_resources() {
+    fn start_tile_value_uses_ruleset_outputs_and_retains_native_resources() {
         let terrain_properties = super::super::defaults::default_terrain_mapgen_properties();
         let scoring = super::super::defaults::default_start_position_scoring_settings();
 
@@ -1228,14 +1237,16 @@ mod tests {
         assert!(polar_radius.iter().all(|&tile| wrap.position(tile).1 >= 0));
     }
 
+    /// Mirrors Freeciv behavior.
     #[test]
-    fn freeciv_default_fractal_uses_all_when_the_best_island_passes_both_tests() {
+    fn reference_default_fractal_uses_all_when_the_best_island_passes_both_tests() {
         let allocations = start_island_allocations(&[20_000, 500], 6, 36 * 48).unwrap();
         assert_eq!(allocations, [6, 0]);
     }
 
+    /// Mirrors Freeciv behavior.
     #[test]
-    fn freeciv_all_fallback_uses_variable_quotas_and_preserves_overshoot() {
+    fn reference_all_fallback_uses_variable_quotas_and_preserves_overshoot() {
         // For six players on this map, efactor is 1. The best island passes
         // the 1500-per-player test but fails the 65% total-goodies test, so
         // VARIABLE assigns 4 + 3 slots. The second island overshoots the
@@ -1244,8 +1255,9 @@ mod tests {
         assert_eq!(allocations, [4, 3, 0]);
     }
 
+    /// Mirrors Freeciv behavior.
     #[test]
-    fn freeciv_filtered_map_draw_returns_the_first_valid_index() {
+    fn reference_filtered_map_draw_returns_the_first_valid_index() {
         let mut expected_rng = FreecivRng::new(42);
         let expected = expected_rng.draw(32) as usize;
         let mut actual_rng = FreecivRng::new(42);
@@ -1256,8 +1268,9 @@ mod tests {
         assert_eq!(actual_rng, expected_rng);
     }
 
+    /// Mirrors Freeciv behavior.
     #[test]
-    fn freeciv_filtered_map_fallback_draws_from_valid_map_order() {
+    fn reference_filtered_map_fallback_draws_from_valid_map_order() {
         let count = 30;
         let mut expected_rng = FreecivRng::new(314);
         let rejected: Vec<_> = (0..count / 10)

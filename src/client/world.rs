@@ -1,11 +1,11 @@
 //! World-map rendering and projection from simulation tiles to screen geometry.
 
-use super::civ3_geometry::{CELL_H as CIV3_CELL_H, CELL_W as CIV3_CELL_W, Civ3Geometry};
+use super::diamond_geometry::{CELL_H as CIV3_CELL_H, CELL_W as CIV3_CELL_W, Civ3Geometry};
 use super::*;
 #[cfg(test)]
 use crate::sim::Simulation;
-mod civ3;
-pub(super) use civ3::{Civ3WorldPainter, WorldMapView};
+mod painter;
+pub(super) use painter::{Civ3WorldPainter, WorldMapView};
 mod entities;
 mod map;
 
@@ -102,8 +102,9 @@ fn visible_world_tiles(
     let mut tiles = Vec::with_capacity(((last - first + 1).max(0) * wrap.width()) as usize);
     for y in first..=last {
         for x in 0..wrap.width() {
-            let center =
-                super::civ3_projection::world_screen_position(wrap, viewport, camera, zoom, x, y);
+            let center = super::diamond_projection::world_screen_position(
+                wrap, viewport, camera, zoom, x, y,
+            );
             if center.x < viewport.x - TILE_W * zoom
                 || center.x > viewport.right() + TILE_W * zoom
                 || center.y < viewport.y - 80.0

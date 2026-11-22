@@ -58,8 +58,9 @@ fn science_priority_truncates_to_twenty_one_before_source_float_accumulation() {
     assert_eq!(game.advisor_city_output_exact(&game.cities[0], None), 109.0);
 }
 
+/// Mirrors Freeciv behavior.
 #[test]
-fn research_effect_wants_use_freeciv_vision_and_illness_formulas() {
+fn research_effect_wants_use_reference_vision_and_illness_formulas() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();

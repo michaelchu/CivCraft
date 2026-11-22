@@ -1059,8 +1059,9 @@ mod selected_rules_tests {
         sim
     }
 
+    /// Mirrors the civ2civ3 ruleset behavior.
     #[test]
-    fn unknown_path_step_uses_selected_c2c3_unit_cost() {
+    fn unknown_path_step_uses_selected_ruleset_unit_cost() {
         let mut sim = world();
         let id = sim.spawn_unit(HUMAN, UnitKind::Explorer, 10, 20);
         let actor = sim.unit_by_id(id).unwrap().clone();
@@ -1135,8 +1136,9 @@ mod selected_rules_tests {
         assert_ne!(map.scope(&sim, target.0, target.1, CITY).0 & CITY, 0);
     }
 
+    /// Mirrors the civ2civ3 ruleset behavior.
     #[test]
-    fn safe_ocean_uses_c2c3_flags_and_six_way_x_wrap_neighbors() {
+    fn safe_ocean_uses_ruleset_flags_and_six_way_x_wrap_neighbors() {
         let mut sim = world();
         let rules = MovementRules::campaign();
         let unsafe_terrain = [Terrain::Sea, Terrain::Ocean, Terrain::Lake]

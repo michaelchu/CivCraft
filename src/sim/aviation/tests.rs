@@ -66,8 +66,9 @@ fn native_submarines_cannot_load_cruise_missiles_for_a_hunt() {
     assert_eq!(game.unit_by_id(missile).unwrap().transport, None);
 }
 
+/// Mirrors Civ III behavior.
 #[test]
-fn ai_artillery_bombards_a_visible_enemy_stack_at_civ3_range() {
+fn ai_artillery_bombards_a_visible_enemy_stack_at_native_range() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
     game.units.clear();
     game.cities.clear();
@@ -604,8 +605,9 @@ fn aegis_cruisers_defend_against_air_attackers_and_sail_without_cargo() {
     assert_eq!(game.movement_cost_for(cruiser, land_x, land_y), None);
 }
 
+/// Mirrors Civ III behavior.
 #[test]
-fn civ3_anti_aircraft_units_can_shoot_down_fixed_wing_bombers() {
+fn native_anti_aircraft_units_can_shoot_down_fixed_wing_bombers() {
     let mut shot_down_seen = false;
     let mut survived_seen = false;
     for seed in 1_u64..=80 {
@@ -704,8 +706,9 @@ fn helicopter_transport_uses_selected_ruleset_cargo_and_city_access() {
     assert_eq!(game.unit_by_id(marine).unwrap().transport, None);
 }
 
+/// Mirrors Civ III behavior.
 #[test]
-fn civ3_lethal_bombard_hits_each_reachable_target_and_removes_killed_units() {
+fn native_lethal_bombard_hits_each_reachable_target_and_removes_killed_units() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     let (bomber, targets) = game.bombard_fixture();
     let (tx, ty) = {
@@ -1261,8 +1264,9 @@ fn cruise_missile_is_spent_only_on_a_legal_ranged_shot() {
     assert!(game.unit_by_id(id).is_none());
 }
 
+/// Mirrors Civ III behavior.
 #[test]
-fn bombard_uses_civ3_range_and_unit_mapping() {
+fn bombard_uses_native_range_and_unit_mapping() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     let (x, y) = (10, 20);
     let (tx, ty) = game.map_wrap.offset(x, y, 1, 0).unwrap();
@@ -1321,8 +1325,9 @@ fn bombard_uses_civ3_range_and_unit_mapping() {
     ));
 }
 
+/// Mirrors Civ III behavior.
 #[test]
-fn civ3_bombard_can_target_an_empty_enemy_city_and_uses_selected_citizen_class_rules() {
+fn native_bombard_can_target_an_empty_enemy_city_and_uses_selected_citizen_class_rules() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
@@ -1462,8 +1467,9 @@ fn bombard_rate_scales_with_health_and_matches_per_target_rng_draws() {
     assert_eq!(game.native_random, expected.native_random);
 }
 
+/// Mirrors Civ III behavior.
 #[test]
-fn civ3_sea_lethal_bombard_can_sink_a_ship() {
+fn native_sea_lethal_bombard_can_sink_a_ship() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
@@ -1788,8 +1794,9 @@ mod stealth_tests {
         assert_eq!(landed.transport, None);
     }
 
+    /// Mirrors the civ2civ3 ruleset behavior.
     #[test]
-    fn fuel_free_c2c3_helicopter_does_not_emergency_embark() {
+    fn fuel_free_ruleset_helicopter_does_not_emergency_embark() {
         let (mut game, boat, helicopter, _victim) =
             loaded_hunt(2, UnitKind::Helicopter, UnitKind::Carrier);
         assert!(game.board_or_deboard(helicopter));
@@ -1822,8 +1829,9 @@ mod stealth_tests {
         assert_eq!(recovered.fuel, UnitKind::Fighter.fuel_capacity());
     }
 
+    /// Mirrors Civ III behavior.
     #[test]
-    fn civ3_bombard_units_use_installed_strength_rate_and_range_data() {
+    fn native_bombard_units_use_installed_strength_rate_and_range_data() {
         let one_attack = super::super::unit_catalog::UnitFlag::OneAttack;
         assert_eq!(UnitKind::Bomber.fuel_capacity(), 1);
         assert_eq!(UnitKind::Bomber.bombard_rate(), 3);
@@ -1945,8 +1953,9 @@ mod stealth_tests {
         assert!(game.can_produce(&city, Production::Unit(UnitKind::StealthBomber)));
         assert_eq!(game.production_successor(&city, UnitKind::Bomber), None);
     }
+    /// Mirrors Civ III behavior.
     #[test]
-    fn fighter_uses_civ3_operational_range_for_bombard() {
+    fn fighter_uses_native_operational_range_for_bombard() {
         let mut game = Simulation::new(crate::test_support::seeded_map());
         game.units.clear();
         game.cities.clear();
@@ -2029,8 +2038,9 @@ mod stealth_tests {
         game.ai_ground_targets.insert(occupier, city);
         assert!(game.aircraft_target_value(&plane, target.0, target.1) > 0.0);
     }
+    /// Mirrors the civ2civ3 ruleset behavior.
     #[test]
-    fn aircraft_healing_rate_uses_selected_c2c3_hp_effects() {
+    fn aircraft_healing_rate_uses_selected_ruleset_hp_effects() {
         let mut game = Simulation::new(crate::test_support::seeded_map());
         let home = (10, 20);
         game.create_city(HUMAN, home.0, home.1);
@@ -2285,8 +2295,9 @@ fn ai_paratrooper_refuses_a_defended_city_and_captures_it_when_vacated() {
     assert!(game.unit_by_id(troop).unwrap().paradropped);
 }
 
+/// Mirrors Civ III behavior.
 #[test]
-fn civ3_fixed_wing_rebase_range_is_3x_operational_range_and_blocks_open_tile_movement() {
+fn native_fixed_wing_rebase_range_is_3x_operational_range_and_blocks_open_tile_movement() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
@@ -2329,8 +2340,9 @@ fn civ3_fixed_wing_rebase_range_is_3x_operational_range_and_blocks_open_tile_mov
     assert_eq!(moved.moves_left, 0);
 }
 
+/// Mirrors Civ III behavior.
 #[test]
-fn civ3_recon_reveals_3x3_area_and_is_aborted_when_intercepted() {
+fn native_recon_reveals_3x3_area_and_is_aborted_when_intercepted() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
@@ -2403,8 +2415,9 @@ fn civ3_recon_reveals_3x3_area_and_is_aborted_when_intercepted() {
     assert!(intercepted);
 }
 
+/// Mirrors Civ III behavior.
 #[test]
-fn civ3_air_superiority_interception_aborts_bombard_even_if_attacker_survives() {
+fn native_air_superiority_interception_aborts_bombard_even_if_attacker_survives() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
@@ -2454,8 +2467,9 @@ fn civ3_air_superiority_interception_aborts_bombard_even_if_attacker_survives() 
     assert!(survived_and_aborted);
 }
 
+/// Mirrors Civ III behavior.
 #[test]
-fn civ3_sam_battery_fires_aborts_or_destroys_bomber_and_empty_size1_city_scores_zero() {
+fn native_sam_battery_fires_aborts_or_destroys_bomber_and_empty_size1_city_scores_zero() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
@@ -2521,8 +2535,9 @@ fn civ3_sam_battery_fires_aborts_or_destroys_bomber_and_empty_size1_city_scores_
     );
 }
 
+/// Mirrors Civ III behavior.
 #[test]
-fn civ3_overrunning_undefended_airfield_destroys_stationed_enemy_aircraft() {
+fn native_overrunning_undefended_airfield_destroys_stationed_enemy_aircraft() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
@@ -2550,8 +2565,9 @@ fn civ3_overrunning_undefended_airfield_destroys_stationed_enemy_aircraft() {
     assert!(game.unit_by_id(enemy_bomber).is_none());
 }
 
+/// Mirrors Civ III behavior.
 #[test]
-fn civ3_ai_counter_air_responds_to_observed_raids_and_ignores_ground_only_control() {
+fn native_ai_counter_air_responds_to_observed_raids_and_ignores_ground_only_control() {
     let build_world = || {
         let mut game = Simulation::new(crate::test_support::seeded_map());
         game.units.clear();
@@ -2637,8 +2653,9 @@ fn civ3_ai_counter_air_responds_to_observed_raids_and_ignores_ground_only_contro
     assert_eq!(follow_up.production, Production::Unit(UnitKind::MobileSAM));
 }
 
+/// Mirrors Civ III behavior.
 #[test]
-fn civ3_recon_reveals_fogged_enemy_units_for_same_turn_bomber_strike() {
+fn native_recon_reveals_fogged_enemy_units_for_same_turn_bomber_strike() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
@@ -2672,8 +2689,9 @@ fn civ3_recon_reveals_fogged_enemy_units_for_same_turn_bomber_strike() {
     assert_eq!(game.unit_by_id(bomber).unwrap().moves_left, 0);
 }
 
+/// Mirrors Civ III behavior.
 #[test]
-fn civ3_ai_bomber_prefers_soft_target_over_mobile_sam_stack() {
+fn native_ai_bomber_prefers_soft_target_over_mobile_sam_stack() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
@@ -2708,8 +2726,9 @@ fn civ3_ai_bomber_prefers_soft_target_over_mobile_sam_stack() {
     );
 }
 
+/// Mirrors Civ III behavior.
 #[test]
-fn civ3_ai_evaluates_aircraft_production_during_war_plan_preparation() {
+fn native_ai_evaluates_aircraft_production_during_war_plan_preparation() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
@@ -2756,8 +2775,9 @@ fn civ3_ai_evaluates_aircraft_production_during_war_plan_preparation() {
     );
 }
 
+/// Mirrors Civ III behavior.
 #[test]
-fn civ3_city_bombardment_can_damage_and_destroy_parked_aircraft_in_city() {
+fn native_city_bombardment_can_damage_and_destroy_parked_aircraft_in_city() {
     let setup = |attacker_kind: UnitKind, defender_hp: i32| {
         let mut game = Simulation::new(crate::test_support::seeded_map());
         game.units.clear();
@@ -2824,8 +2844,9 @@ fn civ3_city_bombardment_can_damage_and_destroy_parked_aircraft_in_city() {
     );
 }
 
+/// Mirrors Civ III behavior.
 #[test]
-fn civ3_sinking_carrier_in_naval_combat_destroys_embarked_aircraft() {
+fn native_sinking_carrier_in_naval_combat_destroys_embarked_aircraft() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
@@ -2871,8 +2892,9 @@ fn civ3_sinking_carrier_in_naval_combat_destroys_embarked_aircraft() {
     assert!(sunk, "Battleship should sink 1-HP Carrier");
 }
 
+/// Mirrors Civ III behavior.
 #[test]
-fn civ3_air_to_air_dogfight_leaves_winning_aircraft_wounded_and_heals_at_airport() {
+fn native_air_to_air_dogfight_leaves_winning_aircraft_wounded_and_heals_at_airport() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();

@@ -146,8 +146,9 @@ fn overlap_stops_after_one_nonnative_tile_and_sanity_still_checks_known_map() {
     assert!(sim.ai_goto_path(&actor, outer, GotoTask::None).is_none());
 }
 
+/// Mirrors the civ2civ3 ruleset behavior.
 #[test]
-fn c2c3_field_embark_scope_uses_selected_rules_even_when_carrier_is_full() {
+fn ruleset_field_embark_scope_uses_selected_rules_even_when_carrier_is_full() {
     let mut sim = world();
     let actor = unit(&mut sim, 1, UnitKind::Marine);
     let sea = offset_native_by_map(10, 20, 1, 0);
@@ -180,8 +181,9 @@ fn c2c3_field_embark_scope_uses_selected_rules_even_when_carrier_is_full() {
     assert_eq!(map.movement_cost(&sim, sea.0, sea.1), Some(MOVE_FRAGMENTS));
 }
 
+/// Mirrors the civ2civ3 ruleset behavior.
 #[test]
-fn c2c3_field_embark_scope_rejects_unlisted_passengers_at_sea() {
+fn ruleset_field_embark_scope_rejects_unlisted_passengers_at_sea() {
     let mut sim = world();
     let actor = unit(&mut sim, 1, UnitKind::Warrior);
     let sea = offset_native_by_map(10, 20, 1, 0);

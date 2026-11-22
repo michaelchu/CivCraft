@@ -602,8 +602,9 @@ mod tests {
         assert!(game.unit_resources_available(&city, UnitKind::Privateer));
     }
 
+    /// Mirrors Civ III behavior.
     #[test]
-    fn civ3_wonder_catalog_uses_small_wonder_uniqueness_for_apollo_and_sdi() {
+    fn native_wonder_catalog_uses_small_wonder_uniqueness_for_apollo_and_sdi() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         game.cities.clear();
         game.create_city(HUMAN, 10, 20);

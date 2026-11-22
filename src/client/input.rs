@@ -329,7 +329,7 @@ impl Game {
     }
 
     pub(super) fn screen_to_world(&self, point: Vec2) -> Option<(i32, i32)> {
-        civ3_projection::screen_to_world(
+        diamond_projection::screen_to_world(
             point,
             Self::viewport_rect(),
             self.camera,
@@ -339,7 +339,7 @@ impl Game {
     }
 
     pub(super) fn world_screen_position(&self, x: i32, y: i32) -> Vec2 {
-        civ3_projection::world_screen_position(
+        diamond_projection::world_screen_position(
             self.sim.map_wrap(),
             Self::viewport_rect(),
             self.camera_overview_position(),

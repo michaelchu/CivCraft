@@ -483,8 +483,9 @@ mod tests {
         );
     }
 
+    /// Mirrors the civ2civ3 ruleset behavior.
     #[test]
-    fn nuclear_actions_use_unit_ranges_and_selected_c2c3_enablers() {
+    fn nuclear_actions_use_unit_ranges_and_selected_ruleset_enablers() {
         let mut game = nuclear_game();
         let (x, y) = (10, 20);
         game.sign_pact(HUMAN, 1, Pact::War);
@@ -640,8 +641,9 @@ mod tests {
         );
     }
 
+    /// Mirrors Civ III behavior.
     #[test]
-    fn civ3_nuclear_blast_covers_full_three_by_three_square() {
+    fn native_nuclear_blast_covers_full_three_by_three_square() {
         let game = nuclear_game();
         let (x, y) = (10, 20);
         let affected = game.nuclear_blast_tiles(x, y);
@@ -654,8 +656,9 @@ mod tests {
         );
     }
 
+    /// Mirrors Civ III behavior.
     #[test]
-    fn civ3_nuke_halves_population_kills_or_redlines_units_destroys_half_improvements_and_pollutes_3x3()
+    fn native_nuke_halves_population_kills_or_redlines_units_destroys_half_improvements_and_pollutes_3x3()
      {
         let mut game = nuclear_game();
         let (x, y) = (10, 20);
@@ -752,8 +755,9 @@ mod tests {
         assert!(!game.tile(nearby.0, nearby.1).mine);
     }
 
+    /// Mirrors Civ III behavior.
     #[test]
-    fn civ3_nuclear_strike_never_razes_a_size_one_city() {
+    fn native_nuclear_strike_never_razes_a_size_one_city() {
         let mut game = nuclear_game();
         game.create_city(HUMAN, 10, 20);
         let city_id = game.cities[0].id;
@@ -768,8 +772,9 @@ mod tests {
         assert_eq!(city.size, 1);
     }
 
+    /// Mirrors Civ III behavior.
     #[test]
-    fn civ3_sdi_small_wonder_protects_entire_empire_with_icbm_75_and_tactical_37_5_odds() {
+    fn native_sdi_small_wonder_protects_entire_empire_with_icbm_75_and_tactical_37_5_odds() {
         // Place SDI Defense in a distant city (15 tiles away from the target)
         // belonging to civ 1; it still protects civ 1's target city.
         let mut icbm_intercepts = 0;

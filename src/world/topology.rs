@@ -477,11 +477,12 @@ impl MapWrap {
 }
 
 #[cfg(test)]
-mod civ3_flic_direction_tests {
+mod flic_direction_tests {
     use super::*;
 
+    /// Mirrors Civ III behavior.
     #[test]
-    fn civ3_direction_indices_follow_flic_row_order() {
+    fn native_direction_indices_follow_flic_row_order() {
         let wrap = MapWrap::X;
         let expected_rows = [5, 4, 3, 2, 1, 0, 7, 6];
         for (direction, expected) in expected_rows.into_iter().enumerate() {
@@ -578,8 +579,9 @@ mod wrap_tests {
         assert_eq!(MapWrap::X.normalize(0, -1), None);
     }
 
+    /// Mirrors Civ III behavior.
     #[test]
-    fn civ3_neighbors_are_reciprocal_across_rows_seams_and_bounded_poles() {
+    fn native_neighbors_are_reciprocal_across_rows_seams_and_bounded_poles() {
         for wrap in [MapWrap::X] {
             for y in 0..wrap.height() {
                 for x in 0..wrap.width() {
@@ -615,8 +617,9 @@ mod wrap_tests {
         }
     }
 
+    /// Mirrors Civ III behavior.
     #[test]
-    fn civ3_neighbor_iterator_exposes_all_eight_directions() {
+    fn native_neighbor_iterator_exposes_all_eight_directions() {
         {
             let wrap = MapWrap::X;
             let (x, y) = (wrap.width() / 2, wrap.height() / 2);
@@ -629,8 +632,9 @@ mod wrap_tests {
         }
     }
 
+    /// Mirrors Freeciv behavior.
     #[test]
-    fn freeciv_square_radius_keeps_source_order_and_adapts_horizontal_seams() {
+    fn reference_square_radius_keeps_source_order_and_adapts_horizontal_seams() {
         let wrap = MapWrap::X;
         let center = (wrap.width() / 2, wrap.height() / 2);
         let tiles = wrap.square_radius_in_source_order(center.0, center.1, 2);
@@ -648,8 +652,9 @@ mod wrap_tests {
         assert_eq!(seam, wrap.square_radius_in_source_order(0, center.1, 2));
     }
 
+    /// Mirrors Civ III behavior.
     #[test]
-    fn civ3_distance_matches_neighbor_graph_with_horizontal_wrap() {
+    fn native_distance_matches_neighbor_graph_with_horizontal_wrap() {
         for wrap in [MapWrap::X] {
             let origins = [
                 (0, 0),
@@ -693,8 +698,9 @@ mod wrap_tests {
         );
     }
 
+    /// Mirrors Civ III behavior.
     #[test]
-    fn civ3_radius_matches_full_distance_field_at_edges_and_wraps() {
+    fn native_radius_matches_full_distance_field_at_edges_and_wraps() {
         let wrap = MapWrap::with_dimensions(16, 16).unwrap();
         for origin in [(0, 0), (15, 1), (0, 8), (15, 15)] {
             let distances = wrap.step_distances_from(origin.0, origin.1);
@@ -720,8 +726,9 @@ mod wrap_tests {
         }
     }
 
+    /// Mirrors Civ III behavior.
     #[test]
-    fn civ3_city_radius_has_twenty_one_distinct_tiles_and_wraps_at_the_seam() {
+    fn native_city_radius_has_twenty_one_distinct_tiles_and_wraps_at_the_seam() {
         {
             let wrap = MapWrap::X;
             let center = (wrap.width() - 1, wrap.height() / 2);
@@ -739,8 +746,9 @@ mod wrap_tests {
         }
     }
 
+    /// Mirrors Civ III behavior.
     #[test]
-    fn generated_river_markers_become_reciprocal_civ3_edges() {
+    fn generated_river_markers_become_reciprocal_native_edges() {
         let wrap = MapWrap::X;
         let mut map = crate::mapgen::generate_with_wrap(42, wrap);
         let (x, y) = (10, 20);

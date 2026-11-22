@@ -148,7 +148,7 @@ impl Tile {
 }
 
 #[cfg(test)]
-mod civ3_terrain_tests {
+mod terrain_tests {
     use super::*;
 
     #[test]

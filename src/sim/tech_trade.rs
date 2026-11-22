@@ -521,8 +521,9 @@ mod arithmetic_tests {
         assert!(sim.has_tech(HUMAN, Tech::ALPHABET));
     }
 
+    /// Mirrors Freeciv behavior.
     #[test]
-    fn treaty_donor_loss_preserves_suspended_research_like_freeciv() {
+    fn treaty_donor_loss_preserves_suspended_research_like_reference() {
         let mut sim = Simulation::new(crate::mapgen::generate(42));
         sim.players[HUMAN].known.clear();
         sim.players[1].known = vec![Tech::ALPHABET];

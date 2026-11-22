@@ -1313,8 +1313,9 @@ mod tests {
         assert!(game.physical_attack_stack_allowed(&attacker, target.0, target.1));
     }
 
+    /// Mirrors the civ2civ3 ruleset behavior.
     #[test]
-    fn selected_c2c3_roster_has_no_never_protects_exception_units() {
+    fn selected_ruleset_roster_has_no_never_protects_exception_units() {
         assert!(UnitKind::all().all(|kind| {
             crate::sim::action_rules::unit_type_flag(kind, "NeverProtects") == Some(false)
         }));

@@ -53,8 +53,9 @@ mod tests {
         }
     }
 
+    /// Mirrors the civ2civ3 ruleset behavior.
     #[test]
-    fn caravel_upkeep_uses_the_selected_c2c3_record_and_government_effects() {
+    fn caravel_upkeep_uses_the_selected_ruleset_record_and_government_effects() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         game.units.clear();
         game.cities.clear();

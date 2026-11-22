@@ -8,8 +8,9 @@ fn peaceful_fixture() -> Simulation {
     game
 }
 
+/// Mirrors Freeciv behavior.
 #[test]
-fn audit_freeciv_armistice_preserves_civilian_units() {
+fn audit_reference_armistice_preserves_civilian_units() {
     let mut game = peaceful_fixture();
     game.tile_mut(12, 23).terrain = Terrain::Grassland;
     let worker = game.spawn_unit(HUMAN, UnitKind::Worker, 12, 23);
@@ -27,8 +28,9 @@ fn audit_freeciv_armistice_preserves_civilian_units() {
     );
 }
 
+/// Mirrors Freeciv behavior.
 #[test]
-fn audit_freeciv_seamap_uses_recipients_city_count() {
+fn audit_reference_seamap_uses_recipients_city_count() {
     let mut game = peaceful_fixture();
     game.create_city(HUMAN, 4, 20);
     game.create_city(HUMAN, 4, 24);
@@ -46,8 +48,9 @@ fn audit_freeciv_seamap_uses_recipients_city_count() {
     );
 }
 
+/// Mirrors Freeciv behavior.
 #[test]
-fn audit_freeciv_worldmap_cost_doubles_during_ceasefire() {
+fn audit_reference_worldmap_cost_doubles_during_ceasefire() {
     let mut game = peaceful_fixture();
     game.sign_pact(HUMAN, 1, Pact::Ceasefire);
     game.diplomacy.get_mut(&(HUMAN, 1)).unwrap().trust[1] = 10000;
@@ -64,8 +67,9 @@ fn audit_freeciv_worldmap_cost_doubles_during_ceasefire() {
     );
 }
 
+/// Mirrors Freeciv behavior.
 #[test]
-fn audit_freeciv_effect_embassy_requires_prior_contact() {
+fn audit_reference_effect_embassy_requires_prior_contact() {
     let mut game = peaceful_fixture();
     game.diplomacy.remove(&(HUMAN, 2));
     game.cities
@@ -80,8 +84,9 @@ fn audit_freeciv_effect_embassy_requires_prior_contact() {
     );
 }
 
+/// Mirrors Freeciv behavior.
 #[test]
-fn audit_freeciv_city_offer_can_reveal_an_unknown_owned_city() {
+fn audit_reference_city_offer_can_reveal_an_unknown_owned_city() {
     let mut game = peaceful_fixture();
     game.create_city(HUMAN, 4, 20);
     let city = game
@@ -98,8 +103,9 @@ fn audit_freeciv_city_offer_can_reveal_an_unknown_owned_city() {
     );
 }
 
+/// Mirrors Freeciv behavior.
 #[test]
-fn audit_freeciv_visual_recognition_does_not_override_first_contact_defaults() {
+fn audit_reference_visual_recognition_does_not_override_first_contact_defaults() {
     let mut game = peaceful_fixture();
     game.sign_pact(HUMAN, 1, Pact::Alliance);
     game.sign_pact(1, 2, Pact::Alliance);
