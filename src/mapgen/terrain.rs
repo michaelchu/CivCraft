@@ -434,6 +434,14 @@ impl super::Generator {
             super::Climate::Normal => (16, 4, 7, 2),
             super::Climate::Arid => (8, 2, 3, 3),
         };
+        let opensimplex_dry = |tile: usize| {
+            (623..=832).contains(&self.colatitude(tile))
+                && self
+                    .neighbors(tile)
+                    .filter(|&next| terrain_water[next])
+                    .count()
+                    <= dry_water_limit
+        };
         let source_percentages =
             freeciv_temperature
                 .zip(freeciv_terrain_properties)
@@ -479,14 +487,7 @@ impl super::Generator {
                     let source_zone = freeciv_temperature.map(|map| map.get(tile));
                     let dry = freeciv_temperature
                         .map(|map| map.is_dry(self, tile, &terrain_water))
-                        .unwrap_or_else(|| {
-                            (623..=832).contains(&self.colatitude(tile))
-                                && self
-                                    .neighbors(tile)
-                                    .filter(|&next| terrain_water[next])
-                                    .count()
-                                    <= dry_water_limit
-                        });
+                        .unwrap_or_else(|| opensimplex_dry(tile));
                     match pass {
                         0 => source_zone
                             .map(TemperatureType::is_not_frozen)
@@ -650,6 +651,19 @@ impl super::Generator {
                         climate.get(tile),
                         climate.is_dry(self, tile, &terrain_water),
                     );
+                }
+            }
+        } else {
+            // OpenSimplex already assigns relief bases above, but its forest
+            // pool contains only original grassland. Adapt forest art from
+            // the same heat, latitude and dry-belt fields after placement, without RNG.
+            let (_, _, cold_latitude, _, _, _, _) =
+                self.settings.temperature.biome_bands(self.settings.climate);
+            for (tile, &kind) in terrain.iter().enumerate() {
+                if kind == Terrain::Forest {
+                    let cold = temperature[tile] < COLD || self.colatitude(tile) < cold_latitude;
+                    base_terrain[tile] =
+                        opensimplex_forest_presentation_base(cold, opensimplex_dry(tile));
                 }
             }
         }
@@ -1020,6 +1034,19 @@ mod tests {
         assert_eq!(find_sea_level(&heights, 60), 153);
         assert_eq!(find_sea_level(&heights, 54), 138);
         assert_eq!(find_sea_level(&heights, 42), 107);
+    }
+}
+
+/// CivCraft art heuristic using OpenSimplex's existing heat/latitude cold
+/// criteria and dry belt. Cold takes precedence; even a hot dry forest uses
+/// the plains sheet. No original Civ III algorithm or placement change is claimed.
+fn opensimplex_forest_presentation_base(cold: bool, dry: bool) -> TerrainBase {
+    if cold {
+        TerrainBase::Tundra
+    } else if dry {
+        TerrainBase::Plains
+    } else {
+        TerrainBase::Grassland
     }
 }
 

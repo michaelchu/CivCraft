@@ -37,7 +37,9 @@ invalid manifest paths retain the loader's existing error behavior.
 
 The active Freeciv path initialized all land bases to grassland, then assigned
 flat terrain bases, leaving forests and relief on that default. The alternate
-OpenSimplex path already assigned feature bases independently. This is not lost
+OpenSimplex path already assigned relief bases independently. Its original
+grassland-only forest gap and the subsequent presentation fix are documented
+in `OPENSIMPLEX_TERRAIN_ART_AUDIT.md`. This is not lost
 Freeciv biome metadata: Freeciv does not supply an underlying Civ III biome.
 
 For new Freeciv maps, the adapter now assigns presentation bases after terrain
