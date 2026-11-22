@@ -76,7 +76,7 @@ nonallies and allies can proactively buy, sell and exchange technology; allies
 are not excluded by the legacy potential-enemy filter. Shared reservation
 values consider all eight verified Conquests traits, research goals/progress,
 wartime needs, existing gold reserves plus upkeep, and security of military
-and victory technology. Values and cadence are editable in content/diplomacy.toml.
+and victory technology. Values and cadence are editable in `default_diplomacy()` (`src/rules/policies.rs`).
 This supersedes the AI proposal/technology valuation parity claims below.
 The treaty engine still checks prerequisites, ownership, funds and clause
 legality before applying transfers. City/map clauses and custom espionage retain

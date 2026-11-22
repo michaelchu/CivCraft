@@ -60,7 +60,7 @@ victory conditions retain their existing rules.
   pact transitions remain in `pacts`; mandatory changes use its raw writer.
 - `TreatyOffer` carries the explicit master and agreement type. `offers`
   validates the complete settlement before executing it.
-- `content/vassalage.toml` owns mechanical thresholds and AI tuning. Military
+- `default_vassalage()` in `src/rules/policies.rs` owns mechanical thresholds and AI tuning. Military
   force estimates are shared with existing peace recovery and use visible
   enemy units; human private strategy is not read.
 - `Command` is the player's mutation boundary. The client receives projections

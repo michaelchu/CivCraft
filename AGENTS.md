@@ -31,7 +31,7 @@ city's current improvement or wonder. This is not a Freeciv mechanic, and the
 Leader is not a `GameLoss` unit. The design is in
 [`docs/superpowers/specs/2026-11-17-great-leader-design.md`](docs/superpowers/specs/2026-11-17-great-leader-design.md);
 the odds are community-documented for Civ III patch 1.29f and live in
-`data/rulesets/civcraft/content/settlements.toml`. On 2026-11-20 the owner also
+`settlements()` in `src/rules/native.rs`. On 2026-11-20 the owner also
 authorized consuming a Great Leader in an owned city to form an Army, with one
 Army per four owned cities. Armies cannot be produced or queued by cities,
 including cities with a Military Academy, as an explicit owner preference.
@@ -97,15 +97,15 @@ as a potential war target. Technology purchases, sales and swaps use a shared
 valuation for proposing and accepting offers, incorporating verified Conquests
 traits, research priorities, treasury reserves and military/victory export risk.
 Policy parameters and trait interests live in
-`data/rulesets/civcraft/content/diplomacy.toml`. Treaty legality, atomic execution,
+`default_diplomacy()` in `src/rules/policies.rs`. Treaty legality, atomic execution,
 technology prerequisites/transfer and the custom espionage system remain under
 their existing rules. Preserve deterministic decisions, bounded searches and
 human approval of incoming offers. Do not infer missing civ traits from names.
 
 The same owner-authorized AI policy now includes shared strategic priorities
 across research, trade, tax reserves, routine spending and optional war planning.
-Weights live in `content/strategy.toml`; technology interests remain shared in
-`content/diplomacy.toml`. Preserve advisor legality, research switching costs,
+Weights live in `default_strategy()` in `src/rules/policies.rs`; technology interests remain shared in
+`default_diplomacy()` in `src/rules/policies.rs`. Preserve advisor legality, research switching costs,
 emergency defense and ally obligations. Economic recovery may postpone optional
 wars, and an actual space program can favor science; traits are preferences,
 not guaranteed victory routes or mechanical bonuses. Read each civilization's
@@ -114,7 +114,7 @@ financial inputs. Validate policy changes with `shared-strategy` and
 `proactive-trade` release scenarios.
 
 Military funding must follow concrete purchase needs and reserve shortfalls,
-not maximize tax for the duration of a war. `strategy.toml` owns the upkeep
+not maximize tax for the duration of a war. `StrategyCatalog` owns the upkeep
 buffer and reserve refill horizon shared by taxes, routine spending and trade.
 Retain operating cash through routine purchases/upgrades, including support
 cost increases during anarchy or an available government. Keep the native tax
@@ -139,7 +139,7 @@ checks and mandatory military obligations retain their existing rules.
 Validate with the `relationship-memory` release scenario. Inspect
 `diplomacy.relationship_memories`, `diplomacy.recent_relationship_memories` and
 each pair's directional `relationship_memory`; use event evidence to distinguish
-a completed action from an intention. Parameters live in `diplomacy.toml`.
+a completed action from an intention. Parameters live in `default_diplomacy()` (`src/rules/policies.rs`).
 
 Needs-based negotiation extends that AI policy to bounded allied gold assistance,
 useful map exchanges/purchases and war recovery. Aid uses the recipient AI's own
@@ -162,7 +162,7 @@ scope. Preserve directional agreements separately from symmetric pacts, shared
 master-controlled war transitions, deterministic AI evaluation, human approval
 of incoming offers and independent city/unit ownership. Do not equate military
 access with alliance scoring or transport rights. Mechanical thresholds live in
-`content/vassalage.toml`. Validate with the `vassal-capitulation` and
+`default_vassalage()` in `src/rules/policies.rs`. Validate with the `vassal-capitulation` and
 `vassal-voluntary` release scenarios and the source-adjacent rule/save tests.
 For autonomous AI-to-AI behavior, run `ai-vassal-capitulation` and
 `ai-vassal-voluntary` for two turns, `ai-vassal-war-peace` for five, and
