@@ -1338,7 +1338,7 @@ fn generated_worlds_match_civcraft_resource_goldens_for_each_wrap() {
 #[test]
 fn fractal_generator_applies_world_settings_deterministically() {
     let default_map = generate_for_map_size_with(
-        &FractalMapGenerator,
+        &FractalMapGenerator::default(),
         42,
         MapSize::Tiny,
         WorldSettings::default(),
@@ -1349,7 +1349,7 @@ fn fractal_generator_applies_world_settings_deterministically() {
     );
 
     let custom_a = generate_for_map_size_with(
-        &FractalMapGenerator,
+        &FractalMapGenerator::default(),
         42,
         MapSize::Tiny,
         WorldSettings {
@@ -1361,7 +1361,7 @@ fn fractal_generator_applies_world_settings_deterministically() {
         },
     );
     let custom_b = generate_for_map_size_with(
-        &FractalMapGenerator,
+        &FractalMapGenerator::default(),
         42,
         MapSize::Tiny,
         WorldSettings {
@@ -1401,7 +1401,7 @@ fn terrain_biome_census() {
                     ..WorldSettings::default()
                 };
                 let map = generate_with_map_generator(
-                    &FractalMapGenerator,
+                    &FractalMapGenerator::default(),
                     map_generation_request(
                         seed,
                         MapWrap::X,
@@ -1432,7 +1432,7 @@ fn fractal_feature_biomes_cover_cold_dry_and_temperate_art_without_changing_pole
     for seed in [42, 7, 99] {
         for temperature in [Temperature::Cool, Temperature::Temperate, Temperature::Warm] {
             let map = generate_with_map_generator(
-                &FractalMapGenerator,
+                &FractalMapGenerator::default(),
                 map_generation_request(
                     seed,
                     MapWrap::X,
@@ -1657,4 +1657,31 @@ fn opensimplex_forests_reach_all_supported_biome_art() {
         seen, [true; 3],
         "OpenSimplex must reach grassland, plains and pine forest art"
     );
+}
+
+#[test]
+fn fractal_generator_uses_an_injected_ruleset() {
+    let wrap = MapWrap::with_dimensions(36, 48).unwrap();
+    let default_map = generate_with_map_generator(
+        &FractalMapGenerator::default(),
+        map_generation_request(42, wrap, WorldSettings::default(), 8),
+    );
+    let ruleset = FractalRuleset {
+        map_generation_settings: MapGenerationSettings {
+            startpos: defaults::StartPositionSetting::Single,
+            ..defaults::default_map_generation_settings()
+        },
+        ..FractalRuleset::default()
+    };
+    let injected_map = generate_with_map_generator(
+        &FractalMapGenerator::with_ruleset(ruleset),
+        map_generation_request(42, wrap, WorldSettings::default(), 8),
+    );
+    let terrain = |map: &GeneratedMap| {
+        map.tiles
+            .iter()
+            .map(|tile| tile.terrain)
+            .collect::<Vec<_>>()
+    };
+    assert_ne!(terrain(&default_map), terrain(&injected_map));
 }

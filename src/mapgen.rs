@@ -21,7 +21,7 @@ use defaults::{
     TerrainMapgenProperties,
 };
 use fractal_settings::{FractalParameters, FractalRuleset};
-use landmass::{FractalLandmass, HeightField, Landmass, OpenSimplexLandmass};
+use landmass::{FractalLandmass, Landmass, OpenSimplexLandmass};
 use std::{collections::hash_map::RandomState, hash::BuildHasher};
 
 /// Named world sizes and custom dimensions.
@@ -709,6 +709,9 @@ impl Generator {
         let (relief, biome_field) = landmass.terrain_fields(self, map_seed_u64);
         let start_temperature = landmass.start_temperature(self);
         let placement = landmass.placement();
+        let map_settings = placement.map(|inputs| inputs.map_settings);
+        let terrain_properties = placement.map(|inputs| inputs.terrain_properties);
+        let start_scoring_settings = placement.map(|inputs| inputs.start_scoring_settings);
         let mut attempt = 0_usize;
         let mut gameplay_rng = gameplay_rng;
         let mut current_map_seed = map_seed;
@@ -724,19 +727,15 @@ impl Generator {
             let mut rng = MapRng::new(water_seed);
             let field = landmass.height_field(self, water_seed, &mut rng);
             let terrain_source = landmass.terrain_source(self, &field);
-            let HeightField {
-                heights,
-                ocean_coverage,
-                ..
-            } = &field;
+            let heights = &field.heights;
             let (mut terrain, mut base_terrain, temperature) = self.terrain_pass(
                 heights,
-                &field.water_heights,
+                field.water_heights(),
                 &relief,
                 &biome_field,
                 field.land_mask.as_deref(),
                 &terrain_source,
-                *ocean_coverage,
+                field.ocean_coverage,
                 &mut rng,
             );
             landmass.assign_water(self, &mut terrain, &field);
@@ -778,18 +777,8 @@ impl Generator {
                 }
             }
             prune_river_edges(self.wrap, &mut tiles);
-            self.place_resources(
-                &mut tiles,
-                &mut rng,
-                placement.map_settings,
-                placement.terrain_properties,
-            );
-            self.place_huts(
-                &mut tiles,
-                &mut rng,
-                placement.map_settings,
-                placement.terrain_properties,
-            );
+            self.place_resources(&mut tiles, &mut rng, map_settings, terrain_properties);
+            self.place_huts(&mut tiles, &mut rng, map_settings, terrain_properties);
             // Freeciv restores the game-seeded stream after map generation.
             // CivCraft currently omits Freeciv nation/leader selection draws,
             // but the map-seed draw has already advanced this saved state.
@@ -799,8 +788,8 @@ impl Generator {
                 &tiles,
                 &temperature,
                 start_temperature.as_ref(),
-                placement.terrain_properties,
-                placement.start_scoring_settings,
+                terrain_properties,
+                start_scoring_settings,
                 self.civilization_count,
                 &mut start_rng,
             ) {
@@ -1086,12 +1075,24 @@ pub(crate) struct OpenSimplexMapGenerator;
 /// terrain, feature, river, resource, and starting-location passes.
 ///
 /// Follows Freeciv's fractal map generator.
-pub(crate) struct FractalMapGenerator;
+#[derive(Default)]
+pub(crate) struct FractalMapGenerator {
+    ruleset: FractalRuleset,
+}
 
-static DEFAULT_MAP_GENERATOR: FractalMapGenerator = FractalMapGenerator;
+impl FractalMapGenerator {
+    /// Generator that uses `ruleset` instead of the campaign ruleset defaults.
+    #[cfg(test)]
+    pub(crate) fn with_ruleset(ruleset: FractalRuleset) -> Self {
+        Self { ruleset }
+    }
+}
+
+static DEFAULT_MAP_GENERATOR: std::sync::LazyLock<FractalMapGenerator> =
+    std::sync::LazyLock::new(FractalMapGenerator::default);
 
 fn default_map_generator() -> &'static dyn MapGenerator {
-    &DEFAULT_MAP_GENERATOR
+    &*DEFAULT_MAP_GENERATOR
 }
 
 /// Historical reference preset, retained for existing oracle fixtures.
@@ -1177,13 +1178,13 @@ impl MapGenerator for FractalMapGenerator {
             map_generation_settings,
             terrain_properties,
             start_scoring_settings,
-        } = FractalRuleset::default();
-        terrain::validate_terrain_mappings(&terrain_properties)
+        } = &self.ruleset;
+        terrain::validate_terrain_mappings(terrain_properties)
             .expect("mapgen terrains must map to CivCraft terrain identities");
         let FractalParameters {
             settings: map_generation_settings,
             divisions,
-        } = FractalParameters::resolve(map_generation_settings, settings, civilization_count);
+        } = FractalParameters::resolve(*map_generation_settings, settings, civilization_count);
         let generator = Generator {
             wrap,
             civilization_count,
@@ -1198,8 +1199,8 @@ impl MapGenerator for FractalMapGenerator {
                 settings: map_generation_settings,
                 water_depths,
                 divisions,
-                terrain_properties: &terrain_properties,
-                start_scoring_settings,
+                terrain_properties,
+                start_scoring_settings: *start_scoring_settings,
             }),
         );
         finalize_polar_ocean_boundary(&generator, shore, map_seed, map, Some(water_depths))

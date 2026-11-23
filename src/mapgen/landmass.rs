@@ -21,21 +21,27 @@ use crate::world::GeneratedTile;
 
 /// Heights and ocean share of one landmass attempt.
 pub(super) struct HeightField {
-    /// Field the water depth passes rank against.
-    pub(super) water_heights: Vec<i32>,
     /// Altitude stored on generated tiles.
     pub(super) heights: Vec<i32>,
+    /// Field the water depth passes rank against; `None` means `heights`.
+    water_heights: Option<Vec<i32>>,
     /// Land mask, for generators that derive one from the height field.
     pub(super) land_mask: Option<Vec<bool>>,
     pub(super) ocean_coverage: i32,
 }
 
-/// Inputs to resource, hut and start placement.
+impl HeightField {
+    pub(super) fn water_heights(&self) -> &[i32] {
+        self.water_heights.as_deref().unwrap_or(&self.heights)
+    }
+}
+
+/// Freeciv inputs to resource, hut and start placement.
 #[derive(Clone, Copy)]
-pub(super) struct PlacementInputs<'a> {
-    pub(super) map_settings: Option<MapGenerationSettings>,
-    pub(super) terrain_properties: Option<&'a [TerrainMapgenProperties]>,
-    pub(super) start_scoring_settings: Option<StartPositionScoringSettings>,
+pub(super) struct FractalPlacement<'a> {
+    pub(super) map_settings: MapGenerationSettings,
+    pub(super) terrain_properties: &'a [TerrainMapgenProperties],
+    pub(super) start_scoring_settings: StartPositionScoringSettings,
 }
 
 /// The steps of map generation that differ between generators.
@@ -46,8 +52,8 @@ pub(super) trait Landmass {
     /// Temperature map used to score start positions, built once.
     fn start_temperature(&self, generator: &Generator) -> Option<TemperatureMap>;
 
-    /// Placement inputs for resources, huts and starts.
-    fn placement(&self) -> PlacementInputs<'_>;
+    /// Freeciv placement inputs; `None` selects the legacy placement rules.
+    fn placement(&self) -> Option<FractalPlacement<'_>>;
 
     /// Seed of this attempt's map stream. May redraw `current_map_seed`.
     fn attempt_seed(
@@ -97,12 +103,8 @@ impl Landmass for OpenSimplexLandmass {
         None
     }
 
-    fn placement(&self) -> PlacementInputs<'_> {
-        PlacementInputs {
-            map_settings: None,
-            terrain_properties: None,
-            start_scoring_settings: None,
-        }
+    fn placement(&self) -> Option<FractalPlacement<'_>> {
+        None
     }
 
     fn attempt_seed(
@@ -130,8 +132,8 @@ impl Landmass for OpenSimplexLandmass {
         let mut heights = field.clone();
         rank_field(&mut heights, 1000);
         HeightField {
-            water_heights: field,
             heights,
+            water_heights: Some(field),
             land_mask: None,
             ocean_coverage: world.ocean_coverage.percent(),
         }
@@ -178,12 +180,12 @@ impl Landmass for FractalLandmass<'_> {
         Some(generator.generate_temperature_map(false, None, None, self.0.settings))
     }
 
-    fn placement(&self) -> PlacementInputs<'_> {
-        PlacementInputs {
-            map_settings: Some(self.0.settings),
-            terrain_properties: Some(self.0.terrain_properties),
-            start_scoring_settings: Some(self.0.start_scoring_settings),
-        }
+    fn placement(&self) -> Option<FractalPlacement<'_>> {
+        Some(FractalPlacement {
+            map_settings: self.0.settings,
+            terrain_properties: self.0.terrain_properties,
+            start_scoring_settings: self.0.start_scoring_settings,
+        })
     }
 
     fn attempt_seed(
@@ -214,8 +216,8 @@ impl Landmass for FractalLandmass<'_> {
         rank_field(&mut field, 1000);
         let land_mask = fractal_land_mask(&field, settings);
         HeightField {
-            water_heights: field.clone(),
             heights: field,
+            water_heights: None,
             land_mask: Some(land_mask),
             ocean_coverage: settings.ocean_coverage_percent(),
         }
@@ -236,7 +238,7 @@ impl Landmass for FractalLandmass<'_> {
     fn assign_water(&self, generator: &Generator, terrain: &mut [Terrain], field: &HeightField) {
         generator.assign_water_depths(
             terrain,
-            &field.water_heights,
+            field.water_heights(),
             field
                 .land_mask
                 .as_deref()

@@ -103,7 +103,7 @@ impl WorldSetup {
     pub(crate) fn generate(self, seed: u64) -> GeneratedMap {
         match self.generator {
             Generator::Fractal => mapgen::generate_for_map_size_with(
-                &FractalMapGenerator,
+                &FractalMapGenerator::default(),
                 seed,
                 self.size,
                 self.settings,
