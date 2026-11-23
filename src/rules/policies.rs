@@ -92,6 +92,11 @@ pub(crate) struct GovernmentSituationCatalog {
     /// A different government inside the preferred family replaces the current
     /// one only when its advisor score exceeds the current score by this percent.
     pub(crate) retention_margin_percent: i32,
+    /// Verified civilization traits that make a nation willing to adopt the
+    /// wartime family just because it is at war. Other civilizations stay in
+    /// the peace family unless their government becomes unstable. A nation
+    /// with no civilization record is treated as willing.
+    pub(crate) wartime_traits: Vec<String>,
 }
 
 pub(crate) struct VassalageCatalog {
@@ -362,6 +367,7 @@ pub(crate) fn default_government_situation() -> GovernmentSituationCatalog {
         peace: list(&["Republic", "Democracy"]),
         war: list(&["Monarchy", "Communism", "Fascism", "Feudalism"]),
         retention_margin_percent: 15,
+        wartime_traits: list(&["militaristic"]),
     }
 }
 

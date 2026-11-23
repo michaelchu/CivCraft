@@ -265,7 +265,15 @@ impl super::Simulation {
                 .cities
                 .iter()
                 .any(|city| city.owner == owner && city.anarchy >= tolerance);
-        let names = if at_war || unstable {
+        // Civ III personalities differ: a peaceful civilization does not switch
+        // to a wartime government just because a war began.
+        let warlike = self.ai_civilization(owner).is_none_or(|civ| {
+            catalog
+                .wartime_traits
+                .iter()
+                .any(|name| crate::sim::ai_traits::trait_enabled(civ, name))
+        });
+        let names = if (at_war && warlike) || unstable {
             &catalog.war
         } else {
             &catalog.peace
@@ -437,6 +445,8 @@ impl super::Simulation {
     pub(crate) fn put_owner_at_war_for_government_test(&mut self, owner: usize, rival: usize) {
         self.create_city(rival, 20, 8);
         self.sign_pact(owner, rival, Pact::War);
+        // Rome carries the verified militaristic trait, so war selects the war family.
+        self.players[owner].civilization_id = Some("rome".into());
     }
 
     #[cfg(test)]
@@ -587,6 +597,20 @@ mod ruleset_government_tests {
             (Government::REPUBLIC, 9000.0),
             (Government::DEMOCRACY, 8000.0),
         ]);
+        assert_eq!(game.government_goals(1, &scores).1, Government::MONARCHY);
+    }
+
+    #[test]
+    fn peaceful_civilization_stays_in_peace_family_during_war() {
+        let mut game = situational_game();
+        game.put_owner_at_war_for_government_test(1, 2);
+        let scores = scores(&[
+            (Government::MONARCHY, 9000.0),
+            (Government::REPUBLIC, 5000.0),
+        ]);
+        game.players[1].civilization_id = Some("india".into());
+        assert_eq!(game.government_goals(1, &scores).1, Government::REPUBLIC);
+        game.players[1].civilization_id = Some("rome".into());
         assert_eq!(game.government_goals(1, &scores).1, Government::MONARCHY);
     }
 
