@@ -13,8 +13,56 @@ pub(crate) struct Government {
     gaps: u64,
     outcomes: BTreeMap<String, u64>,
     recent_changes: VecDeque<Value>,
+    /// Latest revolution per owner: (turn, previous, target).
+    last_revolution: BTreeMap<u64, (i64, String, String)>,
 }
+
+/// A return to the government just left within this many turns is churn.
+const FLIP_FLOP_WINDOW_TURNS: i64 = 30;
+
 impl Government {
+    /// Flags a revolution into the current government (a disorder loop) and a
+    /// quick return to the government just left (a flip-flop).
+    fn check_revolution(&mut self, event: &Event, out: &mut AnalysisOutput) {
+        let payload = &event.payload;
+        if payload["reason"] != "revolution_started" {
+            return;
+        }
+        let (Some(owner), Some(previous), Some(target)) = (
+            payload["owner"].as_u64(),
+            payload["previous"].as_str(),
+            payload["target"].as_str(),
+        ) else {
+            return;
+        };
+        let turn = i64::from(event.turn);
+        let subject = format!("civilization:{owner}");
+        out.check(
+            subject.clone(),
+            "government_revolution_repeats_current",
+            event.entities.clone(),
+            previous == target,
+            "A revolution started into the government the nation already has (for example a disorder loop under Republic or Democracy).",
+            payload.clone(),
+        );
+        let flip = self
+            .last_revolution
+            .get(&owner)
+            .is_some_and(|(at, from, to)| {
+                turn - at <= FLIP_FLOP_WINDOW_TURNS && from == target && to == previous
+            });
+        out.check(
+            subject,
+            "government_flip_flop",
+            event.entities.clone(),
+            flip,
+            "A nation returned to the government it left within a few turns; check the biased advisor scores and the retention margin.",
+            json!({"previous_revolution": self.last_revolution.get(&owner), "revolution": payload}),
+        );
+        self.last_revolution
+            .insert(owner, (turn, previous.to_owned(), target.to_owned()));
+    }
+
     fn overview(snapshot: &Snapshot, out: &mut AnalysisOutput) {
         let Some(players) = snapshot.get::<Vec<GovernmentSnapshot>>("governments") else {
             return;
@@ -40,7 +88,7 @@ impl Analyzer for Government {
     fn descriptor(&self) -> Descriptor {
         Descriptor {
             id: "government",
-            version: 2,
+            version: 3,
             events: vec!["government.decision", "government.changed"],
             providers: vec!["governments"],
             configuration: json!({"scope":"consistency_with_cached_advisor", "recent_changes_limit":32}),
@@ -54,6 +102,7 @@ impl Analyzer for Government {
             self.decisions += 1;
         } else {
             self.changes += 1;
+            self.check_revolution(event, out);
             self.recent_changes
                 .push_back(json!({"turn":event.turn, "phase":event.phase,
                 "evidence":out.evidence(),"change":event.payload}));
@@ -117,6 +166,43 @@ impl Analyzer for Government {
 mod tests {
     use super::*;
     use crate::sim::trace::{Entity, Phase};
+    #[test]
+    fn flip_flops_and_repeat_revolutions_are_findings() {
+        let mut analyzer = Government::default();
+        let mut out = AnalysisOutput::default();
+        let revolution = |turn: i32, previous: &str, target: &str| Event {
+            sequence: 1,
+            turn,
+            phase: Phase::AiPlanning,
+            source: "government".into(),
+            kind: "government.changed".into(),
+            schema_version: 1,
+            entities: vec![Entity::Civilization(1)],
+            cause: None,
+            payload: json!({"owner":1,"previous":previous,"target":target,
+                "current":"Anarchy","reason":"revolution_started"}),
+        };
+        out.context("government", 1, None, Some((1, true)));
+        analyzer.on_event(&revolution(10, "Monarchy", "Republic"), &mut out);
+        analyzer.on_event(&revolution(30, "Republic", "Monarchy"), &mut out);
+        analyzer.on_event(&revolution(90, "Monarchy", "Republic"), &mut out);
+        analyzer.on_event(&revolution(100, "Republic", "Republic"), &mut out);
+        let kinds: Vec<_> = out.findings.iter().map(|f| f.kind.as_str()).collect();
+        assert!(kinds.contains(&"government_flip_flop"), "{kinds:?}");
+        assert!(
+            kinds.contains(&"government_revolution_repeats_current"),
+            "{kinds:?}"
+        );
+        // The turn-90 change is 60 turns after the last one: no second flip.
+        assert_eq!(
+            kinds
+                .iter()
+                .filter(|k| **k == "government_flip_flop")
+                .count(),
+            1
+        );
+    }
+
     #[test]
     fn mismatch_resolves_and_deferred_decisions_do_not_claim_failure() {
         let mut analyzer = Government::default();

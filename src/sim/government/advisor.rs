@@ -624,6 +624,23 @@ mod ruleset_government_tests {
     }
 
     #[test]
+    fn city_about_to_riot_drops_governments_with_revolution_unhappiness() {
+        let mut game = situational_game();
+        game.players[1].civilization_id = Some("india".into());
+        game.players[1].government = Government::REPUBLIC;
+        let scores = scores_for(&[
+            (Government::MONARCHY, 4000.0),
+            (Government::REPUBLIC, 9000.0),
+        ]);
+        assert_eq!(game.government_goals(1, &scores).1, Government::REPUBLIC);
+        let tolerance = game.government_revolution_unhappiness(1, Government::REPUBLIC);
+        assert!(tolerance > 0, "Republic must tolerate some disorder turns");
+        game.cities[0].anarchy = tolerance;
+        // Republic would repeat the same revolution; leave it for Monarchy.
+        assert_eq!(game.government_goals(1, &scores).1, Government::MONARCHY);
+    }
+
+    #[test]
     fn near_tied_family_members_do_not_flip_flop() {
         let mut game = situational_game();
         game.players[1].government = Government::REPUBLIC;

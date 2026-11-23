@@ -232,8 +232,13 @@ to trigger the disorder revolution is dropped in favor of governments without
 revolution unhappiness. The biased scores also set the research goal. AI
 revolutions still skip Anarchy (shared with Freeciv). Legality, availability and
 the `ai.better` supersession rule are unchanged. This adds no saved state.
-Validate with the `government` unit tests and a headless run, comparing
-`government.changed` events.
+Validate with the `government` unit tests and the `government-situation-war`
+(8 turns), `government-situation-peace` (8) and `government-situation-cycle`
+(24) release scenarios at seeds 42, 7 and 99; each pairs militaristic Rome with
+otherwise identical India. The government analyzer reports
+`government_flip_flop` and `government_revolution_repeats_current` findings for
+longer runs. A single-seed full campaign is a smoke test, not evidence for this
+mechanic.
 
 ### Recorded exception: aircraft (Civ III Conquests)
 
