@@ -220,7 +220,7 @@ The owner authorized on 2026-11-23 that AI government choice mimic Civ III's
 situational behavior instead of Freeciv score-only parity. Civ III's exact logic
 is undocumented; this is an approximation. While an AI is at peace its preferred
 family is Republic/Democracy; while it is at war with a real (non-barbarian,
-contacted) civilization it is Monarchy/Communism/Fascism. Families and the
+contacted) civilization it is Monarchy/Communism/Fascism/Feudalism. Families and the
 retention margin live in `default_government_situation()` in
 `src/rules/policies.rs`. Advisor scores still rank governments inside the family
 and decide the choice when no family member is scored or available; a different

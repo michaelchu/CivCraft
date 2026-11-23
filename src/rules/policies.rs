@@ -360,7 +360,7 @@ pub(crate) fn default_government_situation() -> GovernmentSituationCatalog {
     let list = |names: &[&str]| names.iter().map(|s| (*s).to_owned()).collect::<Vec<_>>();
     GovernmentSituationCatalog {
         peace: list(&["Republic", "Democracy"]),
-        war: list(&["Monarchy", "Communism", "Fascism"]),
+        war: list(&["Monarchy", "Communism", "Fascism", "Feudalism"]),
         retention_margin_percent: 15,
     }
 }
