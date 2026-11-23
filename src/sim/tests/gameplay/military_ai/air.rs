@@ -198,6 +198,7 @@ impl Simulation {
                 countdown: 3,
                 reason: diplomacy::WarReason::Spoils,
                 objective: None,
+                readiness_waited: 0,
             },
         );
         let anticipated = arrival(self, para) == Some(0);

@@ -214,6 +214,36 @@ history/influence checks at seeds 42, 7 and 99. Value marginal capped pressure
 and native mood counterfactuals; do not reward Missionary for pressure that the
 incoming cap discards, or Devout for content already covered by other effects.
 
+### Recorded exception: situational AI governments (custom policy)
+
+The owner authorized on 2026-11-23 a custom situational AI government policy
+instead of Freeciv score-only parity. It is inspired by the general peace/war
+pattern of other Civilization games but does not claim Civ III parity; its
+percentages are design choices, not measured. No government is barred: the situation
+and verified civilization traits only bias the advisor scores. At peace,
+Republic/Democracy get a score bonus; at war with a real (non-barbarian,
+contacted) civilization, Monarchy/Communism/Fascism/Feudalism get one, scaled
+down for a civilization without a wartime trait (`militaristic`), which also
+leans toward that family in any situation. A nation with no civilization record
+counts as willing. All parameters live in `default_government_situation()` in
+`src/rules/policies.rs`. A different government replaces the current one only
+when its biased score beats the current biased score by the retention margin
+(prevents Democracy/Feudalism style flip-flops). A government whose city is about
+to trigger the disorder revolution is dropped in favor of governments without
+revolution unhappiness. The biased scores also set the research goal. AI
+revolutions still skip Anarchy (shared with Freeciv). Legality, availability and
+the `ai.better` supersession rule are unchanged. This adds no saved state.
+Validate with the `government` unit tests and the `government-situation-war`
+(8 turns), `government-situation-peace` (8) and `government-situation-cycle`
+(24), `government-situation-disorder` (4) and `government-situation-locked` (6)
+release scenarios at seeds 42, 7 and 99; each pairs militaristic Rome with otherwise identical India. The
+`government_situation_runtimes_pass_at_every_seed` test runs them under
+`cargo test`, and the ignored `government_situation_long_runs_have_no_government_churn`
+test runs three 100-turn tiny-map campaigns in release mode. The government analyzer reports
+`government_flip_flop` and `government_revolution_repeats_current` findings for
+longer runs. A single-seed full campaign is a smoke test, not evidence for this
+mechanic.
+
 ### Recorded exception: aircraft (Civ III Conquests)
 
 The owner authorized Civilization III: Conquests aircraft rules for fixed-wing

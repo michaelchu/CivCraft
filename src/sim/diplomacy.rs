@@ -265,6 +265,15 @@ pub(super) struct WarPlan {
     pub(super) countdown: i32,
     pub(super) reason: WarReason,
     pub(super) objective: Option<WarObjective>,
+    #[serde(default)]
+    pub(super) readiness_waited: u16,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub(crate) enum WarObjectiveKind {
+    #[default]
+    Land,
+    Naval,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -272,6 +281,8 @@ pub(crate) struct WarObjective {
     pub(crate) city: u32,
     pub(crate) muster_city: u32,
     pub(crate) staging: (i32, i32),
+    #[serde(default)]
+    pub(crate) kind: WarObjectiveKind,
 }
 
 // ai/aitraits.c clips the effective trait before daidiplomacy.c computes
@@ -536,6 +547,16 @@ impl Simulation {
                 .or_default();
             relation.first_contact.get_or_insert(self.turn);
             relation.cause_until[usize::from(victim > offender)] = self.turn + 2;
+        }
+    }
+
+    pub(in crate::sim) fn set_scenario_provocation(&mut self, victim: usize, offender: usize) {
+        self.record_provocation(victim, offender);
+        if let Some(relation) = self
+            .diplomacy
+            .get_mut(&Self::relation_key(victim, offender))
+        {
+            relation.cause_until[usize::from(victim > offender)] = self.turn + 3;
         }
     }
 

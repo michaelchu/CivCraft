@@ -82,7 +82,7 @@ impl Simulation {
             .is_empty()
     }
 
-    pub(super) fn military_ferry_ready(&self, boat: u32) -> bool {
+    pub(in crate::sim) fn military_ferry_ready(&self, boat: u32) -> bool {
         if self
             .units
             .iter()
@@ -501,5 +501,155 @@ impl Simulation {
                 }
             }
         }
+    }
+
+    pub(in crate::sim) fn run_coordinated_naval_transport(
+        &mut self,
+        boat: &Unit,
+        objective: diplomacy::WarObjective,
+        muster_guard: Option<u32>,
+    ) -> bool {
+        if objective.kind != diplomacy::WarObjectiveKind::Naval
+            || !Self::is_naval_assault_transport(boat.kind)
+            || !self.military_ferry_ready(boat.id)
+        {
+            return false;
+        }
+        let Some(city) = self.city_by_id(objective.city).cloned() else {
+            return false;
+        };
+        let Some(muster) = self.city_by_id(objective.muster_city).cloned() else {
+            return false;
+        };
+        let port = (muster.x, muster.y);
+        let attacking = self.at_war(boat.owner, city.owner);
+
+        let board_at_port = |sim: &mut Self, boat_id: u32| {
+            let Some(current_boat) = sim.unit_by_id(boat_id).cloned() else {
+                return;
+            };
+            if (current_boat.x, current_boat.y) != port {
+                return;
+            }
+            let candidates: Vec<u32> = sim
+                .tile_units_ordered(port.0, port.1)
+                .filter(|unit| {
+                    unit.owner == current_boat.owner
+                        && unit.transport.is_none()
+                        && Some(unit.id) != muster_guard
+                        && (Self::can_join_ground_offensive(unit.kind)
+                            || Self::can_join_bombard_support(unit.kind))
+                        && current_boat.kind.can_carry(unit.kind)
+                })
+                .map(|unit| unit.id)
+                .collect();
+            for troop_id in candidates {
+                if sim.cargo_count(boat_id) >= current_boat.kind.transport_capacity() {
+                    break;
+                }
+                if sim.board_specific_ship(troop_id, boat_id) {
+                    sim.unit_goto_tiles.remove(&troop_id);
+                }
+            }
+        };
+
+        board_at_port(self, boat.id);
+        let mut offensive_cargo: Vec<u32> = self
+            .cargo_units_ordered(boat.id)
+            .filter(|unit| {
+                unit.owner == boat.owner
+                    && (Self::can_join_ground_offensive(unit.kind)
+                        || Self::can_join_bombard_support(unit.kind))
+            })
+            .map(|unit| unit.id)
+            .collect();
+
+        if !attacking {
+            if offensive_cargo.is_empty() && (boat.x, boat.y) != port {
+                self.unit_goto_tiles.insert(boat.id, port);
+                self.ai_goto_unit(boat.id, port, GotoTask::None);
+                board_at_port(self, boat.id);
+                offensive_cargo = self
+                    .cargo_units_ordered(boat.id)
+                    .filter(|unit| {
+                        unit.owner == boat.owner
+                            && (Self::can_join_ground_offensive(unit.kind)
+                                || Self::can_join_bombard_support(unit.kind))
+                    })
+                    .map(|unit| unit.id)
+                    .collect();
+            }
+            let Some(current_boat) = self.unit_by_id(boat.id).cloned() else {
+                return true;
+            };
+            let full = self.cargo_count(boat.id) >= current_boat.kind.transport_capacity();
+            let ready_to_stage = !offensive_cargo.is_empty()
+                && (full || offensive_cargo.len() >= 2 || (current_boat.x, current_boat.y) != port);
+            if ready_to_stage && (current_boat.x, current_boat.y) != objective.staging {
+                self.unit_goto_tiles.insert(boat.id, objective.staging);
+                self.ai_goto_unit(boat.id, objective.staging, GotoTask::None);
+            }
+            return true;
+        }
+
+        if offensive_cargo.is_empty() {
+            if (boat.x, boat.y) != port {
+                self.unit_goto_tiles.insert(boat.id, port);
+                self.ai_goto_unit(boat.id, port, GotoTask::None);
+                board_at_port(self, boat.id);
+                offensive_cargo = self
+                    .cargo_units_ordered(boat.id)
+                    .filter(|unit| {
+                        unit.owner == boat.owner
+                            && (Self::can_join_ground_offensive(unit.kind)
+                                || Self::can_join_bombard_support(unit.kind))
+                    })
+                    .map(|unit| unit.id)
+                    .collect();
+            }
+            if offensive_cargo.is_empty() {
+                return true;
+            }
+        }
+
+        let Some(current_boat) = self.unit_by_id(boat.id).cloned() else {
+            return true;
+        };
+        let Some(lead_kind) = self.unit_by_id(offensive_cargo[0]).map(|u| u.kind) else {
+            return true;
+        };
+        let goal = (city.x, city.y);
+        let mut map = super::super::normal_paths::NormalPaths::overlap_map(self, &current_boat);
+        let Some((x, y, beach)) =
+            self.offensive_beachhead(&mut map, lead_kind, current_boat.owner, goal.0, goal.1)
+        else {
+            return false;
+        };
+        self.ai_ferry_goto_waypoint(boat.id, (x, y), goal);
+        if self
+            .unit_by_id(boat.id)
+            .is_some_and(|ship| (ship.x, ship.y) == (x, y))
+            && let Some(direction) = EIGHT_WAY_DIRS
+                .iter()
+                .position(|&(dx, dy)| self.map_wrap.eight_way_offset(x, y, dx, dy) == Some(beach))
+        {
+            for id in offensive_cargo {
+                self.try_move_unit(id, direction);
+                if self
+                    .unit_by_id(id)
+                    .is_some_and(|unit| unit.transport.is_none())
+                {
+                    self.release_ai_ferry(id);
+                    if self
+                        .unit_by_id(id)
+                        .is_some_and(|unit| Self::can_join_ground_offensive(unit.kind))
+                    {
+                        self.ai_ground_targets.insert(id, objective.city);
+                        self.unit_goto_tiles.insert(id, goal);
+                    }
+                }
+            }
+        }
+        true
     }
 }

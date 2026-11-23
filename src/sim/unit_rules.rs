@@ -35,16 +35,13 @@ pub(super) struct UnitRule {
     pub(super) require_support: i32,
     #[allow(dead_code)] // Result identity retained for the unfinished enslave action.
     pub(super) enslave_result: &'static str,
-    #[allow(dead_code)] // Retained source capability for the unfinished crater action path.
-    pub(super) create_craters: i32,
     pub(super) worker_strength: f32,
     #[allow(dead_code)]
     pub(super) air_defense: i32,
-    #[allow(dead_code)]
-    pub(super) icon_index: i32,
-    #[allow(dead_code)]
-    pub(super) civilopedia_entry: &'static str,
-    pub(super) available_to: &'static str,
+    /// `;`-joined civilization nouns; empty means no extra limit.
+    pub(super) restricted_to: &'static str,
+    /// `;`-joined civilization nouns that cannot build this unit.
+    pub(super) excluded_from: &'static str,
     #[allow(dead_code)]
     pub(super) unique_civilization: &'static str,
     #[allow(dead_code)]
@@ -189,9 +186,7 @@ impl UnitRule {
         set_flag(
             F::NoBuild,
             // Leaders come from combat; Armies can only be formed by consuming one.
-            self.available_to.is_empty()
-                || self.category == "wonder_created"
-                || matches!(self.id, "leader" | "army"),
+            self.category == "wonder_created" || matches!(self.id, "leader" | "army"),
         );
         set_flag(F::Unique, self.category == "unique");
         set_flag(F::Cities, self.has_capability("FoundCity"));
@@ -237,9 +232,15 @@ impl UnitRule {
     }
 
     fn civilization_mask_allows(&self, source_noun: &str) -> bool {
-        self.available_to
-            .split(';')
-            .any(|available| available == source_noun)
+        (self.restricted_to.is_empty()
+            || self
+                .restricted_to
+                .split(';')
+                .any(|allowed| allowed == source_noun))
+            && !self
+                .excluded_from
+                .split(';')
+                .any(|excluded| excluded == source_noun)
     }
 
     /// Resolve a stable civilization ID to the canonical Civ III noun used by
@@ -322,7 +323,8 @@ fn rules() -> &'static [UnitRule] {
             for (slot, resource) in native.required_resources.iter().take(3).enumerate() {
                 required_resources[slot] = leak(resource);
             }
-            let available_to = leak(&native.available_to.join(";"));
+            let restricted_to = leak(&native.restricted_to.join(";"));
+            let excluded_from = leak(&native.excluded_from.join(";"));
             let unique_civilization = leak(&native.unique_civilization);
             let replaces = leak(&native.replaces);
             parsed.push(UnitRule {
@@ -356,12 +358,10 @@ fn rules() -> &'static [UnitRule] {
                 bombard_effects: native.bombard_effects,
                 require_support: native.require_support,
                 enslave_result: leak(&native.enslave_result),
-                create_craters: native.create_craters,
                 worker_strength: native.worker_strength,
                 air_defense: native.air_defense,
-                icon_index: native.icon_index,
-                civilopedia_entry: leak(&native.civilopedia_entry),
-                available_to,
+                restricted_to,
+                excluded_from,
                 unique_civilization,
                 replaces,
             });
@@ -517,6 +517,31 @@ mod tests {
         }
     }
 
+    /// `tests/fixtures/unit_availability_v1.json` freezes which units each
+    /// civilization can build, as resolved from the original Civ III
+    /// availability data before rosters were replaced by `unique_civilization`,
+    /// `restricted_to` and `excluded_from`.
+    #[test]
+    fn per_civilization_unit_availability_matches_civ3_data() {
+        let expected: std::collections::BTreeMap<String, Vec<String>> = serde_json::from_str(
+            include_str!("../../tests/fixtures/unit_availability_v1.json"),
+        )
+        .unwrap();
+        assert_eq!(expected.len(), crate::rules::civilizations::all().len());
+        for civilization in crate::rules::civilizations::all() {
+            let actual: Vec<&str> = rules()
+                .iter()
+                .filter(|rule| rule.available_to(&civilization.id))
+                .map(|rule| rule.id)
+                .collect();
+            assert_eq!(
+                actual, expected[&civilization.id],
+                "{} unit availability",
+                civilization.name
+            );
+        }
+    }
+
     #[test]
     fn native_toml_unit_catalog_matches_the_legacy_extraction() {
         let native = crate::rules::native::units();
@@ -550,15 +575,8 @@ mod tests {
                     .collect::<Vec<_>>()
             );
             assert_eq!(migrated.upgrade_to, source.upgrade_to);
-            assert_eq!(
-                migrated.available_to,
-                source
-                    .available_to
-                    .split(';')
-                    .filter(|civilization| !civilization.is_empty())
-                    .map(str::to_owned)
-                    .collect::<Vec<_>>()
-            );
+            assert_eq!(migrated.restricted_to.join(";"), source.restricted_to);
+            assert_eq!(migrated.excluded_from.join(";"), source.excluded_from);
             assert_eq!(migrated.unique_civilization, source.unique_civilization);
             assert_eq!(migrated.replaces, source.replaces);
             assert_eq!(migrated.domain.index(), source.unit_type);
@@ -567,11 +585,8 @@ mod tests {
             assert_eq!(migrated.bombard_effects, source.bombard_effects);
             assert_eq!(migrated.require_support, source.require_support);
             assert_eq!(migrated.enslave_result, source.enslave_result);
-            assert_eq!(migrated.create_craters, source.create_craters);
             assert_eq!(migrated.worker_strength, source.worker_strength);
             assert_eq!(migrated.air_defense, source.air_defense);
-            assert_eq!(migrated.icon_index, source.icon_index);
-            assert_eq!(migrated.civilopedia_entry, source.civilopedia_entry);
         }
     }
 }

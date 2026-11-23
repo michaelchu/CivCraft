@@ -3,8 +3,8 @@
 use super::*;
 
 pub(crate) use crate::rules::policies::{
-    DiplomacyCatalog, FaithDefinition, NegotiationPolicy, RelationshipPolicy, ReligionCatalog,
-    StrategyCatalog, VassalageCatalog,
+    DiplomacyCatalog, FaithDefinition, GovernmentSituationCatalog, NegotiationPolicy,
+    RelationshipPolicy, ReligionCatalog, StrategyCatalog, VassalageCatalog,
 };
 
 pub(crate) fn strategy() -> &'static StrategyCatalog {
@@ -31,4 +31,9 @@ pub(crate) fn religion() -> &'static ReligionCatalog {
         )
         .unwrap_or_else(|error| panic!("invalid native religion rules: {error}"))
     })
+}
+
+pub(crate) fn government_situation() -> &'static GovernmentSituationCatalog {
+    static CATALOG: OnceLock<GovernmentSituationCatalog> = OnceLock::new();
+    CATALOG.get_or_init(crate::rules::policies::default_government_situation)
 }

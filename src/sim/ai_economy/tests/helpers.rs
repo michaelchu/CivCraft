@@ -62,6 +62,7 @@ impl super::Simulation {
                 countdown: 1,
                 reason: diplomacy::WarReason::Spoils,
                 objective: None,
+                readiness_waited: 0,
             },
         );
         self.players[1].rates = [60, 40, 0];

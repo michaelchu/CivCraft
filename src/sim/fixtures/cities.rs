@@ -200,4 +200,14 @@ impl WorldBuilder<'_> {
             .expect("fixture city exists");
         self.game.cities[index].history = history;
     }
+
+    /// Set a city's consecutive turns of disorder, as if it had been rioting.
+    pub(crate) fn city_disorder_streak(&mut self, city_id: u32, turns: i32) {
+        assert!(turns >= 0);
+        let index = self
+            .game
+            .city_index_by_id(city_id)
+            .expect("fixture city exists");
+        self.game.cities[index].anarchy = turns;
+    }
 }

@@ -264,9 +264,19 @@ impl Simulation {
         let _profile = profiler.scope("ai.transports_and_settlement");
         self.prune_settlement_reservations(owner);
         let settlement_ferries = self.dispatch_settlement_ferries(owner, &city_defenders);
+        let coordinated_naval_boats: std::collections::HashSet<u32> = if coordinated_objective
+            .is_some_and(|objective| objective.kind == diplomacy::WarObjectiveKind::Naval)
+        {
+            self.units_owned_by(owner)
+                .filter(|unit| Self::is_naval_assault_transport(unit.kind))
+                .map(|unit| unit.id)
+                .collect()
+        } else {
+            Default::default()
+        };
         let assault = self.dispatch_assault_transports(
             owner,
-            |id| settlement_ferries.contains_key(&id),
+            |id| settlement_ferries.contains_key(&id) || coordinated_naval_boats.contains(&id),
             |id| {
                 counterattacks.contains(&id)
                     || city_defenders.contains(&id)
@@ -431,6 +441,11 @@ impl Simulation {
                     if handled {
                         break 'dispatch "source_ferry";
                     }
+                    if coordinated_objective.is_some_and(|objective| {
+                        self.run_coordinated_naval_transport(&unit, objective, muster_guard)
+                    }) {
+                        break 'dispatch "coordinated_naval";
+                    }
                     if let Some(plan) = settlement_ferries.get(&id) {
                         self.run_settlement_ferry(id, plan);
                         break 'dispatch "settlement_ferry";
@@ -466,6 +481,14 @@ impl Simulation {
                         "explore"
                     }
                     _ => {
+                        if owner != BARBARIANS
+                            && Self::can_join_bombard_support(unit.kind)
+                            && coordinated_objective.is_some_and(|objective| {
+                                self.run_coordinated_ground_order(&unit, objective)
+                            })
+                        {
+                            break 'dispatch "coordinated_objective";
+                        }
                         if unit.kind.is_military()
                             && !unit.kind.is_aircraft()
                             && !unit.kind.is_naval()
@@ -580,14 +603,7 @@ impl Simulation {
             }
             let coordinated_status = coordinated_objective.and_then(|objective| {
                 let city = self.city_by_id(objective.city)?;
-                let staging_troops = self
-                    .tile_units_ordered(objective.staging.0, objective.staging.1)
-                    .filter(|unit| {
-                        unit.owner == owner
-                            && unit.transport.is_none()
-                            && Self::can_join_ground_offensive(unit.kind)
-                    })
-                    .count();
+                let staging_troops = self.staged_objective_troops(owner, objective).len();
                 Some(military_observation::CoordinatedObjectiveStatus {
                     city_id: objective.city,
                     target_owner: city.owner,

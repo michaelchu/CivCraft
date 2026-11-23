@@ -6,47 +6,119 @@ pub(in crate::sim) type SharedInvasionSupport =
     std::sync::Arc<std::collections::BTreeMap<u32, (i32, i32)>>;
 
 impl Simulation {
-    pub(super) fn run_coordinated_ground_order(
+    pub(in crate::sim) fn run_coordinated_ground_order(
         &mut self,
         actor: &Unit,
         objective: diplomacy::WarObjective,
     ) -> bool {
-        if !Self::can_join_ground_offensive(actor.kind) || actor.transport.is_some() {
+        let offensive = Self::can_join_ground_offensive(actor.kind);
+        let bombard = Self::can_join_bombard_support(actor.kind);
+        if (!offensive && !bombard) || actor.transport.is_some() {
             return false;
         }
-        let Some(city) = self.city_by_id(objective.city) else {
+        let Some(city) = self.city_by_id(objective.city).cloned() else {
             return false;
         };
         if city.owner == actor.owner {
             return false;
         }
         let attacking = self.at_war(actor.owner, city.owner);
-        let goal = if attacking {
-            (city.x, city.y)
-        } else {
-            objective.staging
-        };
-        // Keep this a local front, leaving distant units to their regular
-        // roles and avoiding long searches for an unreachable muster tile.
-        if self.map_distance(actor.x, actor.y, goal.0, goal.1) > 10 {
-            return false;
+        let continents = self.continent_labels();
+        let actor_continent = continents[self.map_wrap.index(actor.x, actor.y)];
+
+        match objective.kind {
+            diplomacy::WarObjectiveKind::Land => {
+                let goal = if attacking {
+                    if bombard {
+                        let range = Self::fixed_wing_bombard_range(actor.kind);
+                        if self
+                            .map_wrap
+                            .step_distance(actor.x, actor.y, city.x, city.y)
+                            <= range
+                        {
+                            return false;
+                        }
+                        objective.staging
+                    } else {
+                        (city.x, city.y)
+                    }
+                } else {
+                    objective.staging
+                };
+                if actor_continent != continents[self.map_wrap.index(goal.0, goal.1)] {
+                    return false;
+                }
+                let mut routes = if attacking && offensive {
+                    normal_paths::NormalPaths::attack_map(self, actor)
+                } else {
+                    normal_paths::NormalPaths::goto_map(self, actor, GotoTask::None)
+                };
+                let Some((path, _)) = routes.path(self, goal.0, goal.1) else {
+                    return false;
+                };
+                if attacking && offensive {
+                    self.ai_ground_targets.insert(actor.id, objective.city);
+                } else {
+                    self.ai_ground_targets.remove(&actor.id);
+                }
+                self.unit_goto_tiles.insert(actor.id, goal);
+                self.follow_ground_invasion_path(actor.id, &path);
+                true
+            }
+            diplomacy::WarObjectiveKind::Naval => {
+                if attacking && actor_continent == continents[self.map_wrap.index(city.x, city.y)] {
+                    if bombard {
+                        return false;
+                    }
+                    let goal = (city.x, city.y);
+                    let mut routes = normal_paths::NormalPaths::attack_map(self, actor);
+                    let Some((path, _)) = routes.path(self, goal.0, goal.1) else {
+                        return false;
+                    };
+                    self.ai_ground_targets.insert(actor.id, objective.city);
+                    self.unit_goto_tiles.insert(actor.id, goal);
+                    self.follow_ground_invasion_path(actor.id, &path);
+                    return true;
+                }
+                let Some(muster) = self.city_by_id(objective.muster_city).cloned() else {
+                    return false;
+                };
+                if actor_continent != continents[self.map_wrap.index(muster.x, muster.y)] {
+                    return false;
+                }
+                let port = (muster.x, muster.y);
+                if (actor.x, actor.y) != port {
+                    let mut routes =
+                        normal_paths::NormalPaths::goto_map(self, actor, GotoTask::None);
+                    let Some((path, _)) = routes.path(self, port.0, port.1) else {
+                        return false;
+                    };
+                    self.ai_ground_targets.remove(&actor.id);
+                    self.unit_goto_tiles.insert(actor.id, port);
+                    self.follow_ground_invasion_path(actor.id, &path);
+                }
+                if let Some(current) = self.unit_by_id(actor.id).cloned()
+                    && (current.x, current.y) == port
+                    && current.transport.is_none()
+                {
+                    let boat_id = self
+                        .tile_units_ordered(port.0, port.1)
+                        .find(|boat| {
+                            boat.owner == actor.owner
+                                && Self::is_naval_assault_transport(boat.kind)
+                                && self.military_ferry_ready(boat.id)
+                                && self.can_board_ship(&current, boat)
+                        })
+                        .map(|boat| boat.id);
+                    if let Some(boat_id) = boat_id
+                        && self.board_specific_ship(actor.id, boat_id)
+                    {
+                        self.unit_goto_tiles.remove(&actor.id);
+                    }
+                }
+                true
+            }
         }
-        let mut routes = if attacking {
-            normal_paths::NormalPaths::attack_map(self, actor)
-        } else {
-            normal_paths::NormalPaths::goto_map(self, actor, GotoTask::None)
-        };
-        let Some((path, _)) = routes.path(self, goal.0, goal.1) else {
-            return false;
-        };
-        if attacking {
-            self.ai_ground_targets.insert(actor.id, objective.city);
-        } else {
-            self.ai_ground_targets.remove(&actor.id);
-        }
-        self.unit_goto_tiles.insert(actor.id, goal);
-        self.follow_ground_invasion_path(actor.id, &path);
-        true
     }
 
     #[cfg(test)]

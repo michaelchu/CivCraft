@@ -24,8 +24,25 @@ The migration does not introduce another gameplay scripting language.
 ## Units
 
 `content/units.toml` retains costs, population costs, combat and bombardment
-statistics, movement, capacity, range, support and worker values, availability,
-and artwork bindings. `domain` is `Land`, `Sea`, or `Air`.
+statistics, movement, capacity, range, support and worker values, and
+availability. `domain` is `Land`, `Sea`, or `Air`.
+
+Only non-default values are written. Omitted fields mean `0`, `0.0`, `""` or
+`[]`, except `require_support`, which defaults to `1`. `cost_shields`, `attack`,
+`defense`, `moves`, `category` and `domain` are always listed.
+
+Civilization availability is not a stored roster. A unit with `unique_civilization`
+(for example Samurai for the Japanese) can be built only by that civilization,
+and it replaces the unit named by `replaces` for that civilization. Any other
+unit is available to every civilization except those whose unique unit replaces
+it. `wonder_created` units, Leaders and Armies are never buildable. The optional
+`restricted_to` list of civilization nouns limits a non-unique unit to those
+civilizations (currently only Scout), and `excluded_from` lists civilizations
+that cannot build it although no unique unit of theirs replaces it (Spearman,
+Pikeman and Medieval Infantry, from the original Civ III availability data).
+Neither can be combined with `unique_civilization`. The frozen fixture
+`tests/fixtures/unit_availability_v1.json` records exactly which units each
+civilization can build, and a test requires the catalog to reproduce it.
 
 `required_technology` references a compiled technology ID, such as
 `TECH_Bronze_Working`; `upgrade_to` and `replaces` reference unit IDs, such as
@@ -46,12 +63,29 @@ its presence does not promise execution support. Unused import bytes and indices
 have been removed. `UnitKind` is a data-driven index handle backed by
 `content/units.toml`.
 
+## Engine-owned bindings
+
+Values that tie a record to artwork, to saved-game identity or to presentation
+are not tuning knobs and are not in the TOML files. They live in
+`src/rules/native/bindings.rs`: unit art folders and installation labels,
+which units play bombardment impact effects, each technology's persistent
+`Tech` save index, and each civilization's palette colors, city style and
+culture group. Unit art defaults to the unit's display name under the `base`
+installation, so only exceptions are listed. The loaders reject TOML that
+still contains these keys, and reject a technology or civilization with no
+binding. Technology save indices must never change or be reused. Unit
+icon indices, Civilopedia keys, technology-tree coordinates and the unused
+crater flag have been removed; nothing read them.
+
 ## Buildings
 
 `content/buildings.toml` defines the active runtime improvements and wonders.
 Each has a stable `id`, display name, genus, cost, upkeep, requirements,
 obsolescence, and flags. The original source records and import mappings have been
 removed.
+
+`requirements`, `obsolete`, `flags` and `culture_per_turn` are omitted when empty
+or zero. `cost` and `upkeep` are always listed.
 
 Named requirement targets replace numeric references:
 
@@ -71,6 +105,12 @@ stay reserved so saved games keep their meaning.
 
 Building IDs, counts, and obsolescence policy (`selected_obsolescence`) resolve
 directly from `content/buildings.toml` via data-driven `Building` handles.
+
+## Technologies and civilizations
+
+Technologies omit empty `prerequisites` and `flags`, and `required_for_era`
+unless it is `false`. Civilizations list only the traits they have
+(`militaristic = true`); an omitted trait is `false`.
 
 ## Terrain and governments
 
