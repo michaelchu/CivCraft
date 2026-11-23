@@ -214,11 +214,12 @@ history/influence checks at seeds 42, 7 and 99. Value marginal capped pressure
 and native mood counterfactuals; do not reward Missionary for pressure that the
 incoming cap discards, or Devout for content already covered by other effects.
 
-### Recorded exception: situational AI governments (Civ III-inspired)
+### Recorded exception: situational AI governments (custom policy)
 
-The owner authorized on 2026-11-23 that AI government choice mimic Civ III's
-situational behavior instead of Freeciv score-only parity. Civ III's exact logic
-is undocumented; this is an approximation. No government is barred: the situation
+The owner authorized on 2026-11-23 a custom situational AI government policy
+instead of Freeciv score-only parity. It is inspired by the general peace/war
+pattern of other Civilization games but does not claim Civ III parity; its
+percentages are design choices, not measured. No government is barred: the situation
 and verified civilization traits only bias the advisor scores. At peace,
 Republic/Democracy get a score bonus; at war with a real (non-barbarian,
 contacted) civilization, Monarchy/Communism/Fascism/Feudalism get one, scaled

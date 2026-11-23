@@ -244,8 +244,8 @@ impl super::Simulation {
         );
     }
 
-    /// Civ III-style situational bias (owner-authorized exception to Freeciv
-    /// parity). Returns the percent added to a government's advisor score:
+    /// Custom situational bias (owner-authorized exception to Freeciv
+    /// parity; no Civ III parity is claimed). Returns the percent added to a government's advisor score:
     /// peace favors Republic/Democracy, war favors the military governments, and
     /// a militaristic nation leans toward the latter in any situation. Nothing is
     /// barred; the scores still decide.

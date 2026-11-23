@@ -83,7 +83,7 @@ pub(crate) struct DiplomacyCatalog {
     pub(crate) negotiations: NegotiationPolicy,
 }
 
-/// Situational AI government bias (Civ III-inspired, owner-authorized). No
+/// Situational AI government bias (custom, owner-authorized). No
 /// government is barred: these percentages only scale advisor scores.
 pub(crate) struct GovernmentSituationCatalog {
     /// Governments favored while the nation is at peace.
