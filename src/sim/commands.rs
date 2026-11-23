@@ -218,17 +218,13 @@ impl Simulation {
             Sentry(id) => self.set_unit_sentry(id),
             Automate(id) => {
                 let unit = &mut self.units[unit_index.unwrap()];
-                // common/unit.c: ACTIVITY_EXPLORE excludes fuelled types and
-                // helicopter-class units that lose HP away from a base.
-                if !unit.automated
-                    && (unit.kind.fuel_capacity() > 0 || unit.kind == UnitKind::Helicopter)
-                {
+                if !unit.automated && !unit.kind.can_automate() {
                     return false;
                 }
                 unit.automated = !unit.automated;
                 let now_automated = unit.automated;
                 let has_moves = unit.moves_left > 0;
-                if now_automated && !unit.kind.stats().can_work {
+                if now_automated && !unit.kind.is_worker() {
                     unit.clear_work();
                     unit.state = UnitState::Idle;
                 }

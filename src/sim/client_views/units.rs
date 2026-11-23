@@ -141,7 +141,6 @@ impl Simulation {
         Some(UnitActionView {
             unit_name: unit.kind.name(),
             owner: unit.owner,
-            worker: unit.kind.stats().can_work,
             x: unit.x,
             y: unit.y,
             work_left,
@@ -178,8 +177,12 @@ impl Simulation {
             fortify: unit.transport.is_none()
                 && self.action_available_fail_closed(id, "Fortify", work_target),
             set_home_city: self.home_city_target(unit).is_some(),
-            automate: unit.automated
-                || (unit.kind.fuel_capacity() == 0 && unit.kind != UnitKind::Helicopter),
+            automate: unit.automated || unit.kind.can_automate(),
+            automate_label: if unit.kind.is_worker() {
+                "Automate"
+            } else {
+                "Explore"
+            },
             can_disband: self.can_disband(unit, None),
             disband_cities,
         })

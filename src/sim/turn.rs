@@ -54,7 +54,7 @@ impl Simulation {
         self.finish_revolutions();
         let automated: Vec<u32> = self
             .player_units_ordered(HUMAN)
-            .filter(|u| u.automated && !u.kind.stats().can_work)
+            .filter(|u| u.automated && !u.kind.is_worker())
             .map(|u| u.id)
             .collect();
         for id in automated {

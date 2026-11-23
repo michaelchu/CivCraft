@@ -214,6 +214,13 @@ impl UnitKind {
         crate::sim::action_rules::unit_type_fuel_capacity(self).expect("native unit mission budget")
     }
 
+    /// Whether a unit may start Automate. common/unit.c: ACTIVITY_EXPLORE
+    /// excludes fuelled types and helicopter-class units that lose HP away
+    /// from a base.
+    pub(crate) fn can_automate(self) -> bool {
+        self.fuel_capacity() == 0 && self != UnitKind::Helicopter
+    }
+
     pub(in crate::sim) fn operational_range(self) -> i32 {
         self.conquests_rule().operational_range
     }

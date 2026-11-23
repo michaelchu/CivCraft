@@ -141,7 +141,6 @@ pub(crate) struct SpaceshipAssemblyView {
 pub(crate) struct UnitActionView {
     pub(crate) unit_name: &'static str,
     pub(crate) owner: usize,
-    pub(crate) worker: bool,
     pub(crate) x: i32,
     pub(crate) y: i32,
     pub(crate) work_left: i32,
@@ -176,6 +175,7 @@ pub(crate) struct UnitActionView {
     pub(crate) fortify: bool,
     pub(crate) set_home_city: bool,
     pub(crate) automate: bool,
+    pub(crate) automate_label: &'static str,
     pub(crate) can_disband: bool,
     pub(crate) disband_cities: Vec<(u32, String)>,
 }
@@ -658,7 +658,10 @@ mod tests {
 
         let view = sim.unit_action_view(settler).unwrap();
         assert!(view.found_city.is_some());
-        assert!(view.automate && !view.worker, "Settlers explore, not work");
+        assert!(
+            view.automate && view.automate_label == "Explore",
+            "Settlers explore, not work"
+        );
         assert!(view.road_action.is_none());
         assert!(view.irrigation_action.is_none());
         assert!(view.mine_action.is_none());
@@ -666,7 +669,7 @@ mod tests {
 
         let view = sim.unit_action_view(worker).unwrap();
         assert!(view.found_city.is_none());
-        assert!(view.worker);
+        assert_eq!(view.automate_label, "Automate");
         assert!(view.road_action.is_some());
         assert!(view.irrigation_action.is_some());
         assert!(view.mine_action.is_some());

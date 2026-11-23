@@ -416,3 +416,23 @@ fn reaching_a_frontier_recurses_and_reveals_more_without_random_wandering() {
             > before
     );
 }
+
+#[test]
+fn automated_crusader_explores_and_never_takes_terrain_work() {
+    let mut game = world();
+    let home = (10, 20);
+    game.create_city(HUMAN, home.0, home.1);
+    game.create_city(1, 25, 35);
+    let id = game.spawn_unit(HUMAN, UnitKind::Crusader, home.0, home.1);
+    game.refresh_visibility();
+
+    let view = game.unit_action_view(id).unwrap();
+    assert_eq!(view.automate_label, "Explore");
+    assert!(view.automate);
+
+    assert!(game.apply(Command::Automate(id)));
+    let crusader = game.unit_by_id(id).unwrap();
+    assert_ne!((crusader.x, crusader.y), home, "automation explores");
+    assert_eq!(crusader.work_left, 0);
+    assert!(crusader.automated);
+}

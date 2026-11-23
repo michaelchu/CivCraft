@@ -303,6 +303,14 @@ impl Simulation {
                     self.unit_goto_tiles.remove(&id); // first AUTO task, NULL target
                 }
             } else {
+                if actor.automated && actor.owner == HUMAN {
+                    // An automated worker with no terrain work ends its
+                    // automation, so it becomes Ready for the player.
+                    if let Some(live) = self.units.iter_mut().find(|u| u.id == id) {
+                        live.automated = false;
+                    }
+                    self.unit_goto_tiles.remove(&id);
+                }
                 self.worker_shelter(&actor);
             }
             return;

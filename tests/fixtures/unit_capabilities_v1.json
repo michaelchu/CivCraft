@@ -84,7 +84,7 @@
 {"id": "javelin_thrower", "capabilities": ["Foot", "Fortify", "Embark", "Airlift"], "ai_strategy_mask": 3, "domain": 0},
 {"id": "dromon", "capabilities": ["SinksInSea", "SinksInOcean", "LethalSeaBombard", "Fortify", "Disembark"], "ai_strategy_mask": 1280, "domain": 1},
 {"id": "cruiser", "capabilities": ["Radar", "Fortify"], "ai_strategy_mask": 256, "domain": 1},
-{"id": "crusader", "capabilities": ["Foot", "Fortify", "Embark", "Airlift", "BuildFortress", "Worker"], "ai_strategy_mask": 1, "domain": 0},
+{"id": "crusader", "capabilities": ["Foot", "Fortify", "Embark", "Airlift", "BuildFortress"], "ai_strategy_mask": 1, "domain": 0},
 {"id": "ancient_cavalry", "capabilities": ["Fortify", "Embark", "Airlift"], "ai_strategy_mask": 1, "domain": 0},
 {"id": "curragh", "capabilities": ["SinksInSea", "SinksInOcean", "Fortify"], "ai_strategy_mask": 256, "domain": 1},
 {"id": "paratrooper", "capabilities": ["Foot", "Fortify", "Embark", "Airlift", "Paradrop"], "ai_strategy_mask": 1, "domain": 0},

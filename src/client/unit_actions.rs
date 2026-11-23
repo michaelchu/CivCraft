@@ -176,7 +176,7 @@ impl Game {
                     entries.push(("Set home city [H]".to_owned(), UiAction::HomeCity, true));
                 }
                 if view.automate {
-                    let label = if view.worker { "Automate" } else { "Explore" };
+                    let label = view.automate_label;
                     entries.push((format!("{label} [A / X]"), UiAction::Automate, true));
                 }
                 entries.push(("Wait [Space]".to_owned(), UiAction::Wait, true));

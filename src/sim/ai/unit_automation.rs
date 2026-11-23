@@ -50,7 +50,7 @@ impl Simulation {
         if unit.transport.is_some() {
             return;
         }
-        if unit.kind.stats().can_work {
+        if unit.kind.is_worker() {
             self.run_auto_worker(unit_id);
             return;
         }
