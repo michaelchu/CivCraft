@@ -1396,7 +1396,7 @@ attack = 5
 defense = 3
 moves = 1
 worker_strength = 1.0
-capabilities = ["Foot", "Fortify", "Embark", "Airlift", "BuildFortress", "Worker"]
+capabilities = ["Foot", "Fortify", "Embark", "Airlift", "BuildFortress"]
 ai_roles = ["Offense"]
 domain = "Land"
 

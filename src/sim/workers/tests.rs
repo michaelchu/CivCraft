@@ -149,6 +149,7 @@ fn worker_road_bonus_ignores_connectors_whose_destinations_are_too_slow() {
 fn only_the_imported_worker_has_worker_action_flags() {
     assert!(UnitKind::Worker.stats().can_work);
     assert!(!UnitKind::Transport.stats().can_work);
+    assert!(!UnitKind::Crusader.stats().can_work);
 }
 
 #[test]

@@ -254,6 +254,13 @@ mod tests {
     }
 
     #[test]
+    fn crusader_builds_fortresses_but_is_not_a_terrain_worker() {
+        assert!(!UnitKind::Crusader.stats().can_work);
+        assert!(UnitKind::Crusader.can_build_fortress());
+        assert!(UnitKind::Crusader.can_automate());
+    }
+
+    #[test]
     fn worker_and_missile_capabilities_do_not_imply_military_training_policy() {
         assert!(UnitKind::Worker.stats().can_work);
         assert!(UnitKind::TacticalNuke.no_veteran());
