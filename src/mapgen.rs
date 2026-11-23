@@ -20,6 +20,7 @@ use defaults::{
     HutPlacementSettings, MapGenerationSettings, OceanDepthSettings, StartPositionScoringSettings,
     TerrainMapgenProperties,
 };
+use fractal_settings::FractalParameters;
 use std::{collections::hash_map::RandomState, hash::BuildHasher};
 
 /// Named world sizes and custom dimensions.
@@ -289,6 +290,7 @@ pub(crate) struct WorldSettings {
 }
 
 mod defaults;
+mod fractal_settings;
 mod noise;
 mod placement;
 mod rivers;
@@ -1161,7 +1163,8 @@ pub(crate) struct MapGenerationRequest {
     pub(crate) gameplay_rng: GameRng,
     pub(crate) wrap: MapWrap,
     pub(crate) settings: WorldSettings,
-    pub(crate) map_generation_settings: MapGenerationSettings,
+    /// Freeciv-native fractal inputs resolved from `settings`.
+    pub(crate) fractal: FractalParameters,
     pub(crate) terrain_properties: Vec<TerrainMapgenProperties>,
     pub(crate) start_scoring_settings: StartPositionScoringSettings,
     pub(crate) civilization_count: usize,
@@ -1196,13 +1199,14 @@ fn map_generation_request_with_map_settings(
     let (map_seed, gameplay_rng) = campaign_randomness(seed);
     let terrain_properties = defaults::default_terrain_mapgen_properties();
     let start_scoring_settings = defaults::default_start_position_scoring_settings();
+    let fractal = FractalParameters::resolve(map_generation_settings, settings, civilization_count);
     MapGenerationRequest {
         seed,
         map_seed,
         gameplay_rng,
         wrap,
         settings,
-        map_generation_settings,
+        fractal,
         terrain_properties,
         start_scoring_settings,
         civilization_count,
@@ -1285,7 +1289,7 @@ impl MapGenerator for OpenSimplexMapGenerator {
             gameplay_rng,
             wrap,
             settings,
-            map_generation_settings: _,
+            fractal: _,
             terrain_properties: _,
             start_scoring_settings: _,
             civilization_count,
@@ -1301,36 +1305,6 @@ impl MapGenerator for OpenSimplexMapGenerator {
     }
 }
 
-fn apply_world_settings_to_fractal(
-    mut base: MapGenerationSettings,
-    settings: WorldSettings,
-    civilization_count: usize,
-) -> (MapGenerationSettings, i32) {
-    base.landmass_percent = 100 - settings.ocean_coverage.percent();
-    base.wetness = match settings.climate {
-        Climate::Arid => 25,
-        Climate::Normal => base.wetness,
-        Climate::Wet => 75,
-    };
-    base.temperature = match settings.temperature {
-        Temperature::Cool => 40,
-        Temperature::Temperate => base.temperature,
-        Temperature::Warm => 80,
-    };
-    base.steepness = match settings.age {
-        WorldAge::Billion3 => 45,
-        WorldAge::Billion4 => base.steepness,
-        WorldAge::Billion5 => 15,
-    };
-    let default_divisions = base.startpos.fractal_divisions(civilization_count);
-    let divisions = match settings.landform {
-        Landform::Pangaea => 2,
-        Landform::Continents => default_divisions,
-        Landform::Archipelago => default_divisions + 2,
-    };
-    (base, divisions)
-}
-
 impl MapGenerator for FractalMapGenerator {
     fn generate(&self, request: MapGenerationRequest) -> GeneratedMap {
         let MapGenerationRequest {
@@ -1339,7 +1313,7 @@ impl MapGenerator for FractalMapGenerator {
             gameplay_rng,
             wrap,
             settings,
-            map_generation_settings,
+            fractal,
             terrain_properties,
             start_scoring_settings,
             civilization_count,
@@ -1347,8 +1321,10 @@ impl MapGenerator for FractalMapGenerator {
         assert!((4..=16).contains(&civilization_count));
         terrain::validate_terrain_mappings(&terrain_properties)
             .expect("mapgen terrains must map to CivCraft terrain identities");
-        let (map_generation_settings, divisions) =
-            apply_world_settings_to_fractal(map_generation_settings, settings, civilization_count);
+        let FractalParameters {
+            settings: map_generation_settings,
+            divisions,
+        } = fractal;
         let generator = Generator {
             wrap,
             settings,
