@@ -509,3 +509,31 @@ fn virtual_worker_scores_match_independent_plans_without_reconstructing_walks() 
     assert!(operations["worker.value_cache_hits"] > 0);
     assert!(!operations.contains_key("worker.paths_reconstructed"));
 }
+
+#[test]
+fn automated_human_worker_ends_automation_when_no_terrain_work_remains() {
+    let mut game = game();
+    // Every tile already carries every terrain improvement a Worker can add,
+    // so there is no plan left to automate.
+    for tile in &mut game.tiles {
+        tile.road = true;
+        tile.irrigation = true;
+        tile.farmland = true;
+        tile.mine = true;
+    }
+    game.create_city(HUMAN, 20, 20);
+    let id = game.spawn_unit(HUMAN, UnitKind::Worker, 20, 20);
+    game.units
+        .iter_mut()
+        .find(|u| u.id == id)
+        .unwrap()
+        .automated = true;
+
+    game.run_automated_unit(id);
+
+    let worker = game.unit_by_id(id).expect("worker survives");
+    assert!(
+        !worker.automated,
+        "automation ends once no terrain work is found"
+    );
+}
