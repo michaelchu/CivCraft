@@ -318,6 +318,7 @@ impl super::Generator {
         zone_temperature: Option<&TemperatureMap>,
         terrain_property_table: Option<&[TerrainMapgenProperties]>,
         ocean_coverage: i32,
+        legacy_world: Option<super::WorldSettings>,
         rng: &mut MapRng,
     ) -> (Vec<Terrain>, Vec<TerrainBase>, Vec<i32>) {
         let sea_level = find_sea_level(water_heights, ocean_coverage);
@@ -384,8 +385,10 @@ impl super::Generator {
                 rng,
             );
         } else {
-            let (hill_low, hill_high, mountain_low, mountain_high, volcano_percent) =
-                self.settings.age.relief_bands();
+            let (hill_low, hill_high, mountain_low, mountain_high, volcano_percent) = legacy_world
+                .expect("OpenSimplex terrain requires world settings")
+                .age
+                .relief_bands();
             let (
                 tundra_low,
                 tundra_high,
@@ -394,7 +397,10 @@ impl super::Generator {
                 plains_high,
                 desert_low,
                 desert_high,
-            ) = self.settings.temperature.biome_bands(self.settings.climate);
+            ) = {
+                let world = legacy_world.expect("OpenSimplex terrain requires world settings");
+                world.temperature.biome_bands(world.climate)
+            };
             for tile in 0..self.wrap.tile_count() {
                 if terrain[tile] != Terrain::Plains {
                     continue;
@@ -441,7 +447,10 @@ impl super::Generator {
         // height-map algorithm or verified original Civ III behavior.
         // Evaluated only on the OpenSimplex path; Freeciv fractal generation
         // takes its shares and dryness from the ruleset temperature map.
-        let opensimplex_climate = || match self.settings.climate {
+        let opensimplex_climate = || match legacy_world
+            .expect("OpenSimplex terrain requires world settings")
+            .climate
+        {
             super::Climate::Wet => (24, 6, 12, 1),
             super::Climate::Normal => (16, 4, 7, 2),
             super::Climate::Arid => (8, 2, 3, 3),
@@ -671,8 +680,8 @@ impl super::Generator {
             // OpenSimplex already assigns relief bases above, but its forest
             // pool contains only original grassland. Adapt forest art from
             // the same heat, latitude and dry-belt fields after placement, without RNG.
-            let (_, _, cold_latitude, _, _, _, _) =
-                self.settings.temperature.biome_bands(self.settings.climate);
+            let world = legacy_world.expect("OpenSimplex terrain requires world settings");
+            let (_, _, cold_latitude, _, _, _, _) = world.temperature.biome_bands(world.climate);
             for (tile, &kind) in terrain.iter().enumerate() {
                 if kind == Terrain::Forest {
                     let cold = temperature[tile] < COLD || self.colatitude(tile) < cold_latitude;

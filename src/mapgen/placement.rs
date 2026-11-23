@@ -861,7 +861,6 @@ mod tests {
         (
             Generator {
                 wrap,
-                settings: WorldSettings::default(),
                 civilization_count: 4,
             },
             super::super::defaults::default_map_generation_settings(),

@@ -73,6 +73,10 @@ impl super::Generator {
             })
     }
 
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "River placement consumes independent map fields, the legacy world choices and the deterministic RNG."
+    )]
     pub(super) fn place_rivers(
         &self,
         tiles: &mut [GeneratedTile],
@@ -80,6 +84,7 @@ impl super::Generator {
         temperature: &[i32],
         zone_temperature: Option<&TemperatureMap>,
         terrain_properties: Option<&[TerrainMapgenProperties]>,
+        legacy_world: Option<super::WorldSettings>,
         rng: &mut MapRng,
     ) {
         assert!(
@@ -91,9 +96,10 @@ impl super::Generator {
                 river_parameters(zone_temperature.settings, self.wrap.tile_count());
             (target, lowland)
         } else {
+            let legacy_world = legacy_world.expect("OpenSimplex rivers require world settings");
             (
-                6 * self.wrap.tile_count() * self.land_percent() as usize / 5325,
-                self.lowland(),
+                6 * self.wrap.tile_count() * legacy_world.land_percent() as usize / 5325,
+                legacy_world.lowland(),
             )
         };
         // Prefer upland springs for the first part of placement. Relax back

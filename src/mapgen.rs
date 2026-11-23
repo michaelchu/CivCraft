@@ -420,19 +420,23 @@ impl BoundedRandom for GameRng {
     }
 }
 
-impl Generator {
-    fn land_percent(&self) -> i32 {
-        100 - self.settings.ocean_coverage.percent()
+impl WorldSettings {
+    /// Land share of the map, in percent.
+    pub(crate) fn land_percent(self) -> i32 {
+        100 - self.ocean_coverage.percent()
     }
 
-    fn shore(&self) -> i32 {
-        1000 * self.settings.ocean_coverage.percent() / 100
+    /// Height threshold between water and land on the 0-1000 scale.
+    pub(crate) fn shore(self) -> i32 {
+        1000 * self.ocean_coverage.percent() / 100
     }
 
-    fn lowland(&self) -> i32 {
+    pub(crate) fn lowland(self) -> i32 {
         self.shore() + (1000 - self.shore()) * 28 / 100
     }
+}
 
+impl Generator {
     fn index(&self, x: i32, y: i32) -> usize {
         let (x, y) = self.wrap.normalize(x, y).expect("generator tile is real");
         self.wrap.index(x, y)
@@ -678,6 +682,7 @@ impl Generator {}
 impl Generator {
     pub(crate) fn generate(
         &self,
+        world: WorldSettings,
         game_seed: u64,
         map_seed: u32,
         gameplay_rng: GameRng,
@@ -686,7 +691,7 @@ impl Generator {
             game_seed,
             map_seed,
             gameplay_rng,
-            LandmassSource::OpenSimplex,
+            LandmassSource::OpenSimplex(world),
             None,
             None,
         )
@@ -703,7 +708,7 @@ impl Generator {
     ) -> GeneratedMap {
         let map_seed_u64 = u64::from(map_seed);
         let (mut relief, mut biome_field) = match landmass_source {
-            LandmassSource::OpenSimplex => {
+            LandmassSource::OpenSimplex(_) => {
                 // OpenCiv3 seeds its relief noise independently from the landmass
                 // field. Reuse the local deterministic field builder with its
                 // documented seed offset as an explicit implementation approximation.
@@ -722,19 +727,23 @@ impl Generator {
                 )
             }
         };
-        if matches!(landmass_source, LandmassSource::OpenSimplex) {
+        if matches!(landmass_source, LandmassSource::OpenSimplex(_)) {
             rank_field(&mut relief, 1000);
             rank_field(&mut biome_field, 1000);
         }
+        let legacy_world = match landmass_source {
+            LandmassSource::OpenSimplex(world) => Some(world),
+            LandmassSource::Fractal(..) => None,
+        };
         let mut attempt = 0_usize;
         let mut gameplay_rng = gameplay_rng;
         let mut current_map_seed = map_seed;
         let fractal_map_settings = match landmass_source {
-            LandmassSource::OpenSimplex => None,
+            LandmassSource::OpenSimplex(_) => None,
             LandmassSource::Fractal(settings, _, _) => Some(settings),
         };
         let start_temperature = match landmass_source {
-            LandmassSource::OpenSimplex => None,
+            LandmassSource::OpenSimplex(_) => None,
             LandmassSource::Fractal(map_settings, _, _) => {
                 Some(self.generate_temperature_map(false, None, None, map_settings))
             }
@@ -756,16 +765,15 @@ impl Generator {
             let mut rng = MapRng::new(water_seed);
             let (water_heights, heights, fractal_land_mask, ocean_coverage) = match landmass_source
             {
-                LandmassSource::OpenSimplex => {
-                    let mut field =
-                        self.height_field(water_seed, self.settings.landform.noise_scale());
+                LandmassSource::OpenSimplex(world) => {
+                    let mut field = self.height_field(water_seed, world.landform.noise_scale());
                     // Suppress land gradually toward the bounded polar edges before
                     // applying the water percentile. This keeps the requested ocean
                     // coverage while avoiding a hard, straight post-generation shelf.
                     self.taper_polar_landmass(&mut field, water_seed);
                     let mut heights = field.clone();
                     rank_field(&mut heights, 1000);
-                    (field, heights, None, self.settings.ocean_coverage.percent())
+                    (field, heights, None, world.ocean_coverage.percent())
                 }
                 LandmassSource::Fractal(map_settings, _water_depths, divisions) => {
                     let mut field = self.fractal_height_field(
@@ -786,7 +794,7 @@ impl Generator {
                 }
             };
             let zone_temperature = match landmass_source {
-                LandmassSource::OpenSimplex => None,
+                LandmassSource::OpenSimplex(_) => None,
                 LandmassSource::Fractal(map_settings, _, _) => Some(self.generate_temperature_map(
                     true,
                     Some(&heights),
@@ -803,6 +811,7 @@ impl Generator {
                 zone_temperature.as_ref(),
                 terrain_properties,
                 ocean_coverage,
+                legacy_world,
                 &mut rng,
             );
             if let LandmassSource::Fractal(map_settings, water_depths, _) = landmass_source {
@@ -843,10 +852,11 @@ impl Generator {
                 } else {
                     None
                 },
+                legacy_world,
                 &mut rng,
             );
             match landmass_source {
-                LandmassSource::OpenSimplex => {
+                LandmassSource::OpenSimplex(_) => {
                     self.finish_water(&mut terrain, &mut rng);
                 }
                 LandmassSource::Fractal(_, water_depths, _) => {
@@ -1073,7 +1083,8 @@ impl Generator {
 
 #[derive(Clone, Copy)]
 enum LandmassSource {
-    OpenSimplex,
+    /// Legacy OpenSimplex landmass; reads the Civ III world choices natively.
+    OpenSimplex(WorldSettings),
     /// Landmass from Freeciv's fractal generator.
     Fractal(MapGenerationSettings, OceanDepthSettings, i32),
 }
@@ -1150,7 +1161,6 @@ mod base_terrain_tests {
 
 struct Generator {
     wrap: MapWrap,
-    settings: WorldSettings,
     civilization_count: usize,
 }
 
@@ -1295,11 +1305,10 @@ impl MapGenerator for OpenSimplexMapGenerator {
         assert!((4..=16).contains(&civilization_count));
         let generator = Generator {
             wrap,
-            settings,
             civilization_count,
         };
-        let map = generator.generate(seed, map_seed, gameplay_rng);
-        finalize_polar_ocean_boundary(&generator, generator.shore(), map_seed, map, None)
+        let map = generator.generate(settings, seed, map_seed, gameplay_rng);
+        finalize_polar_ocean_boundary(&generator, settings.shore(), map_seed, map, None)
     }
 }
 
@@ -1325,7 +1334,6 @@ impl MapGenerator for FractalMapGenerator {
         } = FractalParameters::resolve(map_generation_settings, settings, civilization_count);
         let generator = Generator {
             wrap,
-            settings,
             civilization_count,
         };
         let shore = map_generation_settings.shore_level();

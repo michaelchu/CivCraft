@@ -194,7 +194,6 @@ mod tests {
     fn generator(wrap: MapWrap) -> Generator {
         Generator {
             wrap,
-            settings: WorldSettings::default(),
             civilization_count: crate::world::DEFAULT_CIVILIZATION_COUNT,
         }
     }
