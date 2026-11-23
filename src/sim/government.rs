@@ -105,6 +105,12 @@ impl Government {
         self.native_record()?.technology
     }
 
+    /// Conquests war-weariness rating: 0 none, 1 low, 2 high.
+    pub(crate) fn war_weariness(self) -> i32 {
+        self.native_record()
+            .map_or(0, |record| record.war_weariness)
+    }
+
     fn native_record(self) -> Option<&'static crate::rules::native::NativeGovernment> {
         crate::rules::native::governments().governments.get(self.0)
     }

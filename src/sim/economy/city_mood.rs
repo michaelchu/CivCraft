@@ -243,6 +243,26 @@ impl Simulation {
                 force_faces -= 1;
             }
         }
+        // War weariness is a Civ III mood penalty that luxury and content
+        // effects do not offset; only No_Unhappy (Shakespeare's Theater) does.
+        if effect(EffectKind::NoUnhappy) <= 0 {
+            let mut weary = self.city_war_weariness(city);
+            while weary > 0 && content > 0 {
+                content -= 1;
+                unhappy += 1;
+                weary -= 1;
+            }
+            while weary > 1 && happy > 0 {
+                happy -= 1;
+                unhappy += 1;
+                weary -= 2;
+            }
+            while weary > 0 && happy > 0 {
+                happy -= 1;
+                content += 1;
+                weary -= 1;
+            }
+        }
         drop(_profile);
 
         CitizenFeelingStages {

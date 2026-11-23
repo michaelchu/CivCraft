@@ -318,6 +318,14 @@ new records use the BIQ cost x5 as a provisional scale pending investigation
 unchanged. Civil Defense (+50% defense, needs Barracks) and Commercial Dock (+1
 trade on water tiles already producing trade, needs Harbor) follow the Pedia.
 The Pentagon era gate and culture rates are owner-authorized deviations.
+War weariness follows Civ III too (owner-directed 2026-11-23): the Conquests GOVT
+rating (Republic and Feudalism 1, Democracy 2, others 0) lives in
+`NativeGovernment::war_weariness`. A war records its start turn and declarer on
+the diplomatic `Relation`; `src/sim/war_weariness.rs` turns the rating into
+unhappy citizens after the final mood stage, so luxury and Make_Content effects
+cannot offset it (No_Unhappy can). Police Stations and Universal Suffrage each
+remove half. The Pedia gives no numbers, so the grace periods, per-turn rates
+and the 40-point full-unrest threshold there are provisional.
 Derive new unit properties the same way, once on `UnitRule`, rather than
 re-deriving them per consumer. This narrows the aircraft exception's statement
 that helicopters retain their existing rules; their capture rule follows Civ III.

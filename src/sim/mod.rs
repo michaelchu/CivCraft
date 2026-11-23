@@ -154,6 +154,7 @@ mod upkeep;
 mod uprisings;
 mod veterancy;
 mod villages;
+mod war_weariness;
 mod workers;
 mod worklist;
 pub(crate) use worklist::{WORKLIST_LIMIT, WorklistEdit};

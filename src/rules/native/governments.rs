@@ -24,6 +24,9 @@ pub(crate) struct NativeGovernment {
     pub(crate) city_free_units: i32,
     pub(crate) metropolis_free_units: i32,
     pub(crate) cost_per_excess_unit_gold: i32,
+    /// Conquests government "War Weariness" rating (BIQ GOVT field): 0 none,
+    /// 1 low (Republic, Feudalism), 2 high (Democracy).
+    pub(crate) war_weariness: i32,
 }
 
 /// One government as written in source, with named fields instead of the
@@ -38,6 +41,7 @@ struct GovernmentSpec {
     city_free_units: i32,
     metropolis_free_units: i32,
     cost_per_excess_unit_gold: i32,
+    war_weariness: i32,
 }
 
 /// Table order is the catalog order and is observable (UI lists, AI ties).
@@ -52,6 +56,7 @@ const GOVERNMENTS: &[GovernmentSpec] = &[
         city_free_units: 0,
         metropolis_free_units: 0,
         cost_per_excess_unit_gold: 1,
+        war_weariness: 0,
     },
     GovernmentSpec {
         government: "despotism",
@@ -63,6 +68,7 @@ const GOVERNMENTS: &[GovernmentSpec] = &[
         city_free_units: 4,
         metropolis_free_units: 4,
         cost_per_excess_unit_gold: 1,
+        war_weariness: 0,
     },
     GovernmentSpec {
         government: "monarchy",
@@ -74,6 +80,7 @@ const GOVERNMENTS: &[GovernmentSpec] = &[
         city_free_units: 4,
         metropolis_free_units: 8,
         cost_per_excess_unit_gold: 1,
+        war_weariness: 0,
     },
     GovernmentSpec {
         government: "communism",
@@ -85,6 +92,7 @@ const GOVERNMENTS: &[GovernmentSpec] = &[
         city_free_units: 6,
         metropolis_free_units: 6,
         cost_per_excess_unit_gold: 1,
+        war_weariness: 0,
     },
     GovernmentSpec {
         government: "republic",
@@ -96,6 +104,7 @@ const GOVERNMENTS: &[GovernmentSpec] = &[
         city_free_units: 3,
         metropolis_free_units: 4,
         cost_per_excess_unit_gold: 2,
+        war_weariness: 1,
     },
     GovernmentSpec {
         government: "democracy",
@@ -107,6 +116,7 @@ const GOVERNMENTS: &[GovernmentSpec] = &[
         city_free_units: 0,
         metropolis_free_units: 0,
         cost_per_excess_unit_gold: 1,
+        war_weariness: 2,
     },
     GovernmentSpec {
         government: "fascism",
@@ -118,6 +128,7 @@ const GOVERNMENTS: &[GovernmentSpec] = &[
         city_free_units: 7,
         metropolis_free_units: 10,
         cost_per_excess_unit_gold: 1,
+        war_weariness: 0,
     },
     GovernmentSpec {
         government: "feudalism",
@@ -129,6 +140,7 @@ const GOVERNMENTS: &[GovernmentSpec] = &[
         city_free_units: 2,
         metropolis_free_units: 1,
         cost_per_excess_unit_gold: 3,
+        war_weariness: 1,
     },
 ];
 
@@ -144,6 +156,7 @@ impl From<&GovernmentSpec> for NativeGovernment {
             city_free_units: spec.city_free_units,
             metropolis_free_units: spec.metropolis_free_units,
             cost_per_excess_unit_gold: spec.cost_per_excess_unit_gold,
+            war_weariness: spec.war_weariness,
         }
     }
 }

@@ -252,6 +252,13 @@ impl Simulation {
     pub(super) fn set_pact_state(&mut self, a: usize, b: usize, proposed: Pact, until: i32) {
         let previous = self.contacted_pact(a, b);
         let relation = self.diplomacy.entry(Self::relation_key(a, b)).or_default();
+        if proposed == Pact::War && relation.pact != Pact::War {
+            relation.war_since = Some(self.turn);
+            relation.war_aggressor = None;
+        } else if proposed != Pact::War {
+            relation.war_since = None;
+            relation.war_aggressor = None;
+        }
         relation.pact = proposed;
         relation.until = until;
         relation.offer = None;
@@ -378,6 +385,13 @@ impl Simulation {
             0
         };
         relation.offer = None;
+        if pact == Pact::Alliance {
+            relation.war_since = None;
+            relation.war_aggressor = None;
+        } else {
+            relation.war_since = Some(self.turn);
+            relation.war_aggressor = Some(owner);
+        }
         relation.cause_until[usize::from(owner > other)] = 0;
         self.trace_diplomacy(
             owner,

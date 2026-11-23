@@ -343,6 +343,12 @@ pub(super) struct Relation {
     military_plans_until: [i32; 2],
     /// Earliest turn for another proactive economic evaluation of this pair.
     offer_after: i32,
+    /// Turn the current war began, if it began by a recorded transition.
+    #[serde(default)]
+    pub(super) war_since: Option<i32>,
+    /// Nation that declared the current war; `None` for a war it was drawn into.
+    #[serde(default)]
+    pub(super) war_aggressor: Option<usize>,
 }
 
 #[cfg(any(test, feature = "scenarios"))]
