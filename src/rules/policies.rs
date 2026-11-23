@@ -259,7 +259,7 @@ pub(crate) fn default_diplomacy() -> DiplomacyCatalog {
     let interests = BTreeMap::from([
         (
             "agricultural".to_owned(),
-            list(&["Pottery", "Construction", "Sanitation", "Refrigeration"]),
+            list(&["Pottery", "Construction", "Sanitation"]),
         ),
         (
             "commercial".to_owned(),
@@ -513,4 +513,26 @@ pub(crate) fn parse_religion(
         }
     }
     Ok(r)
+}
+
+#[cfg(test)]
+mod technology_name_tests {
+    use super::*;
+    use crate::rules::Tech;
+
+    /// Policy lists match `Tech::name()` exactly, so a name that is not a Civ III
+    /// advance would silently never match. Every listed name must be real.
+    #[test]
+    fn diplomacy_policy_names_only_civ3_advances() {
+        let policy = default_diplomacy();
+        let names = policy
+            .victory_technologies
+            .iter()
+            .chain(policy.interests.values().flatten());
+        for name in names {
+            let tech = Tech::from_name(name)
+                .unwrap_or_else(|| panic!("{name:?} is not a Civ III advance"));
+            assert_eq!(tech.name(), name, "use the advance's display name");
+        }
+    }
 }

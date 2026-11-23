@@ -573,9 +573,9 @@ impl Simulation {
                 continue;
             };
             // find_nearest_safe_city is a name, not a threat filter: safety
-            // remains native's TODO. Sea/Trireme HP_Regen comes from the port.
+            // remains native's TODO. Civ III: a Harbor heals sea units fully.
             let regeneration = if unit.kind.is_naval() {
-                city.has_building(Building::PORT_FACILITY)
+                city.has_building(Building::HARBOR)
             } else if unit.kind.is_aircraft() {
                 city.has_building(Building::AIRPORT)
             } else {

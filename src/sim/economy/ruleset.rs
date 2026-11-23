@@ -593,32 +593,25 @@ impl Simulation {
         .clamp(0, 100)
     }
 
+    /// Civ III city size caps: 6 without an Aqueduct, 12 with one (a city beside
+    /// fresh water, a river or lake, never needs it), and 16 with a Hospital or
+    /// Shakespeare's Theater (Conquests Civilopedia).
     pub(in crate::sim) fn city_size_limit_from_ruleset(&self, city: &City) -> i32 {
-        let government = self.players[city.owner].government;
-        if self.city_rule_effect(
-            city,
-            EffectKind::SizeUnlimit,
-            None,
-            None,
-            None,
-            false,
-            government,
-            None,
-        ) > 0
+        if city.has_building(Building::HOSPITAL)
+            || city.has_building(Building::SHAKESPEARES_THEATER)
         {
-            i32::MAX
+            return 16;
+        }
+        let fresh_water = std::iter::once((city.x, city.y))
+            .chain(self.map_wrap.eight_way_neighbors(city.x, city.y))
+            .any(|(x, y)| {
+                let tile = self.tile(x, y);
+                tile.river || tile.terrain == Terrain::Lake
+            });
+        if fresh_water || city.has_building(Building::AQUEDUCT) {
+            12
         } else {
-            self.city_rule_effect(
-                city,
-                EffectKind::SizeAdj,
-                None,
-                None,
-                None,
-                false,
-                government,
-                None,
-            )
-            .max(1)
+            6
         }
     }
 

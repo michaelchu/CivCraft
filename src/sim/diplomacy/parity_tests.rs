@@ -69,23 +69,6 @@ fn audit_reference_worldmap_cost_doubles_during_ceasefire() {
 
 /// Mirrors Freeciv behavior.
 #[test]
-fn audit_reference_effect_embassy_requires_prior_contact() {
-    let mut game = peaceful_fixture();
-    game.diplomacy.remove(&(HUMAN, 2));
-    game.cities
-        .iter_mut()
-        .find(|c| c.owner == HUMAN)
-        .unwrap()
-        .buildings
-        .push(Building::MARCO_POLOS_EMBASSY);
-    assert!(
-        !game.has_embassy(HUMAN, 2),
-        "Freeciv player_has_embassy_from_effect excludes DS_NO_CONTACT until Have_Contacts executes"
-    );
-}
-
-/// Mirrors Freeciv behavior.
-#[test]
 fn audit_reference_city_offer_can_reveal_an_unknown_owned_city() {
     let mut game = peaceful_fixture();
     game.create_city(HUMAN, 4, 20);

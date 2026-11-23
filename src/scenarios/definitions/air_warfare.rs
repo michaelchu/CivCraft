@@ -194,7 +194,7 @@ fn setup_counter_defense(
         for (idx, city_id) in rome_cities.iter().copied().enumerate() {
             world.city_workers(city_id, 6);
             let mut buildings = vec![
-                Building::BARRACKS_III,
+                Building::BARRACKS,
                 Building::FACTORY,
                 Building::AIRPORT,
                 Building::MARKETPLACE,
@@ -208,7 +208,7 @@ fn setup_counter_defense(
         for (idx, city_id) in germany_cities.iter().copied().enumerate() {
             world.city_workers(city_id, 6);
             let mut buildings = vec![
-                Building::BARRACKS_III,
+                Building::BARRACKS,
                 Building::FACTORY,
                 Building::AIRPORT,
                 Building::MARKETPLACE,
@@ -434,7 +434,7 @@ fn setup_air_warfare(map: GeneratedMap) -> (Simulation, Box<dyn ScenarioRun>) {
         ] {
             world.city_workers(city_id, 6);
             let mut buildings = vec![
-                Building::BARRACKS_III,
+                Building::BARRACKS,
                 Building::FACTORY,
                 Building::AIRPORT,
                 Building::MARKETPLACE,
@@ -446,7 +446,6 @@ fn setup_air_warfare(map: GeneratedMap) -> (Simulation, Box<dyn ScenarioRun>) {
             }
             if coastal {
                 buildings.push(Building::HARBOR);
-                buildings.push(Building::PORT_FACILITY);
             }
             if has_sam {
                 buildings.push(Building::SAM_BATTERY);

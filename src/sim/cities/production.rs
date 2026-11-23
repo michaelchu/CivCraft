@@ -127,9 +127,6 @@ impl Simulation {
             return;
         };
         self.release_city_support(city_id);
-        if self.cities[index].has_building(Building::PALACE) {
-            self.lose_spaceship(self.cities[index].owner);
-        }
         let removed = self.cities.remove(index);
         self.trace
             .city_destroyed(self.turn, &removed, lifecycle::CityRemoval::Upkeep, None);
@@ -178,8 +175,6 @@ impl Simulation {
                 (city.size >= 2, Building::LIBRARY),
                 (city.size >= 3, Building::MARKETPLACE),
                 (city.size >= 7, Building::AQUEDUCT),
-                (city.size >= 7, Building::AQUEDUCT_RIVER),
-                (city.size >= 7, Building::AQUEDUCT_LAKE),
             ] {
                 if wanted && self.building_blocker(city, building).is_none() {
                     return Production::Building(building);
@@ -437,9 +432,6 @@ impl Simulation {
             }
             if growth == Growth::Destroyed {
                 self.release_city_support(city_id);
-                if self.cities[index].has_building(Building::PALACE) {
-                    self.lose_spaceship(snapshot.owner);
-                }
                 let removed = self.cities.remove(index);
                 self.trace.city_destroyed(
                     self.turn,

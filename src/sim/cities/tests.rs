@@ -1,6 +1,5 @@
 //! Regression tests for the behavior of the parent module.
 
-use super::production::Growth;
 use super::*;
 
 #[test]
@@ -728,11 +727,10 @@ fn desert_farmland_needs_a_food_bonus_and_supermarket_applies_to_worked_tiles() 
     game.cities[0].worked_tiles = vec![(fx, fy)];
     let center_food = game.tile(x, y).yields().0 + game.tile(x, y).irrigation_food();
     let farm_food = game.tile(fx, fy).yields().0;
-    assert_eq!(game.city_yields(&game.cities[0]).0, center_food + farm_food);
-    game.cities[0].buildings.push(Building::SUPERMARKET);
+    // Civ III farmland adds half again its food on its own, with no building.
     assert_eq!(
         game.city_yields(&game.cities[0]).0,
-        center_food + center_food / 2 + farm_food + farm_food / 2
+        center_food + farm_food + farm_food / 2
     );
 
     assert!(game.apply(Command::Work(worker, WorkKind::Mine)));
@@ -771,69 +769,55 @@ fn production_uses_population_before_growth() {
     );
 }
 
+/// Clears every river and lake from a city's neighborhood so size caps apply.
+fn dry_city_site(game: &mut Simulation, x: i32, y: i32) {
+    for (tx, ty) in std::iter::once((x, y)).chain(game.map_wrap.eight_way_neighbors(x, y)) {
+        let tile = game.tile_mut(tx, ty);
+        tile.river = false;
+        if tile.terrain == Terrain::Lake {
+            tile.terrain = Terrain::Grassland;
+        }
+    }
+}
+
 #[test]
 fn completed_aqueduct_allows_growth_in_the_same_turn() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     game.create_city(HUMAN, 10, 20);
-    let (x, y) = offset_native_by_map(10, 20, 1, 0);
-    game.tile_mut(x, y).terrain = Terrain::Lake;
+    dry_city_site(&mut game, 10, 20);
     let id = game.cities[0].id;
-    let target = Production::Building(Building::AQUEDUCT_LAKE);
-    game.cities[0].size = 8;
-    game.cities[0].food = Simulation::growth_box(8) + 20;
+    game.discover(HUMAN, Tech::CONSTRUCTION);
+    let target = Production::Building(Building::AQUEDUCT);
+    game.cities[0].size = 6;
+    game.cities[0].food = Simulation::growth_box(6) + 20;
     assert!(game.apply(Command::Produce(id, target)));
     game.cities[0].shields = target.cost();
     game.process_cities();
-    assert!(game.cities[0].has_building(Building::AQUEDUCT_LAKE));
-    assert_eq!(game.cities[0].size, 9);
+    assert!(game.cities[0].has_building(Building::AQUEDUCT));
+    assert_eq!(game.cities[0].size, 7);
 }
 
+/// Civ III Conquests Civilopedia: Aqueduct beyond 6, Hospital or Shakespeare's
+/// Theater beyond 12, and a city beside a river or lake never needs an Aqueduct.
 #[test]
-fn sewer_system_allows_growth_past_size_sixteen() {
+fn civ3_city_size_caps_follow_aqueduct_hospital_and_fresh_water() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     game.cities.clear();
     game.create_city(HUMAN, 10, 20);
+    dry_city_site(&mut game, 10, 20);
+    assert_eq!(game.city_size_limit(&game.cities[0]), 6);
+    game.cities[0].buildings.push(Building::AQUEDUCT);
+    assert_eq!(game.city_size_limit(&game.cities[0]), 12);
+    game.cities[0].buildings.push(Building::HOSPITAL);
+    assert_eq!(game.city_size_limit(&game.cities[0]), 16);
+    game.cities[0].buildings.clear();
     game.cities[0]
         .buildings
-        .extend([Building::AQUEDUCT, Building::SEWER_SYSTEM]);
-
-    let mut growth_sizes = vec![game.cities[0].size];
-    for _ in 0..100 {
-        let city = game.cities[0].clone();
-        let limit = game.city_size_limit(&city);
-        let growth_retained = game.growth_food_retained(&city);
-        let shrink_retained = game.shrink_food_retained(&city);
-        if game.cities[0].resolve_growth(
-            game.map_wrap,
-            10,
-            limit,
-            growth_retained,
-            shrink_retained,
-            false,
-            false,
-        ) == Growth::Grew
-        {
-            growth_sizes.push(game.cities[0].size);
-        }
-        if game.cities[0].size == 17 {
-            break;
-        }
-    }
-    assert_eq!(growth_sizes, (1..=17).collect::<Vec<_>>());
-    assert_eq!(game.cities[0].size, 17);
-}
-
-/// Mirrors the civ2civ3 ruleset behavior.
-#[test]
-fn ruleset_city_growth_limits_come_from_size_effects() {
-    let mut game = Simulation::new(crate::test_support::seeded_map());
-    game.cities.clear();
-    game.create_city(HUMAN, 10, 20);
-    assert_eq!(game.city_size_limit(&game.cities[0]), 8);
-    game.cities[0].buildings.push(Building::AQUEDUCT);
+        .push(Building::SHAKESPEARES_THEATER);
     assert_eq!(game.city_size_limit(&game.cities[0]), 16);
-    game.cities[0].buildings.push(Building::SEWER_SYSTEM);
-    assert_eq!(game.city_size_limit(&game.cities[0]), i32::MAX);
+    game.cities[0].buildings.clear();
+    game.tile_mut(10, 20).river = true;
+    assert_eq!(game.city_size_limit(&game.cities[0]), 12);
 }
 
 #[test]

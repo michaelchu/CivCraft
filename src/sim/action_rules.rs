@@ -437,19 +437,7 @@ impl<'a> SimulationRequirementContext<'a> {
             Some(ResolvedRequirementValue::Tech(tech)) => tech,
             _ => match &requirement.name {
                 RequirementValue::String(name) => {
-                    match crate::rules::content_adapter::bind_engine_technology(name)
-                        .map_err(|_| Self::unsupported(requirement))?
-                    {
-                        crate::rules::content_adapter::EngineTechBinding::Bound(tech) => tech,
-                        crate::rules::content_adapter::EngineTechBinding::MissingFromCatalog => {
-                            if self.unbound_content_is_absent {
-                                return Ok(false);
-                            }
-                            // A Freeciv-only technology has no Civ III player-state
-                            // identity and therefore cannot satisfy a native requirement.
-                            return Err(Self::unsupported(requirement));
-                        }
-                    }
+                    Tech::from_name(name).ok_or_else(|| Self::unsupported(requirement))?
                 }
                 _ => return Err(Self::unsupported(requirement)),
             },
@@ -550,11 +538,7 @@ impl<'a> SimulationRequirementContext<'a> {
     ) -> Result<bool, RequirementEvaluationError> {
         let flag = Self::string_name(requirement)?;
         let mapped = if flag.eq_ignore_ascii_case("Barracks") {
-            vec![
-                Building::BARRACKS,
-                Building::BARRACKS_II,
-                Building::BARRACKS_III,
-            ]
+            vec![Building::BARRACKS]
         } else {
             if self.unbound_content_is_absent {
                 return Ok(false);
@@ -2510,9 +2494,6 @@ mod tests {
         game.players[crate::sim::HUMAN]
             .known
             .retain(|tech| *tech != Tech::ENGINEERING);
-        game.players[crate::sim::HUMAN]
-            .known
-            .push(Tech::BRIDGE_BUILDING);
         assert!(
             !game
                 .work_action_available(worker, WorkKind::Road, (x, y))
@@ -2623,11 +2604,11 @@ mod tests {
 
     /// Mirrors the civ2civ3 ruleset and Civ III behavior.
     #[test]
-    fn ruleset_machine_tools_requirement_uses_the_native_robotics_advance() {
+    fn ruleset_tech_requirement_is_satisfied_by_the_named_civ3_advance() {
         let mut game = flat_game();
         let requirement = Requirement {
             kind: RequirementKind::Tech,
-            name: RequirementValue::String("Machine Tools".to_owned()),
+            name: RequirementValue::String("Robotics".to_owned()),
             resolved: None,
             range: RequirementRange::Player,
             present: true,
@@ -2641,16 +2622,9 @@ mod tests {
             },
         };
 
-        game.players[crate::sim::HUMAN]
-            .known
-            .push(Tech::MACHINE_TOOLS);
-        let stale_alias =
-            SimulationRequirementContext::for_player_at(&game, crate::sim::HUMAN, None);
-        assert!(!stale_alias.is_present(&requirement).unwrap());
+        let before = SimulationRequirementContext::for_player_at(&game, crate::sim::HUMAN, None);
+        assert!(!before.is_present(&requirement).unwrap());
 
-        game.players[crate::sim::HUMAN]
-            .known
-            .retain(|tech| *tech != Tech::MACHINE_TOOLS);
         game.players[crate::sim::HUMAN].known.push(Tech::ROBOTICS);
         let native_context =
             SimulationRequirementContext::for_player_at(&game, crate::sim::HUMAN, None);
@@ -2897,16 +2871,16 @@ mod tests {
         game.spawn_unit(crate::sim::HUMAN, UnitKind::Worker, 10, 20);
         game.spawn_unit(1, UnitKind::Warrior, 12, 20);
         game.players[1].ai = false;
-        // C2C3 calls this advance "Superconductors"; the Civ III catalog
+        // C2C3 calls this advance "Superconductor"; the Civ III catalog
         // identity is singular, so resolution must go through the selected
         // Freeciv content record and its explicit source binding.
-        let tech = Tech::SUPERCONDUCTORS;
+        let tech = Tech::SUPERCONDUCTOR;
         game.global_advances.retain(|&known| known != tech);
         game.discover(1, tech);
 
         let requirement = |range, survives| Requirement {
             kind: RequirementKind::Tech,
-            name: RequirementValue::String("Superconductors".to_owned()),
+            name: RequirementValue::String("Superconductor".to_owned()),
             resolved: None,
             range,
             present: true,

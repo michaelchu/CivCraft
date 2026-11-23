@@ -283,18 +283,7 @@ impl Game {
                     self.sim.apply(Command::HomeCity(id));
                 }
             }
-            UiAction::LaunchSpaceship => {
-                if self.sim.apply(Command::LaunchSpaceship) {
-                    self.overlay.close(Overlay::Spaceship);
-                }
-            }
             UiAction::ToggleSpaceship => self.overlay.toggle(Overlay::Spaceship),
-            UiAction::ToggleManualAssembly => {
-                self.sim.apply(Command::ToggleManualAssembly);
-            }
-            UiAction::PlaceShipPart(part) => {
-                self.sim.apply(Command::PlaceShipPart { part });
-            }
             UiAction::EndTurn => self.start_background_turn(),
             UiAction::CloseCity => {
                 self.selected_city = None;

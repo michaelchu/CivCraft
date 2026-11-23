@@ -87,13 +87,16 @@ fn counter_defender_selection_accounts_for_attacker_class_and_naval_city_penalty
     let city = &game.cities[0];
     let air = game.make_unit(0, 1, UnitKind::Fighter, city.x, city.y);
     let land = game.make_unit(0, 1, UnitKind::Swordsman, city.x, city.y);
+    // Only anti-air units counter aircraft; no ground unit is ever the answer.
     assert_eq!(
         game.defender_versus(city, &air).unwrap().kind,
         UnitKind::AegisCruiser
     );
+    // Against a land attacker the standing land defender is chosen; ships get
+    // no fortify bonus in port.
     assert_eq!(
         game.defender_versus(city, &land).unwrap().kind,
-        UnitKind::AegisCruiser
+        UnitKind::Musketman
     );
     assert!(
         game.production_city_defender(city, 100)
@@ -102,6 +105,74 @@ fn counter_defender_selection_accounts_for_attacker_class_and_naval_city_penalty
                     || super::super::action_rules::unit_has_role(kind, "DefendOk")
             )
     );
+}
+
+fn island_city_with_known(known: Vec<Tech>) -> Simulation {
+    let mut game = Simulation::new(crate::test_support::seeded_map());
+    game.units.clear();
+    game.cities.clear();
+    for tile in &mut game.tiles {
+        tile.terrain = Terrain::Sea;
+    }
+    game.tile_mut(10, 24).terrain = Terrain::Grassland;
+    game.create_city(HUMAN, 10, 24);
+    game.players[HUMAN].known = known;
+    // Connect the strategic resources the units below need.
+    for (step, terrain, resource) in [
+        (-1, Terrain::Hills, Resource::Aluminum),
+        (-2, Terrain::Mountains, Resource::Uranium),
+        (-3, Terrain::Desert, Resource::Saltpeter),
+    ] {
+        let (x, y) = offset_native_by_map(10, 24, step, 0);
+        let tile = game.tile_mut(x, y);
+        tile.terrain = terrain;
+        tile.owner = Some(HUMAN);
+        tile.resource = Some(resource);
+        tile.road = true;
+    }
+    game
+}
+
+#[test]
+fn counter_defender_is_never_older_than_the_newest_dedicated_defender() {
+    let game = island_city_with_known(vec![Tech::BRONZE_WORKING, Tech::GUNPOWDER]);
+    let city = &game.cities[0];
+    let land = game.make_unit(0, 1, UnitKind::Swordsman, city.x, city.y);
+    // Without connected Iron a Warrior is still buildable and cheap, but a
+    // Musketman (Middle Ages defender) must replace it as the counter.
+    assert!(UnitKind::Musketman.era() > UnitKind::Warrior.era());
+    assert!(game.unit_buildable(city, UnitKind::Warrior));
+    assert!(game.unit_buildable(city, UnitKind::Musketman));
+    let floor = UnitKind::Musketman.era();
+    let pick = game.defender_versus(city, &land).unwrap().kind;
+    assert!(pick.era() >= floor, "{pick:?}");
+    assert_ne!(pick, UnitKind::Warrior);
+}
+
+#[test]
+fn newer_offensive_units_do_not_remove_the_standing_defender() {
+    // Invention unlocks Longbowman/Berserk (Offense role) but no new defender:
+    // the Ancient Spearman remains a valid counter and a counter still exists.
+    let game = island_city_with_known(vec![Tech::BRONZE_WORKING, Tech::INVENTION]);
+    let city = &game.cities[0];
+    let land = game.make_unit(0, 1, UnitKind::Swordsman, city.x, city.y);
+    assert!(game.unit_buildable(city, UnitKind::Spearman));
+    assert!(game.defender_versus(city, &land).is_some());
+}
+
+#[test]
+fn counter_defender_versus_aircraft_is_never_a_ground_unit() {
+    let air = |game: &Simulation| {
+        let city = &game.cities[0];
+        game.make_unit(0, 1, UnitKind::Fighter, city.x, city.y)
+    };
+    // Without any anti-air unit available there is no counter at all.
+    let game = island_city_with_known(vec![Tech::BRONZE_WORKING, Tech::GUNPOWDER]);
+    assert!(game.defender_versus(&game.cities[0], &air(&game)).is_none());
+    // With an anti-air option, the pick can always answer aircraft.
+    let game = island_city_with_known(vec![Tech::BRONZE_WORKING, Tech::GUNPOWDER, Tech::ROBOTICS]);
+    let pick = game.defender_versus(&game.cities[0], &air(&game)).unwrap();
+    assert!(pick.kind.can_counter_air(), "{:?}", pick.kind);
 }
 
 #[test]

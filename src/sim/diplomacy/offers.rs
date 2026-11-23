@@ -33,7 +33,7 @@ impl Simulation {
                 city.owner == seller
                     && (seller == HUMAN || self.tile(city.x, city.y).known_by[receiver])
                     && !city.has_building(Building::PALACE)
-                    && !city.has_building(Building::ECCLESIASTICAL_PALACE)
+                    && !city.has_building(Building::FORBIDDEN_PALACE)
             })
             .map(|city| city.id)
             .collect()
@@ -277,7 +277,7 @@ impl Simulation {
                         city.id != id
                             || city.owner != giver
                             || city.has_building(Building::PALACE)
-                            || city.has_building(Building::ECCLESIASTICAL_PALACE)
+                            || city.has_building(Building::FORBIDDEN_PALACE)
                     })
                 })
                 || terms.gold < 0

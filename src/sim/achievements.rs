@@ -34,7 +34,7 @@ struct Achievement {
 /// In evaluation order. Freeciv iterates achievements first, then players.
 const ACHIEVEMENTS: [Achievement; 8] = [
     Achievement {
-        name: "Spaceship Launch",
+        name: "Spaceship Completed",
         kind: AchievementKind::Spaceship,
         unique: false,
         value: 0,
@@ -172,7 +172,7 @@ impl Simulation {
         labels: &[usize],
     ) -> bool {
         match achievement.kind() {
-            AchievementKind::Spaceship => self.spaceships[owner].launched(),
+            AchievementKind::Spaceship => self.spaceships[owner].complete(),
             AchievementKind::MapKnown => self.map_known_at_percent(owner, achievement.value()),
             AchievementKind::Multicultural => {
                 let value = achievement.value();
@@ -292,7 +292,7 @@ mod tests {
     #[test]
     fn achievement_rewards_and_thresholds_match_the_pinned_ruleset() {
         assert_eq!(ACHIEVEMENTS.len(), 8);
-        assert_eq!(achievement("Spaceship Launch").culture(), 5000);
+        assert_eq!(achievement("Spaceship Completed").culture(), 5000);
         assert_eq!(achievement("Entire Map Known").value(), 100);
         assert_eq!(achievement("Land Ahoy").value(), 2);
         assert_eq!(achievement("Metropolis").value(), 20);

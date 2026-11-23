@@ -204,7 +204,7 @@ impl Simulation {
         self.cities[0].shields = 0;
         // Isolate the defender recruitment choice from the native veteran
         // training-building stage, which can replace a sub-emergency bid.
-        self.cities[0].buildings.push(Building::BARRACKS_II);
+        self.cities[0].buildings.push(Building::BARRACKS);
         self.spawn_unit(1, UnitKind::Warrior, x, y);
         self.cities[0].production = Production::Building(Building::GRANARY);
         let no_emergency_bid = self.native_city_defense_choice(&self.cities[0]).0.is_none();

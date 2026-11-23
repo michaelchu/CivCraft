@@ -3,20 +3,13 @@
 use super::*;
 use std::collections::BTreeMap;
 
-const PART_INFRASTRUCTURE: [Building; 4] = [
-    Building::FACTORY,
-    Building::LIBRARY,
-    Building::UNIVERSITY,
-    Building::RESEARCH_LAB,
-];
-
 impl Simulation {
     pub(in crate::sim) fn space_production_plan(
         &self,
         owner: usize,
     ) -> Option<BTreeMap<u32, Building>> {
         let ship = &self.spaceships[owner];
-        if ship.launched() || !self.ai_space_commitment(owner) {
+        if ship.complete() || !self.ai_space_commitment(owner) {
             return None;
         }
         let mut sites: Vec<_> = self
@@ -33,7 +26,7 @@ impl Simulation {
             .collect();
         // A ship already in progress (or after Apollo is completed) can fall
         // back to slower sites if no city reaches the ideal shield threshold.
-        if (!self.apollo_completed && ship.built == [0; 3])
+        if (!self.apollo_completed && !ship.started())
             || sites
                 .iter()
                 .any(|&(_, shields)| shields >= ai_strategy::space_min_city_shields())
@@ -66,7 +59,7 @@ impl Simulation {
             plan.insert(city.id, Building::APOLLO_PROGRAM);
         }
 
-        let mut remaining = std::array::from_fn::<_, 3, _>(|part| {
+        let mut remaining = std::array::from_fn::<_, 10, _>(|part| {
             spaceship::SPACE_PART_PROJECTS[part]
                 .1
                 .saturating_sub(ship.built[part])
@@ -74,17 +67,6 @@ impl Simulation {
         let mut available = Vec::new();
         for (city, _) in sites {
             if plan.contains_key(&city.id) {
-                continue;
-            }
-            if let Some(building) = PART_INFRASTRUCTURE
-                .into_iter()
-                .find(|&required| !city.has_building(required))
-            {
-                if !strategy.economic_crisis
-                    && self.can_change_production(city, Production::Building(building))
-                {
-                    plan.insert(city.id, building);
-                }
                 continue;
             }
             if !self.apollo_completed {

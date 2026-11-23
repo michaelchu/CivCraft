@@ -3,7 +3,7 @@
 use super::*;
 
 #[test]
-fn military_training_scales_with_army_but_not_when_next_tech_obsoletes_it() {
+fn military_training_scales_with_army_and_barracks_never_become_obsolete() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.create_city(1, 10, 24);
@@ -21,12 +21,9 @@ fn military_training_scales_with_army_but_not_when_next_tech_obsoletes_it() {
         game.research_path(1, Tech::GUNPOWDER),
         vec![Tech::GUNPOWDER]
     );
-    // Only Gunpowder remains; the Civ III barracks becomes obsolete when it
-    // is discovered, so Freeciv's advisor subtracts the entire want.
-    assert_eq!(
-        game.domestic_improvement_want(&city, Building::BARRACKS),
-        0.0
-    );
+    // Only Gunpowder remains. Civ III Barracks never become obsolete, so
+    // discovering it must not remove the want.
+    assert!(game.domestic_improvement_want(&city, Building::BARRACKS) > 0.0);
 }
 
 #[test]
@@ -62,7 +59,7 @@ fn production_defender_requires_defense_role_and_is_stable_under_training() {
         super::super::action_rules::unit_has_role(untrained, "DefendGood")
             || super::super::action_rules::unit_has_role(untrained, "DefendOk")
     );
-    game.cities[0].buildings.push(Building::BARRACKS_II);
+    game.cities[0].buildings.push(Building::BARRACKS);
     assert_eq!(
         choose(&game),
         untrained,

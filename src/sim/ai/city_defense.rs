@@ -570,7 +570,7 @@ impl Simulation {
         let origin = (10, 24);
         let target = offset_native_by_map(origin.0, origin.1, 5, 0);
         self.create_city(HUMAN, target.0, target.1);
-        self.cities[0].buildings.push(Building::BARRACKS_II);
+        self.cities[0].buildings.push(Building::BARRACKS);
         self.players[HUMAN].known = vec![Tech::GUNPOWDER];
         // Musketman requires connected Saltpeter in the Conquests roster.
         let center = self.tile_mut(target.0, target.1);
@@ -597,7 +597,7 @@ impl Simulation {
             u.id != guard
                 && self.unit_buildable(city, u.kind)
                 && u.veteran > 0
-                && u.hp == u.kind.stats().hp
+                && u.hp >= u.kind.stats().hp
         });
         immediate && musketman_buildable && prepared
     }

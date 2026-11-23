@@ -79,15 +79,12 @@ fn setup(map: GeneratedMap) -> (Simulation, Box<dyn ScenarioRun>) {
     world.city_buildings(c_rome_silo, &[Building::PALACE, Building::AIRPORT]);
     world.city_buildings(c_rome_front, &[Building::AIRPORT]);
     world.city_buildings(c_rome_sdi, &[Building::SDI_DEFENSE]);
-    world.city_buildings(
-        c_ger_front,
-        &[Building::BARRACKS_III, Building::MARKETPLACE],
-    );
+    world.city_buildings(c_ger_front, &[Building::BARRACKS, Building::MARKETPLACE]);
     world.city_buildings(
         c_ger_target,
         &[
             Building::PALACE,
-            Building::BARRACKS_III,
+            Building::BARRACKS,
             Building::MARKETPLACE,
             Building::LIBRARY,
             Building::TEMPLE,
@@ -97,7 +94,7 @@ fn setup(map: GeneratedMap) -> (Simulation, Box<dyn ScenarioRun>) {
     // Keep Germany without SDI Defense so Rome's ICBM and Tactical Nuke
     // deterministically detonate and create fallout, while Rome's empire-wide
     // SDI Small Wonder intercepts Germany's incoming ICBMs.
-    world.city_buildings(c_ger_rear, &[Building::BARRACKS_III]);
+    world.city_buildings(c_ger_rear, &[Building::BARRACKS]);
 
     world.unit(ROME, UnitKind::MechInfantry, rome_silo);
     world.unit(ROME, UnitKind::MechInfantry, rome_front);

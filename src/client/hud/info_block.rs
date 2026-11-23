@@ -97,7 +97,6 @@ mod tests {
             research_points: 12,
             research_cost: 30,
             spaceship_status: None,
-            can_launch_spaceship: false,
         };
         assert_eq!(
             info_cells(&view),

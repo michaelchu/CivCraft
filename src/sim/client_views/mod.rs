@@ -59,7 +59,6 @@ pub(crate) struct TopBarView {
     pub(crate) research_points: i32,
     pub(crate) research_cost: i32,
     pub(crate) spaceship_status: Option<String>,
-    pub(crate) can_launch_spaceship: bool,
 }
 
 pub(crate) struct GovernmentView {
@@ -123,18 +122,9 @@ pub(crate) struct TreatySideView {
 }
 
 pub(crate) struct SpaceshipAssemblyView {
-    pub(crate) unplaced: [usize; 3],
-    pub(crate) structure: [bool; 32],
-    pub(crate) components: [usize; 2],
-    pub(crate) modules: [usize; 3],
-    pub(crate) manual: bool,
     pub(crate) status: String,
-    pub(crate) can_launch: bool,
-    pub(crate) can_toggle_manual: bool,
-    pub(crate) structural_parents: [usize; 32],
-    pub(crate) structural_enabled: [bool; 32],
-    pub(crate) component_enabled: [bool; 2],
-    pub(crate) module_enabled: [bool; 3],
+    /// The ten Civ III components and whether each has been built.
+    pub(crate) parts: Vec<(&'static str, bool)>,
 }
 
 #[derive(Clone)]
@@ -715,7 +705,6 @@ mod tests {
             sim.target_cost(HUMAN, player.researching)
         );
         assert_eq!(view.spaceship_status, sim.spaceship_status(HUMAN));
-        assert_eq!(view.can_launch_spaceship, sim.can_launch_spaceship(HUMAN));
         assert!(sim.top_bar_view(usize::MAX).is_none());
     }
 

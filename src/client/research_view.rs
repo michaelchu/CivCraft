@@ -307,11 +307,9 @@ fn research_unlock_detail(tech: Tech) -> String {
     let mut unlocks = ClientSimulation::research_unit_unlocks(tech);
     unlocks.extend(Building::all().filter_map(|building| {
         let data = building.data();
-        (!matches!(building, Building::BARRACKS_II | Building::BARRACKS_III)
-            && data
-                .requirements
-                .contains(&(Requirement::Tech(tech.0), true)))
-        .then_some(data.name)
+        data.requirements
+            .contains(&(Requirement::Tech(tech.0), true))
+            .then_some(data.name)
     }));
     unlocks.extend(
         Government::targets()
@@ -324,7 +322,7 @@ fn research_unlock_detail(tech: Tech) -> String {
         Tech::STEAM_POWER => Some("Industrial"),
         Tech::MOTORIZED_TRANSPORTATION => Some("Electric Age"),
         Tech::ROCKETRY => Some("Modern"),
-        Tech::SUPERCONDUCTORS => Some("Postmodern"),
+        Tech::SUPERCONDUCTOR => Some("Postmodern"),
         _ => None,
     };
     let mut detail = if unlocks.is_empty() {

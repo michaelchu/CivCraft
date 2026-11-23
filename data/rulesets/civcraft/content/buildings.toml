@@ -7,7 +7,7 @@ source = "Civilization III: Conquests"
 name = "Airport"
 genus = "Improvement"
 cost = 120
-upkeep = 3
+upkeep = 2
 requirements = [{ kind = "Tech", present = true, target = "TECH_Flight" }]
 id = "building_airport"
 
@@ -18,22 +18,6 @@ cost = 60
 upkeep = 1
 requirements = [{ kind = "Tech", present = true, target = "TECH_Construction" }, { kind = "River", present = false }, { kind = "Lake", present = false }]
 id = "building_aqueduct"
-
-[[rules]]
-name = "Aqueduct, Lake"
-genus = "Improvement"
-cost = 20
-upkeep = 0
-requirements = [{ kind = "Lake", present = true }]
-id = "building_aqueduct_lake"
-
-[[rules]]
-name = "Aqueduct, River"
-genus = "Improvement"
-cost = 20
-upkeep = 0
-requirements = [{ kind = "River", present = true }, { kind = "Lake", present = false }]
-id = "building_aqueduct_river"
 
 [[rules]]
 name = "Bank"
@@ -48,34 +32,14 @@ name = "Barracks"
 genus = "Improvement"
 cost = 30
 upkeep = 1
-obsolete = [{ kind = "Tech", present = true, target = "TECH_Gunpowder" }, { kind = "Improvement", present = true, target = "building_barracks_ii" }, { kind = "Improvement", present = true, target = "building_barracks_iii" }]
 flags = ["Barracks"]
 id = "building_barracks"
-
-[[rules]]
-name = "Barracks II"
-genus = "Improvement"
-cost = 30
-upkeep = 1
-requirements = [{ kind = "Tech", present = true, target = "TECH_Gunpowder" }]
-obsolete = [{ kind = "Tech", present = true, target = "TECH_Motorized_Transportation" }, { kind = "Improvement", present = true, target = "building_barracks_iii" }]
-flags = ["Barracks"]
-id = "building_barracks_ii"
-
-[[rules]]
-name = "Barracks III"
-genus = "Improvement"
-cost = 30
-upkeep = 1
-requirements = [{ kind = "Tech", present = true, target = "TECH_Motorized_Transportation" }]
-flags = ["Barracks"]
-id = "building_barracks_iii"
 
 [[rules]]
 name = "Cathedral"
 genus = "Improvement"
 cost = 80
-upkeep = 3
+upkeep = 2
 culture_per_turn = 3
 requirements = [{ kind = "Tech", present = true, target = "TECH_Monotheism" }, { kind = "Improvement", present = true, target = "building_temple" }]
 id = "building_cathedral"
@@ -94,17 +58,9 @@ id = "building_city_walls"
 name = "Coastal Defense"
 genus = "Improvement"
 cost = 60
-upkeep = 1
-requirements = [{ kind = "Tech", present = true, target = "TECH_Metallurgy" }, { kind = "Water", present = true }]
+upkeep = 0
+requirements = [{ kind = "Tech", present = true, target = "TECH_Metallurgy" }, { kind = "Resource", present = true, target = "Iron" }, { kind = "Resource", present = true, target = "Saltpeter" }, { kind = "Water", present = true }]
 id = "building_coastal_defense"
-
-[[rules]]
-name = "Amphitheater"
-genus = "Improvement"
-cost = 70
-upkeep = 3
-requirements = [{ kind = "Tech", present = true, target = "TECH_Construction" }]
-id = "building_amphitheater"
 
 [[rules]]
 name = "Courthouse"
@@ -119,7 +75,7 @@ name = "Factory"
 genus = "Improvement"
 cost = 140
 upkeep = 3
-requirements = [{ kind = "Tech", present = true, target = "TECH_Industrialization" }]
+requirements = [{ kind = "Tech", present = true, target = "TECH_Industrialization" }, { kind = "Resource", present = true, target = "Iron" }]
 id = "building_factory"
 
 [[rules]]
@@ -144,7 +100,7 @@ id = "building_harbor"
 name = "Hydro Plant"
 genus = "Improvement"
 cost = 180
-upkeep = 4
+upkeep = 3
 requirements = [{ kind = "Tech", present = true, target = "TECH_Electronics" }, { kind = "Improvement", present = true, target = "building_factory" }, { kind = "River", present = true }]
 id = "building_hydro_plant"
 
@@ -162,7 +118,7 @@ selected_obsolescence = true
 name = "Marketplace"
 genus = "Improvement"
 cost = 60
-upkeep = 0
+upkeep = 1
 requirements = [{ kind = "Tech", present = true, target = "TECH_Currency" }]
 id = "building_marketplace"
 
@@ -171,14 +127,14 @@ name = "Mass Transit"
 genus = "Improvement"
 cost = 120
 upkeep = 2
-requirements = [{ kind = "Tech", present = true, target = "TECH_Ecology" }]
+requirements = [{ kind = "Tech", present = true, target = "TECH_Ecology" }, { kind = "Resource", present = true, target = "Rubber" }]
 id = "building_mass_transit"
 
 [[rules]]
 name = "Mfg. Plant"
 genus = "Improvement"
 cost = 220
-upkeep = 4
+upkeep = 3
 requirements = [{ kind = "Tech", present = true, target = "TECH_Robotics" }, { kind = "Improvement", present = true, target = "building_factory" }]
 id = "building_mfg_plant"
 
@@ -186,8 +142,8 @@ id = "building_mfg_plant"
 name = "Nuclear Plant"
 genus = "Improvement"
 cost = 240
-upkeep = 2
-requirements = [{ kind = "Tech", present = true, target = "TECH_Nuclear_Power" }, { kind = "Improvement", present = true, target = "building_factory" }]
+upkeep = 3
+requirements = [{ kind = "Tech", present = true, target = "TECH_Nuclear_Power" }, { kind = "Improvement", present = true, target = "building_factory" }, { kind = "Resource", present = true, target = "Uranium" }]
 id = "building_nuclear_plant"
 
 [[rules]]
@@ -204,18 +160,10 @@ genus = "SmallWonder"
 cost = 70
 upkeep = 0
 culture_per_turn = 1
+requirements = [{ kind = "Tech", present = true, target = "TECH_Masonry" }]
 flags = ["SaveSmallWonder"]
 id = "building_palace"
 selected_obsolescence = true
-
-[[rules]]
-name = "Ecclesiastical Palace"
-genus = "SmallWonder"
-cost = 140
-upkeep = 0
-culture_per_turn = 1
-requirements = [{ kind = "Tech", present = true, target = "TECH_Theology" }]
-id = "building_ecclesiastical_palace"
 
 [[rules]]
 name = "Police Station"
@@ -226,19 +174,11 @@ requirements = [{ kind = "Tech", present = true, target = "TECH_Communism" }]
 id = "building_police_station"
 
 [[rules]]
-name = "Port Facility"
-genus = "Improvement"
-cost = 60
-upkeep = 2
-requirements = [{ kind = "Tech", present = true, target = "TECH_Amphibious_Warfare" }, { kind = "Water", present = true }]
-id = "building_port_facility"
-
-[[rules]]
 name = "Power Plant"
 genus = "Improvement"
 cost = 130
-upkeep = 4
-requirements = [{ kind = "Tech", present = true, target = "TECH_Industrialization" }, { kind = "Improvement", present = true, target = "building_factory" }]
+upkeep = 3
+requirements = [{ kind = "Tech", present = true, target = "TECH_Industrialization" }, { kind = "Improvement", present = true, target = "building_factory" }, { kind = "Resource", present = true, target = "Coal" }]
 id = "building_power_plant"
 
 [[rules]]
@@ -253,7 +193,7 @@ id = "building_recycling_center"
 name = "Research Lab"
 genus = "Improvement"
 cost = 120
-upkeep = 3
+upkeep = 2
 culture_per_turn = 2
 requirements = [{ kind = "Tech", present = true, target = "TECH_Computers" }, { kind = "Improvement", present = true, target = "building_university" }]
 id = "building_research_lab"
@@ -264,82 +204,34 @@ name = "SAM Battery"
 genus = "Improvement"
 cost = 70
 upkeep = 2
-requirements = [{ kind = "Tech", present = true, target = "TECH_Rocketry" }]
+requirements = [{ kind = "Tech", present = true, target = "TECH_Rocketry" }, { kind = "Resource", present = true, target = "Aluminum" }]
 id = "building_sam_battery"
 
 [[rules]]
 name = "SDI Defense"
 genus = "SmallWonder"
 cost = 140
-upkeep = 3
+upkeep = 0
 culture_per_turn = 1
-requirements = [{ kind = "Tech", present = true, target = "TECH_Integrated_Defense" }]
+requirements = [{ kind = "Tech", present = true, target = "TECH_Integrated_Defense" }, { kind = "Improvement", present = true, target = "building_sam_battery" }]
 id = "building_sdi_defense"
 selected_obsolescence = true
-
-[[rules]]
-name = "Sewer System"
-genus = "Improvement"
-cost = 80
-upkeep = 2
-requirements = [{ kind = "Tech", present = true, target = "TECH_Sanitation" }, { kind = "MinSize", present = true, value = 9 }]
-id = "building_sewer_system"
 
 [[rules]]
 name = "Solar Plant"
 genus = "Improvement"
 cost = 320
-upkeep = 4
+upkeep = 3
 requirements = [{ kind = "Tech", present = true, target = "TECH_Ecology" }, { kind = "Improvement", present = true, target = "building_factory" }]
 id = "building_solar_plant"
-
-[[rules]]
-name = "Space Component"
-genus = "Special"
-cost = 300
-upkeep = 0
-requirements = [{ kind = "Tech", present = true, target = "TECH_Superconductor" }, { kind = "Improvement", present = true, target = "building_factory" }, { kind = "Improvement", present = true, target = "building_library" }, { kind = "Improvement", present = true, target = "building_university" }, { kind = "Improvement", present = true, target = "building_research_lab" }]
-id = "building_space_component"
-
-[[rules]]
-name = "Space Module"
-genus = "Special"
-cost = 600
-upkeep = 0
-requirements = [{ kind = "Tech", present = true, target = "TECH_Ecology" }, { kind = "Improvement", present = true, target = "building_factory" }, { kind = "Improvement", present = true, target = "building_library" }, { kind = "Improvement", present = true, target = "building_university" }, { kind = "Improvement", present = true, target = "building_research_lab" }]
-id = "building_space_module"
-
-[[rules]]
-name = "Space Structural"
-genus = "Special"
-cost = 150
-upkeep = 0
-requirements = [{ kind = "Tech", present = true, target = "TECH_Space_Flight" }, { kind = "Improvement", present = true, target = "building_factory" }, { kind = "Improvement", present = true, target = "building_library" }, { kind = "Improvement", present = true, target = "building_university" }, { kind = "Improvement", present = true, target = "building_research_lab" }]
-id = "building_space_structural"
 
 [[rules]]
 name = "Stock Exchange"
 genus = "Improvement"
 cost = 120
-upkeep = 2
-requirements = [{ kind = "Tech", present = true, target = "TECH_Economics" }, { kind = "Improvement", present = true, target = "building_bank" }]
+upkeep = 3
+requirements = [{ kind = "Tech", present = true, target = "TECH_The_Corporation" }, { kind = "Improvement", present = true, target = "building_bank" }]
 id = "building_stock_exchange"
-
-[[rules]]
-name = "Super Highways"
-genus = "Improvement"
-cost = 120
-upkeep = 3
-requirements = [{ kind = "Tech", present = true, target = "TECH_COMPAT_Automobile" }]
-id = "building_super_highways"
-
-[[rules]]
-name = "Supermarket"
-genus = "Improvement"
-cost = 80
-upkeep = 3
-requirements = [{ kind = "Tech", present = true, target = "TECH_Sanitation" }]
-id = "building_supermarket"
 
 [[rules]]
 name = "Temple"
@@ -367,7 +259,7 @@ genus = "SmallWonder"
 cost = 600
 upkeep = 0
 culture_per_turn = 3
-requirements = [{ kind = "Tech", present = true, target = "TECH_Space_Flight" }]
+requirements = [{ kind = "Tech", present = true, target = "TECH_Space_Flight" }, { kind = "Resource", present = true, target = "Aluminum" }]
 id = "building_apollo_program"
 selected_obsolescence = true
 
@@ -377,7 +269,7 @@ genus = "GreatWonder"
 cost = 400
 upkeep = 0
 culture_per_turn = 3
-requirements = [{ kind = "Tech", present = true, target = "TECH_Economics" }, { kind = "Improvement", present = true, target = "building_stock_exchange" }]
+requirements = [{ kind = "Tech", present = true, target = "TECH_Economics" }]
 id = "building_a_smith_s_trading_co"
 selected_obsolescence = true
 
@@ -399,7 +291,6 @@ cost = 300
 upkeep = 0
 culture_per_turn = 4
 requirements = [{ kind = "Tech", present = true, target = "TECH_Astronomy" }]
-obsolete = [{ kind = "Tech", present = true, target = "TECH_Computers" }]
 id = "building_copernicus_observatory"
 selected_obsolescence = true
 
@@ -414,28 +305,13 @@ id = "building_cure_for_cancer"
 selected_obsolescence = true
 
 [[rules]]
-name = "Darwin's Voyage"
-genus = "GreatWonder"
-cost = 300
-upkeep = 0
-requirements = [{ kind = "Tech", present = true, target = "TECH_COMPAT_Steam_Engine" }]
-id = "building_darwin_s_voyage"
-
-[[rules]]
-name = "Eiffel Tower"
-genus = "GreatWonder"
-cost = 300
-upkeep = 0
-requirements = [{ kind = "Tech", present = true, target = "TECH_COMPAT_Railroad" }]
-id = "building_eiffel_tower"
-
-[[rules]]
 name = "Great Library"
 genus = "GreatWonder"
 cost = 300
 upkeep = 0
 culture_per_turn = 5
-requirements = [{ kind = "Tech", present = true, target = "TECH_Literature" }, { kind = "Improvement", present = true, target = "building_library" }]
+requirements = [{ kind = "Tech", present = true, target = "TECH_Literature" }]
+obsolete = [{ kind = "Tech", present = true, target = "TECH_Education" }]
 id = "building_great_library"
 selected_obsolescence = true
 
@@ -467,7 +343,7 @@ genus = "GreatWonder"
 cost = 600
 upkeep = 0
 culture_per_turn = 3
-requirements = [{ kind = "Tech", present = true, target = "TECH_Electronics" }, { kind = "River", present = true }, { kind = "Improvement", present = true, target = "building_factory" }]
+requirements = [{ kind = "Tech", present = true, target = "TECH_Electronics" }, { kind = "River", present = true }]
 id = "building_hoover_dam"
 selected_obsolescence = true
 
@@ -477,7 +353,7 @@ genus = "GreatWonder"
 cost = 400
 upkeep = 0
 culture_per_turn = 5
-requirements = [{ kind = "Tech", present = true, target = "TECH_Theory_of_Gravity" }, { kind = "Improvement", present = true, target = "building_university" }]
+requirements = [{ kind = "Tech", present = true, target = "TECH_Theory_of_Gravity" }]
 id = "building_isaac_newton_s_college"
 selected_obsolescence = true
 
@@ -492,22 +368,12 @@ id = "building_j_s_bach_s_cathedral"
 selected_obsolescence = true
 
 [[rules]]
-name = "King Richard's Crusade"
-genus = "GreatWonder"
-cost = 300
-upkeep = 0
-requirements = [{ kind = "Tech", present = true, target = "TECH_Chivalry" }]
-obsolete = [{ kind = "Tech", present = true, target = "TECH_Communism" }]
-id = "building_king_richard_s_crusade"
-
-[[rules]]
 name = "Leonardo's Workshop"
 genus = "GreatWonder"
 cost = 400
 upkeep = 0
 culture_per_turn = 2
 requirements = [{ kind = "Tech", present = true, target = "TECH_Invention" }]
-obsolete = [{ kind = "Tech", present = true, target = "TECH_Combustion" }]
 id = "building_leonardo_s_workshop"
 selected_obsolescence = true
 
@@ -529,7 +395,6 @@ cost = 400
 upkeep = 0
 culture_per_turn = 3
 requirements = [{ kind = "Tech", present = true, target = "TECH_Navigation" }, { kind = "Sea", present = true }]
-obsolete = [{ kind = "Tech", present = true, target = "TECH_Nuclear_Power" }]
 id = "building_magellan_s_expedition"
 selected_obsolescence = true
 
@@ -539,27 +404,9 @@ genus = "GreatWonder"
 cost = 600
 upkeep = 0
 culture_per_turn = 2
-requirements = [{ kind = "Tech", present = true, target = "TECH_Fission" }]
+requirements = [{ kind = "Tech", present = true, target = "TECH_Fission" }, { kind = "Resource", present = true, target = "Uranium" }]
 id = "building_manhattan_project"
 selected_obsolescence = true
-
-[[rules]]
-name = "Marco Polo's Embassy"
-genus = "GreatWonder"
-cost = 200
-upkeep = 0
-requirements = [{ kind = "Tech", present = true, target = "TECH_COMPAT_Trade" }]
-obsolete = [{ kind = "Tech", present = true, target = "TECH_Democracy" }]
-id = "building_marco_polo_s_embassy"
-
-[[rules]]
-name = "Michelangelo's Chapel"
-genus = "GreatWonder"
-cost = 400
-upkeep = 0
-culture_per_turn = 4
-requirements = [{ kind = "Tech", present = true, target = "TECH_Theology" }, { kind = "Improvement", present = true, target = "building_cathedral" }]
-id = "building_michelangelo_s_chapel"
 
 [[rules]]
 name = "Mausoleum of Mausolos"
@@ -568,7 +415,6 @@ cost = 200
 upkeep = 0
 culture_per_turn = 2
 requirements = [{ kind = "Tech", present = true, target = "TECH_Philosophy" }]
-obsolete = [{ kind = "Tech", present = true, target = "TECH_Sanitation" }]
 id = "building_mausoleum_of_mausolos"
 selected_obsolescence = true
 
@@ -578,7 +424,7 @@ genus = "GreatWonder"
 cost = 200
 upkeep = 0
 culture_per_turn = 4
-requirements = [{ kind = "Tech", present = true, target = "TECH_Mathematics" }]
+requirements = [{ kind = "Tech", present = true, target = "TECH_Mathematics" }, { kind = "Resource", present = true, target = "Ivory" }]
 obsolete = [{ kind = "Tech", present = true, target = "TECH_Metallurgy" }]
 id = "building_statue_of_zeus"
 selected_obsolescence = true
@@ -589,7 +435,7 @@ genus = "GreatWonder"
 cost = 200
 upkeep = 0
 culture_per_turn = 4
-requirements = [{ kind = "Tech", present = true, target = "TECH_Polytheism" }, { kind = "Improvement", present = true, target = "building_temple" }]
+requirements = [{ kind = "Tech", present = true, target = "TECH_Polytheism" }]
 obsolete = [{ kind = "Tech", present = true, target = "TECH_Education" }]
 id = "building_temple_of_artemis"
 selected_obsolescence = true
@@ -610,7 +456,7 @@ genus = "GreatWonder"
 cost = 600
 upkeep = 0
 culture_per_turn = 4
-requirements = [{ kind = "Tech", present = true, target = "TECH_Computers" }, { kind = "Improvement", present = true, target = "building_research_lab" }]
+requirements = [{ kind = "Tech", present = true, target = "TECH_Miniaturization" }]
 id = "building_internet"
 selected_obsolescence = true
 
@@ -620,17 +466,9 @@ genus = "GreatWonder"
 cost = 300
 upkeep = 0
 culture_per_turn = 5
-requirements = [{ kind = "Tech", present = true, target = "TECH_Free_Artistry" }]
+requirements = [{ kind = "Tech", present = true, target = "TECH_Free_Artistry" }, { kind = "MinSize", present = true, value = 7 }]
 id = "building_shakespeare_s_theater"
 selected_obsolescence = true
-
-[[rules]]
-name = "Statue of Liberty"
-genus = "GreatWonder"
-cost = 400
-upkeep = 0
-requirements = [{ kind = "Tech", present = true, target = "TECH_Democracy" }]
-id = "building_statue_of_liberty"
 
 [[rules]]
 name = "Sun Tzu's War Academy"
@@ -639,7 +477,6 @@ cost = 300
 upkeep = 0
 culture_per_turn = 2
 requirements = [{ kind = "Tech", present = true, target = "TECH_Feudalism" }]
-obsolete = [{ kind = "Tech", present = true, target = "TECH_Motorized_Transportation" }]
 id = "building_sun_tzu_s_war_academy"
 selected_obsolescence = true
 
@@ -652,14 +489,6 @@ culture_per_turn = 4
 requirements = [{ kind = "Tech", present = true, target = "TECH_Fission" }]
 id = "building_united_nations"
 selected_obsolescence = true
-
-[[rules]]
-name = "Women's Suffrage"
-genus = "GreatWonder"
-cost = 600
-upkeep = 0
-requirements = [{ kind = "Tech", present = true, target = "TECH_Nationalism" }]
-id = "building_women_s_suffrage"
 
 [[rules]]
 name = "Coinage"
@@ -684,7 +513,7 @@ name = "Hospital"
 genus = "Improvement"
 cost = 160
 upkeep = 2
-requirements = [{ kind = "Tech", present = true, target = "TECH_Sanitation" }]
+requirements = [{ kind = "Tech", present = true, target = "TECH_Sanitation" }, { kind = "MinSize", present = true, value = 7 }]
 id = "building_hospital"
 
 [[rules]]
@@ -795,7 +624,7 @@ genus = "SmallWonder"
 cost = 400
 upkeep = 0
 culture_per_turn = 2
-requirements = [{ kind = "OwnerBuildingCount", present = true, count = 5, target = "building_bank" }]
+requirements = [{ kind = "Improvement", present = true, target = "building_stock_exchange" }, { kind = "OwnerBuildingCount", present = true, count = 5, target = "building_bank" }]
 id = "building_wall_street"
 selected_obsolescence = true
 
@@ -815,7 +644,7 @@ genus = "SmallWonder"
 cost = 500
 upkeep = 0
 culture_per_turn = 1
-requirements = [{ kind = "OwnerBuildingCount", present = true, count = 5, target = "building_hospital" }]
+requirements = [{ kind = "Improvement", present = true, target = "building_hospital" }, { kind = "OwnerBuildingCount", present = true, count = 5, target = "building_hospital" }]
 id = "building_battlefield_medicine"
 selected_obsolescence = true
 
@@ -848,3 +677,99 @@ upkeep = 0
 requirements = [{ kind = "Tech", present = true, target = "TECH_Espionage" }]
 id = "building_secret_police_hq"
 selected_obsolescence = true
+
+[[rules]]
+name = "SS Thrusters"
+genus = "Special"
+cost = 160
+upkeep = 0
+requirements = [{ kind = "Tech", present = true, target = "TECH_Satellites" }, { kind = "Resource", present = true, target = "Aluminum" }]
+id = "building_ss_thrusters"
+
+[[rules]]
+name = "SS Engine"
+genus = "Special"
+cost = 320
+upkeep = 0
+requirements = [{ kind = "Tech", present = true, target = "TECH_Space_Flight" }, { kind = "Resource", present = true, target = "Aluminum" }]
+id = "building_ss_engine"
+
+[[rules]]
+name = "SS Docking Bay"
+genus = "Special"
+cost = 80
+upkeep = 0
+requirements = [{ kind = "Tech", present = true, target = "TECH_Space_Flight" }, { kind = "Resource", present = true, target = "Aluminum" }]
+id = "building_ss_docking_bay"
+
+[[rules]]
+name = "SS Cockpit"
+genus = "Special"
+cost = 160
+upkeep = 0
+requirements = [{ kind = "Tech", present = true, target = "TECH_Space_Flight" }, { kind = "Resource", present = true, target = "Aluminum" }]
+id = "building_ss_cockpit"
+
+[[rules]]
+name = "SS Fuel Cells"
+genus = "Special"
+cost = 80
+upkeep = 0
+requirements = [{ kind = "Tech", present = true, target = "TECH_Superconductor" }, { kind = "Resource", present = true, target = "Uranium" }]
+id = "building_ss_fuel_cells"
+
+[[rules]]
+name = "SS Life Support System"
+genus = "Special"
+cost = 160
+upkeep = 0
+requirements = [{ kind = "Tech", present = true, target = "TECH_Superconductor" }, { kind = "Resource", present = true, target = "Aluminum" }]
+id = "building_ss_life_support_system"
+
+[[rules]]
+name = "SS Stasis Chamber"
+genus = "Special"
+cost = 160
+upkeep = 0
+requirements = [{ kind = "Tech", present = true, target = "TECH_Robotics" }, { kind = "Resource", present = true, target = "Aluminum" }, { kind = "Resource", present = true, target = "Uranium" }]
+id = "building_ss_stasis_chamber"
+
+[[rules]]
+name = "SS Storage/Supply"
+genus = "Special"
+cost = 80
+upkeep = 0
+requirements = [{ kind = "Tech", present = true, target = "TECH_Synthetic_Fibers" }, { kind = "Resource", present = true, target = "Aluminum" }]
+id = "building_ss_storage_supply"
+
+[[rules]]
+name = "SS Planetary Party Lounge"
+genus = "Special"
+cost = 80
+upkeep = 0
+requirements = [{ kind = "Tech", present = true, target = "TECH_The_Laser" }, { kind = "Resource", present = true, target = "Aluminum" }]
+id = "building_ss_planetary_party_lounge"
+
+[[rules]]
+name = "SS Exterior Casing"
+genus = "Special"
+cost = 320
+upkeep = 0
+requirements = [{ kind = "Tech", present = true, target = "TECH_Synthetic_Fibers" }, { kind = "Resource", present = true, target = "Aluminum" }, { kind = "Resource", present = true, target = "Rubber" }]
+id = "building_ss_exterior_casing"
+
+[[rules]]
+name = "Civil Defense"
+genus = "Improvement"
+cost = 60
+upkeep = 1
+requirements = [{ kind = "Tech", present = true, target = "TECH_Electronics" }, { kind = "Improvement", present = true, target = "building_barracks" }]
+id = "building_civil_defense"
+
+[[rules]]
+name = "Commercial Dock"
+genus = "Improvement"
+cost = 80
+upkeep = 2
+requirements = [{ kind = "Tech", present = true, target = "TECH_Mass_Production" }, { kind = "Improvement", present = true, target = "building_harbor" }, { kind = "Sea", present = true }]
+id = "building_commercial_dock"

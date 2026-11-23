@@ -100,7 +100,7 @@ from restoring a previously selected unit on its first draw.
 | City deals / treaties | Names stay clear of purchase controls; treaty columns fit independently and reserve footer space. |
 | Spy / investigation | Common frame, bounded titles and content, shared Previous/Next footer with page count. |
 | Research tree | Pixel-bounded summaries and details, consistent tab gutters; tree drawing is unchanged. |
-| Spaceship | Common frame and bounded prose; slot labels use supported font glyphs. |
+| Spaceship | Common frame, a ten-part checklist and bounded prose. |
 
 The city manager now captures modal input and removes underlying HUD hitboxes. This prevents clicks on covered HUD controls.
 

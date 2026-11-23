@@ -1123,7 +1123,8 @@ mod selected_rules_tests {
             .unit_class_movement_data_for_kind(actor.kind)
             .unwrap();
         assert!(!class.build_anywhere);
-        assert!(class.can_occupy_city);
+        // Civ III: a Helicopter cannot capture a city.
+        assert!(!class.can_occupy_city);
 
         let map = NormalPaths::new(
             &sim,
@@ -1133,7 +1134,7 @@ mod selected_rules_tests {
             true,
             false,
         );
-        assert_ne!(map.scope(&sim, target.0, target.1, CITY).0 & CITY, 0);
+        assert_eq!(map.scope(&sim, target.0, target.1, CITY).0 & CITY, 0);
     }
 
     /// Mirrors the civ2civ3 ruleset behavior.

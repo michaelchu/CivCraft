@@ -139,6 +139,21 @@ impl UnitRule {
         }
     }
 
+    /// Civ III city capture: a land unit that can attack, or an Army. Zero-attack
+    /// bombard units (Catapult, Artillery) and Helicopters cannot take a city.
+    /// Every consumer (movement, action enablers, AI) reads this one result.
+    pub(super) fn can_occupy_city(&self) -> bool {
+        self.unit_class().is_ground() && (self.attack > 0 || self.id == "army")
+    }
+
+    /// Civ III: only land units fortify, so ships and aircraft neither take
+    /// the Fortify order nor get the fortified/city-fortified defense bonus.
+    /// The `CanFortify` class flag, `UnitKind::can_fortify` and `CantFortify`
+    /// all read this one result.
+    pub(super) fn can_fortify(&self) -> bool {
+        self.unit_class().is_ground() && self.has_capability("Fortify")
+    }
+
     pub(super) fn metadata(&self) -> crate::sim::unit_catalog_data::UnitMetadata {
         use crate::sim::unit_catalog::UnitClass as C;
         use crate::sim::unit_catalog::UnitFlag as F;
@@ -163,7 +178,7 @@ impl UnitRule {
         let can_gain_ranks =
             (self.attack > 0 || self.defense > 0) && class != C::Missile && self.id != "leader";
         set_flag(F::NoVeteran, !can_gain_ranks);
-        set_flag(F::CantFortify, !self.has_capability("Fortify"));
+        set_flag(F::CantFortify, !self.can_fortify());
         set_flag(
             F::HasNoZOC,
             matches!(class, C::Air | C::Helicopter | C::Missile),

@@ -75,7 +75,7 @@ fn native_catalogs_have_expected_schema_and_campaign_coverage() {
     assert_eq!(civilizations().civilizations.len(), 31);
     assert_eq!(buildings().schema_version, 1);
     assert_eq!(buildings().source, "Civilization III: Conquests");
-    assert_eq!(buildings().rules.len(), 91);
+    assert_eq!(buildings().rules.len(), 83);
     assert_eq!(technologies().schema_version, 1);
     assert_eq!(technologies().source, "Civilization III: Conquests");
     assert_eq!(technologies().technologies.len(), 85);
@@ -257,4 +257,167 @@ fn civilization_trait_names_round_trip_and_match_the_toml_fields() {
             .filter(|civ| civ.scientific)
             .count()
     );
+}
+
+/// BIQ building names whose runtime rule is spelled differently.
+const BIQ_BUILDING_NAMES: [(&str, &str); 28] = [
+    ("Walls", "City Walls"),
+    ("Manufacturing Plant", "Mfg. Plant"),
+    ("Coal Plant", "Power Plant"),
+    ("Mass Transit System", "Mass Transit"),
+    ("SAM Missile Battery", "SAM Battery"),
+    ("Coastal Fortress", "Coastal Defense"),
+    ("Wealth", "Coinage"),
+    ("The Pyramids", "Pyramids"),
+    ("The Hanging Gardens", "Hanging Gardens"),
+    ("The Colossus", "Colossus"),
+    ("The Great Lighthouse", "Lighthouse"),
+    ("The Great Library", "Great Library"),
+    ("The Oracle", "Oracle"),
+    ("The Great Wall", "Great Wall"),
+    ("Sun Tzu's Art of War", "Sun Tzu's War Academy"),
+    ("Magellan's Voyage", "Magellan's Expedition"),
+    ("JS Bach's Cathedral", "J.S. Bach's Cathedral"),
+    ("Newton's University", "Isaac Newton's College"),
+    ("Smith's Trading Company", "A.Smith's Trading Co."),
+    ("The United Nations", "United Nations"),
+    ("The Manhattan Project", "Manhattan Project"),
+    ("SETI program", "SETI Program"),
+    ("The Pentagon", "Pentagon"),
+    ("Strategic Missile Defense", "SDI Defense"),
+    ("The Internet", "Internet"),
+    ("The Mausoleum of Mausollos", "Mausoleum of Mausolos"),
+    ("The Temple of Artemis", "Temple of Artemis"),
+    ("The Statue of Zeus", "Statue of Zeus"),
+];
+
+/// Civ III records with no runtime rule. The catalog now covers every record.
+const BIQ_BUILDINGS_WITHOUT_RULE: [&str; 0] = [];
+
+/// Runtime rules with no Civ III record. The catalog is an exact Civ III clone.
+const FREECIV_ONLY_BUILDINGS: [&str; 0] = [];
+
+#[test]
+fn matched_buildings_follow_the_civ3_biq_records() {
+    #[derive(serde::Deserialize)]
+    struct BiqBuilding {
+        name: String,
+        unlock_technology: String,
+        required_building: String,
+        required_resources: Vec<String>,
+        obsolete_by_technology: String,
+        upkeep: i32,
+    }
+    let records: Vec<BiqBuilding> = serde_json::from_str(include_str!(
+        "../../../tests/fixtures/civ3_building_records.json"
+    ))
+    .unwrap();
+    let rules = &buildings().rules;
+    let tech_name = |id: &str| {
+        technologies()
+            .technologies
+            .iter()
+            .find(|tech| tech.id == id)
+            .map(|tech| tech.name.clone())
+            .unwrap_or_else(|| panic!("unknown technology {id}"))
+    };
+    let rule_name = |id: &str| {
+        rules
+            .iter()
+            .find(|rule| rule.id == id)
+            .map(|rule| rule.name.clone())
+            .unwrap_or_else(|| panic!("unknown building {id}"))
+    };
+    let normalize = |name: &str| {
+        let mapped = BIQ_BUILDING_NAMES
+            .iter()
+            .find(|(biq, _)| *biq == name)
+            .map_or(name, |(_, runtime)| *runtime);
+        mapped
+            .chars()
+            .filter(char::is_ascii_alphanumeric)
+            .collect::<String>()
+            .to_ascii_lowercase()
+    };
+    let mut without_rule = Vec::new();
+    let mut matched = Vec::new();
+    for record in &records {
+        let key = normalize(&record.name);
+        match rules.iter().find(|rule| normalize(&rule.name) == key) {
+            Some(rule) => {
+                matched.push(rule.name.as_str());
+                let present = |kind| {
+                    rules_requirements(rule)
+                        .filter(|(k, present, _)| *k == kind && *present)
+                        .map(|(_, _, target)| target)
+                        .collect::<Vec<_>>()
+                };
+                let of = |wanted: &str| -> Vec<String> {
+                    if wanted.is_empty() {
+                        vec![]
+                    } else {
+                        vec![wanted.to_owned()]
+                    }
+                };
+                let name = &record.name;
+                // The Pentagon's era gate is an owner-authorized replacement.
+                if rule.name != "Pentagon" {
+                    let unlock: Vec<_> = present(NativeRequirementKind::Tech)
+                        .iter()
+                        .map(|id| tech_name(id))
+                        .collect();
+                    assert_eq!(unlock, of(&record.unlock_technology), "{name} unlock tech");
+                }
+                let required: Vec<_> = present(NativeRequirementKind::Improvement)
+                    .iter()
+                    .map(|id| rule_name(id))
+                    .map(|n| normalize(&n))
+                    .collect();
+                let wanted = if record.required_building.is_empty() {
+                    vec![]
+                } else {
+                    vec![normalize(&record.required_building)]
+                };
+                assert_eq!(required, wanted, "{name} required building");
+                let mut resources = present(NativeRequirementKind::Resource);
+                let mut expected = record.required_resources.clone();
+                resources.sort();
+                expected.sort();
+                assert_eq!(resources, expected, "{name} required resources");
+                let obsolete: Vec<_> = rule
+                    .obsolete
+                    .iter()
+                    .filter(|req| req.kind == NativeRequirementKind::Tech && req.present)
+                    .map(|req| tech_name(req.target.as_deref().unwrap()))
+                    .collect();
+                assert_eq!(
+                    obsolete,
+                    of(&record.obsolete_by_technology),
+                    "{name} obsolescence"
+                );
+                assert_eq!(rule.upkeep, record.upkeep, "{name} upkeep");
+            }
+            None => without_rule.push(record.name.as_str()),
+        }
+    }
+    assert_eq!(matched.len(), 83);
+    assert_eq!(without_rule, BIQ_BUILDINGS_WITHOUT_RULE);
+    let freeciv_only: Vec<_> = rules
+        .iter()
+        .map(|rule| rule.name.as_str())
+        .filter(|name| !matched.contains(name))
+        .collect();
+    assert_eq!(freeciv_only, FREECIV_ONLY_BUILDINGS);
+}
+
+fn rules_requirements(
+    rule: &NativeBuildingRule,
+) -> impl Iterator<Item = (NativeRequirementKind, bool, String)> + '_ {
+    rule.requirements.iter().map(|req| {
+        (
+            req.kind,
+            req.present,
+            req.target.clone().unwrap_or_default(),
+        )
+    })
 }

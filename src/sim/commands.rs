@@ -101,11 +101,6 @@ pub(crate) enum Command {
         target: UnitKind,
         price: i32,
     },
-    LaunchSpaceship,
-    ToggleManualAssembly,
-    PlaceShipPart {
-        part: super::ShipPart,
-    },
     EndTurn,
 }
 
@@ -203,9 +198,6 @@ impl Simulation {
             Connect(id, x, y) => self.start_connect_order(id, x, y),
             Patrol(id, x, y) => self.start_patrol_order(id, x, y),
             FoundCity(id) => self.found_city(id),
-            LaunchSpaceship => self.launch_spaceship(HUMAN),
-            ToggleManualAssembly => self.toggle_manual_assembly(),
-            PlaceShipPart { part } => self.place_ship_part(part),
             Disband { unit_id, city_id } => self.disband_unit(unit_id, city_id),
             NuclearStrike(id, x, y) => self.launch_nuclear_strike(id, x, y),
             CompleteProduction { unit_id, city_id } => self.complete_production(unit_id, city_id),

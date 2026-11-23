@@ -672,7 +672,7 @@ mod tests {
             Building::PALACE,
             Building::GREAT_LIBRARY,
             Building::PENTAGON,
-            Building::BARRACKS_III,
+            Building::BARRACKS,
             Building::TEMPLE,
             Building::MARKETPLACE,
             Building::LIBRARY,

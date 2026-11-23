@@ -819,10 +819,8 @@ impl UnitClassMovementData {
                 damage_slows: true,
                 ..none
             },
-            UnitClass::Helicopter => Self {
-                can_occupy_city: true,
-                ..none
-            },
+            // Civ III: Helicopters cannot capture cities.
+            UnitClass::Helicopter => none,
             UnitClass::Air => none,
             UnitClass::Missile => Self {
                 min_speed: 0,
@@ -833,12 +831,8 @@ impl UnitClassMovementData {
     }
 
     fn with_unit(mut self, kind: UnitKind) -> Self {
-        let source = kind.conquests_rule();
-        if source.unit_type == 0 {
-            // Foot/wheeled flags restrict transport/terrain; they do not remove
-            // Civ III ground-unit pillage, occupation, or terrain defense.
-            self.can_occupy_city = source.attack > 0 || kind == UnitKind::Army;
-        }
+        // City capture is a Civ III unit rule, not a Freeciv class record.
+        self.can_occupy_city = kind.conquests_rule().can_occupy_city();
         self
     }
 }
@@ -1315,7 +1309,8 @@ mod tests {
                 UnitClass::Helicopter,
                 1,
                 false,
-                true,
+                // Civ III override: Helicopters cannot capture cities.
+                false,
                 false,
                 false,
                 false,

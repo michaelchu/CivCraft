@@ -256,7 +256,7 @@ static ENABLERS: &[Enabler] = &[
         &[
             not(Building, "Courthouse", City),
             not(Building, "Palace", City),
-            not(Building, "Ecclesiastical Palace", City),
+            not(Building, "Forbidden Palace", City),
             not(Building, "Mausoleum of Mausolos", Player),
         ],
     ),
@@ -274,7 +274,7 @@ static ENABLERS: &[Enabler] = &[
         &[
             not(Building, "Courthouse", City),
             not(Building, "Palace", City),
-            not(Building, "Ecclesiastical Palace", City),
+            not(Building, "Forbidden Palace", City),
             not(Building, "Mausoleum of Mausolos", Player),
         ],
     ),
@@ -705,7 +705,7 @@ static ENABLERS: &[Enabler] = &[
         "transform_terrain",
         "Transform Terrain",
         &[
-            is(Tech, "Fusion Power", Player),
+            is(Tech, "Nuclear Power", Player),
             is(UnitTypeFlag, "Transform", Local),
             is(UnitTypeFlag, "Workers", Local),
         ],

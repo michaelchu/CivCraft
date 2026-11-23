@@ -187,7 +187,7 @@ fn setup(map: GeneratedMap) -> (Simulation, Box<dyn ScenarioRun>) {
     {
         world.city_workers(city_id, 6);
         let mut buildings = vec![
-            Building::BARRACKS_III,
+            Building::BARRACKS,
             Building::FACTORY,
             Building::AIRPORT,
             Building::MARKETPLACE,
@@ -197,7 +197,6 @@ fn setup(map: GeneratedMap) -> (Simulation, Box<dyn ScenarioRun>) {
         }
         if coastal {
             buildings.push(Building::HARBOR);
-            buildings.push(Building::PORT_FACILITY);
         }
         if city_id == germany_cities[3].0 {
             buildings.push(Building::SDI_DEFENSE);

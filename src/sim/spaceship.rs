@@ -1,351 +1,91 @@
-//! Spaceship part production, assembly, and launch outcomes.
+//! Civ III spaceship: ten distinct components, each built once.
+//!
+//! The Conquests Civilopedia lists ten components that "may be built in any
+//! order" and "must be built prior to launch". The owner confirmed on
+//! 2026-11-22 that the space race is won as soon as the tenth part is built:
+//! there is no assembly, launch step, flight time or success roll.
 
 use super::*;
 
-// Attachment indices from Freeciv common/spaceship.c, in placement order.
-pub(crate) const STRUCTURE_PARENT: [usize; 32] = [
-    0, 0, 0, 1, 2, 3, 4, 5, 2, 3, 6, 7, 8, 9, 10, 11, 14, 15, 16, 17, 18, 19, 4, 5, 22, 23, 24, 25,
-    26, 27, 20, 21,
+pub(super) const SPACE_PART_PROJECTS: [(Building, usize); 10] = [
+    (Building::SS_THRUSTERS, 1),
+    (Building::SS_ENGINE, 1),
+    (Building::SS_DOCKING_BAY, 1),
+    (Building::SS_COCKPIT, 1),
+    (Building::SS_FUEL_CELLS, 1),
+    (Building::SS_LIFE_SUPPORT_SYSTEM, 1),
+    (Building::SS_STASIS_CHAMBER, 1),
+    (Building::SS_STORAGE_SUPPLY, 1),
+    (Building::SS_PLANETARY_PARTY_LOUNGE, 1),
+    (Building::SS_EXTERIOR_CASING, 1),
 ];
-const COMPONENT_SUPPORT: [usize; 16] = [0, 12, 1, 13, 8, 12, 9, 13, 22, 28, 23, 29, 26, 28, 27, 29];
-const MODULE_SUPPORT: [usize; 12] = [0, 1, 10, 15, 14, 11, 18, 19, 20, 31, 30, 21];
-pub(super) const SPACE_PART_PROJECTS: [(Building, usize); 3] = [
-    (Building::SPACE_STRUCTURAL, 32),
-    (Building::SPACE_COMPONENT, 16),
-    (Building::SPACE_MODULE, 12),
-];
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum ShipPart {
-    Structural(usize),
-    Component(usize),
-    Module(usize),
-}
 
 #[derive(Clone, Default, serde::Serialize, serde::Deserialize)]
 pub(super) struct Spaceship {
-    pub(super) built: [usize; 3],
-    structure: [bool; 32],
-    modules: [usize; 3],
-    components: [usize; 2],
-    manual: bool,
-    arrival: Option<f64>,
-    arrived: bool,
+    pub(super) built: [usize; 10],
 }
 
 impl Spaceship {
-    pub(super) fn arrival_year(&self) -> Option<f64> {
-        self.arrival
-    }
-
-    pub(super) fn launched(&self) -> bool {
-        self.arrival.is_some()
-    }
-
     pub(super) fn add_part(&mut self, part: usize) {
-        self.built[part] += 1;
-        if !self.manual {
-            self.autoplace();
-        }
+        self.built[part] = 1;
     }
 
-    fn unplaced(&self) -> [usize; 3] {
-        [
-            self.built[0] - self.structure.iter().filter(|&&placed| placed).count(),
-            self.built[1] - self.components.iter().sum::<usize>(),
-            self.built[2] - self.modules.iter().sum::<usize>(),
-        ]
+    pub(super) fn started(&self) -> bool {
+        self.built.iter().any(|&n| n > 0)
     }
 
-    fn can_place(&self, part: ShipPart) -> bool {
-        if self.launched() {
-            return false;
-        }
-        let [structure, components, modules] = self.unplaced();
-        match part {
-            ShipPart::Structural(i) => {
-                structure > 0
-                    && i < 32
-                    && !self.structure[i]
-                    && (i == 0 || self.structure[STRUCTURE_PARENT[i]])
-            }
-            ShipPart::Component(i) => components > 0 && i < 2 && self.components[i] < 8,
-            ShipPart::Module(i) => modules > 0 && i < 3 && self.modules[i] < 4,
-        }
+    pub(super) fn complete(&self) -> bool {
+        self.built.iter().all(|&n| n > 0)
     }
 
-    fn place(&mut self, part: ShipPart) -> bool {
-        if !self.can_place(part) {
-            return false;
-        }
-        match part {
-            ShipPart::Structural(i) => self.structure[i] = true,
-            ShipPart::Component(i) => self.components[i] += 1,
-            ShipPart::Module(i) => self.modules[i] += 1,
-        }
-        true
+    pub(super) fn parts_built(&self) -> usize {
+        self.built.iter().filter(|&&n| n > 0).count()
     }
 
-    fn autoplace(&mut self) {
-        loop {
-            let [structure, components, modules] = self.unplaced();
-            let part = if modules > 0 {
-                let [habitation, support, solar] = self.modules;
-                let preferred = if habitation == 0
-                    || (habitation < support && solar * 2 > habitation + support)
-                {
-                    0
-                } else if support == 0 {
-                    1
-                } else if solar == 0 || solar * 2 < habitation + support {
-                    2
-                } else if support < habitation || solar * 2 > habitation + support {
-                    1
-                } else {
-                    2
-                };
-                let available = (0..3).find(|&i| self.modules[i] < 4).unwrap();
-                ShipPart::Module(if self.modules[preferred] < 4 {
-                    preferred
-                } else {
-                    available
-                })
-            } else if components > 0 {
-                ShipPart::Component(usize::from(self.components[0] > self.components[1]))
-            } else if structure > 0 {
-                ShipPart::Structural(self.next_structural())
-            } else {
-                break;
-            };
-            assert!(self.place(part));
-        }
-    }
-
-    fn next_structural(&self) -> usize {
-        if !self.structure[0] {
-            return 0;
-        }
-        let components = self.components;
-        let mut required = MODULE_SUPPORT[..3]
-            .iter()
-            .copied()
-            .enumerate()
-            .filter(|(i, _)| self.modules[*i] > 0)
-            .map(|(_, socket)| socket)
-            .chain(
-                COMPONENT_SUPPORT
-                    .iter()
-                    .copied()
-                    .enumerate()
-                    .filter(|(i, _)| components[i % 2] > i / 2)
-                    .map(|(_, socket)| socket),
-            )
-            .chain(
-                MODULE_SUPPORT
-                    .iter()
-                    .copied()
-                    .enumerate()
-                    .filter(|(i, _)| self.modules[i % 3] > i / 3)
-                    .map(|(_, socket)| socket),
-            )
-            .chain(0..32)
-            .find(|&socket| !self.structure[socket])
-            .unwrap();
-        while !self.structure[STRUCTURE_PARENT[required]] {
-            required = STRUCTURE_PARENT[required];
-        }
-        required
-    }
-
+    /// Score awarded for a finished ship (none until all ten parts exist).
     pub(super) fn score(&self) -> i32 {
-        if !self.arrived {
-            return 0;
-        }
-        let habitation = (0..self.modules[0])
-            .filter(|&i| self.structure[MODULE_SUPPORT[i * 3]])
-            .count();
-        (habitation as f64 * 100.0 * self.flight().unwrap().1) as i32
-    }
-
-    fn flight(&self) -> Option<(f64, f64)> {
-        let components = self.components;
-        let mut connected_components = [0; 2];
-        for (i, &socket) in COMPONENT_SUPPORT.iter().enumerate() {
-            connected_components[i % 2] +=
-                usize::from(components[i % 2] > i / 2 && self.structure[socket]);
-        }
-        let mut connected_modules = [0; 3];
-        for (i, &socket) in MODULE_SUPPORT.iter().enumerate() {
-            connected_modules[i % 3] +=
-                usize::from(self.modules[i % 3] > i / 3 && self.structure[socket]);
-        }
-        let [habitation, support, solar] = connected_modules;
-        let [fuel, propulsion] = connected_components;
-        if [habitation, support, solar, fuel, propulsion].contains(&0) {
-            return None;
-        }
-        let mass: usize = self
-            .structure
-            .iter()
-            .enumerate()
-            .filter(|(_, installed)| **installed)
-            .map(|(i, _)| if i < 6 { 200 } else { 100 })
-            .sum::<usize>()
-            + 1600 * (habitation + support)
-            + 400 * (solar + fuel + propulsion);
-        let success = (support as f64 / habitation as f64).min(1.0)
-            * (2.0 * solar as f64 / (habitation + support) as f64).min(1.0);
-        Some((
-            mass as f64 / (200 * fuel.min(propulsion) + 20) as f64,
-            success,
-        ))
+        0
     }
 }
 
 impl Simulation {
-    pub(crate) fn ship_assembly(&self) -> ([usize; 3], [bool; 32], [usize; 2], [usize; 3], bool) {
-        let ship = &self.spaceships[HUMAN];
-        (
-            ship.unplaced(),
-            ship.structure,
-            ship.components,
-            ship.modules,
-            ship.manual,
-        )
-    }
-
-    pub(crate) fn can_place_ship_part(&self, part: ShipPart) -> bool {
-        self.spaceships[HUMAN].can_place(part)
-    }
-
-    pub(super) fn place_ship_part(&mut self, part: ShipPart) -> bool {
-        self.spaceships[HUMAN].place(part)
-    }
-
-    pub(super) fn toggle_manual_assembly(&mut self) -> bool {
-        let ship = &mut self.spaceships[HUMAN];
-        if !self.apollo_completed || ship.launched() {
-            return false;
-        }
-        ship.manual = !ship.manual;
-        if !ship.manual {
-            ship.autoplace();
-        }
-        true
-    }
-
     pub(crate) fn spaceship_status(&self, owner: usize) -> Option<String> {
         let ship = &self.spaceships[owner];
-        if let Some(year) = ship.arrival {
-            Some(format!("Spaceship arrives {}", year_label(year as i32)))
-        } else if self.can_launch_spaceship(owner) {
-            let (years, success) = ship.flight().unwrap();
-            Some(format!(
-                "Launch spaceship ({years:.1} yr, {:.0}%)",
-                success * 100.0
-            ))
-        } else if self.apollo_completed {
-            let [structure, components, modules] = ship.built;
-            Some(format!(
-                "Spaceship parts: {structure} / {components} / {modules}"
-            ))
-        } else {
-            None
-        }
+        (self.apollo_completed || ship.started()).then(|| {
+            format!(
+                "Spaceship parts: {} / {}",
+                ship.parts_built(),
+                SPACE_PART_PROJECTS.len()
+            )
+        })
+    }
+
+    pub(crate) fn spaceship_parts(&self, owner: usize) -> Vec<(&'static str, bool)> {
+        SPACE_PART_PROJECTS
+            .iter()
+            .enumerate()
+            .map(|(part, &(building, _))| {
+                (building.data().name, self.spaceships[owner].built[part] > 0)
+            })
+            .collect()
     }
 
     #[cfg(any(test, feature = "scenarios"))]
-    pub(crate) fn spaceship_progress(&self, owner: usize) -> ([usize; 3], Option<f64>) {
-        let ship = &self.spaceships[owner];
-        (ship.built, ship.arrival_year())
+    pub(crate) fn spaceship_progress(&self, owner: usize) -> [usize; 10] {
+        self.spaceships[owner].built
     }
 
-    pub(crate) fn can_launch_spaceship(&self, owner: usize) -> bool {
-        let ship = &self.spaceships[owner];
-        !ship.launched()
-            && ship.flight().is_some()
-            && self
-                .cities
-                .iter()
-                .any(|city| city.owner == owner && city.has_building(Building::PALACE))
-    }
-
-    pub(super) fn launch_spaceship(&mut self, owner: usize) -> bool {
-        if !self.can_launch_spaceship(owner) {
-            return false;
-        }
-        let years = self.spaceships[owner].flight().unwrap().0;
-        let arrival = f64::from(self.year) + years;
-        self.spaceships[owner].arrival = Some(arrival);
-        // Freeciv awards the Spaceship achievement in the all-player
-        // end-turn achievement cohort, not synchronously with this request.
-        self.add_event(format!(
-            "{} launched a spaceship. Arrival expected in {}.",
-            self.players[owner].name,
-            year_label(arrival as i32)
-        ));
-        true
-    }
-
-    pub(super) fn lose_spaceship(&mut self, owner: usize) {
-        if self.spaceships[owner].built != [0; 3] {
-            self.spaceships[owner] = Spaceship::default();
-            self.add_event(format!(
-                "{} lost its spaceship with its capital.",
-                self.players[owner].name
-            ));
-        }
-    }
-
-    /// Mirrors `dai_manage_spaceship()` in Freeciv's AI last-activities phase.
-    /// This runs before city production, so parts completed by this turn's city
-    /// processing are not eligible for launch until the next AI last-activities
-    /// phase.
-    pub(super) fn auto_launch_ai_spaceship(&mut self, owner: usize) {
-        if owner >= self.civilization_count
-            || !self.players[owner].ai
-            || !self.victory_enabled(crate::rules::engine_rules::VictoryCondition::SpaceRace)
+    /// Records a finished part and ends the game when it is the tenth.
+    pub(super) fn complete_space_part(&mut self, owner: usize, part: usize) {
+        self.spaceships[owner].add_part(part);
+        if self.spaceships[owner].complete()
+            && self.victory_enabled(crate::rules::engine_rules::VictoryCondition::SpaceRace)
+            && self.player_alive(owner)
+            && self.game_over.is_none()
         {
-            return;
-        }
-
-        let ship = &mut self.spaceships[owner];
-        if ship.launched() || ship.built == [0; 3] {
-            return;
-        }
-        ship.autoplace();
-        if ship.built == [32, 16, 12] {
-            self.launch_spaceship(owner);
-        }
-    }
-
-    /// Checks completed arrivals after end-turn processing and the calendar
-    /// advances, matching Freeciv's `check_for_game_over()` timing.
-    pub(super) fn check_space_race_arrivals(&mut self) {
-        if !self.victory_enabled(crate::rules::engine_rules::VictoryCondition::SpaceRace) {
-            return;
-        }
-        let arrivals: Vec<_> = self
-            .spaceships
-            .iter()
-            .enumerate()
-            .filter_map(|(owner, ship)| {
-                ship.arrival
-                    .filter(|&year| self.year >= year as i32 && self.player_alive(owner))
-                    .map(|year| (owner, year))
-            })
-            .collect();
-        if let Some((_, first_year)) = arrivals.iter().min_by(|a, b| a.1.total_cmp(&b.1)) {
-            let tied: Vec<_> = arrivals
-                .iter()
-                .filter(|(_, year)| year == first_year)
-                .map(|(owner, _)| *owner)
-                .collect();
-            let winner = tied[self.rand_below(tied.len() as i32) as usize];
-            self.spaceships[winner].arrived = true;
             self.game_over = Some(format!(
-                "{} reached Alpha Centauri and won the space race.",
-                self.players[winner].name
+                "{} completed the spaceship and won the space race.",
+                self.players[owner].name
             ));
         }
     }
@@ -355,145 +95,31 @@ impl Simulation {
 mod tests {
     use super::*;
 
-    fn launch_ready_human_ship(game: &mut Simulation) {
-        for (_, _, x, y) in Simulation::city_radius_at(10, 20) {
-            game.tile_mut(x, y).terrain = Terrain::Grassland;
-        }
-        game.create_city(HUMAN, 10, 20);
-        game.apollo_completed = true;
-        for (kind, count) in [(2, 12), (1, 16), (0, 32)] {
-            for _ in 0..count {
-                game.spaceships[HUMAN].add_part(kind);
-            }
-        }
-        assert!(game.can_launch_spaceship(HUMAN));
-        assert!(game.launch_spaceship(HUMAN));
-    }
-
-    fn prepare_ai_ship_missing_last_structure(game: &mut Simulation) {
-        let owner = 1;
-        game.players[owner].ai = true;
-        game.create_city(owner, 10, 20);
-        game.apollo_completed = true;
-        for (kind, count) in [(2, 12), (1, 16), (0, 31)] {
-            for _ in 0..count {
-                game.spaceships[owner].add_part(kind);
-            }
-        }
-        assert!(!game.spaceships[owner].launched());
-    }
-
     #[test]
-    fn manual_placement_enforces_dependencies_inventory_and_launch_lock() {
-        let mut ship = Spaceship {
-            manual: true,
-            ..Spaceship::default()
-        };
-        ship.add_part(0);
-        ship.add_part(1);
-        ship.add_part(2);
-        assert!(!ship.place(ShipPart::Structural(1)));
-        assert!(ship.place(ShipPart::Structural(0)));
-        assert!(!ship.place(ShipPart::Structural(1)));
-        assert!(ship.place(ShipPart::Component(1)));
-        assert!(!ship.place(ShipPart::Component(0)));
-        assert!(ship.place(ShipPart::Module(2)));
-        assert_eq!(ship.components, [0, 1]);
-        assert_eq!(ship.modules, [0, 0, 1]);
-        ship.add_part(0);
-        ship.arrival = Some(2000.0);
-        assert!(!ship.place(ShipPart::Structural(1)));
-    }
-
-    #[test]
-    fn flight_requires_connected_parts_and_uses_reference_mass() {
+    fn ship_is_complete_only_with_all_ten_distinct_parts() {
         let mut ship = Spaceship::default();
-        for (kind, count) in [(2, 3), (1, 2), (0, 7)] {
-            for _ in 0..count {
-                ship.add_part(kind);
-            }
+        for part in 0..9 {
+            ship.add_part(part);
+            ship.add_part(part);
+            assert!(!ship.complete());
         }
-        assert_eq!(ship.flight(), None);
-        ship.add_part(0);
-        assert_eq!(ship.flight(), Some((5600.0 / 220.0, 1.0)));
+        ship.add_part(9);
+        assert!(ship.complete());
+        assert_eq!(ship.parts_built(), 10);
     }
 
     #[test]
-    fn full_spaceship_connects_every_component_and_module() {
-        let mut ship = Spaceship::default();
-        for (kind, count) in [(2, 12), (1, 16), (0, 32)] {
-            for _ in 0..count {
-                ship.add_part(kind);
-            }
-        }
-        assert_eq!(ship.modules, [4; 3]);
-        assert_eq!(ship.flight(), Some((24600.0 / 1620.0, 1.0)));
-    }
-
-    #[test]
-    fn spaceship_achievement_is_awarded_at_the_end_turn_cohort() {
+    fn tenth_part_wins_the_space_race_immediately() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
-        launch_ready_human_ship(&mut game);
+        for part in 0..9 {
+            game.complete_space_part(HUMAN, part);
+        }
+        assert!(game.game_over.is_none());
+        game.complete_space_part(HUMAN, 9);
         assert!(
-            game.events
-                .iter()
-                .all(|event| { !event.contains("Achievement earned: Spaceship Launch") })
+            game.game_over
+                .as_deref()
+                .is_some_and(|text| text.contains("space race"))
         );
-
-        assert!(game.apply(Command::EndTurn));
-        assert!(
-            game.events
-                .iter()
-                .any(|event| { event.contains("Achievement earned: Spaceship Launch") })
-        );
-    }
-
-    #[test]
-    fn spaceship_achievement_check_does_not_consume_a_random_draw() {
-        let mut game = Simulation::new(crate::mapgen::generate(42));
-        launch_ready_human_ship(&mut game);
-        let mut without_check = game.clone();
-
-        game.check_achievements();
-
-        assert_eq!(game.rand_below(1_000), without_check.rand_below(1_000));
-    }
-
-    #[test]
-    fn ai_ship_waits_for_next_last_activities_after_final_part_is_produced() {
-        let mut game = Simulation::new(crate::mapgen::generate(42));
-        let owner = 1;
-        prepare_ai_ship_missing_last_structure(&mut game);
-
-        // This is the AI last-activities hook, before city production.
-        game.auto_launch_ai_spaceship(owner);
-        assert!(!game.spaceships[owner].launched());
-
-        // City processing completes the final part after that hook.
-        game.spaceships[owner].add_part(0);
-        assert_eq!(game.spaceships[owner].built, [32, 16, 12]);
-        assert!(!game.spaceships[owner].launched());
-
-        // Freeciv checks the newly completed inventory at the next AI hook.
-        game.auto_launch_ai_spaceship(owner);
-        assert!(game.spaceships[owner].launched());
-    }
-
-    #[test]
-    fn arrival_check_does_not_launch_ai_ships() {
-        let mut game = Simulation::new(crate::mapgen::generate(42));
-        let owner = 1;
-        game.players[owner].ai = true;
-        game.create_city(owner, 10, 20);
-        game.apollo_completed = true;
-        for (kind, count) in [(2, 12), (1, 16), (0, 32)] {
-            for _ in 0..count {
-                game.spaceships[owner].add_part(kind);
-            }
-        }
-
-        game.check_space_race_arrivals();
-
-        assert!(!game.spaceships[owner].launched());
     }
 }

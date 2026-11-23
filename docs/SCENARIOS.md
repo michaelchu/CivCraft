@@ -134,7 +134,7 @@ only for private unit tests.
 | --- | --- | --- | --- |
 | `border-reinforcements` | 83 | 75 | Clones the border offensive and deploys two pikemen on a visible approach after the first attacker stages. The pikemen can fall back into the city once war begins. Compares declaration timing, home defense, and eventual capture. |
 | `wartime-upkeep-shock` | 42 | 25 | Removes a revenue city on turn 5 while war is active. Checks the income drop and ensuing deficit, upkeep shortfalls, the frontier garrison, and recovery of actual net science. |
-| `space-industrial-loss` | 83 | 100 | Removes the highest-output eligible non-capital city building a spaceship part once at least eight parts exist. Checks a surviving city takes on additional work of that part type and launch with the frontier guarded during war. |
+| `space-industrial-loss` | 83 | 150 | Removes the highest-output eligible non-capital city building a spaceship part once at least five of the ten parts exist. Checks a surviving city takes on the interrupted part and the space-race victory with the frontier guarded during war. |
 | `naval-second-wave` | 42 | 50 | After the first capture, adds reserves on the home shore and an enemy counterattack on the far shore. Tracks the original reserves across the water and checks whether the port holds. |
 | `competing-trade-partners` | 42 | 1 | Builds cooperation and grievance through gameplay, equalizes current relations, then submits the same military bid from both partners and a low-risk bid from the partner who broke the pact. |
 

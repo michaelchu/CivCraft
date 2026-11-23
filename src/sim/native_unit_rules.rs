@@ -66,7 +66,7 @@ fn derive(kind: UnitKind) -> UnitCapabilities {
         ),
         ("Paratroopers", rule.has_capability("Paradrop")),
         ("AddToCity", rule.has_capability("JoinCity")),
-        ("Cant_Fortify", !rule.has_capability("Fortify")),
+        ("Cant_Fortify", !rule.can_fortify()),
     ] {
         if enabled {
             flags.push(name.to_owned());
@@ -80,18 +80,15 @@ fn derive(kind: UnitKind) -> UnitCapabilities {
         ("TerrainSpeed", ground),
         ("TerrainDefense", ground),
         ("ZOC", ground),
-        ("CanFortify", rule.has_capability("Fortify")),
+        ("CanFortify", rule.can_fortify()),
         ("CanPillage", ground && rule.attack > 0),
-        (
-            "CanOccupyCity",
-            ground && (rule.attack > 0 || kind == UnitKind::Army),
-        ),
+        ("CanOccupyCity", rule.can_occupy_city()),
         ("BuildAnywhere", ground),
-        ("Barracks", ground),
+        ("Barracks", class.has_barracks()),
         ("Airliftable", rule.has_capability("Airlift")),
         ("Aerial", aerial),
         ("Missile", class == UnitClass::Missile),
-        ("Unreachable", aerial),
+        ("Unreachable", class.is_unreachable()),
         ("NonNatBombardTgt", ground),
         ("AttackNonNative", rule.unit_type == 1),
         ("AttFromNonNative", rule.unit_type == 1),
@@ -189,4 +186,42 @@ pub(super) fn can_carry(carrier: UnitKind, passenger: UnitKind) -> bool {
         return false;
     }
     cargo.unit_type == 0
+}
+
+#[cfg(test)]
+mod single_definition_tests {
+    use super::*;
+    use crate::sim::movement_rules::MovementRules;
+
+    /// City capture, fortifying and class flags each have one definition,
+    /// so the movement table, action-enabler flags and unit helpers agree.
+    #[test]
+    fn unit_properties_agree_across_every_consumer() {
+        for kind in UnitKind::all() {
+            let flag = |name| crate::sim::action_rules::unit_class_flag(kind, name).unwrap();
+            let movement = &MovementRules::campaign_unit_movement_data(kind).1;
+            assert_eq!(kind.can_occupy_city(), flag("CanOccupyCity"), "{kind:?}");
+            assert_eq!(kind.can_occupy_city(), movement.can_occupy_city, "{kind:?}");
+            assert_eq!(kind.can_fortify(), flag("CanFortify"), "{kind:?}");
+            assert_eq!(kind.can_fortify(), !kind.has_flag(UnitFlag::CantFortify));
+            assert_eq!(
+                kind.unit_class().has_barracks(),
+                flag("Barracks"),
+                "{kind:?}"
+            );
+        }
+        for (kind, expected) in [
+            (UnitKind::Catapult, false),
+            (UnitKind::Artillery, false),
+            (UnitKind::Helicopter, false),
+            (UnitKind::Warrior, true),
+            (UnitKind::Marine, true),
+            (UnitKind::Army, true),
+        ] {
+            assert_eq!(kind.can_occupy_city(), expected, "{kind:?}");
+        }
+        assert!(!UnitKind::Destroyer.can_fortify());
+        assert!(!UnitKind::Fighter.can_fortify());
+        assert!(UnitKind::Spearman.can_fortify());
+    }
 }

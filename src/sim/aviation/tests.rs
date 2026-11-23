@@ -2588,13 +2588,19 @@ fn native_ai_counter_air_responds_to_observed_raids_and_ignores_ground_only_cont
             game.players[owner].gold = 2000;
         }
         game.sign_pact(HUMAN, 1, Pact::War);
+        // A SAM Battery needs a connected Aluminum source.
+        {
+            let source = game.tile_mut(11, 20);
+            source.terrain = Terrain::Hills;
+            source.resource = Some(Resource::Aluminum);
+        }
         game.create_city(1, 10, 20);
         game.cities.last_mut().unwrap().size = 8;
         game.cities.last_mut().unwrap().buildings.extend([
             Building::FACTORY,
             Building::MARKETPLACE,
             Building::LIBRARY,
-            Building::BARRACKS_III,
+            Building::BARRACKS,
             Building::AIRPORT,
         ]);
         game.create_city(HUMAN, 16, 20);

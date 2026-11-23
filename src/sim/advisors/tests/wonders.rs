@@ -13,6 +13,10 @@ fn small_wonder_projects_government_center_effects_across_empire() {
     game.create_city(1, 5, 8);
     game.create_city(1, 20, 40);
     game.create_city(1, 25, 40);
+    // The Forbidden Palace needs a large empire.
+    for (x, y) in [(5, 16), (5, 24), (5, 32), (12, 8), (12, 16)] {
+        game.create_city(1, x, y);
+    }
     game.players[1].known = vec![Tech::THEOLOGY];
     game.players[1].government = Government::DESPOTISM;
     game.players[1].rates = [80, 20, 0];
@@ -20,27 +24,25 @@ fn small_wonder_projects_government_center_effects_across_empire() {
         city.size = 4;
     }
     game.reconcile_city_workers();
-    game.cities[1].production = Production::Building(Building::ECCLESIASTICAL_PALACE);
+    game.cities[1].production = Production::Building(Building::FORBIDDEN_PALACE);
     let city = game.cities[1].clone();
     let original = game.advisor_city_output(&game.cities[2], None);
     let mut scratch = game.clone();
-    let want = game.projected_wonder_want(&mut scratch, &city, Building::ECCLESIASTICAL_PALACE);
+    let want = game.projected_wonder_want(&mut scratch, &city, Building::FORBIDDEN_PALACE);
     assert!(want > 0.0);
-    scratch.cities[1]
-        .buildings
-        .push(Building::ECCLESIASTICAL_PALACE);
+    scratch.cities[1].buildings.push(Building::FORBIDDEN_PALACE);
     assert!(scratch.advisor_city_output(&scratch.cities[2], None) > original);
     assert_eq!(
         game.wonder_build_choice(&city).unwrap().production,
-        Production::Building(Building::ECCLESIASTICAL_PALACE)
+        Production::Building(Building::FORBIDDEN_PALACE)
     );
     game.players[1].known.push(Tech::ECONOMICS);
-    game.cities[2]
-        .buildings
-        .push(Building::ECCLESIASTICAL_PALACE);
-    assert!(game.wonder_build_choice(&city).is_none_or(
-        |choice| choice.production != Production::Building(Building::ECCLESIASTICAL_PALACE)
-    ));
+    game.cities[2].buildings.push(Building::FORBIDDEN_PALACE);
+    assert!(
+        game.wonder_build_choice(&city).is_none_or(
+            |choice| choice.production != Production::Building(Building::FORBIDDEN_PALACE)
+        )
+    );
 }
 
 #[test]
@@ -109,19 +111,14 @@ fn wonder_city_requires_a_helper_cluster_and_rejects_immediate_danger() {
     game.players[1].known = Tech::all().collect();
     let city = game.cities[0].clone();
     assert_eq!(
-        game.building_blocker(&city, Building::SPACE_MODULE)
+        game.building_blocker(&city, Building::SS_THRUSTERS)
             .as_deref(),
         Some("Needs the Apollo Program")
     );
     game.apollo_completed = true;
-    game.cities[0].buildings.extend([
-        Building::FACTORY,
-        Building::LIBRARY,
-        Building::UNIVERSITY,
-        Building::RESEARCH_LAB,
-    ]);
+    game.tile_mut(10, 24).resource = Some(Resource::Aluminum);
     let city = game.cities[0].clone();
-    assert_eq!(game.building_blocker(&city, Building::SPACE_MODULE), None);
+    assert_eq!(game.building_blocker(&city, Building::SS_THRUSTERS), None);
 }
 
 #[test]
@@ -135,19 +132,14 @@ fn productive_wonder_city_retains_project_and_suppresses_space_parts() {
     let city = game.cities[0].clone();
     assert_eq!(Building::APOLLO_PROGRAM.data().genus, Genus::SmallWonder);
     assert_eq!(
-        game.building_blocker(&city, Building::SPACE_MODULE)
+        game.building_blocker(&city, Building::SS_THRUSTERS)
             .as_deref(),
         Some("Needs the Apollo Program")
     );
     game.apollo_completed = true;
-    game.cities[0].buildings.extend([
-        Building::FACTORY,
-        Building::LIBRARY,
-        Building::UNIVERSITY,
-        Building::RESEARCH_LAB,
-    ]);
+    game.tile_mut(10, 24).resource = Some(Resource::Aluminum);
     let city = game.cities[0].clone();
-    assert_eq!(game.building_blocker(&city, Building::SPACE_MODULE), None);
+    assert_eq!(game.building_blocker(&city, Building::SS_THRUSTERS), None);
 }
 
 #[test]
@@ -158,17 +150,12 @@ fn space_parts_need_a_competitive_empire_or_an_active_race() {
     game.create_city(1, 10, 24);
     game.players[1].known = Tech::all().collect();
     game.apollo_completed = true;
-    game.cities[0].buildings.extend([
-        Building::FACTORY,
-        Building::LIBRARY,
-        Building::UNIVERSITY,
-        Building::RESEARCH_LAB,
-    ]);
+    game.tile_mut(10, 24).resource = Some(Resource::Aluminum);
     let city = game.cities[0].clone();
-    assert_eq!(game.building_blocker(&city, Building::SPACE_MODULE), None);
-    game.spaceships[1].built[2] = 12;
+    assert_eq!(game.building_blocker(&city, Building::SS_THRUSTERS), None);
+    game.spaceships[1].built[0] = 1;
     assert_eq!(
-        game.building_blocker(&city, Building::SPACE_MODULE)
+        game.building_blocker(&city, Building::SS_THRUSTERS)
             .as_deref(),
         Some("Spaceship part unavailable")
     );

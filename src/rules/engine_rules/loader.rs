@@ -1,6 +1,5 @@
 //! Builds the campaign's rule tables into one validated, indexed ruleset.
 
-use crate::rules::content_adapter::{EngineTechBinding, bind_engine_technology};
 use crate::rules::engine_rules::RequirementKind;
 use crate::rules::{Building, Tech};
 use crate::world::Terrain;
@@ -64,10 +63,7 @@ pub(super) fn resolve_requirements(requirements: &mut [Requirement]) {
 }
 
 fn resolve_tech(name: &str) -> Option<Tech> {
-    match bind_engine_technology(name).ok()? {
-        EngineTechBinding::Bound(tech) => Some(tech),
-        EngineTechBinding::MissingFromCatalog => None,
-    }
+    Tech::from_name(name)
 }
 
 /// Spelling variants Freeciv uses for buildings the Civ III catalog spells
@@ -168,7 +164,7 @@ fn requirement_value_is_valid(requirement: &Requirement) -> bool {
         RequirementKind::Activity => {
             super::identifiers::contains_case_insensitive(super::identifiers::ACTIVITY_NAMES, &name)
         }
-        RequirementKind::Tech => bind_engine_technology(&name).is_ok(),
+        RequirementKind::Tech => Tech::from_name(&name).is_some(),
         RequirementKind::Age => integer_value(&name).is_some_and(|value| value > 0),
         RequirementKind::Ai => {
             super::identifiers::contains_case_insensitive(super::identifiers::AI_LEVEL_NAMES, &name)
@@ -358,28 +354,29 @@ mod bundle_tests {
             )
             .filter(|requirement| requirement.kind == RequirementKind::Tech)
             .collect::<Vec<_>>();
-        for (alias, technology) in [("Radio", Tech::FLIGHT), ("Nuclear Fission", Tech::FISSION)] {
-            let requirement = tech_requirements
-                .iter()
-                .find(|req| matches!(&req.name, RequirementValue::String(name) if name.eq_ignore_ascii_case(alias)))
-                .unwrap();
+        // Rules name Civ III advances only; every Tech requirement resolves.
+        for requirement in &tech_requirements {
+            let RequirementValue::String(name) = &requirement.name else {
+                panic!("tech requirement without a name");
+            };
+            let tech = Tech::from_name(name)
+                .unwrap_or_else(|| panic!("tech requirement {name:?} is not a Civ III advance"));
             assert_eq!(
                 requirement.resolved,
-                Some(ResolvedRequirementValue::Tech(technology))
-            );
-            assert_eq!(
-                bind_engine_technology(alias),
-                Ok(EngineTechBinding::Bound(technology))
+                Some(ResolvedRequirementValue::Tech(tech))
             );
         }
-        assert_eq!(
-            bind_engine_technology("Conscription"),
-            Ok(EngineTechBinding::Bound(Tech::NATIONALISM))
-        );
-        assert_eq!(
-            bind_engine_technology("Plastics"),
-            Ok(EngineTechBinding::MissingFromCatalog)
-        );
-        assert!(bind_engine_technology("Unknown modification").is_err());
+        assert_eq!(Tech::from_name("Nationalism"), Some(Tech::NATIONALISM));
+        // Freeciv-only names no longer resolve.
+        for freeciv_only in [
+            "Radio",
+            "Plastics",
+            "Railroad",
+            "Conscription",
+            "Fusion Power",
+        ] {
+            assert_eq!(Tech::from_name(freeciv_only), None, "{freeciv_only}");
+        }
+        assert_eq!(Tech::from_name("Unknown modification"), None);
     }
 }

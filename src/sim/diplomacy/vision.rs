@@ -166,7 +166,7 @@ mod tests {
             .buildings
             .retain(|&building| {
                 building != crate::rules::Building::PALACE
-                    && building != crate::rules::Building::ECCLESIASTICAL_PALACE
+                    && building != crate::rules::Building::FORBIDDEN_PALACE
             });
         let radius = game
             .map_wrap

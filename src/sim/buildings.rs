@@ -3,6 +3,24 @@
 use super::*;
 use crate::rules::{Genus, Requirement};
 
+/// The resource a building `Resource` requirement index names; the order is
+/// `RESOURCE_TARGETS` in `rules/native/buildings.rs`.
+fn requirement_resource(id: usize) -> Option<Resource> {
+    [
+        Resource::Aluminum,
+        Resource::Coal,
+        Resource::Horses,
+        Resource::Iron,
+        Resource::Oil,
+        Resource::Rubber,
+        Resource::Saltpeter,
+        Resource::Uranium,
+        Resource::Ivory,
+    ]
+    .get(id)
+    .copied()
+}
+
 impl Simulation {
     pub(crate) fn great_wonder_available(&self, building: Building) -> bool {
         building.data().genus == Genus::GreatWonder && !self.completed_wonders.contains(&building)
@@ -161,7 +179,7 @@ impl Simulation {
         self.unit_available(city.owner, kind)
             && self.unit_resources_available(city, kind)
             && self.buildable_unit_successor(city, kind).is_none()
-            && (kind.unit_class().build_anywhere()
+            && (kind.unit_class().buildable_in_any_city()
                 || kind.is_aircraft()
                 || self.naval_city_access(city, kind))
     }
@@ -189,10 +207,7 @@ impl Simulation {
 
         let mut sea_network_expanded = false;
         let mut air_network_expanded = false;
-        let has_sea_port = |candidate: &City| {
-            candidate.has_building(Building::HARBOR)
-                || candidate.has_building(Building::PORT_FACILITY)
-        };
+        let has_sea_port = |candidate: &City| candidate.has_building(Building::HARBOR);
 
         while let Some((x, y)) = queue.pop_front() {
             let tile = self.tile(x, y);
@@ -253,7 +268,7 @@ impl Simulation {
     pub(super) fn unit_buildable_later(&self, city: &City, kind: UnitKind) -> bool {
         !kind.has_no_build()
             && self.available_unit_successor(city.owner, kind).is_none()
-            && (kind.unit_class().build_anywhere()
+            && (kind.unit_class().buildable_in_any_city()
                 || kind.is_aircraft()
                 || self.naval_city_access(city, kind))
     }
@@ -305,20 +320,10 @@ impl Simulation {
                     >= count
             }
             Requirement::OwnerEliteUnit => self.owner_has_elite_unit(city.owner),
-            Requirement::Resource(id) => {
-                let resource = match id {
-                    0 => Resource::Aluminum,
-                    1 => Resource::Coal,
-                    2 => Resource::Horses,
-                    3 => Resource::Iron,
-                    4 => Resource::Oil,
-                    5 => Resource::Rubber,
-                    6 => Resource::Saltpeter,
-                    7 => Resource::Uranium,
-                    _ => return false,
-                };
-                nearby().any(|tile| tile.active_resource() == Some(resource))
-            }
+            // Civ III: a resource requirement is met by a resource connected to
+            // the city, the same test units use, not only by one in its radius.
+            Requirement::Resource(id) => requirement_resource(id)
+                .is_some_and(|resource| self.resource_connected_to_city(city, resource)),
         };
         matches == present
     }
@@ -359,9 +364,6 @@ impl Simulation {
         if city.buildings.contains(&building) {
             return Some("Built".into());
         }
-        if matches!(building, Building::BARRACKS_II | Building::BARRACKS_III) {
-            return Some("Barracks training upgrades automatically with technology".into());
-        }
         if data.genus == Genus::GreatWonder && self.completed_wonders.contains(&building) {
             return Some("Wonder already completed".into());
         }
@@ -377,10 +379,7 @@ impl Simulation {
             if !self.apollo_completed {
                 return Some("Needs the Apollo Program".into());
             }
-            if city.owner == BARBARIANS
-                || self.spaceships[city.owner].built[part] >= limit
-                || self.spaceships[city.owner].launched()
-            {
+            if city.owner == BARBARIANS || self.spaceships[city.owner].built[part] >= limit {
                 return Some("Spaceship part unavailable".into());
             }
         }
@@ -417,7 +416,7 @@ impl Simulation {
             }
             Genus::Special => {
                 if let Some((part, _)) = spaceship_part(building) {
-                    self.spaceships[owner].add_part(part);
+                    self.complete_space_part(owner, part);
                 }
                 return;
             }
@@ -469,18 +468,9 @@ fn requirement_name(requirement: Requirement) -> String {
             format!("{count} {} buildings", Building(id).data().name)
         }
         Requirement::Resource(id) => format!(
-            "{} in the city radius",
-            match id {
-                0 => "Aluminum",
-                1 => "Coal",
-                2 => "Horses",
-                3 => "Iron",
-                4 => "Oil",
-                5 => "Rubber",
-                6 => "Saltpeter",
-                7 => "Uranium",
-                _ => "resource",
-            }
+            "{} connected to the city",
+            requirement_resource(id)
+                .map_or_else(|| "resource".to_owned(), |resource| format!("{resource:?}"))
         ),
     }
 }
@@ -504,7 +494,7 @@ mod tests {
 
     #[test]
     fn researched_building_completes_and_unlocks_its_successor() {
-        assert_eq!(Building::all().count(), 91);
+        assert_eq!(Building::all().count(), 83);
         let mut game = Simulation::new(crate::mapgen::generate(42));
         let settler = game
             .units
@@ -536,6 +526,51 @@ mod tests {
     }
 
     #[test]
+    fn strategic_resource_requirements_need_a_connected_resource() {
+        let map = crate::mapgen::generate(42);
+        let (x, y) = map.starts[0];
+        let mut game = Simulation::new(map);
+        game.create_city(HUMAN, x, y);
+        let neighbors: Vec<_> = game.map_wrap.eight_way_neighbors(x, y).collect();
+        for &(nx, ny) in &neighbors {
+            let tile = game.tile_mut(nx, ny);
+            tile.terrain = Terrain::Plains;
+            tile.resource = None;
+        }
+        for name in ["Industrialization", "Mathematics"] {
+            game.discover(HUMAN, Tech::all().find(|tech| tech.name() == name).unwrap());
+        }
+        let factory = building("Factory");
+        let zeus = building("Statue of Zeus");
+        let blocked =
+            |game: &Simulation, building| game.building_blocker(&game.cities[0], building);
+        // Civ III: a Factory needs Iron and the Statue of Zeus needs Ivory.
+        assert!(blocked(&game, factory).is_some());
+        assert!(blocked(&game, zeus).is_some());
+        // The resource counts once its tile is owned and road-connected.
+        let (ix, iy) = neighbors[0];
+        {
+            let tile = game.tile_mut(ix, iy);
+            tile.terrain = Terrain::Hills;
+            tile.resource = Some(Resource::Iron);
+            tile.owner = Some(HUMAN);
+        }
+        assert!(blocked(&game, factory).is_some());
+        game.tile_mut(ix, iy).road = true;
+        assert!(blocked(&game, factory).is_none());
+        // One resource does not satisfy the other building's requirement.
+        assert!(blocked(&game, zeus).is_some());
+        let (vx, vy) = neighbors[1];
+        {
+            let tile = game.tile_mut(vx, vy);
+            tile.resource = Some(Resource::Ivory);
+            tile.owner = Some(HUMAN);
+            tile.road = true;
+        }
+        assert!(blocked(&game, zeus).is_none());
+    }
+
+    #[test]
     fn coastal_and_aqueduct_requirements_distinguish_lakes_sea_and_rivers() {
         let map = crate::mapgen::generate(42);
         let (x, y) = map.starts[0];
@@ -552,8 +587,6 @@ mod tests {
         }
         let harbor = building("Harbor");
         let aqueduct = building("Aqueduct");
-        let lake_aqueduct = building("Aqueduct, Lake");
-        let river_aqueduct = building("Aqueduct, River");
         // A diagonal Civ III neighbor also satisfies city-local terrain rules.
         let (nx, ny) = adjacent[1];
         assert!(game.building_blocker(&game.cities[0], aqueduct).is_none());
@@ -563,21 +596,11 @@ mod tests {
             game.building_blocker(&game.cities[0], harbor).as_deref(),
             Some("Needs a sea coast")
         );
-        assert!(
-            game.building_blocker(&game.cities[0], lake_aqueduct)
-                .is_none()
-        );
-        assert!(
-            game.building_blocker(&game.cities[0], river_aqueduct)
-                .is_some()
-        );
+        // A city beside fresh water never needs an Aqueduct (Civ III).
         assert!(game.building_blocker(&game.cities[0], aqueduct).is_some());
         game.tile_mut(nx, ny).terrain = Terrain::Sea;
         assert!(game.building_blocker(&game.cities[0], harbor).is_none());
-        assert!(
-            game.building_blocker(&game.cities[0], river_aqueduct)
-                .is_none()
-        );
+        assert!(game.building_blocker(&game.cities[0], aqueduct).is_some());
     }
 
     #[test]
@@ -609,7 +632,7 @@ mod tests {
         game.cities.clear();
         game.create_city(HUMAN, 10, 20);
         game.create_city(HUMAN, 20, 20);
-        assert_eq!(Building::all().count(), 91);
+        assert_eq!(Building::all().count(), 83);
         assert_eq!(Building::APOLLO_PROGRAM.data().genus, Genus::SmallWonder);
         assert_eq!(Building::SDI_DEFENSE.data().genus, Genus::SmallWonder);
         game.cities[0].buildings.push(Building::APOLLO_PROGRAM);
@@ -622,8 +645,6 @@ mod tests {
 
     #[test]
     fn missing_conquests_culture_wonders_use_appended_catalog_ids_and_source_requirements() {
-        assert_eq!(Building::SISTINE_CHAPEL.0, 88);
-        assert_eq!(Building::KNIGHTS_TEMPLAR.0, 89);
         assert_eq!(Building::SISTINE_CHAPEL.data().name, "Sistine Chapel");
         assert_eq!(Building::SISTINE_CHAPEL.data().cost, 600);
         assert_eq!(Building::SISTINE_CHAPEL.data().genus, Genus::GreatWonder);
@@ -822,7 +843,7 @@ mod transaction_tests {
 
         // Connecting both cities with Harbors shares Oil across water.
         game.cities[0].buildings.push(Building::HARBOR);
-        game.cities[1].buildings.push(Building::PORT_FACILITY);
+        game.cities[1].buildings.push(Building::HARBOR);
         assert!(game.resource_connected_to_city(&game.cities[0], Resource::Oil));
 
         // Replacing ports with Airports also shares Oil.
@@ -831,5 +852,60 @@ mod transaction_tests {
         game.cities[0].buildings.push(Building::AIRPORT);
         game.cities[1].buildings.push(Building::AIRPORT);
         assert!(game.resource_connected_to_city(&game.cities[0], Resource::Oil));
+    }
+
+    #[test]
+    fn civil_defense_and_commercial_dock_follow_the_civ3_pedia() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        game.cities.clear();
+        game.create_city(HUMAN, 10, 20);
+        game.players[HUMAN].known = Tech::all().collect();
+        let civil = Building::CIVIL_DEFENSE;
+        assert_eq!(
+            game.building_blocker(&game.cities[0], civil).as_deref(),
+            Some("Needs Barracks")
+        );
+        game.cities[0].buildings.push(Building::BARRACKS);
+        assert_eq!(game.building_blocker(&game.cities[0], civil), None);
+        let dock = Building::COMMERCIAL_DOCK;
+        assert_ne!(
+            game.building_blocker(&game.cities[0], dock).as_deref(),
+            None
+        );
+        let effects = &crate::rules::engine_rules::RulesetData::campaign_default().effects;
+        assert!(
+            effects
+                .iter()
+                .any(|e| e.rule_name == "civil_defense" && e.value == 50)
+        );
+        assert!(
+            effects
+                .iter()
+                .any(|e| e.rule_name == "commercial_dock" && e.value == 1)
+        );
+    }
+
+    #[test]
+    fn spaceship_parts_need_apollo_and_connected_strategic_resources() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        game.cities.clear();
+        game.create_city(HUMAN, 10, 20);
+        game.players[HUMAN].known = Tech::all().collect();
+        let casing = Building::SS_EXTERIOR_CASING;
+        assert_eq!(
+            game.building_blocker(&game.cities[0], casing).as_deref(),
+            Some("Needs the Apollo Program")
+        );
+        game.apollo_completed = true;
+        assert!(
+            game.building_blocker(&game.cities[0], casing)
+                .is_some_and(|reason| reason.contains("connected to the city"))
+        );
+        // Each of the ten parts has its own record; none repeats.
+        let parts: std::collections::BTreeSet<_> = spaceship::SPACE_PART_PROJECTS
+            .iter()
+            .map(|(part, _)| part.0)
+            .collect();
+        assert_eq!(parts.len(), 10);
     }
 }

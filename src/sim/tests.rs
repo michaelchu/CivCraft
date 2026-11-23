@@ -159,21 +159,14 @@ fn new_game_advances_reference_post_mapgen_rng_and_keeps_native_assignments() {
             // Fresh campaign players start in the Ancient era. Mirror
             // tech_available()'s era gate as well as its known/prerequisite
             // checks so the expected reservoir-sampling draws stay aligned.
-            if tech.era() > crate::rules::TechEra::Ancient
-                || known.contains(&tech)
-                || tech
-                    .catalog_equivalent()
-                    .is_some_and(|equivalent| known.contains(&equivalent))
-            {
+            if tech.era() > crate::rules::TechEra::Ancient || known.contains(&tech) {
                 continue;
             }
             let prerequisites = tech.catalog_prerequisites().unwrap_or(&[]);
-            if prerequisites.iter().all(|required| {
-                known.contains(required)
-                    || required
-                        .catalog_equivalent()
-                        .is_some_and(|equivalent| known.contains(&equivalent))
-            }) {
+            if prerequisites
+                .iter()
+                .all(|required| known.contains(required))
+            {
                 available_count += 1;
                 if available_count > 1 {
                     expected_random.draw(available_count as u32);

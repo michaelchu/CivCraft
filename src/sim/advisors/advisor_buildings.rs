@@ -47,14 +47,8 @@ impl Simulation {
                 {
                     content(1, 1);
                 }
-                if owns(Building::MICHELANGELOS_CHAPEL) {
+                if owns(Building::SISTINE_CHAPEL) {
                     content(3, 1);
-                }
-            }
-            Building::AMPHITHEATER => {
-                content(3, 1);
-                if self.has_tech(city.owner, Tech::ELECTRICITY) {
-                    content(1, 1);
                 }
             }
             Building::COURTHOUSE => {
@@ -67,7 +61,7 @@ impl Simulation {
             Building::POLICE_STATION => content(2, 1),
             Building::HANGING_GARDENS => content(1, count),
             Building::TEMPLE_OF_ARTEMIS if has(Building::TEMPLE) => content(2, count),
-            Building::MICHELANGELOS_CHAPEL if has(Building::CATHEDRAL) => content(3, count),
+            Building::SISTINE_CHAPEL if has(Building::CATHEDRAL) => content(3, count),
             Building::MAUSOLEUM_OF_MAUSOLOS => {
                 if has(Building::CITY_WALLS) {
                     content(1, count);
@@ -80,16 +74,16 @@ impl Simulation {
         }
         if building == Building::POLICE_STATION {
             effects.push((1, 1, true, 1));
-            if government == Government::DEMOCRACY && !owns(Building::WOMENS_SUFFRAGE) {
+            if government == Government::DEMOCRACY && !owns(Building::UNIVERSAL_SUFFRAGE) {
                 effects.push((1, 1, true, 1));
             }
         }
         if matches!(
             building,
-            Building::STATUE_OF_ZEUS | Building::KING_RICHARDS_CRUSADE | Building::WOMENS_SUFFRAGE
+            Building::STATUE_OF_ZEUS | Building::UNIVERSAL_SUFFRAGE
         ) {
             effects.push((1, count, true, 1));
-            if building == Building::WOMENS_SUFFRAGE
+            if building == Building::UNIVERSAL_SUFFRAGE
                 && government == Government::DEMOCRACY
                 && has(Building::POLICE_STATION)
             {
@@ -142,14 +136,7 @@ impl Simulation {
         shields: i32,
     ) -> f64 {
         let amount = match building {
-            Building::AQUEDUCT | Building::SEWER_SYSTEM => 30,
-            Building::AQUEDUCT_RIVER if !city.has_building(Building::AQUEDUCT) => 30,
-            Building::AQUEDUCT_LAKE
-                if !city.has_building(Building::AQUEDUCT)
-                    && !city.has_building(Building::AQUEDUCT_RIVER) =>
-            {
-                30
-            }
+            Building::AQUEDUCT => 30,
             _ => 0,
         };
         if amount == 0 {
@@ -238,7 +225,7 @@ impl Simulation {
         };
         DefenseEffectContext {
             capital: city.has_building(Building::PALACE)
-                || city.has_building(Building::ECCLESIASTICAL_PALACE),
+                || city.has_building(Building::FORBIDDEN_PALACE),
             ocean_city: continent < 0,
             coastal,
             continent_threat,
@@ -339,7 +326,7 @@ impl Simulation {
         // daieffects.c values veteran construction as (3*c + affected)
         // and full healing as (5*c + affected), once per class effect.
         want += f64::from(match building {
-            Building::BARRACKS | Building::BARRACKS_II | Building::BARRACKS_III => {
+            Building::BARRACKS => {
                 let land = self
                     .units_owned_by(city.owner)
                     .filter(|unit| !unit.kind.is_naval() && !unit.kind.is_aircraft())
@@ -347,7 +334,7 @@ impl Simulation {
                 8 + 2 * land
             }
             // Sea and Trireme each have distinct veteran/healing effects.
-            Building::PORT_FACILITY => {
+            Building::HARBOR => {
                 let naval = self
                     .units_owned_by(city.owner)
                     .filter(|unit| unit.kind.is_naval())
@@ -433,18 +420,6 @@ impl Simulation {
         owned: &[&City],
         baseline_outputs: &[f64],
     ) -> f64 {
-        let government_want = if building == Building::STATUE_OF_LIBERTY {
-            scratch
-                .government_research_want(city.owner)
-                .map(|(tech, value)| {
-                    value
-                        .min(65)
-                        .min(self.shared_research_path(city.owner, tech).len() as i32 * 10)
-                })
-                .unwrap_or(0)
-        } else {
-            0
-        };
         let index = scratch
             .cities
             .iter()
@@ -484,8 +459,6 @@ impl Simulation {
                     .filter(|unit| unit.kind == UnitKind::CruiseMissile)
                     .count() as i32
             }
-            Building::MARCO_POLOS_EMBASSY => 2 * self.players.len() as i32,
-            Building::STATUE_OF_LIBERTY => government_want,
             Building::LEONARDOS_WORKSHOP => {
                 2 * owned_units()
                     .filter(|unit| self.upgrade_target(unit).is_some())

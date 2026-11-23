@@ -23,6 +23,11 @@ pub(crate) fn runtime_index(id: &str) -> Option<usize> {
             by_name
                 .entry(definition.name.to_ascii_lowercase())
                 .or_insert(definition.runtime_index);
+            if let Some(display) = &definition.display_name {
+                by_name
+                    .entry(display.to_ascii_lowercase())
+                    .or_insert(definition.runtime_index);
+            }
         }
         Index { by_id, by_name }
     });
@@ -30,50 +35,25 @@ pub(crate) fn runtime_index(id: &str) -> Option<usize> {
     // an ID hit and a name hit on different records is resolved as the scan
     // would: whichever record comes first. Catalog IDs and names do not
     // collide, which `catalog_ids_and_names_resolve_to_one_record` pins.
-    let direct = index
+    index
         .by_id
         .get(id)
         .or_else(|| index.by_name.get(&id.to_ascii_lowercase()))
-        .copied();
-    direct.or_else(|| compat_fallback(id))
+        .copied()
 }
 
 pub(crate) fn runtime_index_in(catalog: &TechnologyCatalog, id: &str) -> Option<usize> {
     catalog
         .technologies
         .iter()
-        .find(|d| d.id == id || d.name.eq_ignore_ascii_case(id))
+        .find(|d| {
+            d.id == id
+                || d.name.eq_ignore_ascii_case(id)
+                || d.display_name
+                    .as_deref()
+                    .is_some_and(|display| display.eq_ignore_ascii_case(id))
+        })
         .map(|d| d.runtime_index)
-        .or_else(|| compat_fallback(id))
-}
-
-fn compat_fallback(id: &str) -> Option<usize> {
-    let suffix = id.strip_prefix("TECH_COMPAT_")?;
-    compat_runtime_index(suffix).or_else(|| suffix.parse::<usize>().ok().filter(|i| *i < 101))
-}
-
-fn compat_runtime_index(suffix: &str) -> Option<usize> {
-    match suffix.to_ascii_lowercase().replace('_', " ").as_str() {
-        "automobile" => Some(5),
-        "bridge building" => Some(7),
-        "combined arms" => Some(13),
-        "explosives" => Some(27),
-        "fusion power" => Some(30),
-        "genetic engineering" => Some(31),
-        "guerilla warfare" => Some(32),
-        "labor union" => Some(38),
-        "leadership" => Some(40),
-        "literacy" => Some(41),
-        "machine tools" => Some(42),
-        "radio" => Some(63),
-        "railroad" => Some(64),
-        "refrigeration" => Some(67),
-        "seafaring" => Some(71),
-        "steam engine" => Some(74),
-        "tactics" => Some(77),
-        "trade" => Some(83),
-        _ => None,
-    }
 }
 
 pub(crate) fn validate(technologies: &[NativeTechnology]) -> Result<(), String> {
@@ -215,13 +195,23 @@ mod tests {
     }
 
     #[test]
-    fn resolves_ids_names_and_readable_compat_aliases() {
+    fn resolves_native_ids_and_names_but_no_freeciv_aliases() {
         assert_eq!(runtime_index("TECH_Bronze_Working"), Some(8));
         assert_eq!(runtime_index("Bronze Working"), Some(8));
-        assert_eq!(runtime_index("TECH_COMPAT_Steam_Engine"), Some(74));
-        assert_eq!(runtime_index("TECH_COMPAT_74"), Some(74));
-        assert_eq!(runtime_index("TECH_COMPAT_Railroad"), Some(64));
-        assert_eq!(runtime_index("TECH_COMPAT_Unknown"), None);
+        // Display names resolve too ("Amphibious War" is shown as "Amphibious Warfare").
+        assert_eq!(
+            runtime_index("Amphibious Warfare"),
+            runtime_index("Amphibious War")
+        );
+        assert!(runtime_index("Amphibious Warfare").is_some());
+        for retired in [
+            "TECH_COMPAT_Steam_Engine",
+            "TECH_COMPAT_74",
+            "Railroad",
+            "Radio",
+        ] {
+            assert_eq!(runtime_index(retired), None, "{retired}");
+        }
     }
 
     #[test]

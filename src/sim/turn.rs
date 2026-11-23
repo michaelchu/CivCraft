@@ -128,7 +128,6 @@ impl Simulation {
         // and before the global-warming/nuclear-winter phase.
         self.check_achievements();
         self.update_climate();
-        self.refresh_diplomatic_contact_effects();
         // srv_main.c::end_turn advances diplomacy and the calendar after
         // migrations, disasters, achievements, climate, and other world
         // changes. check_for_game_over() runs immediately after end_turn().
@@ -151,7 +150,6 @@ impl Simulation {
         if self.check_turn_limit() {
             return;
         }
-        self.check_space_race_arrivals();
         if self.game_over.is_some() {
             return;
         }
@@ -247,14 +245,7 @@ impl RequirementContext for CalendarContext<'_> {
                 Some(ResolvedRequirementValue::Tech(tech)) => tech,
                 _ => match &requirement.name {
                     RequirementValue::String(name) => {
-                        match crate::rules::content_adapter::bind_engine_technology(name)
-                            .map_err(|_| unsupported())?
-                        {
-                            crate::rules::content_adapter::EngineTechBinding::Bound(tech) => tech,
-                            crate::rules::content_adapter::EngineTechBinding::MissingFromCatalog => {
-                                return Ok(false);
-                            }
-                        }
+                        Tech::from_name(name).ok_or_else(unsupported)?
                     }
                     _ => return Err(unsupported()),
                 },
@@ -399,7 +390,7 @@ mod tests {
         assert_eq!(transition(1450, &[]), (1460, false));
         assert_eq!(transition(1450, &[Tech::SPACE_FLIGHT]), (1455, false));
         assert_eq!(
-            transition(1450, &[Tech::SPACE_FLIGHT, Tech::SUPERCONDUCTORS]),
+            transition(1450, &[Tech::SPACE_FLIGHT, Tech::SUPERCONDUCTOR]),
             (1452, false)
         );
     }

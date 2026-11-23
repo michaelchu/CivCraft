@@ -125,7 +125,7 @@ impl Simulation {
             self.players[owner].known.len() as i32 + self.players[owner].future_techs
         };
         fear += (advances(target) - advances(owner)).max(0) * 100;
-        if self.spaceships[target].built.iter().any(|&n| n > 0) {
+        if self.spaceships[target].started() {
             want *= 2;
         }
         if self.ai_space_race_leader() == Some(target) {

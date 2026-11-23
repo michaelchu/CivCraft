@@ -25,7 +25,7 @@ pub(super) const SCENARIO: Scenario = Scenario::new(
 );
 
 fn setup(map: GeneratedMap) -> (Simulation, Box<dyn ScenarioRun>) {
-    let known = [Tech::ALPHABET, Tech::BRONZE_WORKING, Tech::COMBINED_ARMS];
+    let known = [Tech::ALPHABET, Tech::BRONZE_WORKING, Tech::ADVANCED_FLIGHT];
     let mut game = WorldBuilder::ocean_campaign(
         map,
         &[

@@ -339,9 +339,6 @@ impl Simulation {
         let RequirementValue::String(name) = &requirement.name else {
             return false;
         };
-        if building == Building::AMPHITHEATER && name.eq_ignore_ascii_case("Colosseum") {
-            return true;
-        }
         Self::ai_ruleset_building_record(building)
             .is_some_and(|record| record.name.eq_ignore_ascii_case(name))
     }
@@ -663,16 +660,15 @@ impl Simulation {
 mod city_sale_tests {
     use super::*;
 
+    /// The Civ III catalog has no building made obsolete by another, so pick an
+    /// improvement whose effects are all replaced or absent in the city.
     fn obsolete_redundant_building(game: &mut Simulation) -> Building {
-        game.cities[0].buildings.push(Building::BARRACKS_II);
         let city = game.cities[0].clone();
-        assert!(Simulation::ai_building_is_obsolete(
-            game,
-            &city,
-            Building::BARRACKS
-        ));
-        assert!(game.ai_building_is_redundant(&city, Building::BARRACKS));
-        Building::BARRACKS
+        Building::all()
+            .filter(|&building| building.data().genus == Genus::Improvement)
+            .filter(|&building| !matches!(building, Building::CITY_WALLS | Building::LIBRARY))
+            .find(|&building| game.ai_building_is_redundant(&city, building))
+            .expect("catalog has a redundant improvement")
     }
 
     fn test_game() -> Simulation {

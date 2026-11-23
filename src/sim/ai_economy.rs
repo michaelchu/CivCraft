@@ -253,9 +253,7 @@ impl Simulation {
         let home = self.cities[0].id;
         self.cities[0].size = size;
         self.cities[0].food = 10;
-        self.cities[0]
-            .buildings
-            .extend([Building::BARRACKS, Building::AQUEDUCT_RIVER]);
+        self.cities[0].buildings.push(Building::BARRACKS);
         for _ in 0..warriors {
             let id = self.spawn_unit(1, UnitKind::Warrior, 12, 24);
             let unit = self.units.iter_mut().find(|unit| unit.id == id).unwrap();

@@ -294,6 +294,72 @@ enemy nuclear strikes targeting any city, tile, or unit of its owner inside the
 50% tactical evasion) against Tactical Nukes. Validate with `nuclear-warfare`
 (3 turns at seeds 42, 7 and 99) and the tests in `src/sim/nuclear.rs`.
 
+### Recorded exception: Civ III precedence for unit, building, technology and government rules
+
+On 2026-11-22 the owner directed that where the Freeciv model and Civ III
+disagree on units, buildings, technologies or governments, CivCraft resolves
+the conflict toward Civ III, and asks the owner when the Civ III behavior is
+unclear. City capture is the first applied case: a land unit with attack above
+zero, or an Army, can capture a city. Zero-attack bombard units (Catapult,
+Cannon, Artillery) and Helicopters cannot. This is defined once in
+`UnitRule::can_occupy_city` (`src/sim/unit_rules.rs`) and read by the
+movement table, the `CanOccupyCity` class flag and `UnitKind::can_occupy_city`.
+Fortifying follows the same rule: only land units fortify, so ships and
+aircraft get neither the Fortify order nor the fortified/city-fortified defense
+bonus (`UnitRule::can_fortify`, owner-confirmed 2026-11-22).
+City counter-defender selection (`defender_versus`) follows the same
+precedence, as an owner-directed departure from Freeciv's
+`dai_choose_defender_versus`: it never picks a unit from an earlier era than
+the newest era of the city's dedicated defenders (`Defense`/`AirDefense` AI
+role; a unit's era is that of its required technology, none is Ancient), and
+newer offensive units do not raise that floor. Against aircraft or missiles it considers
+only anti-air units (`UnitKind::can_counter_air`: `AttackAir` or
+`air_defense > 0`), never ground units. With no anti-air unit available there
+is no counter.
+Technologies are Civ III only: there are no Freeciv-only advances or
+compatibility aliases. Engine rule tables name Civ III advances directly
+(`Tech::from_name`), and retired tech indices stay reserved so saved games keep
+their meaning. Freeciv rules with no Civ III counterpart (Plastics) are dropped.
+Buildings follow the Conquests BIQ records kept in
+`tests/fixtures/civ3_building_records.json` (extracted from the install,
+owner-confirmed valid on 2026-11-22): unlock technology, prerequisite building,
+strategic-resource requirements, obsolescence and upkeep for the 71 matched
+buildings, verified by `matched_buildings_follow_the_civ3_biq_records`. A building
+resource requirement means a resource connected to the city (owned, road-linked),
+the same test units use. The catalog is now an exact clone of the 83 Conquests
+building records: the 20 Freeciv-only rules (Aqueduct Lake/River, Sewer System,
+Supermarket, Super Highways, Amphitheater, Barracks II/III, Ecclesiastical
+Palace, Port Facility, the three Freeciv space parts, Darwin's Voyage, Eiffel
+Tower, King Richard's, Marco Polo, Michelangelo's, Statue of Liberty, Women's
+Suffrage) were removed and the 12 missing records (ten spaceship parts, Civil
+Defense, Commercial Dock) added. Mechanics of the four Freeciv twins moved to
+their Civ III buildings (Sistine Chapel, Universal Suffrage, Forbidden Palace;
+Theory of Evolution already grants two advances). Saves are disposable during
+development, so catalog indices are not preserved.
+City size follows the Conquests Civilopedia (owner-confirmed 2026-11-22): 6
+without an Aqueduct, 12 with one (a city beside a river or lake never needs
+it), 16 with a Hospital or Shakespeare's Theater (`city_size_limit_from_ruleset`).
+Farmland adds +50% food by itself. The spaceship is ten distinct parts built once
+each after the Apollo Program; the tenth part wins the space race immediately,
+with no assembly, launch, travel time or success roll (owner-confirmed
+2026-11-22; online sources conflict on a launch step). Building costs of the 12
+new records use the BIQ cost x5 as a provisional scale pending investigation
+(`SS` parts 80-320, Civil Defense 60, Commercial Dock 80); existing costs are
+unchanged. Civil Defense (+50% defense, needs Barracks) and Commercial Dock (+1
+trade on water tiles already producing trade, needs Harbor) follow the Pedia.
+The Pentagon era gate and culture rates are owner-authorized deviations.
+War weariness follows Civ III too (owner-directed 2026-11-23): the Conquests GOVT
+rating (Republic and Feudalism 1, Democracy 2, others 0) lives in
+`NativeGovernment::war_weariness`. A war records its start turn and declarer on
+the diplomatic `Relation`; `src/sim/war_weariness.rs` turns the rating into
+unhappy citizens after the final mood stage, so luxury and Make_Content effects
+cannot offset it (No_Unhappy can). Police Stations and Universal Suffrage each
+remove half. The Pedia gives no numbers, so the grace periods, per-turn rates
+and the 40-point full-unrest threshold there are provisional.
+Derive new unit properties the same way, once on `UnitRule`, rather than
+re-deriving them per consumer. This narrows the aircraft exception's statement
+that helicopters retain their existing rules; their capture rule follows Civ III.
+
 ## Comparison source checkout
 
 The Freeciv source submodule at `reference/freeciv` tracks the public upstream

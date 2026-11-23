@@ -6,12 +6,6 @@ use super::*;
 fn selected_no_diplomacy_effect_blocks_barbarian_meetings_and_contact_timers() {
     let mut game = war_planning_game();
     game.create_city(BARBARIANS, 28, 24);
-    game.cities
-        .iter_mut()
-        .find(|city| city.owner == HUMAN)
-        .unwrap()
-        .buildings
-        .push(Building::MARCO_POLOS_EMBASSY);
 
     assert_eq!(game.player_effect(BARBARIANS, EffectKind::NoDiplomacy), 1);
     assert_eq!(game.player_effect(HUMAN, EffectKind::NoDiplomacy), 0);
@@ -170,56 +164,6 @@ fn nuclear_actions_apply_selected_success_casus_belli_after_the_blast() {
         }
         assert!(game.units.iter().all(|unit| unit.id != missile));
     }
-}
-
-#[test]
-fn marco_polo_refreshes_global_contacts_before_turn_advance_and_leaves_grace() {
-    let mut game = war_planning_game();
-    let home = game
-        .cities
-        .iter()
-        .position(|city| city.owner == HUMAN)
-        .unwrap();
-    game.cities[home]
-        .buildings
-        .push(Building::MARCO_POLOS_EMBASSY);
-    game.turn = 50;
-    assert!(!game.diplomacy.contains_key(&(HUMAN, 2)));
-    game.refresh_diplomatic_contact_effects();
-    assert_eq!(game.diplomacy[&(HUMAN, 1)].first_contact, Some(1));
-    assert_eq!(game.diplomacy[&(HUMAN, 2)].first_contact, Some(50));
-    assert_eq!(game.diplomatic_contact_until[&(HUMAN, 1)], 70);
-    assert_eq!(game.diplomatic_contact_until[&(HUMAN, 2)], 71);
-    game.cities[home]
-        .buildings
-        .retain(|&building| building != Building::MARCO_POLOS_EMBASSY);
-    game.turn = 69;
-    assert!(game.can_negotiate(1));
-    game.turn = 70;
-    assert!(!game.can_negotiate(1));
-    assert!(game.can_negotiate(2));
-    game.turn = 71;
-    assert!(!game.can_negotiate(2));
-}
-
-#[test]
-fn effect_embassies_require_the_have_contacts_phase_before_meetings() {
-    let mut game = war_planning_game();
-    game.cities
-        .iter_mut()
-        .find(|city| city.owner == HUMAN)
-        .unwrap()
-        .buildings
-        .push(Building::MARCO_POLOS_EMBASSY);
-    assert!(!game.diplomacy.contains_key(&(HUMAN, 2)));
-    assert!(!game.has_embassy(HUMAN, 2));
-    assert!(!game.can_negotiate(2));
-    game.refresh_diplomatic_contact_effects();
-    assert!(game.has_embassy(HUMAN, 2));
-    assert!(game.can_negotiate(2));
-    assert_eq!(game.pact(HUMAN, 2), Pact::Peace);
-    assert!(game.diplomatic_contact_until.contains_key(&(HUMAN, 2)));
-    assert_eq!(game.diplomacy[&(HUMAN, 2)].first_contact, Some(game.turn));
 }
 
 #[test]

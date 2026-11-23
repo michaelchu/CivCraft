@@ -105,6 +105,12 @@ impl Government {
         self.native_record()?.technology
     }
 
+    /// Conquests war-weariness rating: 0 none, 1 low, 2 high.
+    pub(crate) fn war_weariness(self) -> i32 {
+        self.native_record()
+            .map_or(0, |record| record.war_weariness)
+    }
+
     fn native_record(self) -> Option<&'static crate::rules::native::NativeGovernment> {
         crate::rules::native::governments().governments.get(self.0)
     }
@@ -157,7 +163,7 @@ impl Simulation {
 
     pub(super) fn government_center_distance(&self, city: &City) -> Option<i32> {
         if city.has_building(Building::PALACE)
-            || city.has_building(Building::ECCLESIASTICAL_PALACE)
+            || city.has_building(Building::FORBIDDEN_PALACE)
             || city.has_building(Building::FORBIDDEN_PALACE)
         {
             Some(0)
@@ -167,7 +173,7 @@ impl Simulation {
                 .filter(|center| {
                     center.owner == city.owner
                         && (center.has_building(Building::PALACE)
-                            || center.has_building(Building::ECCLESIASTICAL_PALACE)
+                            || center.has_building(Building::FORBIDDEN_PALACE)
                             || center.has_building(Building::FORBIDDEN_PALACE))
                 })
                 .map(|center| self.map_distance(city.x, city.y, center.x, center.y))
@@ -456,3 +462,18 @@ fn rates_after_government_change(rates: [i32; 3], cap: i32) -> [i32; 3] {
 #[cfg(test)]
 #[path = "government/tests.rs"]
 mod tests;
+
+#[cfg(test)]
+mod constant_tests {
+    #[test]
+    fn government_index_constants_name_the_catalog_entry_at_their_index() {
+        crate::test_support::assert_index_constants_match_catalog(
+            include_str!("government.rs"),
+            |index| {
+                let government = &crate::rules::native::governments().governments[index];
+                vec![government.government.clone(), government.name.clone()]
+            },
+            8,
+        );
+    }
+}

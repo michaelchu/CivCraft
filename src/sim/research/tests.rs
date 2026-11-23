@@ -298,9 +298,9 @@ fn research_selection_rejects_a_technology_with_unknown_biq_prerequisites() {
     game.players[1].known.clear();
     game.players[1].research = 0;
     game.players[1].researching = Tech::ALPHABET;
-    assert!(!game.tech_available(1, Tech::COMBINED_ARMS));
+    assert!(!game.tech_available(1, Tech::ADVANCED_FLIGHT));
 
-    game.choose_research_tech(1, Tech::COMBINED_ARMS, 0);
+    game.choose_research_tech(1, Tech::ADVANCED_FLIGHT, 0);
     assert_eq!(game.players[1].researching, Tech::ALPHABET);
     assert_eq!(game.players[1].research, 0);
 }

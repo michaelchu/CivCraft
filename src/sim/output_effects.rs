@@ -237,11 +237,10 @@ mod city_output_tests {
     }
 
     #[test]
-    fn supermarket_penalty_and_contamination_follow_native_integer_order() {
+    fn farmland_penalty_and_contamination_follow_native_integer_order() {
         let mut game = fixture();
         let mut city = game.cities[0].clone();
         game.players[1].government = Government::DESPOTISM;
-        city.buildings.push(Building::SUPERMARKET);
         let point = offset_native_by_map(city.x, city.y, 1, 0);
         let tile = game.tile_mut(point.0, point.1);
         tile.irrigation = true;
@@ -271,7 +270,7 @@ mod city_output_tests {
     }
 
     #[test]
-    fn highways_and_stock_exchange_apply_before_percent_bonus() {
+    fn stock_exchange_applies_before_percent_bonus() {
         let mut game = fixture();
         let mut city = game.cities[0].clone();
         city.worked_tiles.clear();
@@ -282,8 +281,6 @@ mod city_output_tests {
             Building::STOCK_EXCHANGE,
         ]);
         assert_eq!(game.split_city_trade(&city, 4, [0, 50, 50]), [0, 5, 5]);
-        city.buildings.push(Building::SUPER_HIGHWAYS);
-        assert_eq!(game.split_city_trade(&city, 4, [0, 50, 50]), [0, 6, 6]);
         game.players[1].government = Government::FEUDALISM;
         assert_eq!(game.split_city_trade(&city, 0, [100, 0, 0]), [0, 0, 0]);
     }
@@ -302,7 +299,7 @@ mod city_output_tests {
             game.government_output_waste_under(&city, 100, 100, None, Government::DESPOTISM),
             (54, 44)
         );
-        city.buildings.push(Building::ECCLESIASTICAL_PALACE);
+        city.buildings.push(Building::FORBIDDEN_PALACE);
         // city.c:nearest_gov_center's first branch uses evaluated city,
         // before the real city's building list has been changed in the map.
         assert_eq!(

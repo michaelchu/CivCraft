@@ -195,11 +195,7 @@ impl Simulation {
             self.domestic_build_choice_with_wonder_city(city, wonder_city)
                 .filter(|choice| available_to_domestic_advisor(choice.production)),
         );
-        let parts = [
-            Building::SPACE_MODULE,
-            Building::SPACE_COMPONENT,
-            Building::SPACE_STRUCTURAL,
-        ];
+        let parts = crate::sim::spaceship::SPACE_PART_PROJECTS.map(|(building, _)| building);
         for building in parts.into_iter().filter(|_| !coordinated_space_race) {
             if self.building_blocker(city, building).is_none() {
                 consider(Some(AiBuildChoice {
@@ -610,13 +606,9 @@ impl Simulation {
         let candidates: &[Building] = if kind.is_aircraft() || kind.is_missile() {
             &[Building::AIRPORT]
         } else if kind.is_naval() {
-            &[Building::PORT_FACILITY]
+            &[Building::HARBOR]
         } else {
-            &[
-                Building::BARRACKS_III,
-                Building::BARRACKS_II,
-                Building::BARRACKS,
-            ]
+            &[Building::BARRACKS]
         };
         candidates.iter().copied().find(|&building| {
             building.data().genus == Genus::Improvement

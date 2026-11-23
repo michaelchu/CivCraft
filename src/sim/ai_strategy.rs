@@ -49,7 +49,7 @@ impl Simulation {
         if !self.victory_enabled(crate::rules::engine_rules::VictoryCondition::SpaceRace) {
             return false;
         }
-        if ship.built != [0; 3] {
+        if ship.started() {
             return true;
         }
         if self.research_era(owner) != crate::rules::TechEra::Modern {

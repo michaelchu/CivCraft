@@ -49,11 +49,11 @@ impl Simulation {
             Tech::MAGNETISM,
             Tech::COMPUTERS,
         ]);
-        // The native Conquests catalog makes Great Wall obsolete at
-        // Metallurgy, Lighthouse at Magnetism, Magellan's Expedition at
-        // Replaceable Parts, and Copernicus' Observatory at Computers.
+        // The Conquests data makes Great Wall obsolete at Metallurgy and
+        // Lighthouse at Magnetism; Magellan's Expedition and Copernicus'
+        // Observatory never become obsolete, so they keep their effects.
         let owner_techs_obsoleted_wonders = naval_speed(self) == base_speed + MOVE_FRAGMENTS
-            && science(self) == base_science
+            && science(self) == base_science + science_tiles
             && !self.has_active_wonder(HUMAN, Building::GREAT_WALL);
         self.record_city_history(0);
         let history_accumulated = self.cities[0].history > base_history
