@@ -439,13 +439,15 @@ impl super::Generator {
         // bands by climate. Scale the existing patch-growth heuristic in the
         // same direction; these shares are an approximation, not its exact
         // height-map algorithm or verified original Civ III behavior.
-        let (forest_share, jungle_share, marsh_share, dry_water_limit) = match self.settings.climate
-        {
+        // Evaluated only on the OpenSimplex path; Freeciv fractal generation
+        // takes its shares and dryness from the ruleset temperature map.
+        let opensimplex_climate = || match self.settings.climate {
             super::Climate::Wet => (24, 6, 12, 1),
             super::Climate::Normal => (16, 4, 7, 2),
             super::Climate::Arid => (8, 2, 3, 3),
         };
         let opensimplex_dry = |tile: usize| {
+            let (_, _, _, dry_water_limit) = opensimplex_climate();
             (623..=832).contains(&self.colatitude(tile))
                 && self
                     .neighbors(tile)
@@ -481,6 +483,7 @@ impl super::Generator {
                 0,
             ];
         } else {
+            let (forest_share, jungle_share, marsh_share, _) = opensimplex_climate();
             patches[..3].copy_from_slice(&[
                 remaining * forest_share / 80,
                 remaining * jungle_share / 80,

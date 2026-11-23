@@ -125,14 +125,7 @@ fn ruleset_settings_change_reference_height_resolution_and_shore_mask() {
     };
     let ruleset_defaults = defaults::default_map_generation_settings();
     let request = map_generation_request(42, wrap, WorldSettings::default(), 8);
-    assert_eq!(
-        request.fractal,
-        super::fractal_settings::FractalParameters::resolve(
-            ruleset_defaults,
-            WorldSettings::default(),
-            8
-        )
-    );
+    assert_eq!(request.map_generation_settings, ruleset_defaults);
 
     let mut default_rng = MapRng::new(123);
     let default_field = generator.fractal_height_field(

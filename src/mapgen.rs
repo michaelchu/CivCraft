@@ -1163,8 +1163,7 @@ pub(crate) struct MapGenerationRequest {
     pub(crate) gameplay_rng: GameRng,
     pub(crate) wrap: MapWrap,
     pub(crate) settings: WorldSettings,
-    /// Freeciv-native fractal inputs resolved from `settings`.
-    pub(crate) fractal: FractalParameters,
+    pub(crate) map_generation_settings: MapGenerationSettings,
     pub(crate) terrain_properties: Vec<TerrainMapgenProperties>,
     pub(crate) start_scoring_settings: StartPositionScoringSettings,
     pub(crate) civilization_count: usize,
@@ -1199,14 +1198,13 @@ fn map_generation_request_with_map_settings(
     let (map_seed, gameplay_rng) = campaign_randomness(seed);
     let terrain_properties = defaults::default_terrain_mapgen_properties();
     let start_scoring_settings = defaults::default_start_position_scoring_settings();
-    let fractal = FractalParameters::resolve(map_generation_settings, settings, civilization_count);
     MapGenerationRequest {
         seed,
         map_seed,
         gameplay_rng,
         wrap,
         settings,
-        fractal,
+        map_generation_settings,
         terrain_properties,
         start_scoring_settings,
         civilization_count,
@@ -1289,7 +1287,7 @@ impl MapGenerator for OpenSimplexMapGenerator {
             gameplay_rng,
             wrap,
             settings,
-            fractal: _,
+            map_generation_settings: _,
             terrain_properties: _,
             start_scoring_settings: _,
             civilization_count,
@@ -1313,7 +1311,7 @@ impl MapGenerator for FractalMapGenerator {
             gameplay_rng,
             wrap,
             settings,
-            fractal,
+            map_generation_settings,
             terrain_properties,
             start_scoring_settings,
             civilization_count,
@@ -1324,7 +1322,7 @@ impl MapGenerator for FractalMapGenerator {
         let FractalParameters {
             settings: map_generation_settings,
             divisions,
-        } = fractal;
+        } = FractalParameters::resolve(map_generation_settings, settings, civilization_count);
         let generator = Generator {
             wrap,
             settings,
