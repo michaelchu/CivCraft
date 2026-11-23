@@ -250,3 +250,41 @@ fn stolen_world_map_provides_the_rivals_last_seen_tile() {
         Some(Terrain::Grassland)
     );
 }
+
+fn propaganda_cost(game: &Simulation, city: &City) -> i32 {
+    game.espionage_cost(
+        HUMAN,
+        1,
+        city,
+        EspionageMission::InitiatePropaganda,
+        EspionageRisk::Immediate,
+    )
+}
+
+#[test]
+fn propaganda_costs_more_for_a_city_with_buildings_and_wonders() {
+    let mut game = espionage_game();
+    let index = game.cities.iter().position(|city| city.owner == 1).unwrap();
+    game.cities[index].size = 3;
+    game.cities[index].buildings.clear();
+    let bare = propaganda_cost(&game, &game.cities[index]);
+
+    game.cities[index].buildings.push(Building::GREAT_LIBRARY);
+    let with_wonder = propaganda_cost(&game, &game.cities[index]);
+    assert!(
+        with_wonder >= bare * 2,
+        "a Great Wonder must raise the incitement price well above a bare city: {bare} vs {with_wonder}"
+    );
+
+    game.cities[index].buildings.clear();
+    game.cities[index].buildings.extend([
+        Building::HARBOR,
+        Building::FACTORY,
+        Building::POWER_PLANT,
+    ]);
+    let with_improvements = propaganda_cost(&game, &game.cities[index]);
+    assert!(
+        with_improvements > bare,
+        "improvements raise the price: {bare} vs {with_improvements}"
+    );
+}

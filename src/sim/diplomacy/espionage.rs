@@ -916,8 +916,28 @@ impl Simulation {
             EspionageMission::InitiatePropaganda => {
                 let own_culture = i128::from(self.civilization_culture(actor).max(1));
                 let rival_culture = i128::from(self.civilization_culture(opponent).max(0));
+                // The price follows what the city holds, not just its size, so a
+                // small wonder city is not a bargain. Wonders count double.
+                let holdings: i64 =
+                    city.buildings
+                        .iter()
+                        .filter(|building| {
+                            !matches!(building.data().genus, crate::rules::Genus::Special)
+                                && **building != Building::PALACE
+                        })
+                        .map(|building| {
+                            let data = building.data();
+                            let weight = match data.genus {
+                                crate::rules::Genus::SmallWonder
+                                | crate::rules::Genus::GreatWonder => 2,
+                                _ => 1,
+                            };
+                            i64::from(data.cost.max(0)) * weight
+                        })
+                        .sum();
                 distance * i64::from(level)
-                    + ((i128::from(base * pop) * (own_culture + rival_culture) / own_culture)
+                    + ((i128::from(base * pop + holdings) * (own_culture + rival_culture)
+                        / own_culture)
                         .min(i128::from(i64::MAX)) as i64)
             }
         };

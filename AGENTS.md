@@ -74,6 +74,10 @@ warnings. Keep the design and implementation in
 The owner confirmed on 2026-11-18 that the existing custom espionage system is
 intentional and must be preserved. Its player-to-player embassy/Spy assets,
 mission costs, risk tiers and AI use remain in `src/sim/diplomacy/espionage.rs`.
+Propaganda (city incitement) pricing also counts the target city's buildings
+(wonders at double weight, Palace excluded) so a small wonder city is not
+cheap; this was added after a balance review and is covered by
+`propaganda_costs_more_for_a_city_with_buildings_and_wonders`.
 Other diplomatic treaties, map/city clauses and war mechanics still follow
 Freeciv, except for first contact and AI policy below. Do not replace custom espionage with
 Freeciv Diplomat/Spy units as part of diplomacy parity work.

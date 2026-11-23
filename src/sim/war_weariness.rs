@@ -172,6 +172,36 @@ mod tests {
         );
     }
 
+    /// A war that resumes when a ceasefire runs out is still a war: it must
+    /// have a start turn, or weariness silently never applies to it.
+    #[test]
+    fn war_resuming_after_ceasefire_expiry_still_wears_citizens_down() {
+        let mut game = game_with_city(Government::DEMOCRACY);
+        game.turn = 1;
+        at_war(&mut game, Some(HUMAN), 1);
+        game.sign_pact(HUMAN, 1, Pact::Ceasefire);
+        assert_eq!(
+            game.war_weariness_points(HUMAN),
+            0,
+            "no weariness in a ceasefire"
+        );
+        let until = game.diplomacy[&(HUMAN, 1)].until;
+        game.turn = until;
+        game.advance_diplomacy();
+        assert_eq!(game.pact(HUMAN, 1), Pact::War, "the ceasefire expired");
+        let resumed = game.diplomacy[&(HUMAN, 1)].war_since;
+        assert_eq!(
+            resumed,
+            Some(until),
+            "the resumed war records its start turn"
+        );
+        game.turn = until + 60;
+        assert!(
+            game.war_weariness_points(HUMAN) > 0,
+            "a long resumed war must cause weariness"
+        );
+    }
+
     #[test]
     fn weariness_makes_citizens_unhappy_and_luxury_cannot_cure_it() {
         let mut game = game_with_city(Government::DEMOCRACY);
