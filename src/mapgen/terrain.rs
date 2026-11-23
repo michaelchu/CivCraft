@@ -303,6 +303,38 @@ impl<Eligible: Fn(usize) -> bool> PatchGrowth<'_, Eligible> {
     }
 }
 
+/// Landmass-specific inputs to the terrain and river passes. Carrying them in
+/// one type keeps the OpenSimplex and Freeciv fractal inputs from being mixed.
+pub(super) enum TerrainSource<'a> {
+    /// Legacy OpenSimplex terrain, driven by the Civ III world choices.
+    OpenSimplex(super::WorldSettings),
+    /// Freeciv terrain, driven by the ruleset temperature map and properties.
+    Fractal {
+        zone_temperature: TemperatureMap,
+        terrain_properties: &'a [TerrainMapgenProperties],
+    },
+}
+
+impl<'a> TerrainSource<'a> {
+    pub(super) fn zone_temperature(&self) -> Option<&TemperatureMap> {
+        match self {
+            Self::OpenSimplex(_) => None,
+            Self::Fractal {
+                zone_temperature, ..
+            } => Some(zone_temperature),
+        }
+    }
+
+    pub(super) fn terrain_properties(&self) -> Option<&'a [TerrainMapgenProperties]> {
+        match self {
+            Self::OpenSimplex(_) => None,
+            Self::Fractal {
+                terrain_properties, ..
+            } => Some(*terrain_properties),
+        }
+    }
+}
+
 impl super::Generator {
     #[expect(
         clippy::too_many_arguments,
@@ -315,11 +347,12 @@ impl super::Generator {
         relief: &[i32],
         biome_field: &[i32],
         land_mask: Option<&[bool]>,
-        zone_temperature: Option<&TemperatureMap>,
-        terrain_property_table: Option<&[TerrainMapgenProperties]>,
+        source: &TerrainSource<'_>,
         ocean_coverage: i32,
         rng: &mut MapRng,
     ) -> (Vec<Terrain>, Vec<TerrainBase>, Vec<i32>) {
+        let zone_temperature = source.zone_temperature();
+        let terrain_property_table = source.terrain_properties();
         let sea_level = find_sea_level(water_heights, ocean_coverage);
         let medium_water_level = find_sea_level(water_heights, ocean_coverage * 9 / 10);
         let deep_water_level = find_sea_level(water_heights, ocean_coverage * 7 / 10);
@@ -372,63 +405,67 @@ impl super::Generator {
             })
             .collect();
         let mut available = vec![false; self.wrap.tile_count()];
-        if let (Some(temperature_map), Some(terrain_properties)) =
-            (zone_temperature, terrain_property_table)
-        {
-            self.assign_relief(
-                &mut terrain,
-                &mut available,
-                heights,
-                temperature_map,
+        match source {
+            TerrainSource::Fractal {
+                zone_temperature: temperature_map,
                 terrain_properties,
-                rng,
-            );
-        } else {
-            let (hill_low, hill_high, mountain_low, mountain_high, volcano_percent) =
-                self.settings.age.relief_bands();
-            let (
-                tundra_low,
-                tundra_high,
-                tundra_latitude,
-                plains_low,
-                plains_high,
-                desert_low,
-                desert_high,
-            ) = self.settings.temperature.biome_bands(self.settings.climate);
-            for tile in 0..self.wrap.tile_count() {
-                if terrain[tile] != Terrain::Plains {
-                    continue;
-                }
-                let ground = if (tundra_low..tundra_high).contains(&biome_field[tile])
-                    && self.colatitude(tile) < tundra_latitude
-                {
-                    TerrainBase::Tundra
-                } else if (desert_low..desert_high).contains(&biome_field[tile]) {
-                    TerrainBase::Desert
-                } else if (plains_low..plains_high).contains(&biome_field[tile]) {
-                    TerrainBase::Plains
-                } else {
-                    TerrainBase::Grassland
-                };
-                base_terrain[tile] = ground;
-                if (hill_low..hill_high).contains(&relief[tile]) {
-                    terrain[tile] = Terrain::Hills;
-                } else if (mountain_low..mountain_high).contains(&relief[tile]) {
-                    terrain[tile] = if rng.below(100) < volcano_percent {
-                        Terrain::Volcano
+            } => {
+                self.assign_relief(
+                    &mut terrain,
+                    &mut available,
+                    heights,
+                    temperature_map,
+                    terrain_properties,
+                    rng,
+                );
+            }
+            TerrainSource::OpenSimplex(world) => {
+                let (hill_low, hill_high, mountain_low, mountain_high, volcano_percent) =
+                    world.age.relief_bands();
+                let (
+                    tundra_low,
+                    tundra_high,
+                    tundra_latitude,
+                    plains_low,
+                    plains_high,
+                    desert_low,
+                    desert_high,
+                ) = world.temperature.biome_bands(world.climate);
+                for tile in 0..self.wrap.tile_count() {
+                    if terrain[tile] != Terrain::Plains {
+                        continue;
+                    }
+                    let ground = if (tundra_low..tundra_high).contains(&biome_field[tile])
+                        && self.colatitude(tile) < tundra_latitude
+                    {
+                        TerrainBase::Tundra
+                    } else if (desert_low..desert_high).contains(&biome_field[tile]) {
+                        TerrainBase::Desert
+                    } else if (plains_low..plains_high).contains(&biome_field[tile]) {
+                        TerrainBase::Plains
                     } else {
-                        Terrain::Mountains
+                        TerrainBase::Grassland
                     };
-                } else {
-                    terrain[tile] = match ground {
-                        TerrainBase::Tundra => Terrain::Tundra,
-                        TerrainBase::Desert => Terrain::Desert,
-                        TerrainBase::Plains => Terrain::Plains,
-                        _ => {
-                            available[tile] = true;
-                            Terrain::Grassland
-                        }
-                    };
+                    base_terrain[tile] = ground;
+                    if (hill_low..hill_high).contains(&relief[tile]) {
+                        terrain[tile] = Terrain::Hills;
+                    } else if (mountain_low..mountain_high).contains(&relief[tile]) {
+                        terrain[tile] = if rng.below(100) < volcano_percent {
+                            Terrain::Volcano
+                        } else {
+                            Terrain::Mountains
+                        };
+                    } else {
+                        terrain[tile] = match ground {
+                            TerrainBase::Tundra => Terrain::Tundra,
+                            TerrainBase::Desert => Terrain::Desert,
+                            TerrainBase::Plains => Terrain::Plains,
+                            _ => {
+                                available[tile] = true;
+                                Terrain::Grassland
+                            }
+                        };
+                    }
                 }
             }
         }
@@ -439,13 +476,20 @@ impl super::Generator {
         // bands by climate. Scale the existing patch-growth heuristic in the
         // same direction; these shares are an approximation, not its exact
         // height-map algorithm or verified original Civ III behavior.
-        let (forest_share, jungle_share, marsh_share, dry_water_limit) = match self.settings.climate
-        {
-            super::Climate::Wet => (24, 6, 12, 1),
-            super::Climate::Normal => (16, 4, 7, 2),
-            super::Climate::Arid => (8, 2, 3, 3),
+        // Evaluated only on the OpenSimplex path; Freeciv fractal generation
+        // takes its shares and dryness from the ruleset temperature map.
+        let opensimplex_climate: Option<(usize, usize, usize, usize)> = match source {
+            TerrainSource::OpenSimplex(world) => Some(match world.climate {
+                super::Climate::Wet => (24, 6, 12, 1),
+                super::Climate::Normal => (16, 4, 7, 2),
+                super::Climate::Arid => (8, 2, 3, 3),
+            }),
+            TerrainSource::Fractal { .. } => None,
         };
         let opensimplex_dry = |tile: usize| {
+            let Some((_, _, _, dry_water_limit)) = opensimplex_climate else {
+                return false;
+            };
             (623..=832).contains(&self.colatitude(tile))
                 && self
                     .neighbors(tile)
@@ -480,7 +524,7 @@ impl super::Generator {
                 remaining * desert.max(0) as usize / denominator,
                 0,
             ];
-        } else {
+        } else if let Some((forest_share, jungle_share, marsh_share, _)) = opensimplex_climate {
             patches[..3].copy_from_slice(&[
                 remaining * forest_share / 80,
                 remaining * jungle_share / 80,
@@ -648,33 +692,40 @@ impl super::Generator {
                 plains -= 1;
             }
         }
-        if let Some(climate) = zone_temperature {
-            // Freeciv features have no underlying Civ III biome. Adapt only
-            // their presentation base after placement, without random draws.
-            // Cold/polar relief gets snow art; dry temperate forest gets the
-            // plains sheet. This is a CivCraft heuristic, not a native rule.
-            for tile in 0..terrain.len() {
-                if matches!(
-                    terrain[tile],
-                    Terrain::Forest | Terrain::Hills | Terrain::Mountains | Terrain::Volcano
-                ) {
-                    base_terrain[tile] = feature_presentation_base(
-                        climate.get(tile),
-                        climate.is_dry(self, tile, &terrain_water),
-                    );
+        match source {
+            TerrainSource::Fractal {
+                zone_temperature: climate,
+                ..
+            } => {
+                // Freeciv features have no underlying Civ III biome. Adapt only
+                // their presentation base after placement, without random draws.
+                // Cold/polar relief gets snow art; dry temperate forest gets the
+                // plains sheet. This is a CivCraft heuristic, not a native rule.
+                for tile in 0..terrain.len() {
+                    if matches!(
+                        terrain[tile],
+                        Terrain::Forest | Terrain::Hills | Terrain::Mountains | Terrain::Volcano
+                    ) {
+                        base_terrain[tile] = feature_presentation_base(
+                            climate.get(tile),
+                            climate.is_dry(self, tile, &terrain_water),
+                        );
+                    }
                 }
             }
-        } else {
-            // OpenSimplex already assigns relief bases above, but its forest
-            // pool contains only original grassland. Adapt forest art from
-            // the same heat, latitude and dry-belt fields after placement, without RNG.
-            let (_, _, cold_latitude, _, _, _, _) =
-                self.settings.temperature.biome_bands(self.settings.climate);
-            for (tile, &kind) in terrain.iter().enumerate() {
-                if kind == Terrain::Forest {
-                    let cold = temperature[tile] < COLD || self.colatitude(tile) < cold_latitude;
-                    base_terrain[tile] =
-                        opensimplex_forest_presentation_base(cold, opensimplex_dry(tile));
+            TerrainSource::OpenSimplex(world) => {
+                // OpenSimplex already assigns relief bases above, but its forest
+                // pool contains only original grassland. Adapt forest art from
+                // the same heat, latitude and dry-belt fields after placement, without RNG.
+                let (_, _, cold_latitude, _, _, _, _) =
+                    world.temperature.biome_bands(world.climate);
+                for (tile, &kind) in terrain.iter().enumerate() {
+                    if kind == Terrain::Forest {
+                        let cold =
+                            temperature[tile] < COLD || self.colatitude(tile) < cold_latitude;
+                        base_terrain[tile] =
+                            opensimplex_forest_presentation_base(cold, opensimplex_dry(tile));
+                    }
                 }
             }
         }

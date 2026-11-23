@@ -1,6 +1,5 @@
 //! River generation and drainage selection for generated terrain.
 
-use super::temperature::TemperatureMap;
 use super::*;
 
 fn is_ocean(terrain: Terrain) -> bool {
@@ -78,23 +77,23 @@ impl super::Generator {
         tiles: &mut [GeneratedTile],
         heights: &[i32],
         temperature: &[i32],
-        zone_temperature: Option<&TemperatureMap>,
-        terrain_properties: Option<&[TerrainMapgenProperties]>,
+        source: &super::terrain::TerrainSource<'_>,
         rng: &mut MapRng,
     ) {
-        assert!(
-            zone_temperature.is_none() || terrain_properties.is_some(),
-            "Freeciv river generation requires parsed terrain properties"
-        );
-        let (target, lowland) = if let Some(zone_temperature) = zone_temperature {
-            let (_, target, lowland) =
-                river_parameters(zone_temperature.settings, self.wrap.tile_count());
-            (target, lowland)
-        } else {
-            (
-                6 * self.wrap.tile_count() * self.land_percent() as usize / 5325,
-                self.lowland(),
-            )
+        let zone_temperature = source.zone_temperature();
+        let terrain_properties = source.terrain_properties();
+        let (target, lowland) = match source {
+            super::terrain::TerrainSource::Fractal {
+                zone_temperature, ..
+            } => {
+                let (_, target, lowland) =
+                    river_parameters(zone_temperature.settings, self.wrap.tile_count());
+                (target, lowland)
+            }
+            super::terrain::TerrainSource::OpenSimplex(world) => (
+                6 * self.wrap.tile_count() * world.land_percent() as usize / 5325,
+                world.lowland(),
+            ),
         };
         // Prefer upland springs for the first part of placement. Relax back
         // to the ruleset's lowland threshold later so river density remains

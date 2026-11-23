@@ -120,12 +120,9 @@ fn ruleset_settings_change_reference_height_resolution_and_shore_mask() {
     let wrap = MapWrap::with_dimensions(36, 48).unwrap();
     let generator = Generator {
         wrap,
-        settings: WorldSettings::default(),
         civilization_count: 8,
     };
     let ruleset_defaults = defaults::default_map_generation_settings();
-    let request = map_generation_request(42, wrap, WorldSettings::default(), 8);
-    assert_eq!(request.map_generation_settings, ruleset_defaults);
 
     let mut default_rng = MapRng::new(123);
     let default_field = generator.fractal_height_field(
@@ -180,7 +177,6 @@ fn reference_fractal_height_consumes_jitter_for_shared_and_bounded_midpoints() {
     let wrap = MapWrap::with_dimensions(36, 48).unwrap();
     let generator = Generator {
         wrap,
-        settings: WorldSettings::default(),
         civilization_count: 8,
     };
     let settings = defaults::default_map_generation_settings();
@@ -243,7 +239,6 @@ fn ruleset_ocean_depths_are_parsed_and_mapped_to_native_water_labels() {
     let wrap = MapWrap::with_dimensions(16, 16).unwrap();
     let generator = Generator {
         wrap,
-        settings: WorldSettings::default(),
         civilization_count: 4,
     };
     let mut terrain = vec![Terrain::Grassland; wrap.tile_count()];
@@ -258,7 +253,6 @@ fn reference_ocean_depth_stages_use_height_and_the_native_wrap_topology() {
     let wrap = MapWrap::with_dimensions(16, 16).unwrap();
     let generator = Generator {
         wrap,
-        settings: WorldSettings::default(),
         civilization_count: 4,
     };
     let depths = defaults::default_map_generation_settings().ocean_depths;
@@ -298,7 +292,6 @@ fn reference_ocean_depth_stages_use_height_and_the_native_wrap_topology() {
 fn generated_rivers_reach_the_ocean_and_resources_are_spaced() {
     let generator = Generator {
         wrap: MapWrap::X,
-        settings: WorldSettings::default(),
         civilization_count: crate::world::DEFAULT_CIVILIZATION_COUNT,
     };
     let generation_rules = defaults::default_map_generation_settings();
@@ -329,7 +322,6 @@ fn generated_rivers_reach_the_ocean_and_resources_are_spaced() {
         assert!(map.starts.iter().all(|&(x, y)| {
             !tiles[(Generator {
                 wrap: MapWrap::X,
-                settings: WorldSettings::default(),
                 civilization_count: crate::world::DEFAULT_CIVILIZATION_COUNT,
             })
             .index(x, y)]
@@ -360,7 +352,6 @@ fn generated_rivers_reach_the_ocean_and_resources_are_spaced() {
                 assert!(
                     (Generator {
                         wrap: MapWrap::X,
-                        settings: WorldSettings::default(),
                         civilization_count: crate::world::DEFAULT_CIVILIZATION_COUNT,
                     })
                     .within(index, 3)
@@ -371,7 +362,6 @@ fn generated_rivers_reach_the_ocean_and_resources_are_spaced() {
                 assert!(
                     (Generator {
                         wrap: MapWrap::X,
-                        settings: WorldSettings::default(),
                         civilization_count: crate::world::DEFAULT_CIVILIZATION_COUNT,
                     })
                     .neighbors(index)
@@ -419,7 +409,6 @@ fn generated_rivers_reach_the_ocean_and_resources_are_spaced() {
                 assert!(!tiles[current].terrain.is_water());
                 for next in (Generator {
                     wrap: MapWrap::X,
-                    settings: WorldSettings::default(),
                     civilization_count: crate::world::DEFAULT_CIVILIZATION_COUNT,
                 })
                 .eight_way_neighbors(current)
@@ -443,7 +432,6 @@ fn river_course_can_turn_toward_a_nearby_outlet() {
     let wrap = map.map_wrap;
     let generator = Generator {
         wrap,
-        settings: WorldSettings::default(),
         civilization_count: crate::world::DEFAULT_CIVILIZATION_COUNT,
     };
     let mut tiles = map.tiles;
@@ -475,7 +463,6 @@ fn river_test_map(
 ) -> (Generator, Vec<GeneratedTile>, Vec<TerrainMapgenProperties>) {
     let generator = Generator {
         wrap,
-        settings: WorldSettings::default(),
         civilization_count: crate::world::DEFAULT_CIVILIZATION_COUNT,
     };
     let tiles = vec![
@@ -910,7 +897,6 @@ fn polar_land_taper_is_smooth_seeded_and_dies_out_inland() {
     let wrap = MapWrap::X;
     let generator = Generator {
         wrap,
-        settings: WorldSettings::default(),
         civilization_count: crate::world::DEFAULT_CIVILIZATION_COUNT,
     };
     let mut first = vec![255; wrap.tile_count()];
@@ -1081,7 +1067,6 @@ fn opensimplex_native_landform_choices_are_deterministic_and_change_landmass_sca
     let checksums: Vec<_> = maps.iter().map(|map| map_checksum(&map.tiles)).collect();
     let topology = Generator {
         wrap: MapWrap::X,
-        settings: WorldSettings::default(),
         civilization_count: crate::world::DEFAULT_CIVILIZATION_COUNT,
     };
     let land_components: Vec<_> = maps
@@ -1189,7 +1174,6 @@ mod wrap_generation_tests {
         for wrap in [MapWrap::X] {
             let generator = Generator {
                 wrap,
-                settings: WorldSettings::default(),
                 civilization_count: crate::world::DEFAULT_CIVILIZATION_COUNT,
             };
             let y = wrap.height() / 2;
@@ -1261,7 +1245,6 @@ mod wrap_generation_tests {
             );
             let g = Generator {
                 wrap: MapWrap::X,
-                settings: WorldSettings::default(),
                 civilization_count: crate::world::DEFAULT_CIVILIZATION_COUNT,
             };
             assert_eq!(g.colatitude(0), 0);
@@ -1284,7 +1267,6 @@ mod wrap_generation_tests {
         for wrap in [MapWrap::X] {
             let generator = Generator {
                 wrap,
-                settings: WorldSettings::default(),
                 civilization_count: crate::world::DEFAULT_CIVILIZATION_COUNT,
             };
             let land = generator.index(wrap.width() / 2, wrap.height() / 2);
@@ -1356,7 +1338,7 @@ fn generated_worlds_match_civcraft_resource_goldens_for_each_wrap() {
 #[test]
 fn fractal_generator_applies_world_settings_deterministically() {
     let default_map = generate_for_map_size_with(
-        &FractalMapGenerator,
+        &FractalMapGenerator::default(),
         42,
         MapSize::Tiny,
         WorldSettings::default(),
@@ -1367,7 +1349,7 @@ fn fractal_generator_applies_world_settings_deterministically() {
     );
 
     let custom_a = generate_for_map_size_with(
-        &FractalMapGenerator,
+        &FractalMapGenerator::default(),
         42,
         MapSize::Tiny,
         WorldSettings {
@@ -1379,7 +1361,7 @@ fn fractal_generator_applies_world_settings_deterministically() {
         },
     );
     let custom_b = generate_for_map_size_with(
-        &FractalMapGenerator,
+        &FractalMapGenerator::default(),
         42,
         MapSize::Tiny,
         WorldSettings {
@@ -1419,7 +1401,7 @@ fn terrain_biome_census() {
                     ..WorldSettings::default()
                 };
                 let map = generate_with_map_generator(
-                    &FractalMapGenerator,
+                    &FractalMapGenerator::default(),
                     map_generation_request(
                         seed,
                         MapWrap::X,
@@ -1450,7 +1432,7 @@ fn fractal_feature_biomes_cover_cold_dry_and_temperate_art_without_changing_pole
     for seed in [42, 7, 99] {
         for temperature in [Temperature::Cool, Temperature::Temperate, Temperature::Warm] {
             let map = generate_with_map_generator(
-                &FractalMapGenerator,
+                &FractalMapGenerator::default(),
                 map_generation_request(
                     seed,
                     MapWrap::X,
@@ -1675,4 +1657,31 @@ fn opensimplex_forests_reach_all_supported_biome_art() {
         seen, [true; 3],
         "OpenSimplex must reach grassland, plains and pine forest art"
     );
+}
+
+#[test]
+fn fractal_generator_uses_an_injected_ruleset() {
+    let wrap = MapWrap::with_dimensions(36, 48).unwrap();
+    let default_map = generate_with_map_generator(
+        &FractalMapGenerator::default(),
+        map_generation_request(42, wrap, WorldSettings::default(), 8),
+    );
+    let ruleset = FractalRuleset {
+        map_generation_settings: MapGenerationSettings {
+            startpos: defaults::StartPositionSetting::Single,
+            ..defaults::default_map_generation_settings()
+        },
+        ..FractalRuleset::default()
+    };
+    let injected_map = generate_with_map_generator(
+        &FractalMapGenerator::with_ruleset(ruleset),
+        map_generation_request(42, wrap, WorldSettings::default(), 8),
+    );
+    let terrain = |map: &GeneratedMap| {
+        map.tiles
+            .iter()
+            .map(|tile| tile.terrain)
+            .collect::<Vec<_>>()
+    };
+    assert_ne!(terrain(&default_map), terrain(&injected_map));
 }
