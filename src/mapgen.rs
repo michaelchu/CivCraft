@@ -20,7 +20,7 @@ use defaults::{
     HutPlacementSettings, MapGenerationSettings, OceanDepthSettings, StartPositionScoringSettings,
     TerrainMapgenProperties,
 };
-use fractal_settings::FractalParameters;
+use fractal_settings::{FractalParameters, FractalRuleset};
 use std::{collections::hash_map::RandomState, hash::BuildHasher};
 use terrain::TerrainSource;
 
@@ -693,8 +693,6 @@ impl Generator {
             map_seed,
             gameplay_rng,
             LandmassSource::OpenSimplex(world),
-            None,
-            None,
         )
     }
 
@@ -703,10 +701,16 @@ impl Generator {
         game_seed: u64,
         map_seed: u32,
         gameplay_rng: GameRng,
-        landmass_source: LandmassSource,
-        terrain_properties: Option<&[TerrainMapgenProperties]>,
-        start_scoring_settings: Option<StartPositionScoringSettings>,
+        landmass_source: LandmassSource<'_>,
     ) -> GeneratedMap {
+        let terrain_properties = match landmass_source {
+            LandmassSource::OpenSimplex(_) => None,
+            LandmassSource::Fractal(config) => Some(config.terrain_properties),
+        };
+        let start_scoring_settings = match landmass_source {
+            LandmassSource::OpenSimplex(_) => None,
+            LandmassSource::Fractal(config) => Some(config.start_scoring_settings),
+        };
         let map_seed_u64 = u64::from(map_seed);
         let (mut relief, mut biome_field) = match landmass_source {
             LandmassSource::OpenSimplex(_) => {
@@ -718,7 +722,7 @@ impl Generator {
                     self.height_field(map_seed_u64.wrapping_add(0xdad), 0.4),
                 )
             }
-            LandmassSource::Fractal(_, _, _) => {
+            LandmassSource::Fractal(_) => {
                 // The Freeciv terrain pass uses the actual height and
                 // temperature maps instead of CivCraft's separate relief and
                 // biome noise fields.
@@ -737,12 +741,12 @@ impl Generator {
         let mut current_map_seed = map_seed;
         let fractal_map_settings = match landmass_source {
             LandmassSource::OpenSimplex(_) => None,
-            LandmassSource::Fractal(settings, _, _) => Some(settings),
+            LandmassSource::Fractal(config) => Some(config.settings),
         };
         let start_temperature = match landmass_source {
             LandmassSource::OpenSimplex(_) => None,
-            LandmassSource::Fractal(map_settings, _, _) => {
-                Some(self.generate_temperature_map(false, None, None, map_settings))
+            LandmassSource::Fractal(config) => {
+                Some(self.generate_temperature_map(false, None, None, config.settings))
             }
         };
         loop {
@@ -772,7 +776,11 @@ impl Generator {
                     rank_field(&mut heights, 1000);
                     (field, heights, None, world.ocean_coverage.percent())
                 }
-                LandmassSource::Fractal(map_settings, _water_depths, divisions) => {
+                LandmassSource::Fractal(FractalConfig {
+                    settings: map_settings,
+                    divisions,
+                    ..
+                }) => {
                     let mut field = self.fractal_height_field(
                         &mut rng,
                         divisions,
@@ -790,24 +798,20 @@ impl Generator {
                     )
                 }
             };
-            let zone_temperature = match landmass_source {
-                LandmassSource::OpenSimplex(_) => None,
-                LandmassSource::Fractal(map_settings, _, _) => Some(self.generate_temperature_map(
-                    true,
-                    Some(&heights),
-                    fractal_land_mask.as_deref(),
-                    map_settings,
-                )),
-            };
-            let terrain_source = match (landmass_source, zone_temperature.as_ref()) {
-                (LandmassSource::OpenSimplex(world), _) => TerrainSource::OpenSimplex(world),
-                (LandmassSource::Fractal(..), Some(zone_temperature)) => TerrainSource::Fractal {
-                    zone_temperature,
-                    terrain_properties: terrain_properties
-                        .expect("Freeciv fractal generation requires parsed terrain properties"),
-                },
-                (LandmassSource::Fractal(..), None) => {
-                    unreachable!("fractal generation builds a temperature map")
+            let zone_temperature;
+            let terrain_source = match landmass_source {
+                LandmassSource::OpenSimplex(world) => TerrainSource::OpenSimplex(world),
+                LandmassSource::Fractal(config) => {
+                    zone_temperature = self.generate_temperature_map(
+                        true,
+                        Some(&heights),
+                        fractal_land_mask.as_deref(),
+                        config.settings,
+                    );
+                    TerrainSource::Fractal {
+                        zone_temperature: &zone_temperature,
+                        terrain_properties: config.terrain_properties,
+                    }
                 }
             };
             let (mut terrain, mut base_terrain, temperature) = self.terrain_pass(
@@ -820,7 +824,12 @@ impl Generator {
                 ocean_coverage,
                 &mut rng,
             );
-            if let LandmassSource::Fractal(map_settings, water_depths, _) = landmass_source {
+            if let LandmassSource::Fractal(FractalConfig {
+                settings: map_settings,
+                water_depths,
+                ..
+            }) = landmass_source
+            {
                 self.assign_water_depths(
                     &mut terrain,
                     &water_heights,
@@ -859,8 +868,8 @@ impl Generator {
                 LandmassSource::OpenSimplex(_) => {
                     self.finish_water(&mut terrain, &mut rng);
                 }
-                LandmassSource::Fractal(_, water_depths, _) => {
-                    self.finish_water_depths(&mut terrain, water_depths, &mut rng);
+                LandmassSource::Fractal(config) => {
+                    self.finish_water_depths(&mut terrain, config.water_depths, &mut rng);
                 }
             }
             for (index, (tile, &terrain)) in tiles.iter_mut().zip(&terrain).enumerate() {
@@ -1081,12 +1090,23 @@ impl Generator {
     }
 }
 
+/// Per-generator configuration for the shared generation pipeline.
 #[derive(Clone, Copy)]
-enum LandmassSource {
+enum LandmassSource<'a> {
     /// Legacy OpenSimplex landmass; reads the Civ III world choices natively.
     OpenSimplex(WorldSettings),
-    /// Landmass from Freeciv's fractal generator.
-    Fractal(MapGenerationSettings, OceanDepthSettings, i32),
+    /// Landmass and terrain from Freeciv's fractal generator.
+    Fractal(FractalConfig<'a>),
+}
+
+/// Freeciv-native inputs of one fractal generation.
+#[derive(Clone, Copy)]
+struct FractalConfig<'a> {
+    settings: MapGenerationSettings,
+    water_depths: OceanDepthSettings,
+    divisions: i32,
+    terrain_properties: &'a [TerrainMapgenProperties],
+    start_scoring_settings: StartPositionScoringSettings,
 }
 
 /// Follows Freeciv's land mask derivation.
@@ -1173,9 +1193,6 @@ pub(crate) struct MapGenerationRequest {
     pub(crate) gameplay_rng: GameRng,
     pub(crate) wrap: MapWrap,
     pub(crate) settings: WorldSettings,
-    pub(crate) map_generation_settings: MapGenerationSettings,
-    pub(crate) terrain_properties: Vec<TerrainMapgenProperties>,
-    pub(crate) start_scoring_settings: StartPositionScoringSettings,
     pub(crate) civilization_count: usize,
 }
 
@@ -1185,38 +1202,13 @@ fn map_generation_request(
     settings: WorldSettings,
     civilization_count: usize,
 ) -> MapGenerationRequest {
-    map_generation_request_with_map_settings(
-        seed,
-        wrap,
-        settings,
-        civilization_count,
-        campaign_map_generation_settings(),
-    )
-}
-
-pub(crate) fn campaign_map_generation_settings() -> MapGenerationSettings {
-    defaults::default_map_generation_settings()
-}
-
-fn map_generation_request_with_map_settings(
-    seed: u64,
-    wrap: MapWrap,
-    settings: WorldSettings,
-    civilization_count: usize,
-    map_generation_settings: MapGenerationSettings,
-) -> MapGenerationRequest {
     let (map_seed, gameplay_rng) = campaign_randomness(seed);
-    let terrain_properties = defaults::default_terrain_mapgen_properties();
-    let start_scoring_settings = defaults::default_start_position_scoring_settings();
     MapGenerationRequest {
         seed,
         map_seed,
         gameplay_rng,
         wrap,
         settings,
-        map_generation_settings,
-        terrain_properties,
-        start_scoring_settings,
         civilization_count,
     }
 }
@@ -1297,9 +1289,6 @@ impl MapGenerator for OpenSimplexMapGenerator {
             gameplay_rng,
             wrap,
             settings,
-            map_generation_settings: _,
-            terrain_properties: _,
-            start_scoring_settings: _,
             civilization_count,
         } = request;
         assert!((4..=16).contains(&civilization_count));
@@ -1320,12 +1309,14 @@ impl MapGenerator for FractalMapGenerator {
             gameplay_rng,
             wrap,
             settings,
-            map_generation_settings,
-            terrain_properties,
-            start_scoring_settings,
             civilization_count,
         } = request;
         assert!((4..=16).contains(&civilization_count));
+        let FractalRuleset {
+            map_generation_settings,
+            terrain_properties,
+            start_scoring_settings,
+        } = FractalRuleset::default();
         terrain::validate_terrain_mappings(&terrain_properties)
             .expect("mapgen terrains must map to CivCraft terrain identities");
         let FractalParameters {
@@ -1342,9 +1333,13 @@ impl MapGenerator for FractalMapGenerator {
             seed,
             map_seed,
             gameplay_rng,
-            LandmassSource::Fractal(map_generation_settings, water_depths, divisions),
-            Some(&terrain_properties),
-            Some(start_scoring_settings),
+            LandmassSource::Fractal(FractalConfig {
+                settings: map_generation_settings,
+                water_depths,
+                divisions,
+                terrain_properties: &terrain_properties,
+                start_scoring_settings,
+            }),
         );
         finalize_polar_ocean_boundary(&generator, shore, map_seed, map, Some(water_depths))
     }

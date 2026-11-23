@@ -5,7 +5,9 @@
 //! translation happens once, when a generation request is built, and the
 //! generator itself sees only Freeciv-native values.
 
-use super::defaults::MapGenerationSettings;
+use super::defaults::{
+    self, MapGenerationSettings, StartPositionScoringSettings, TerrainMapgenProperties,
+};
 use super::{Climate, Landform, Temperature, WorldAge, WorldSettings};
 
 /// Freeciv fractal inputs resolved from [`WorldSettings`].
@@ -48,6 +50,23 @@ impl FractalParameters {
         Self {
             settings: base,
             divisions,
+        }
+    }
+}
+
+/// Freeciv ruleset data consumed only by the fractal generator.
+pub(crate) struct FractalRuleset {
+    pub(crate) map_generation_settings: MapGenerationSettings,
+    pub(crate) terrain_properties: Vec<TerrainMapgenProperties>,
+    pub(crate) start_scoring_settings: StartPositionScoringSettings,
+}
+
+impl Default for FractalRuleset {
+    fn default() -> Self {
+        Self {
+            map_generation_settings: defaults::default_map_generation_settings(),
+            terrain_properties: defaults::default_terrain_mapgen_properties(),
+            start_scoring_settings: defaults::default_start_position_scoring_settings(),
         }
     }
 }
