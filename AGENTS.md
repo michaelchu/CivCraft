@@ -68,6 +68,11 @@ and no `[borders]` ruleset settings. CivCraft topology remains the adapter;
 culture flipping is deferred pending probability tuning and clear player-facing
 warnings. Keep the design and implementation in
 `docs/superpowers/specs/2026-11-19-culture-core-design.md`.
+The `culture-wide-vs-tall` release scenario (40 turns, seeds 42, 7 and 99) guards
+against city-spam snowballing: a 12-city and a 4-city nation with identical
+per-city culture buildings must not diverge superlinearly, stay orderly and
+solvent. Headless reports include per-civilization `culture` and
+`culture_per_turn`.
 
 ### Recorded exception: custom espionage
 
