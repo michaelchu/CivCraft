@@ -22,6 +22,7 @@ use defaults::{
 };
 use fractal_settings::FractalParameters;
 use std::{collections::hash_map::RandomState, hash::BuildHasher};
+use terrain::TerrainSource;
 
 /// Named world sizes and custom dimensions.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -422,16 +423,16 @@ impl BoundedRandom for GameRng {
 
 impl WorldSettings {
     /// Land share of the map, in percent.
-    pub(crate) fn land_percent(self) -> i32 {
+    fn land_percent(self) -> i32 {
         100 - self.ocean_coverage.percent()
     }
 
     /// Height threshold between water and land on the 0-1000 scale.
-    pub(crate) fn shore(self) -> i32 {
+    fn shore(self) -> i32 {
         1000 * self.ocean_coverage.percent() / 100
     }
 
-    pub(crate) fn lowland(self) -> i32 {
+    fn lowland(self) -> i32 {
         self.shore() + (1000 - self.shore()) * 28 / 100
     }
 }
@@ -731,10 +732,6 @@ impl Generator {
             rank_field(&mut relief, 1000);
             rank_field(&mut biome_field, 1000);
         }
-        let legacy_world = match landmass_source {
-            LandmassSource::OpenSimplex(world) => Some(world),
-            LandmassSource::Fractal(..) => None,
-        };
         let mut attempt = 0_usize;
         let mut gameplay_rng = gameplay_rng;
         let mut current_map_seed = map_seed;
@@ -802,16 +799,25 @@ impl Generator {
                     map_settings,
                 )),
             };
+            let terrain_source = match (landmass_source, zone_temperature.as_ref()) {
+                (LandmassSource::OpenSimplex(world), _) => TerrainSource::OpenSimplex(world),
+                (LandmassSource::Fractal(..), Some(zone_temperature)) => TerrainSource::Fractal {
+                    zone_temperature,
+                    terrain_properties: terrain_properties
+                        .expect("Freeciv fractal generation requires parsed terrain properties"),
+                },
+                (LandmassSource::Fractal(..), None) => {
+                    unreachable!("fractal generation builds a temperature map")
+                }
+            };
             let (mut terrain, mut base_terrain, temperature) = self.terrain_pass(
                 &heights,
                 &water_heights,
                 &relief,
                 &biome_field,
                 fractal_land_mask.as_deref(),
-                zone_temperature.as_ref(),
-                terrain_properties,
+                terrain_source,
                 ocean_coverage,
-                legacy_world,
                 &mut rng,
             );
             if let LandmassSource::Fractal(map_settings, water_depths, _) = landmass_source {
@@ -846,13 +852,7 @@ impl Generator {
                 &mut tiles,
                 &river_heights,
                 &temperature,
-                zone_temperature.as_ref(),
-                if zone_temperature.is_some() {
-                    terrain_properties
-                } else {
-                    None
-                },
-                legacy_world,
+                terrain_source,
                 &mut rng,
             );
             match landmass_source {
