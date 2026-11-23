@@ -83,20 +83,25 @@ pub(crate) struct DiplomacyCatalog {
     pub(crate) negotiations: NegotiationPolicy,
 }
 
-/// Situational AI government families (Civ III-style, owner-authorized).
+/// Situational AI government bias (Civ III-inspired, owner-authorized). No
+/// government is barred: these percentages only scale advisor scores.
 pub(crate) struct GovernmentSituationCatalog {
-    /// Governments preferred while the nation is at peace.
+    /// Governments favored while the nation is at peace.
     pub(crate) peace: Vec<String>,
-    /// Governments preferred while the nation is at war with a real civilization.
+    /// Governments favored while at war with a real civilization.
     pub(crate) war: Vec<String>,
-    /// A different government inside the preferred family replaces the current
-    /// one only when its advisor score exceeds the current score by this percent.
-    pub(crate) retention_margin_percent: i32,
-    /// Verified civilization traits that make a nation willing to adopt the
-    /// wartime family just because it is at war. Other civilizations let the
-    /// advisor scores (unit support and other costs) decide while at war. A nation
-    /// with no civilization record is treated as willing.
+    /// Score bonus for the favored family of the current situation.
+    pub(crate) situation_bias_percent: i32,
+    /// Share of the wartime bias felt by a nation without a wartime trait.
+    pub(crate) unwarlike_war_scale_percent: i32,
+    /// Extra score bonus for the war family, in peace or war, for a nation
+    /// with one of `wartime_traits`.
+    pub(crate) trait_war_bias_percent: i32,
+    /// Verified civilization traits that bias a nation toward the war family.
     pub(crate) wartime_traits: Vec<String>,
+    /// A different government replaces the current one only when its biased
+    /// score exceeds the current biased score by this percent.
+    pub(crate) retention_margin_percent: i32,
 }
 
 pub(crate) struct VassalageCatalog {
@@ -366,8 +371,11 @@ pub(crate) fn default_government_situation() -> GovernmentSituationCatalog {
     GovernmentSituationCatalog {
         peace: list(&["Republic", "Democracy"]),
         war: list(&["Monarchy", "Communism", "Fascism", "Feudalism"]),
-        retention_margin_percent: 15,
+        situation_bias_percent: 20,
+        unwarlike_war_scale_percent: 50,
+        trait_war_bias_percent: 20,
         wartime_traits: list(&["militaristic"]),
+        retention_margin_percent: 15,
     }
 }
 

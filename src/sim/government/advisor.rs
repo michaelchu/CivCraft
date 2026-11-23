@@ -244,49 +244,61 @@ impl super::Simulation {
         );
     }
 
-    /// Civ III-style situational preference (owner-authorized exception to
-    /// Freeciv parity): republics and democracies in peacetime, monarchy,
-    /// communism and fascism while at war with a real civilization.
-    fn government_situation_family(&self, owner: usize) -> Vec<Government> {
+    /// Civ III-style situational bias (owner-authorized exception to Freeciv
+    /// parity). Returns the percent added to a government's advisor score:
+    /// peace favors Republic/Democracy, war favors the military governments, and
+    /// a militaristic nation leans toward the latter in any situation. Nothing is
+    /// barred; the scores still decide.
+    fn government_bias_percent(&self, owner: usize, government: Government) -> i32 {
         let catalog = crate::rules::native::government_situation();
+        let named = |names: &[String]| {
+            names
+                .iter()
+                .any(|name| Government::from_rule_name(name) == Some(government))
+        };
         let at_war = (0..self.players.len()).any(|other| {
             other != owner
                 && self.player_alive(other)
                 && !self.player_has_no_diplomacy(other)
                 && self.contacted_pact(owner, other) == Some(Pact::War)
         });
-        // A government whose cities are about to trigger the disorder revolution
-        // (cityturn.c) is unstable: use the low-unrest wartime family instead of
-        // repeating the same revolution every turn.
-        let current = self.players[owner].government;
-        let tolerance = self.government_revolution_unhappiness(owner, current);
-        let unstable = tolerance > 0
-            && self
-                .cities
-                .iter()
-                .any(|city| city.owner == owner && city.anarchy >= tolerance);
-        // Civ III personalities differ. A militaristic nation moves to the
-        // wartime family as needed; other nations weigh unit support and the
-        // other costs through the advisor scores, so war alone does not force
-        // a wartime government. Instability still forces the low-unrest family.
-        let warlike = self.ai_civilization(owner).is_none_or(|civ| {
+        let civ = self.ai_civilization(owner);
+        let has_trait = civ.is_some_and(|civ| {
             catalog
                 .wartime_traits
                 .iter()
                 .any(|name| crate::sim::ai_traits::trait_enabled(civ, name))
         });
-        if at_war && !warlike && !unstable {
-            return Government::targets().to_vec();
+        let mut bias = 0;
+        if at_war {
+            if named(&catalog.war) {
+                // A nation without a record counts as willing, like a trait holder.
+                let scale = if has_trait || civ.is_none() {
+                    100
+                } else {
+                    catalog.unwarlike_war_scale_percent
+                };
+                bias += catalog.situation_bias_percent * scale / 100;
+            }
+        } else if named(&catalog.peace) {
+            bias += catalog.situation_bias_percent;
         }
-        let names = if (at_war && warlike) || unstable {
-            &catalog.war
-        } else {
-            &catalog.peace
-        };
-        names
-            .iter()
-            .filter_map(|name| Government::from_rule_name(name))
-            .collect()
+        if has_trait && named(&catalog.war) {
+            bias += catalog.trait_war_bias_percent;
+        }
+        bias
+    }
+
+    /// Whether a city is about to trigger the disorder revolution (cityturn.c)
+    /// under the current government, which would repeat the same revolution.
+    fn government_unstable(&self, owner: usize) -> bool {
+        let current = self.players[owner].government;
+        let tolerance = self.government_revolution_unhappiness(owner, current);
+        tolerance > 0
+            && self
+                .cities
+                .iter()
+                .any(|city| city.owner == owner && city.anarchy >= tolerance)
     }
 
     pub(super) fn government_goals(
@@ -295,62 +307,42 @@ impl super::Simulation {
         scores: &[f64],
     ) -> (Government, Government, f64) {
         let current = self.players[owner].government;
-        let family = self.government_situation_family(owner);
+        let unstable = self.government_unstable(owner);
         let margin = 1.0
             + f64::from(crate::rules::native::government_situation().retention_margin_percent)
                 / 100.0;
-        let score_of =
-            |government: Government| scores.get(government.index()).copied().unwrap_or(0.0);
-        // Scores of skipped governments are zeroed (advdata.c's ai.better); the
-        // current government keeps its own score even outside the family.
-        let pick = |only_available: bool| -> Option<Government> {
-            let best = family
+        let adjusted = |government: Government| {
+            let score = scores.get(government.index()).copied().unwrap_or(0.0);
+            score * (1.0 + f64::from(self.government_bias_percent(owner, government)) / 100.0)
+        };
+        let pick = |only_available: bool| -> Government {
+            // Scores of skipped governments are zeroed (advdata.c's ai.better).
+            // An unstable government cannot be kept: leave every government
+            // with revolution unhappiness rather than repeat its revolution.
+            let candidate = |government: Government| {
+                adjusted(government) > 0.0
+                    && !has_available_preferred_government(self, owner, government)
+                    && (!only_available || self.government_available(owner, government))
+                    && !(unstable && self.government_revolution_unhappiness(owner, government) > 0)
+            };
+            let Some(best) = Government::targets()
                 .iter()
                 .copied()
-                .filter(|&g| score_of(g) > 0.0)
-                .filter(|&g| !has_available_preferred_government(self, owner, g))
-                .filter(|&g| !only_available || self.government_available(owner, g))
-                .max_by(|&a, &b| score_of(a).total_cmp(&score_of(b)))?;
-            // Stay put inside the preferred family unless the best is clearly better.
-            if family.contains(&current)
-                && best != current
-                && (!only_available || self.government_available(owner, current))
-                && score_of(best) <= score_of(current) * margin
+                .filter(|&g| candidate(g))
+                .max_by(|&a, &b| adjusted(a).total_cmp(&adjusted(b)))
+            else {
+                return current;
+            };
+            // Stay put unless the best is clearly better (anti flip-flop).
+            if best != current && candidate(current) && adjusted(best) <= adjusted(current) * margin
             {
-                return Some(current);
+                return current;
             }
-            Some(best)
+            best
         };
-        // Advisor-only choice, used for whatever the preferred family cannot supply.
-        let (mut goal, mut available) = (current, current);
-        let (mut goal_value, mut available_value) = (0.0, 0.0);
-        for &government in Government::targets() {
-            // Availability can change between cache refreshes, including when
-            // reading an older saved advisor cache. Apply ai.better here too.
-            if has_available_preferred_government(self, owner, government) {
-                continue;
-            }
-            let value = score_of(government);
-            if value > goal_value {
-                goal = government;
-                goal_value = value;
-            }
-            if value > available_value && self.government_available(owner, government) {
-                available = government;
-                available_value = value;
-            }
-        }
-        let goal = pick(false).unwrap_or(goal);
-        // With nothing in the family available, keep a working government
-        // instead of dropping back to Despotism (or hopping to an unrelated one).
-        let available = pick(true).unwrap_or(
-            if current != Government::DESPOTISM && self.government_available(owner, current) {
-                current
-            } else {
-                available
-            },
-        );
-        (goal, available, score_of(goal) - score_of(available))
+        let goal = pick(false);
+        let available = pick(true);
+        (goal, available, adjusted(goal) - adjusted(available))
     }
 
     pub(in crate::sim) fn choose_ai_government(&mut self, owner: usize) {
@@ -583,53 +575,52 @@ mod ruleset_government_tests {
     }
 
     #[test]
-    fn peace_prefers_republic_family_even_when_monarchy_scores_higher() {
-        let game = situational_game();
-        let scores = scores_for(&[
-            (Government::MONARCHY, 9000.0),
-            (Government::REPUBLIC, 5000.0),
-            (Government::DEMOCRACY, 4000.0),
-        ]);
-        assert_eq!(game.government_goals(1, &scores).1, Government::REPUBLIC);
-    }
-
-    #[test]
-    fn war_prefers_monarchy_family_even_when_democracy_scores_higher() {
+    fn peace_biases_toward_republic_but_scores_can_still_win() {
         let mut game = situational_game();
-        game.put_owner_at_war_for_government_test(1, 2);
-        let scores = scores_for(&[
-            (Government::MONARCHY, 3000.0),
-            (Government::REPUBLIC, 9000.0),
-            (Government::DEMOCRACY, 8000.0),
-        ]);
-        assert_eq!(game.government_goals(1, &scores).1, Government::MONARCHY);
-    }
-
-    #[test]
-    fn non_militaristic_civilization_lets_scores_decide_during_war() {
-        let mut game = situational_game();
-        game.put_owner_at_war_for_government_test(1, 2);
-        let scores = scores_for(&[
-            (Government::MONARCHY, 9000.0),
-            (Government::REPUBLIC, 5000.0),
-        ]);
         game.players[1].civilization_id = Some("india".into());
-        // Scores favoring a wartime government (unit support etc.) are followed...
-        assert_eq!(game.government_goals(1, &scores).1, Government::MONARCHY);
-        // ...but war alone does not force one.
-        let republic_ahead = scores_for(&[
+        let close = scores_for(&[
             (Government::MONARCHY, 5000.0),
+            (Government::REPUBLIC, 4500.0),
+        ]);
+        assert_eq!(game.government_goals(1, &close).1, Government::REPUBLIC);
+        let far = scores_for(&[
+            (Government::MONARCHY, 9000.0),
+            (Government::REPUBLIC, 5000.0),
+        ]);
+        assert_eq!(game.government_goals(1, &far).1, Government::MONARCHY);
+    }
+
+    #[test]
+    fn war_and_militaristic_trait_bias_toward_military_governments() {
+        let mut game = situational_game();
+        game.put_owner_at_war_for_government_test(1, 2);
+        let scores = scores_for(&[
+            (Government::MONARCHY, 7000.0),
             (Government::REPUBLIC, 9000.0),
         ]);
-        assert_eq!(
-            game.government_goals(1, &republic_ahead).1,
-            Government::REPUBLIC
-        );
+        // Rome is militaristic: war (+20%) and trait (+20%) beat a 29% score gap.
         game.players[1].civilization_id = Some("rome".into());
-        assert_eq!(
-            game.government_goals(1, &republic_ahead).1,
-            Government::MONARCHY
-        );
+        assert_eq!(game.government_goals(1, &scores).1, Government::MONARCHY);
+        // A non-militaristic civilization feels only half the wartime bias.
+        game.players[1].civilization_id = Some("india".into());
+        assert_eq!(game.government_goals(1, &scores).1, Government::REPUBLIC);
+        let close = scores_for(&[
+            (Government::MONARCHY, 8500.0),
+            (Government::REPUBLIC, 9000.0),
+        ]);
+        assert_eq!(game.government_goals(1, &close).1, Government::MONARCHY);
+    }
+
+    #[test]
+    fn militaristic_civilization_may_keep_a_military_government_at_peace() {
+        let mut game = situational_game();
+        game.players[1].civilization_id = Some("rome".into());
+        game.players[1].government = Government::MONARCHY;
+        let scores = scores_for(&[
+            (Government::MONARCHY, 5000.0),
+            (Government::REPUBLIC, 5400.0),
+        ]);
+        assert_eq!(game.government_goals(1, &scores).1, Government::MONARCHY);
     }
 
     #[test]

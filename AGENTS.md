@@ -218,25 +218,22 @@ incoming cap discards, or Devout for content already covered by other effects.
 
 The owner authorized on 2026-11-23 that AI government choice mimic Civ III's
 situational behavior instead of Freeciv score-only parity. Civ III's exact logic
-is undocumented; this is an approximation. While an AI is at peace its preferred
-family is Republic/Democracy; while it is at war with a real (non-barbarian,
-contacted) civilization it is Monarchy/Communism/Fascism/Feudalism. Families and the
-retention margin live in `default_government_situation()` in
-`src/rules/policies.rs`. Advisor scores still rank governments inside the family
-and decide the choice when no family member is scored or available; a different
-member of the family replaces the current government only when it beats the
-current score by the retention margin (prevents Democracy/Feudalism style
-flip-flops). Only civilizations with a verified wartime trait (`militaristic`,
-`wartime_traits` in the same catalog) are pushed into the wartime family
-merely because they are at war; other civilizations weigh unit support and the
-other costs through the advisor scores while at war (any government, with the
-retention margin), and are forced into the low-unrest family only when a city
-is about to trigger the disorder revolution. A nation with no civilization record counts as willing. The family also
-sets the research goal. AI revolutions still skip
-Anarchy (shared with Freeciv). Legality, availability and the `ai.better`
-supersession rule are unchanged. This adds no saved state. Validate with the
-`government` unit tests and a long headless run, comparing `government.changed`
-events.
+is undocumented; this is an approximation. No government is barred: the situation
+and verified civilization traits only bias the advisor scores. At peace,
+Republic/Democracy get a score bonus; at war with a real (non-barbarian,
+contacted) civilization, Monarchy/Communism/Fascism/Feudalism get one, scaled
+down for a civilization without a wartime trait (`militaristic`), which also
+leans toward that family in any situation. A nation with no civilization record
+counts as willing. All parameters live in `default_government_situation()` in
+`src/rules/policies.rs`. A different government replaces the current one only
+when its biased score beats the current biased score by the retention margin
+(prevents Democracy/Feudalism style flip-flops). A government whose city is about
+to trigger the disorder revolution is dropped in favor of governments without
+revolution unhappiness. The biased scores also set the research goal. AI
+revolutions still skip Anarchy (shared with Freeciv). Legality, availability and
+the `ai.better` supersession rule are unchanged. This adds no saved state.
+Validate with the `government` unit tests and a headless run, comparing
+`government.changed` events.
 
 ### Recorded exception: aircraft (Civ III Conquests)
 
