@@ -347,6 +347,23 @@ impl super::Simulation {
 
     pub(in crate::sim) fn choose_ai_government(&mut self, owner: usize) {
         self.refresh_government_advisor(owner);
+        // Leaving a rioting government removes the evidence of disorder at once.
+        // Zero the cached scores of governments with revolution unhappiness so
+        // the AI cannot return before the next honest re-evaluation.
+        if self.government_unstable(owner) {
+            let blocked: Vec<_> = Government::targets()
+                .iter()
+                .copied()
+                .filter(|&g| self.government_revolution_unhappiness(owner, g) > 0)
+                .collect();
+            if let Some(cache) = self.ai_government_cache.get_mut(&owner) {
+                for government in blocked {
+                    if let Some(score) = cache.scores.get_mut(government.index()) {
+                        *score = 0.0;
+                    }
+                }
+            }
+        }
         let advice = self
             .trace
             .wants::<observation::GovernmentDecision>()

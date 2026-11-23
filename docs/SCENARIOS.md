@@ -111,7 +111,10 @@ Rome and otherwise identical India run in a primary and a comparison campaign.
 War checks that Rome holds a war-family government, peace that India reaches the
 peace family while Rome keeps its military government, and the cycle that war,
 peace and war again produce bounded revolutions with no loops or flip-flops.
-Run with `--turns 8`, `8` and `24`; seeds 42, 7 and 99.
+`government-situation-disorder` starts a Republic whose city has been rioting and
+checks that it leaves once and cannot return before the next re-evaluation. Run
+with `--turns 8`, `8`, `24` and `4`; seeds 42, 7 and 99. A source-adjacent test
+runs all four under `cargo test`.
 
 `diplomacy-parity` is a runtime with focused actions for treaty expiry and atomic
 technology transfer. It requests a preparatory turn from the runner to check a

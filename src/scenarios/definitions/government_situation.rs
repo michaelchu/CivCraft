@@ -29,11 +29,14 @@ enum Case {
     Peace,
     /// War, then peace, then war again, to catch flip-flops and loops.
     Cycle,
+    /// A Republic whose city has been rioting: leave it once, never repeat it.
+    Disorder,
 }
 
 pub(super) const WAR: Scenario = scenario("government-situation-war", war_setup);
 pub(super) const PEACE: Scenario = scenario("government-situation-peace", peace_setup);
 pub(super) const CYCLE: Scenario = scenario("government-situation-cycle", cycle_setup);
+pub(super) const DISORDER: Scenario = scenario("government-situation-disorder", disorder_setup);
 
 const fn scenario(id: &'static str, setup: crate::scenarios::ScenarioSetup) -> Scenario {
     Scenario::new(
@@ -57,6 +60,10 @@ fn peace_setup(map: GeneratedMap) -> (Simulation, Box<dyn ScenarioRun>) {
 
 fn cycle_setup(map: GeneratedMap) -> (Simulation, Box<dyn ScenarioRun>) {
     build(map, Case::Cycle)
+}
+
+fn disorder_setup(map: GeneratedMap) -> (Simulation, Box<dyn ScenarioRun>) {
+    build(map, Case::Disorder)
 }
 
 fn build(map: GeneratedMap, case: Case) -> (Simulation, Box<dyn ScenarioRun>) {
@@ -88,17 +95,22 @@ fn build(map: GeneratedMap, case: Case) -> (Simulation, Box<dyn ScenarioRun>) {
         let city = world.city(owner, position, size);
         world.city_workers(city, size as usize);
         world.unit(owner, UnitKind::Spearman, position);
+        if case == Case::Disorder && owner == SUBJECT && position == (10, 24) {
+            world.city_disorder_streak(city, 10);
+        }
     }
     world.treasury(SUBJECT, 500);
     world.last_science(SUBJECT, 20);
-    let pact = if case == Case::Peace {
+    let pact = if matches!(case, Case::Peace | Case::Disorder) {
         Pact::Peace
     } else {
         Pact::War
     };
     world.diplomacy(SUBJECT, RIVAL, pact, 1, [0; 2]);
-    if case == Case::Peace {
-        world.government(SUBJECT, Government::MONARCHY);
+    match case {
+        Case::Peace => world.government(SUBJECT, Government::MONARCHY),
+        Case::Disorder => world.government(SUBJECT, Government::REPUBLIC),
+        _ => {}
     }
     world.finish();
     let mut control = game.clone();
@@ -155,17 +167,12 @@ impl Track {
             .count()
     }
 
-    /// Back to a government left within a few turns: A -> B -> A.
+    /// A revolution back into the government the previous one left, within
+    /// a few turns: A -> B -> A.
     fn flip_flops(&self) -> usize {
-        let mut changes = Vec::new();
-        for pair in self.governments.windows(2) {
-            if pair[0] != pair[1] && pair[0] != "Anarchy" && pair[1] != "Anarchy" {
-                changes.push((pair[0], pair[1]));
-            }
-        }
-        changes
+        self.revolutions
             .windows(2)
-            .filter(|pair| pair[0].0 == pair[1].1 && pair[0].1 == pair[1].0)
+            .filter(|pair| pair[1].0 - pair[0].0 <= 30 && pair[1].2 == pair[0].1)
             .count()
     }
 }
@@ -267,7 +274,136 @@ impl ScenarioRun for Pair {
                     india.governments
                 ),
             }),
+            Case::Disorder => checks.push(Check {
+                name: "disorder_prone_government_is_left_once",
+                passed: [rome, india].iter().all(|track| {
+                    track.revolutions.first().is_some_and(|(_, from, to)| {
+                        from == "Republic" && to != "Republic" && to != "Democracy"
+                    }) && track.revolutions.len() == 1
+                }),
+                detail: format!(
+                    "Rome revolutions {:?}, India revolutions {:?}",
+                    rome.revolutions, india.revolutions
+                ),
+            }),
         }
         checks
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    //! Runs the registered runtimes through the headless runner at their fixed seeds.
+
+    fn run(scenario: &str, seed: u64, turns: u32) -> serde_json::Value {
+        let report = std::env::temp_dir().join(format!(
+            "civcraft-{scenario}-{seed}-{}.json",
+            std::process::id()
+        ));
+        let args: Vec<String> = [
+            "--scenario",
+            scenario,
+            "--seed",
+            &seed.to_string(),
+            "--turns",
+            &turns.to_string(),
+            "--report",
+            report.to_str().unwrap(),
+        ]
+        .map(String::from)
+        .to_vec();
+        crate::headless::run_cli(&args).unwrap_or_else(|e| panic!("{scenario} seed {seed}: {e}"));
+        let value = serde_json::from_slice(&std::fs::read(&report).unwrap()).unwrap();
+        for extension in [
+            "",
+            ".changes.jsonl",
+            ".events.jsonl",
+            ".shared.jsonl",
+            ".snapshots.jsonl",
+        ] {
+            let _ = std::fs::remove_file(format!("{}{extension}", report.display()));
+        }
+        value
+    }
+
+    #[test]
+    fn government_situation_runtimes_pass_at_every_seed() {
+        for (scenario, turns) in [
+            ("government-situation-war", 8),
+            ("government-situation-peace", 8),
+            ("government-situation-cycle", 24),
+            ("government-situation-disorder", 4),
+        ] {
+            for seed in [42, 7, 99] {
+                let report = run(scenario, seed, turns);
+                let total = report["summary"]["scenario_checks_total"].as_u64().unwrap();
+                assert!(total > 0, "{scenario} made no checks");
+                assert_eq!(
+                    report["summary"]["scenario_checks_passed"]
+                        .as_u64()
+                        .unwrap(),
+                    total,
+                    "{scenario} seed {seed}: {}",
+                    report["run"]["scenario"]["checks"]
+                );
+                let churn = report["findings"].as_array().unwrap().iter().any(|f| {
+                    matches!(
+                        f["kind"].as_str(),
+                        Some("government_flip_flop" | "government_revolution_repeats_current")
+                    )
+                });
+                assert!(!churn, "{scenario} seed {seed} reported government churn");
+            }
+        }
+    }
+
+    /// Slow (three 100-turn campaigns): run in release with
+    /// `cargo test --release government_situation_long_runs -- --ignored`.
+    #[test]
+    #[ignore = "three 100-turn tiny-map campaigns; run in release mode"]
+    fn government_situation_long_runs_have_no_government_churn() {
+        for seed in [42, 7, 99] {
+            let report = std::env::temp_dir().join(format!(
+                "civcraft-government-long-{seed}-{}.json",
+                std::process::id()
+            ));
+            let args: Vec<String> = [
+                "--seed",
+                &seed.to_string(),
+                "--map-size",
+                "tiny",
+                "--turns",
+                "100",
+                "--report",
+                report.to_str().unwrap(),
+            ]
+            .map(String::from)
+            .to_vec();
+            crate::headless::run_cli(&args).unwrap_or_else(|e| panic!("seed {seed}: {e}"));
+            let value: serde_json::Value =
+                serde_json::from_slice(&std::fs::read(&report).unwrap()).unwrap();
+            for extension in [
+                "",
+                ".changes.jsonl",
+                ".events.jsonl",
+                ".shared.jsonl",
+                ".snapshots.jsonl",
+            ] {
+                let _ = std::fs::remove_file(format!("{}{extension}", report.display()));
+            }
+            let churn: Vec<_> = value["findings"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter(|f| {
+                    matches!(
+                        f["kind"].as_str(),
+                        Some("government_flip_flop" | "government_revolution_repeats_current")
+                    )
+                })
+                .map(|f| f["explanation"].clone())
+                .collect();
+            assert!(churn.is_empty(), "seed {seed}: {churn:?}");
+        }
     }
 }
