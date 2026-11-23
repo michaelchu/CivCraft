@@ -255,7 +255,21 @@ impl super::Simulation {
                 && !self.player_has_no_diplomacy(other)
                 && self.contacted_pact(owner, other) == Some(Pact::War)
         });
-        let names = if at_war { &catalog.war } else { &catalog.peace };
+        // A government whose cities are about to trigger the disorder revolution
+        // (cityturn.c) is unstable: use the low-unrest wartime family instead of
+        // repeating the same revolution every turn.
+        let current = self.players[owner].government;
+        let tolerance = self.government_revolution_unhappiness(owner, current);
+        let unstable = tolerance > 0
+            && self
+                .cities
+                .iter()
+                .any(|city| city.owner == owner && city.anarchy >= tolerance);
+        let names = if at_war || unstable {
+            &catalog.war
+        } else {
+            &catalog.peace
+        };
         names
             .iter()
             .filter_map(|name| Government::from_rule_name(name))
@@ -314,7 +328,15 @@ impl super::Simulation {
             }
         }
         let goal = pick(false).unwrap_or(goal);
-        let available = pick(true).unwrap_or(available);
+        // With nothing in the family available, keep a working government
+        // instead of dropping back to Despotism (or hopping to an unrelated one).
+        let available = pick(true).unwrap_or(
+            if current != Government::DESPOTISM && self.government_available(owner, current) {
+                current
+            } else {
+                available
+            },
+        );
         (goal, available, score_of(goal) - score_of(available))
     }
 
