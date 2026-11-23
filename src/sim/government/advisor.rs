@@ -658,6 +658,112 @@ mod ruleset_government_tests {
     }
 
     #[test]
+    fn nation_without_a_civilization_record_counts_as_willing_for_war() {
+        let mut game = situational_game();
+        game.put_owner_at_war_for_government_test(1, 2);
+        let scores = scores_for(&[
+            (Government::MONARCHY, 7000.0),
+            (Government::REPUBLIC, 8000.0),
+        ]);
+        game.players[1].civilization_id = None;
+        // Full wartime bias (+20%): 8,400 beats 8,000.
+        assert_eq!(game.government_goals(1, &scores).1, Government::MONARCHY);
+        game.players[1].civilization_id = Some("india".into());
+        // Half bias (+10%): 7,700 loses to 8,000.
+        assert_eq!(game.government_goals(1, &scores).1, Government::REPUBLIC);
+    }
+
+    #[test]
+    fn war_with_barbarians_is_not_a_wartime_situation() {
+        let mut game = situational_game();
+        game.players[1].civilization_id = Some("india".into());
+        game.sign_pact(1, BARBARIANS, Pact::War);
+        assert_eq!(
+            game.contacted_pact(1, BARBARIANS),
+            Some(Pact::War),
+            "the test needs a real barbarian war"
+        );
+        let scores = scores_for(&[
+            (Government::MONARCHY, 5000.0),
+            (Government::REPUBLIC, 4500.0),
+        ]);
+        // Peace bias still applies: Republic 5,400 beats Monarchy 5,000.
+        assert_eq!(game.government_goals(1, &scores).1, Government::REPUBLIC);
+    }
+
+    #[test]
+    fn unavailable_government_is_a_goal_but_never_the_available_choice() {
+        let mut game = situational_game();
+        game.players[1].civilization_id = Some("india".into());
+        game.players[1]
+            .known
+            .retain(|&tech| tech != Tech::THE_REPUBLIC);
+        let scores = scores_for(&[
+            (Government::MONARCHY, 3000.0),
+            (Government::REPUBLIC, 9000.0),
+        ]);
+        let (goal, available, _) = game.government_goals(1, &scores);
+        assert_eq!(goal, Government::REPUBLIC, "research should aim at it");
+        assert_ne!(available, Government::REPUBLIC);
+        assert!(game.government_available(1, available));
+    }
+
+    #[test]
+    fn unstable_government_with_no_alternative_stays_put() {
+        let mut game = situational_game();
+        game.players[1].civilization_id = Some("india".into());
+        game.players[1].known.retain(|&tech| tech != Tech::MONARCHY);
+        game.players[1].government = Government::REPUBLIC;
+        let tolerance = game.government_revolution_unhappiness(1, Government::REPUBLIC);
+        game.cities[0].anarchy = tolerance;
+        let scores = scores_for(&[(Government::REPUBLIC, 9000.0)]);
+        let (_, available, _) = game.government_goals(1, &scores);
+        assert_eq!(available, Government::REPUBLIC);
+    }
+
+    #[test]
+    fn all_zero_scores_keep_the_current_government() {
+        let mut game = situational_game();
+        game.players[1].government = Government::MONARCHY;
+        let scores = vec![0.0; Government::count()];
+        let (goal, available, value) = game.government_goals(1, &scores);
+        assert_eq!(
+            (goal, available, value),
+            (Government::MONARCHY, Government::MONARCHY, 0.0)
+        );
+    }
+
+    #[test]
+    fn nation_without_cities_starts_no_revolution() {
+        let mut game = situational_game();
+        game.cities.clear();
+        game.players[1].government = Government::MONARCHY;
+        game.choose_ai_government(1);
+        assert_eq!(game.players[1].government, Government::MONARCHY);
+        assert!(game.players[1].revolution_target.is_none());
+    }
+
+    #[test]
+    fn instability_block_lasts_only_until_the_next_evaluation() {
+        let mut game = situational_game();
+        game.players[1].civilization_id = Some("india".into());
+        game.players[1].government = Government::REPUBLIC;
+        game.refresh_government_advisor(1);
+        let tolerance = game.government_revolution_unhappiness(1, Government::REPUBLIC);
+        game.cities[0].anarchy = tolerance;
+        game.choose_ai_government(1);
+        assert_eq!(
+            game.ai_government_cache[&1].scores[Government::REPUBLIC.index()],
+            0.0
+        );
+        // The next honest evaluation recomputes Republic from the real city.
+        game.turn = game.ai_government_cache[&1].next_evaluation;
+        game.cities[0].anarchy = 0;
+        game.refresh_government_advisor(1);
+        assert!(game.ai_government_cache[&1].scores[Government::REPUBLIC.index()] > 0.0);
+    }
+
+    #[test]
     fn near_tied_family_members_do_not_flip_flop() {
         let mut game = situational_game();
         game.players[1].government = Government::REPUBLIC;

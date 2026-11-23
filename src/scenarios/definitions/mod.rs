@@ -135,6 +135,7 @@ pub(super) const SCENARIOS: &[Scenario] = &[
     government_situation::PEACE,
     government_situation::CYCLE,
     government_situation::DISORDER,
+    government_situation::LOCKED,
     peaceful_first_contact::SCENARIO,
     proactive_trade::SCENARIO,
     shared_strategy::SCENARIO,

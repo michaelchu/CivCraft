@@ -31,12 +31,15 @@ enum Case {
     Cycle,
     /// A Republic whose city has been rioting: leave it once, never repeat it.
     Disorder,
+    /// Peace, but no peace-family government is available to adopt.
+    Locked,
 }
 
 pub(super) const WAR: Scenario = scenario("government-situation-war", war_setup);
 pub(super) const PEACE: Scenario = scenario("government-situation-peace", peace_setup);
 pub(super) const CYCLE: Scenario = scenario("government-situation-cycle", cycle_setup);
 pub(super) const DISORDER: Scenario = scenario("government-situation-disorder", disorder_setup);
+pub(super) const LOCKED: Scenario = scenario("government-situation-locked", locked_setup);
 
 const fn scenario(id: &'static str, setup: crate::scenarios::ScenarioSetup) -> Scenario {
     Scenario::new(
@@ -66,18 +69,29 @@ fn disorder_setup(map: GeneratedMap) -> (Simulation, Box<dyn ScenarioRun>) {
     build(map, Case::Disorder)
 }
 
+fn locked_setup(map: GeneratedMap) -> (Simulation, Box<dyn ScenarioRun>) {
+    build(map, Case::Locked)
+}
+
 fn build(map: GeneratedMap, case: Case) -> (Simulation, Box<dyn ScenarioRun>) {
+    let locked = case == Case::Locked;
     let technologies = [
         Tech::ALPHABET,
         Tech::BRONZE_WORKING,
         Tech::MONARCHY,
         Tech::THE_REPUBLIC,
     ];
+    // Locked: the peace family needs The Republic, which neither nation has.
+    let technologies = if locked {
+        &technologies[..3]
+    } else {
+        &technologies[..]
+    };
     let mut game = WorldBuilder::ocean_campaign(
         map,
         &["egypt", "rome"].map(|id| CivPreset {
             id,
-            technologies: Some(&technologies),
+            technologies: Some(technologies),
         }),
     );
     let mut world = WorldBuilder::new(&mut game);
@@ -101,14 +115,14 @@ fn build(map: GeneratedMap, case: Case) -> (Simulation, Box<dyn ScenarioRun>) {
     }
     world.treasury(SUBJECT, 500);
     world.last_science(SUBJECT, 20);
-    let pact = if matches!(case, Case::Peace | Case::Disorder) {
+    let pact = if matches!(case, Case::Peace | Case::Disorder | Case::Locked) {
         Pact::Peace
     } else {
         Pact::War
     };
     world.diplomacy(SUBJECT, RIVAL, pact, 1, [0; 2]);
     match case {
-        Case::Peace => world.government(SUBJECT, Government::MONARCHY),
+        Case::Peace | Case::Locked => world.government(SUBJECT, Government::MONARCHY),
         Case::Disorder => world.government(SUBJECT, Government::REPUBLIC),
         _ => {}
     }
@@ -274,6 +288,18 @@ impl ScenarioRun for Pair {
                     india.governments
                 ),
             }),
+            Case::Locked => checks.push(Check {
+                name: "unavailable_peace_government_is_never_adopted",
+                passed: rome.revolutions.is_empty()
+                    && india.revolutions.is_empty()
+                    && rome.last() == "Monarchy"
+                    && india.last() == "Monarchy",
+                detail: format!(
+                    "No Republic technology: Rome {:?}, India {:?}",
+                    rome.governments.last(),
+                    india.governments.last()
+                ),
+            }),
             Case::Disorder => checks.push(Check {
                 name: "disorder_prone_government_is_left_once",
                 passed: [rome, india].iter().all(|track| {
@@ -333,6 +359,7 @@ mod tests {
             ("government-situation-peace", 8),
             ("government-situation-cycle", 24),
             ("government-situation-disorder", 4),
+            ("government-situation-locked", 6),
         ] {
             for seed in [42, 7, 99] {
                 let report = run(scenario, seed, turns);

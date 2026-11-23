@@ -113,8 +113,12 @@ peace family while Rome keeps its military government, and the cycle that war,
 peace and war again produce bounded revolutions with no loops or flip-flops.
 `government-situation-disorder` starts a Republic whose city has been rioting and
 checks that it leaves once and cannot return before the next re-evaluation. Run
-with `--turns 8`, `8`, `24` and `4`; seeds 42, 7 and 99. A source-adjacent test
-runs all four under `cargo test`.
+with `--turns 8`, `8`, `24` and `4`. `government-situation-locked` (`--turns 6`)
+removes The Republic at peace and checks that no unavailable government is
+adopted. Use seeds 42, 7 and 99. A source-adjacent test runs all five under
+`cargo test`; the unit tests cover missing civilization records, barbarian
+wars, no available alternative, all-zero scores, nations without cities and
+the cached instability block expiring.
 
 `diplomacy-parity` is a runtime with focused actions for treaty expiry and atomic
 technology transfer. It requests a preparatory turn from the runner to check a

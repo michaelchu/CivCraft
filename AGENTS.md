@@ -235,8 +235,8 @@ revolutions still skip Anarchy (shared with Freeciv). Legality, availability and
 the `ai.better` supersession rule are unchanged. This adds no saved state.
 Validate with the `government` unit tests and the `government-situation-war`
 (8 turns), `government-situation-peace` (8) and `government-situation-cycle`
-(24) and `government-situation-disorder` (4) release scenarios at seeds 42, 7
-and 99; each pairs militaristic Rome with otherwise identical India. The
+(24), `government-situation-disorder` (4) and `government-situation-locked` (6)
+release scenarios at seeds 42, 7 and 99; each pairs militaristic Rome with otherwise identical India. The
 `government_situation_runtimes_pass_at_every_seed` test runs them under
 `cargo test`, and the ignored `government_situation_long_runs_have_no_government_churn`
 test runs three 100-turn tiny-map campaigns in release mode. The government analyzer reports
