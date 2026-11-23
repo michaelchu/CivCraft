@@ -15,6 +15,8 @@ impl Simulation {
             tile.river = true;
         }
         self.create_city(1, 10, 24);
+        self.put_owner_at_war_for_government_test(1, 2);
+        self.cities.sort_by_key(|city| city.owner != 1);
         self.cities[0].size = 4;
         self.reconcile_city_workers();
         self.players[1].government = Government::DESPOTISM;

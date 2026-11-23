@@ -83,6 +83,27 @@ pub(crate) struct DiplomacyCatalog {
     pub(crate) negotiations: NegotiationPolicy,
 }
 
+/// Situational AI government bias (custom, owner-authorized). No
+/// government is barred: these percentages only scale advisor scores.
+pub(crate) struct GovernmentSituationCatalog {
+    /// Governments favored while the nation is at peace.
+    pub(crate) peace: Vec<String>,
+    /// Governments favored while at war with a real civilization.
+    pub(crate) war: Vec<String>,
+    /// Score bonus for the favored family of the current situation.
+    pub(crate) situation_bias_percent: i32,
+    /// Share of the wartime bias felt by a nation without a wartime trait.
+    pub(crate) unwarlike_war_scale_percent: i32,
+    /// Extra score bonus for the war family, in peace or war, for a nation
+    /// with one of `wartime_traits`.
+    pub(crate) trait_war_bias_percent: i32,
+    /// Verified civilization traits that bias a nation toward the war family.
+    pub(crate) wartime_traits: Vec<String>,
+    /// A different government replaces the current one only when its biased
+    /// score exceeds the current biased score by this percent.
+    pub(crate) retention_margin_percent: i32,
+}
+
 pub(crate) struct VassalageCatalog {
     pub(crate) required_technology: String,
     pub(crate) voluntary_minimum_turns: i32,
@@ -342,6 +363,19 @@ pub(crate) fn default_diplomacy() -> DiplomacyCatalog {
             peace_force_value: 10,
             maximum_peace_value: 500,
         },
+    }
+}
+
+pub(crate) fn default_government_situation() -> GovernmentSituationCatalog {
+    let list = |names: &[&str]| names.iter().map(|s| (*s).to_owned()).collect::<Vec<_>>();
+    GovernmentSituationCatalog {
+        peace: list(&["Republic", "Democracy"]),
+        war: list(&["Monarchy", "Communism", "Fascism", "Feudalism"]),
+        situation_bias_percent: 20,
+        unwarlike_war_scale_percent: 50,
+        trait_war_bias_percent: 20,
+        wartime_traits: list(&["militaristic"]),
+        retention_margin_percent: 15,
     }
 }
 

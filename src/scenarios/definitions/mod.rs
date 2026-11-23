@@ -18,6 +18,7 @@ mod culture_wonders;
 mod diplomacy_parity;
 mod diplomatic_needs;
 mod expansion_balance;
+mod government_situation;
 mod great_leader;
 mod harbor_trade;
 mod lifecycle_history;
@@ -130,6 +131,11 @@ pub(super) const SCENARIOS: &[Scenario] = &[
     combat_matrix::SCENARIO,
     ai_paradrops::SCENARIO,
     diplomacy_parity::SCENARIO,
+    government_situation::WAR,
+    government_situation::PEACE,
+    government_situation::CYCLE,
+    government_situation::DISORDER,
+    government_situation::LOCKED,
     peaceful_first_contact::SCENARIO,
     proactive_trade::SCENARIO,
     shared_strategy::SCENARIO,

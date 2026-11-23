@@ -106,6 +106,20 @@ an explicit phase boundary, rather than scheduling an AI player's activities.
 | `expansion-balance`, `shared-strategy`, `wartime-funding` | Advisor/cache repricing, shared policy weights, purchase quotes and upkeep/reserve constraints under changed inputs. |
 | `proactive-trade`, `peaceful-first-contact`, `relationship-memory`, `competing-trade-partners` | Atomic diplomatic choices, valuation, first-contact rules and directional relationship memory. |
 
+`government-situation-war`, `-peace` and `-cycle` are matched runtimes: militaristic
+Rome and otherwise identical India run in a primary and a comparison campaign.
+War checks that Rome holds a war-family government, peace that India reaches the
+peace family while Rome keeps its military government, and the cycle that war,
+peace and war again produce bounded revolutions with no loops or flip-flops.
+`government-situation-disorder` starts a Republic whose city has been rioting and
+checks that it leaves once and cannot return before the next re-evaluation. Run
+with `--turns 8`, `8`, `24` and `4`. `government-situation-locked` (`--turns 6`)
+removes The Republic at peace and checks that no unavailable government is
+adopted. Use seeds 42, 7 and 99. A source-adjacent test runs all five under
+`cargo test`; the unit tests cover missing civilization records, barbarian
+wars, no available alternative, all-zero scores, nations without cities and
+the cached instability block expiring.
+
 `diplomacy-parity` is a runtime with focused actions for treaty expiry and atomic
 technology transfer. It requests a preparatory turn from the runner to check a
 real begin-phase war declaration. It does not sequence internal AI activities.
