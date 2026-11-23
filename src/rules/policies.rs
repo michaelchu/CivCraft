@@ -93,8 +93,8 @@ pub(crate) struct GovernmentSituationCatalog {
     /// one only when its advisor score exceeds the current score by this percent.
     pub(crate) retention_margin_percent: i32,
     /// Verified civilization traits that make a nation willing to adopt the
-    /// wartime family just because it is at war. Other civilizations stay in
-    /// the peace family unless their government becomes unstable. A nation
+    /// wartime family just because it is at war. Other civilizations let the
+    /// advisor scores (unit support and other costs) decide while at war. A nation
     /// with no civilization record is treated as willing.
     pub(crate) wartime_traits: Vec<String>,
 }

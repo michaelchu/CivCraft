@@ -265,14 +265,19 @@ impl super::Simulation {
                 .cities
                 .iter()
                 .any(|city| city.owner == owner && city.anarchy >= tolerance);
-        // Civ III personalities differ: a peaceful civilization does not switch
-        // to a wartime government just because a war began.
+        // Civ III personalities differ. A militaristic nation moves to the
+        // wartime family as needed; other nations weigh unit support and the
+        // other costs through the advisor scores, so war alone does not force
+        // a wartime government. Instability still forces the low-unrest family.
         let warlike = self.ai_civilization(owner).is_none_or(|civ| {
             catalog
                 .wartime_traits
                 .iter()
                 .any(|name| crate::sim::ai_traits::trait_enabled(civ, name))
         });
+        if at_war && !warlike && !unstable {
+            return Government::targets().to_vec();
+        }
         let names = if (at_war && warlike) || unstable {
             &catalog.war
         } else {
@@ -569,7 +574,7 @@ mod ruleset_government_tests {
         game
     }
 
-    fn scores(entries: &[(Government, f64)]) -> Vec<f64> {
+    fn scores_for(entries: &[(Government, f64)]) -> Vec<f64> {
         let mut scores = vec![0.0; Government::count()];
         for &(government, value) in entries {
             scores[government.index()] = value;
@@ -580,7 +585,7 @@ mod ruleset_government_tests {
     #[test]
     fn peace_prefers_republic_family_even_when_monarchy_scores_higher() {
         let game = situational_game();
-        let scores = scores(&[
+        let scores = scores_for(&[
             (Government::MONARCHY, 9000.0),
             (Government::REPUBLIC, 5000.0),
             (Government::DEMOCRACY, 4000.0),
@@ -592,7 +597,7 @@ mod ruleset_government_tests {
     fn war_prefers_monarchy_family_even_when_democracy_scores_higher() {
         let mut game = situational_game();
         game.put_owner_at_war_for_government_test(1, 2);
-        let scores = scores(&[
+        let scores = scores_for(&[
             (Government::MONARCHY, 3000.0),
             (Government::REPUBLIC, 9000.0),
             (Government::DEMOCRACY, 8000.0),
@@ -601,29 +606,42 @@ mod ruleset_government_tests {
     }
 
     #[test]
-    fn peaceful_civilization_stays_in_peace_family_during_war() {
+    fn non_militaristic_civilization_lets_scores_decide_during_war() {
         let mut game = situational_game();
         game.put_owner_at_war_for_government_test(1, 2);
-        let scores = scores(&[
+        let scores = scores_for(&[
             (Government::MONARCHY, 9000.0),
             (Government::REPUBLIC, 5000.0),
         ]);
         game.players[1].civilization_id = Some("india".into());
-        assert_eq!(game.government_goals(1, &scores).1, Government::REPUBLIC);
-        game.players[1].civilization_id = Some("rome".into());
+        // Scores favoring a wartime government (unit support etc.) are followed...
         assert_eq!(game.government_goals(1, &scores).1, Government::MONARCHY);
+        // ...but war alone does not force one.
+        let republic_ahead = scores_for(&[
+            (Government::MONARCHY, 5000.0),
+            (Government::REPUBLIC, 9000.0),
+        ]);
+        assert_eq!(
+            game.government_goals(1, &republic_ahead).1,
+            Government::REPUBLIC
+        );
+        game.players[1].civilization_id = Some("rome".into());
+        assert_eq!(
+            game.government_goals(1, &republic_ahead).1,
+            Government::MONARCHY
+        );
     }
 
     #[test]
     fn near_tied_family_members_do_not_flip_flop() {
         let mut game = situational_game();
         game.players[1].government = Government::REPUBLIC;
-        let near = scores(&[
+        let near = scores_for(&[
             (Government::REPUBLIC, 5000.0),
             (Government::DEMOCRACY, 5400.0),
         ]);
         assert_eq!(game.government_goals(1, &near).1, Government::REPUBLIC);
-        let clear = scores(&[
+        let clear = scores_for(&[
             (Government::REPUBLIC, 5000.0),
             (Government::DEMOCRACY, 6000.0),
         ]);

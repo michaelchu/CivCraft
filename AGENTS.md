@@ -227,10 +227,11 @@ and decide the choice when no family member is scored or available; a different
 member of the family replaces the current government only when it beats the
 current score by the retention margin (prevents Democracy/Feudalism style
 flip-flops). Only civilizations with a verified wartime trait (`militaristic`,
-`wartime_traits` in the same catalog) switch to the wartime family merely
-because they are at war; others, such as India, stay in the peace family unless
-a city is about to trigger the disorder revolution, which forces the low-unrest
-family. A nation with no civilization record counts as willing. The family also
+`wartime_traits` in the same catalog) are pushed into the wartime family
+merely because they are at war; other civilizations weigh unit support and the
+other costs through the advisor scores while at war (any government, with the
+retention margin), and are forced into the low-unrest family only when a city
+is about to trigger the disorder revolution. A nation with no civilization record counts as willing. The family also
 sets the research goal. AI revolutions still skip
 Anarchy (shared with Freeciv). Legality, availability and the `ai.better`
 supersession rule are unchanged. This adds no saved state. Validate with the
