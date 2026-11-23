@@ -244,12 +244,57 @@ impl super::Simulation {
         );
     }
 
+    /// Civ III-style situational preference (owner-authorized exception to
+    /// Freeciv parity): republics and democracies in peacetime, monarchy,
+    /// communism and fascism while at war with a real civilization.
+    fn government_situation_family(&self, owner: usize) -> Vec<Government> {
+        let catalog = crate::rules::native::government_situation();
+        let at_war = (0..self.players.len()).any(|other| {
+            other != owner
+                && self.player_alive(other)
+                && !self.player_has_no_diplomacy(other)
+                && self.contacted_pact(owner, other) == Some(Pact::War)
+        });
+        let names = if at_war { &catalog.war } else { &catalog.peace };
+        names
+            .iter()
+            .filter_map(|name| Government::from_rule_name(name))
+            .collect()
+    }
+
     pub(super) fn government_goals(
         &self,
         owner: usize,
         scores: &[f64],
     ) -> (Government, Government, f64) {
         let current = self.players[owner].government;
+        let family = self.government_situation_family(owner);
+        let margin = 1.0
+            + f64::from(crate::rules::native::government_situation().retention_margin_percent)
+                / 100.0;
+        let score_of =
+            |government: Government| scores.get(government.index()).copied().unwrap_or(0.0);
+        // Scores of skipped governments are zeroed (advdata.c's ai.better); the
+        // current government keeps its own score even outside the family.
+        let pick = |only_available: bool| -> Option<Government> {
+            let best = family
+                .iter()
+                .copied()
+                .filter(|&g| score_of(g) > 0.0)
+                .filter(|&g| !has_available_preferred_government(self, owner, g))
+                .filter(|&g| !only_available || self.government_available(owner, g))
+                .max_by(|&a, &b| score_of(a).total_cmp(&score_of(b)))?;
+            // Stay put inside the preferred family unless the best is clearly better.
+            if family.contains(&current)
+                && best != current
+                && (!only_available || self.government_available(owner, current))
+                && score_of(best) <= score_of(current) * margin
+            {
+                return Some(current);
+            }
+            Some(best)
+        };
+        // Advisor-only choice, used for whatever the preferred family cannot supply.
         let (mut goal, mut available) = (current, current);
         let (mut goal_value, mut available_value) = (0.0, 0.0);
         for &government in Government::targets() {
@@ -258,7 +303,7 @@ impl super::Simulation {
             if has_available_preferred_government(self, owner, government) {
                 continue;
             }
-            let value = scores.get(government.index()).copied().unwrap_or(0.0);
+            let value = score_of(government);
             if value > goal_value {
                 goal = government;
                 goal_value = value;
@@ -268,7 +313,9 @@ impl super::Simulation {
                 available_value = value;
             }
         }
-        (goal, available, goal_value - available_value)
+        let goal = pick(false).unwrap_or(goal);
+        let available = pick(true).unwrap_or(available);
+        (goal, available, score_of(goal) - score_of(available))
     }
 
     pub(in crate::sim) fn choose_ai_government(&mut self, owner: usize) {
@@ -362,6 +409,14 @@ impl super::Simulation {
             .0
     }
 
+    /// Test fixture: a live rival and a contacted war put the owner in the
+    /// wartime government family (Monarchy/Communism/Fascism).
+    #[cfg(test)]
+    pub(crate) fn put_owner_at_war_for_government_test(&mut self, owner: usize, rival: usize) {
+        self.create_city(rival, 20, 8);
+        self.sign_pact(owner, rival, Pact::War);
+    }
+
     #[cfg(test)]
     pub(crate) fn ai_government_cache_test(&mut self) -> bool {
         self.units.clear();
@@ -375,6 +430,8 @@ impl super::Simulation {
             tile.river = true;
         }
         self.create_city(1, 5, 8);
+        self.put_owner_at_war_for_government_test(1, 2);
+        self.cities.sort_by_key(|city| city.owner != 1);
         self.cities[0].size = 4;
         self.reconcile_city_workers();
         self.players[1].government = Government::DESPOTISM;
@@ -468,6 +525,63 @@ mod ruleset_government_tests {
             game.government_goals(1, &refreshed).1,
             Government::DESPOTISM
         );
+    }
+
+    fn situational_game() -> Simulation {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        game.units.clear();
+        game.create_city(1, 10, 20);
+        game.players[1]
+            .known
+            .extend([Tech::MONARCHY, Tech::THE_REPUBLIC, Tech::DEMOCRACY]);
+        game
+    }
+
+    fn scores(entries: &[(Government, f64)]) -> Vec<f64> {
+        let mut scores = vec![0.0; Government::count()];
+        for &(government, value) in entries {
+            scores[government.index()] = value;
+        }
+        scores
+    }
+
+    #[test]
+    fn peace_prefers_republic_family_even_when_monarchy_scores_higher() {
+        let game = situational_game();
+        let scores = scores(&[
+            (Government::MONARCHY, 9000.0),
+            (Government::REPUBLIC, 5000.0),
+            (Government::DEMOCRACY, 4000.0),
+        ]);
+        assert_eq!(game.government_goals(1, &scores).1, Government::REPUBLIC);
+    }
+
+    #[test]
+    fn war_prefers_monarchy_family_even_when_democracy_scores_higher() {
+        let mut game = situational_game();
+        game.put_owner_at_war_for_government_test(1, 2);
+        let scores = scores(&[
+            (Government::MONARCHY, 3000.0),
+            (Government::REPUBLIC, 9000.0),
+            (Government::DEMOCRACY, 8000.0),
+        ]);
+        assert_eq!(game.government_goals(1, &scores).1, Government::MONARCHY);
+    }
+
+    #[test]
+    fn near_tied_family_members_do_not_flip_flop() {
+        let mut game = situational_game();
+        game.players[1].government = Government::REPUBLIC;
+        let near = scores(&[
+            (Government::REPUBLIC, 5000.0),
+            (Government::DEMOCRACY, 5400.0),
+        ]);
+        assert_eq!(game.government_goals(1, &near).1, Government::REPUBLIC);
+        let clear = scores(&[
+            (Government::REPUBLIC, 5000.0),
+            (Government::DEMOCRACY, 6000.0),
+        ]);
+        assert_eq!(game.government_goals(1, &clear).1, Government::DEMOCRACY);
     }
 
     #[test]

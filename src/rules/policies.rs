@@ -83,6 +83,17 @@ pub(crate) struct DiplomacyCatalog {
     pub(crate) negotiations: NegotiationPolicy,
 }
 
+/// Situational AI government families (Civ III-style, owner-authorized).
+pub(crate) struct GovernmentSituationCatalog {
+    /// Governments preferred while the nation is at peace.
+    pub(crate) peace: Vec<String>,
+    /// Governments preferred while the nation is at war with a real civilization.
+    pub(crate) war: Vec<String>,
+    /// A different government inside the preferred family replaces the current
+    /// one only when its advisor score exceeds the current score by this percent.
+    pub(crate) retention_margin_percent: i32,
+}
+
 pub(crate) struct VassalageCatalog {
     pub(crate) required_technology: String,
     pub(crate) voluntary_minimum_turns: i32,
@@ -342,6 +353,15 @@ pub(crate) fn default_diplomacy() -> DiplomacyCatalog {
             peace_force_value: 10,
             maximum_peace_value: 500,
         },
+    }
+}
+
+pub(crate) fn default_government_situation() -> GovernmentSituationCatalog {
+    let list = |names: &[&str]| names.iter().map(|s| (*s).to_owned()).collect::<Vec<_>>();
+    GovernmentSituationCatalog {
+        peace: list(&["Republic", "Democracy"]),
+        war: list(&["Monarchy", "Communism", "Fascism"]),
+        retention_margin_percent: 15,
     }
 }
 

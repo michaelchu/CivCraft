@@ -214,6 +214,24 @@ history/influence checks at seeds 42, 7 and 99. Value marginal capped pressure
 and native mood counterfactuals; do not reward Missionary for pressure that the
 incoming cap discards, or Devout for content already covered by other effects.
 
+### Recorded exception: situational AI governments (Civ III-inspired)
+
+The owner authorized on 2026-11-23 that AI government choice mimic Civ III's
+situational behavior instead of Freeciv score-only parity. Civ III's exact logic
+is undocumented; this is an approximation. While an AI is at peace its preferred
+family is Republic/Democracy; while it is at war with a real (non-barbarian,
+contacted) civilization it is Monarchy/Communism/Fascism. Families and the
+retention margin live in `default_government_situation()` in
+`src/rules/policies.rs`. Advisor scores still rank governments inside the family
+and decide the choice when no family member is scored or available; a different
+member of the family replaces the current government only when it beats the
+current score by the retention margin (prevents Democracy/Feudalism style
+flip-flops). The family also sets the research goal. AI revolutions still skip
+Anarchy (shared with Freeciv). Legality, availability and the `ai.better`
+supersession rule are unchanged. This adds no saved state. Validate with the
+`government` unit tests and a long headless run, comparing `government.changed`
+events.
+
 ### Recorded exception: aircraft (Civ III Conquests)
 
 The owner authorized Civilization III: Conquests aircraft rules for fixed-wing
