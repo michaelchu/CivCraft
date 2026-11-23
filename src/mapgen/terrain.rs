@@ -305,19 +305,18 @@ impl<Eligible: Fn(usize) -> bool> PatchGrowth<'_, Eligible> {
 
 /// Landmass-specific inputs to the terrain and river passes. Carrying them in
 /// one type keeps the OpenSimplex and Freeciv fractal inputs from being mixed.
-#[derive(Clone, Copy)]
 pub(super) enum TerrainSource<'a> {
     /// Legacy OpenSimplex terrain, driven by the Civ III world choices.
     OpenSimplex(super::WorldSettings),
     /// Freeciv terrain, driven by the ruleset temperature map and properties.
     Fractal {
-        zone_temperature: &'a TemperatureMap,
+        zone_temperature: TemperatureMap,
         terrain_properties: &'a [TerrainMapgenProperties],
     },
 }
 
 impl<'a> TerrainSource<'a> {
-    pub(super) fn zone_temperature(self) -> Option<&'a TemperatureMap> {
+    pub(super) fn zone_temperature(&self) -> Option<&TemperatureMap> {
         match self {
             Self::OpenSimplex(_) => None,
             Self::Fractal {
@@ -326,12 +325,12 @@ impl<'a> TerrainSource<'a> {
         }
     }
 
-    pub(super) fn terrain_properties(self) -> Option<&'a [TerrainMapgenProperties]> {
+    pub(super) fn terrain_properties(&self) -> Option<&'a [TerrainMapgenProperties]> {
         match self {
             Self::OpenSimplex(_) => None,
             Self::Fractal {
                 terrain_properties, ..
-            } => Some(terrain_properties),
+            } => Some(*terrain_properties),
         }
     }
 }
@@ -348,7 +347,7 @@ impl super::Generator {
         relief: &[i32],
         biome_field: &[i32],
         land_mask: Option<&[bool]>,
-        source: TerrainSource<'_>,
+        source: &TerrainSource<'_>,
         ocean_coverage: i32,
         rng: &mut MapRng,
     ) -> (Vec<Terrain>, Vec<TerrainBase>, Vec<i32>) {

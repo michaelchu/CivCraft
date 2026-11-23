@@ -21,8 +21,8 @@ use defaults::{
     TerrainMapgenProperties,
 };
 use fractal_settings::{FractalParameters, FractalRuleset};
+use landmass::{FractalLandmass, HeightField, Landmass, OpenSimplexLandmass};
 use std::{collections::hash_map::RandomState, hash::BuildHasher};
-use terrain::TerrainSource;
 
 /// Named world sizes and custom dimensions.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -292,6 +292,7 @@ pub(crate) struct WorldSettings {
 
 mod defaults;
 mod fractal_settings;
+mod landmass;
 mod noise;
 mod placement;
 mod rivers;
@@ -692,154 +693,53 @@ impl Generator {
             game_seed,
             map_seed,
             gameplay_rng,
-            LandmassSource::OpenSimplex(world),
+            &OpenSimplexLandmass(world),
         )
     }
 
+    /// Runs the shared passes; `landmass` supplies the generator-specific steps.
     fn generate_with_landmass(
         &self,
         game_seed: u64,
         map_seed: u32,
         gameplay_rng: GameRng,
-        landmass_source: LandmassSource<'_>,
+        landmass: &impl Landmass,
     ) -> GeneratedMap {
-        let terrain_properties = match landmass_source {
-            LandmassSource::OpenSimplex(_) => None,
-            LandmassSource::Fractal(config) => Some(config.terrain_properties),
-        };
-        let start_scoring_settings = match landmass_source {
-            LandmassSource::OpenSimplex(_) => None,
-            LandmassSource::Fractal(config) => Some(config.start_scoring_settings),
-        };
         let map_seed_u64 = u64::from(map_seed);
-        let (mut relief, mut biome_field) = match landmass_source {
-            LandmassSource::OpenSimplex(_) => {
-                // OpenCiv3 seeds its relief noise independently from the landmass
-                // field. Reuse the local deterministic field builder with its
-                // documented seed offset as an explicit implementation approximation.
-                (
-                    self.height_field(map_seed_u64.wrapping_add(0xfeed), 0.2),
-                    self.height_field(map_seed_u64.wrapping_add(0xdad), 0.4),
-                )
-            }
-            LandmassSource::Fractal(_) => {
-                // The Freeciv terrain pass uses the actual height and
-                // temperature maps instead of CivCraft's separate relief and
-                // biome noise fields.
-                (
-                    vec![0; self.wrap.tile_count()],
-                    vec![0; self.wrap.tile_count()],
-                )
-            }
-        };
-        if matches!(landmass_source, LandmassSource::OpenSimplex(_)) {
-            rank_field(&mut relief, 1000);
-            rank_field(&mut biome_field, 1000);
-        }
+        let (relief, biome_field) = landmass.terrain_fields(self, map_seed_u64);
+        let start_temperature = landmass.start_temperature(self);
+        let placement = landmass.placement();
         let mut attempt = 0_usize;
         let mut gameplay_rng = gameplay_rng;
         let mut current_map_seed = map_seed;
-        let fractal_map_settings = match landmass_source {
-            LandmassSource::OpenSimplex(_) => None,
-            LandmassSource::Fractal(config) => Some(config.settings),
-        };
-        let start_temperature = match landmass_source {
-            LandmassSource::OpenSimplex(_) => None,
-            LandmassSource::Fractal(config) => {
-                Some(self.generate_temperature_map(false, None, None, config.settings))
-            }
-        };
         loop {
-            let fractal_mapgen = fractal_map_settings.is_some();
-            if fractal_mapgen && attempt > 0 {
-                // Each native retry calls map_fractal_generate() again, which
-                // draws a new seed from the restored gameplay stream.
-                current_map_seed = draw_map_seed(&mut gameplay_rng);
-            }
-            let water_seed = if fractal_mapgen {
-                u64::from(current_map_seed)
-            } else {
-                map_seed_u64.wrapping_add(0x1234_u64.wrapping_mul(attempt as u64))
-            };
+            let water_seed = landmass.attempt_seed(
+                attempt,
+                map_seed_u64,
+                &mut current_map_seed,
+                &mut gameplay_rng,
+            );
             // Freeciv seeds one map-generation stream, then continues it
             // through height, relief, terrain, rivers, water depth, and extras.
             let mut rng = MapRng::new(water_seed);
-            let (water_heights, heights, fractal_land_mask, ocean_coverage) = match landmass_source
-            {
-                LandmassSource::OpenSimplex(world) => {
-                    let mut field = self.height_field(water_seed, world.landform.noise_scale());
-                    // Suppress land gradually toward the bounded polar edges before
-                    // applying the water percentile. This keeps the requested ocean
-                    // coverage while avoiding a hard, straight post-generation shelf.
-                    self.taper_polar_landmass(&mut field, water_seed);
-                    let mut heights = field.clone();
-                    rank_field(&mut heights, 1000);
-                    (field, heights, None, world.ocean_coverage.percent())
-                }
-                LandmassSource::Fractal(FractalConfig {
-                    settings: map_settings,
-                    divisions,
-                    ..
-                }) => {
-                    let mut field = self.fractal_height_field(
-                        &mut rng,
-                        divisions,
-                        map_settings.landmass_percent,
-                        true,
-                    );
-                    self.taper_polar_landmass(&mut field, water_seed);
-                    rank_field(&mut field, 1000);
-                    let land_mask = fractal_land_mask(&field, map_settings);
-                    (
-                        field.clone(),
-                        field,
-                        Some(land_mask),
-                        map_settings.ocean_coverage_percent(),
-                    )
-                }
-            };
-            let zone_temperature;
-            let terrain_source = match landmass_source {
-                LandmassSource::OpenSimplex(world) => TerrainSource::OpenSimplex(world),
-                LandmassSource::Fractal(config) => {
-                    zone_temperature = self.generate_temperature_map(
-                        true,
-                        Some(&heights),
-                        fractal_land_mask.as_deref(),
-                        config.settings,
-                    );
-                    TerrainSource::Fractal {
-                        zone_temperature: &zone_temperature,
-                        terrain_properties: config.terrain_properties,
-                    }
-                }
-            };
+            let field = landmass.height_field(self, water_seed, &mut rng);
+            let terrain_source = landmass.terrain_source(self, &field);
+            let HeightField {
+                heights,
+                ocean_coverage,
+                ..
+            } = &field;
             let (mut terrain, mut base_terrain, temperature) = self.terrain_pass(
-                &heights,
-                &water_heights,
+                heights,
+                &field.water_heights,
                 &relief,
                 &biome_field,
-                fractal_land_mask.as_deref(),
-                terrain_source,
-                ocean_coverage,
+                field.land_mask.as_deref(),
+                &terrain_source,
+                *ocean_coverage,
                 &mut rng,
             );
-            if let LandmassSource::Fractal(FractalConfig {
-                settings: map_settings,
-                water_depths,
-                ..
-            }) = landmass_source
-            {
-                self.assign_water_depths(
-                    &mut terrain,
-                    &water_heights,
-                    fractal_land_mask
-                        .as_deref()
-                        .expect("Freeciv fractal generation has a land mask"),
-                    map_settings.shore_level(),
-                    water_depths,
-                );
-            }
+            landmass.assign_water(self, &mut terrain, &field);
             let mut tiles: Vec<_> = terrain
                 .iter()
                 .copied()
@@ -854,24 +754,8 @@ impl Generator {
                     resource: None,
                 })
                 .collect();
-            let river_heights: Vec<_> = (0..self.wrap.tile_count())
-                .map(|tile| heights[tile])
-                .collect();
-            self.place_rivers(
-                &mut tiles,
-                &river_heights,
-                &temperature,
-                terrain_source,
-                &mut rng,
-            );
-            match landmass_source {
-                LandmassSource::OpenSimplex(_) => {
-                    self.finish_water(&mut terrain, &mut rng);
-                }
-                LandmassSource::Fractal(config) => {
-                    self.finish_water_depths(&mut terrain, config.water_depths, &mut rng);
-                }
-            }
+            self.place_rivers(&mut tiles, heights, &temperature, &terrain_source, &mut rng);
+            landmass.finish_water(self, &mut terrain, &mut rng);
             for (index, (tile, &terrain)) in tiles.iter_mut().zip(&terrain).enumerate() {
                 tile.terrain = terrain;
                 if terrain.is_water() {
@@ -897,14 +781,14 @@ impl Generator {
             self.place_resources(
                 &mut tiles,
                 &mut rng,
-                fractal_map_settings,
-                terrain_properties,
+                placement.map_settings,
+                placement.terrain_properties,
             );
             self.place_huts(
                 &mut tiles,
                 &mut rng,
-                fractal_map_settings,
-                terrain_properties,
+                placement.map_settings,
+                placement.terrain_properties,
             );
             // Freeciv restores the game-seeded stream after map generation.
             // CivCraft currently omits Freeciv nation/leader selection draws,
@@ -915,14 +799,12 @@ impl Generator {
                 &tiles,
                 &temperature,
                 start_temperature.as_ref(),
-                terrain_properties,
-                start_scoring_settings,
+                placement.terrain_properties,
+                placement.start_scoring_settings,
                 self.civilization_count,
                 &mut start_rng,
             ) {
-                if fractal_map_settings.is_some() {
-                    self.advance_map_label_randomness(&tiles, &mut start_rng);
-                }
+                landmass.after_starts(self, &tiles, &mut start_rng);
                 return GeneratedMap {
                     seed: game_seed,
                     map_seed: current_map_seed,
@@ -933,19 +815,7 @@ impl Generator {
                     civilization_count: self.civilization_count,
                 };
             }
-            if fractal_mapgen {
-                // Start-position search uses the gameplay stream after native
-                // map generation restores it. A failed attempt therefore
-                // leaves those draws in place before the next map-seed draw.
-                gameplay_rng = start_rng;
-                if attempt + 1 >= MAPGEN_MAX_ATTEMPTS {
-                    panic!(
-                        "Freeciv-compatible map generation failed to allocate start positions in {MAPGEN_MAX_ATTEMPTS} attempts"
-                    );
-                }
-            }
-            // The legacy OpenSimplex adapter retains its arithmetic retry
-            // stream; Freeciv attempts above use fresh native map seeds.
+            landmass.on_failed_attempt(attempt, &mut gameplay_rng, start_rng);
             attempt += 1;
         }
     }
@@ -1088,15 +958,6 @@ impl Generator {
             values[tile] = jittered;
         }
     }
-}
-
-/// Per-generator configuration for the shared generation pipeline.
-#[derive(Clone, Copy)]
-enum LandmassSource<'a> {
-    /// Legacy OpenSimplex landmass; reads the Civ III world choices natively.
-    OpenSimplex(WorldSettings),
-    /// Landmass and terrain from Freeciv's fractal generator.
-    Fractal(FractalConfig<'a>),
 }
 
 /// Freeciv-native inputs of one fractal generation.
@@ -1333,7 +1194,7 @@ impl MapGenerator for FractalMapGenerator {
             seed,
             map_seed,
             gameplay_rng,
-            LandmassSource::Fractal(FractalConfig {
+            &FractalLandmass(FractalConfig {
                 settings: map_generation_settings,
                 water_depths,
                 divisions,

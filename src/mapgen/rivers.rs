@@ -77,7 +77,7 @@ impl super::Generator {
         tiles: &mut [GeneratedTile],
         heights: &[i32],
         temperature: &[i32],
-        source: super::terrain::TerrainSource<'_>,
+        source: &super::terrain::TerrainSource<'_>,
         rng: &mut MapRng,
     ) {
         let zone_temperature = source.zone_temperature();
