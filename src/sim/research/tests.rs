@@ -405,3 +405,85 @@ fn shared_research_paths_follow_gains_and_losses_of_knowledge() {
     game.players[HUMAN].known.clear();
     assert_eq!(game.shared_research_path(HUMAN, Tech::FEUDALISM), original);
 }
+
+/// Researching a tech first in the world can earn a Scientific Great Leader;
+/// being second, or buying the tech, never does.
+#[test]
+fn only_the_first_researcher_can_earn_a_scientific_leader() {
+    let leaders = |game: &Simulation| {
+        game.units
+            .iter()
+            .filter(|unit| unit.owner == HUMAN && unit.kind == UnitKind::Leader && unit.scientific)
+            .count()
+    };
+    let research = |seed: u32, rival_knows: bool, forgotten: bool| {
+        let mut sim = Simulation::new(crate::test_support::seeded_map());
+        sim.units.clear();
+        sim.cities.clear();
+        sim.create_city(HUMAN, 20, 24);
+        sim.set_random_seed(seed);
+        // Nobody starts knowing the technology, so the researcher is first.
+        for player in &mut sim.players {
+            player.known.clear();
+        }
+        sim.global_advances.retain(|&tech| tech != Tech::POTTERY);
+        if rival_knows {
+            sim.players[1].known.push(Tech::POTTERY);
+        }
+        if forgotten {
+            // Discovered earlier and since lost to technology upkeep: nobody
+            // knows it now, but it is not a world first.
+            sim.global_advances.push(Tech::POTTERY);
+        }
+        sim.players[HUMAN].research_goal = Tech::POTTERY;
+        sim.players[HUMAN].researching = Tech::POTTERY;
+        sim.players[HUMAN].research = 0;
+        let cost = sim.target_cost(HUMAN, Tech::POTTERY);
+        sim.resolve_research_turn(HUMAN, cost);
+        assert!(sim.has_tech(HUMAN, Tech::POTTERY));
+        leaders(&sim)
+    };
+    assert!(
+        (0..600).any(|seed| research(seed, false, false) == 1),
+        "a first discovery eventually earns a Scientific Leader"
+    );
+    assert!(
+        (0..600).all(|seed| research(seed, true, false) == 0),
+        "a tech another civilization already knew never earns one"
+    );
+    assert!(
+        (0..600).all(|seed| research(seed, false, true) == 0),
+        "a tech that was discovered before and later forgotten is not a world first"
+    );
+}
+
+/// Only an actual advance can be a world first: the sentinels never are, even
+/// though no nation "knows" them.
+#[test]
+fn only_real_advances_can_be_world_first_discoveries() {
+    let mut sim = Simulation::new(crate::test_support::seeded_map());
+    for player in &mut sim.players {
+        player.known.clear();
+    }
+    sim.global_advances.clear();
+    assert!(sim.is_world_first_discovery(Tech::POTTERY));
+    assert!(
+        !sim.is_world_first_discovery(Tech::UNSET),
+        "an unset research project is not a discovery"
+    );
+    assert!(
+        !sim.is_world_first_discovery(Tech::FUTURE),
+        "a future technology is never a world first"
+    );
+    sim.global_advances.push(Tech::POTTERY);
+    assert!(
+        !sim.is_world_first_discovery(Tech::POTTERY),
+        "already discovered"
+    );
+    sim.global_advances.clear();
+    sim.players[1].known.push(Tech::POTTERY);
+    assert!(
+        !sim.is_world_first_discovery(Tech::POTTERY),
+        "someone knows it"
+    );
+}

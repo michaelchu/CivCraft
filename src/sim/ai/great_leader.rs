@@ -12,7 +12,7 @@ impl Simulation {
         let candidates: Vec<&City> = self
             .cities
             .iter()
-            .filter(|city| city.owner == unit.owner && self.leader_can_complete_in(city))
+            .filter(|city| city.owner == unit.owner && self.leader_can_complete_in(unit, city))
             .collect();
         if let Some(wonder_city) = self.ai_wonder_city(unit.owner)
             && let Some(city) = candidates.iter().find(|city| city.id == wonder_city)
@@ -145,6 +145,16 @@ mod tests {
         game.unit_by_id(id).unwrap().clone()
     }
 
+    fn scientific_leader_at(game: &mut Simulation, x: i32, y: i32) -> Unit {
+        let id = game.spawn_unit(1, UnitKind::Leader, x, y);
+        game.units
+            .iter_mut()
+            .find(|u| u.id == id)
+            .unwrap()
+            .scientific = true;
+        game.unit_by_id(id).unwrap().clone()
+    }
+
     #[test]
     fn great_leader_target_prefers_a_wonder_in_the_wonder_city() {
         let mut game = game();
@@ -172,9 +182,22 @@ mod tests {
         // Almost finished, so only the wonder-city rule can pick it over the
         // Marketplaces that still need most of their shields.
         wonder.shields = Production::Building(Building::PYRAMIDS).cost() - 10;
-        let leader = leader_at(&mut game, 10, 24);
+        let leader = scientific_leader_at(&mut game, 10, 24);
         assert!([a, b, c].contains(&wonder_city));
         assert_eq!(game.great_leader_target(&leader), Some(wonder_city));
+
+        // A military Leader cannot rush a Great Wonder, so it never targets one.
+        let military = leader_at(&mut game, 10, 24);
+        let target = game
+            .great_leader_target(&military)
+            .expect("the Marketplaces remain legal targets");
+        let production = game
+            .cities
+            .iter()
+            .find(|city| city.id == target)
+            .unwrap()
+            .production;
+        assert_eq!(production, Production::Building(Building::MARKETPLACE));
     }
 
     #[test]

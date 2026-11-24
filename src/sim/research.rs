@@ -755,6 +755,19 @@ impl Simulation {
         choice
     }
 
+    /// Whether researching `tech` now would be a world first: it is an actual
+    /// advance that no nation knows and that was never discovered before
+    /// (`global_advances` is the history, so a technology that upkeep made its
+    /// last owner forget is not a world first). Judged before the discovery.
+    pub(in crate::sim) fn is_world_first_discovery(&self, tech: Tech) -> bool {
+        tech.is_researchable_advance()
+            && !self.global_advances.contains(&tech)
+            && self
+                .players
+                .iter()
+                .all(|player| !player.known.contains(&tech))
+    }
+
     pub(in crate::sim) fn resolve_research_turn(&mut self, owner: usize, science: i32) {
         self.apply_research_upkeep(owner, science);
         loop {
@@ -771,12 +784,18 @@ impl Simulation {
                     .players
                     .iter()
                     .all(|player| !player.known.contains(&current));
+            // Judged before the discovery: only the first nation in the world
+            // to research a technology can earn a Scientific Great Leader.
+            let first_in_world = self.is_world_first_discovery(current);
             self.discover_with_source(
                 owner,
                 current,
                 research_observation::TechnologySource::Research,
                 None,
             );
+            if first_in_world {
+                self.roll_scientific_leader(owner, current);
+            }
             if first_bonus {
                 let bonus = self.choose_research_target(owner);
                 if bonus != Tech::FUTURE {

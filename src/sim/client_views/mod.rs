@@ -717,6 +717,11 @@ mod tests {
         game.create_city(HUMAN, 20, 24);
         let city = game.cities[0].id;
         let leader = game.spawn_unit(HUMAN, UnitKind::Leader, 20, 24);
+        game.units
+            .iter_mut()
+            .find(|unit| unit.id == leader)
+            .unwrap()
+            .scientific = true;
         game.refresh_visibility();
         let offered = |game: &Simulation| {
             game.unit_action_view(leader)
@@ -729,6 +734,27 @@ mod tests {
         game.cities[0].production = Production::Building(Building::PYRAMIDS);
         game.cities[0].shields = 0;
         assert!(offered(&game), "a wonder in the Leader's own city");
+
+        game.units
+            .iter_mut()
+            .find(|unit| unit.id == leader)
+            .unwrap()
+            .scientific = false;
+        assert!(
+            !offered(&game),
+            "a military Leader is not offered a Great Wonder"
+        );
+        game.cities[0].production = Production::Building(Building::TEMPLE);
+        assert!(
+            offered(&game),
+            "a military Leader is offered an improvement"
+        );
+        game.units
+            .iter_mut()
+            .find(|unit| unit.id == leader)
+            .unwrap()
+            .scientific = true;
+        game.cities[0].production = Production::Building(Building::PYRAMIDS);
 
         game.cities[0].production = Production::Building(Building::COINAGE);
         assert!(!offered(&game), "Coinage is never offered");

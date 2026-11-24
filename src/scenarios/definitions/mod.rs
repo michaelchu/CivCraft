@@ -14,6 +14,7 @@ mod culture_border_growth;
 mod culture_borders;
 mod culture_empire_victory;
 mod culture_history;
+mod culture_wide_tall;
 mod culture_wonders;
 mod diplomacy_parity;
 mod diplomatic_needs;
@@ -154,4 +155,5 @@ pub(super) const SCENARIOS: &[Scenario] = &[
     culture_border_cases::CITY_LOSS,
     culture_wonders::SCENARIO,
     culture_empire_victory::SCENARIO,
+    culture_wide_tall::SCENARIO,
 ];

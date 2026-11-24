@@ -630,6 +630,12 @@ impl Simulation {
                 };
                 relation.until = 0;
                 relation.offer = None;
+                if relation.pact == Pact::War {
+                    // An expired ceasefire resumes the same war with its
+                    // original start turn and declarer; only a war that
+                    // somehow lost its record starts counting now.
+                    relation.war_since.get_or_insert(self.turn);
+                }
                 transitions.push((a, b, previous, relation.pact));
             }
         }

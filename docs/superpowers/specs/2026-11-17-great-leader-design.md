@@ -2,6 +2,15 @@
 
 Status: draft for approval. Date: 2026-11-17.
 
+> **Amendment, 2026-11-24 (owner decision).** The non-goal "Scientific or
+> artistic leaders from technology discovery" and the decision "Leaders complete
+> all wonders and improvements" are superseded. Following forum accounts of
+> Conquests (not official documentation; sources conflict), a military Leader
+> completes improvements and Small Wonders but not Great Wonders, and a new
+> **Scientific Great Leader** (born in the capital, 3% or 5% for a scientific
+> civilization, when a technology is researched first in the world) completes
+> anything but cannot form an Army. See `AGENTS.md` for the recorded exception.
+
 ## Intent and why
 
 CivCraft's catalog already has a Civ III `Leader` unit, but nothing creates

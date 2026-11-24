@@ -53,6 +53,14 @@ pub(crate) struct NativeGreatLeaderRules {
     pub(crate) attack_heroic_epic_denominator: i32,
     pub(crate) defense_denominator: i32,
     pub(crate) defense_heroic_epic_denominator: i32,
+    /// A kill only counts toward a Leader when the loser's strength is at least
+    /// this percentage of the winner's, so weak units cannot be farmed.
+    pub(crate) min_victory_strength_percent: i32,
+    /// Chance per first-in-the-world technology of a Scientific Great Leader,
+    /// and the higher chance for a civilization with the scientific trait.
+    /// Community-documented (forum posts), not from official documentation.
+    pub(crate) scientific_leader_percent: i32,
+    pub(crate) scientific_leader_trait_percent: i32,
 }
 
 pub(crate) struct NativeVillageRules {
@@ -149,6 +157,9 @@ pub(crate) fn settlements() -> &'static SettlementCatalog {
                 attack_heroic_epic_denominator: 12,
                 defense_denominator: 32,
                 defense_heroic_epic_denominator: 24,
+                min_victory_strength_percent: 50,
+                scientific_leader_percent: 3,
+                scientific_leader_trait_percent: 5,
             },
             villages: NativeVillageRules {
                 barbarian_onset_turn: 60,

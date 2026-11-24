@@ -157,6 +157,10 @@ pub(crate) struct CivilizationSnapshot {
     pub units: usize,
     pub gold: i32,
     pub score: i32,
+    /// Cumulative civilization culture, the quantity cultural victory reads.
+    pub culture: i64,
+    /// Culture the civilization's cities add each turn.
+    pub culture_per_turn: i64,
     pub strategy: Option<super::ai_strategy::StrategicPriorities>,
 }
 #[derive(Clone, Serialize)]
@@ -307,6 +311,11 @@ impl Simulation {
                     units: self.units_owned_by(owner).count(),
                     gold: player.gold,
                     score: self.civilization_score(owner),
+                    culture: self.civilization_culture(owner),
+                    culture_per_turn: self
+                        .cities_owned_by(owner)
+                        .map(|city| self.city_culture_per_turn(city))
+                        .sum(),
                     strategy: (player.ai && self.player_alive(owner))
                         .then(|| self.strategic_priorities(owner)),
                 }

@@ -1,7 +1,7 @@
 //! Current campaign persistence, input validation, and runtime restoration.
 //!
 //! Saves encode the durable part of [`Simulation`] with the current binary
-//! format (`CIVCRAFT\0\x33`). Runtime caches are excluded and reconstructed on load.
+//! format (`CIVCRAFT\0\x34`). Runtime caches are excluded and reconstructed on load.
 
 use super::*;
 use bincode::Options;
@@ -15,7 +15,7 @@ use std::{
 mod schema;
 use schema::SavedCampaign;
 
-const HEADER: &[u8] = b"CIVCRAFT\0\x33";
+const HEADER: &[u8] = b"CIVCRAFT\0\x34";
 const MAX_PAYLOAD: u64 =
     16 * 1024 * 1024 + MapWrap::MAX_TILES * (256 + MAX_CIVILIZATIONS as u64 * 128);
 

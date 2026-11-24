@@ -27,8 +27,8 @@ legacy code, or community claims.
 
 Leader creation and use follow Civ III, as an explicit project-owner decision:
 an elite land unit's kill can create a Great Leader, which can then complete a
-city's current improvement or wonder. This is not a Freeciv mechanic, and the
-Leader is not a `GameLoss` unit. The design is in
+city's current improvement or Small Wonder (or form an Army). This is not a
+Freeciv mechanic, and the Leader is not a `GameLoss` unit. The design is in
 [`docs/superpowers/specs/2026-11-17-great-leader-design.md`](docs/superpowers/specs/2026-11-17-great-leader-design.md);
 the odds are community-documented for Civ III patch 1.29f and live in
 `settlements()` in `src/rules/native/settlements.rs`. On 2026-11-20 the owner also
@@ -44,6 +44,24 @@ healing, bombardment, presentation and saves preserve the member health pool.
 Combat playback shows each selected member's own sprite, health and ordinary
 battle clips/sounds. The carrier remains the map anchor; victory plays only
 when the complete battle ends.
+On 2026-11-24 the owner chose the Conquests behavior described in forum posts
+(not official documentation; the sources conflict): military Leaders can no
+longer rush Great Wonders, and a Scientific Great Leader can. A Scientific Leader
+appears in the capital when a nation researches a technology first in the world
+(trade, theft and free advances never count): 3%, or 5% for a civilization with
+the verified `scientific` trait (`scientific_leader_percent` and
+`scientific_leader_trait_percent` in `settlements()`). It is the same `Leader`
+unit with `Unit::scientific` set, rushes any improvement or wonder, cannot form
+an Army, and each owner keeps at most one living Scientific Leader, capped
+separately from the military Leader. The capital birthplace and the separate cap
+are design choices, not documented Civ III facts. Covered by
+`scientific_leaders_finish_great_wonders_and_cannot_form_armies`,
+`only_the_first_researcher_can_earn_a_scientific_leader` and the `great-leader`
+scenario.
+A kill only rolls for a Leader when the loser's strength (its better of attack
+and defense) is at least `min_victory_strength_percent` (50) of the winner's;
+this anti-farming limit is a balance-review addition to the Civ III rule, held
+in `settlements()` and covered by `trivial_victories_cannot_create_leaders`.
 Keep the existing AI preference for rushing buildings. Validate with
 `leader-army`, `army-combat`, `great-leader`, and the source-adjacent Army tests. Keep other
 mechanics on the Freeciv authority above.
@@ -68,12 +86,24 @@ and no `[borders]` ruleset settings. CivCraft topology remains the adapter;
 culture flipping is deferred pending probability tuning and clear player-facing
 warnings. Keep the design and implementation in
 `docs/superpowers/specs/2026-11-19-culture-core-design.md`.
+The `culture-wide-vs-tall` release scenario (run with `--turns 40`, seeds 42, 7
+and 99; a shorter run fails) guards against city-spam snowballing: a 12-city and
+a 4-city nation with identical Temple and Library per city must not diverge
+superlinearly, stay orderly, and take no forced upkeep losses (sold buildings or
+disbanded units). A heavier set with Colosseums and Cathedrals is not affordable
+in the early economy: both nations sell buildings from about turn 12, so building
+upkeep is the practical limit on wide culture play. Headless reports include per-civilization `culture` and
+`culture_per_turn`.
 
 ### Recorded exception: custom espionage
 
 The owner confirmed on 2026-11-18 that the existing custom espionage system is
 intentional and must be preserved. Its player-to-player embassy/Spy assets,
 mission costs, risk tiers and AI use remain in `src/sim/diplomacy/espionage.rs`.
+Propaganda (city incitement) pricing also counts the target city's buildings
+(wonders at double weight, Palace excluded) so a small wonder city is not
+cheap; this was added after a balance review and is covered by
+`propaganda_costs_more_for_a_city_with_buildings_and_wonders`.
 Other diplomatic treaties, map/city clauses and war mechanics still follow
 Freeciv, except for first contact and AI policy below. Do not replace custom espionage with
 Freeciv Diplomat/Spy units as part of diplomacy parity work.
@@ -356,6 +386,9 @@ unhappy citizens after the final mood stage, so luxury and Make_Content effects
 cannot offset it (No_Unhappy can). Police Stations and Universal Suffrage each
 remove half. The Pedia gives no numbers, so the grace periods, per-turn rates
 and the 40-point full-unrest threshold there are provisional.
+A ceasefire pauses weariness but keeps the war's start turn and declarer, so an
+expired ceasefire resumes the same war (peace or armistice ends it); this is
+covered by `ceasefire_pauses_weariness_without_resetting_the_war`.
 Derive new unit properties the same way, once on `UnitRule`, rather than
 re-deriving them per consumer. This narrows the aircraft exception's statement
 that helicopters retain their existing rules; their capture rule follows Civ III.

@@ -488,14 +488,33 @@ mod tests {
             "barbarian_loser"
         );
 
-        // Elite kill vs regular rival civ: eligible roll attempted.
+        // Elite kill of a far weaker rival unit: a real kill, but no roll.
         let pos = (
             game.unit_by_id(elite).unwrap().x,
             game.unit_by_id(elite).unwrap().y,
         );
         let next = game.map_wrap.eight_way_neighbor(pos.0, pos.1, 2).unwrap();
-        let enemy = game.spawn_unit(1, UnitKind::Warrior, next.0, next.1);
-        game.units.iter_mut().find(|u| u.id == elite).unwrap().hp = 10;
+        let weak = game.spawn_unit(1, UnitKind::Warrior, next.0, next.1);
+        game.resolve_combat(elite, weak, next.0, next.1, None);
+        let events = game.trace.drain();
+        let combat = events
+            .iter()
+            .find(|e| e.kind == CombatEvent::KIND)
+            .expect("weak-rival combat emitted");
+        assert_eq!(combat.payload["leader_eligible"], false);
+        assert_eq!(
+            combat.payload["leader_ineligible_reason"],
+            "trivial_victory"
+        );
+
+        // Elite kill vs a comparable rival unit: eligible roll attempted.
+        let pos = (
+            game.unit_by_id(elite).unwrap().x,
+            game.unit_by_id(elite).unwrap().y,
+        );
+        let next = game.map_wrap.eight_way_neighbor(pos.0, pos.1, 2).unwrap();
+        let enemy = game.spawn_unit(1, UnitKind::ModernArmor, next.0, next.1);
+        game.units.iter_mut().find(|u| u.id == enemy).unwrap().hp = 1;
         game.resolve_combat(elite, enemy, next.0, next.1, None);
         let events = game.trace.drain();
         let combat = events

@@ -1015,11 +1015,72 @@ fn leader_test_game() -> (Simulation, u32) {
     (game, id)
 }
 
+fn spawn_leader(game: &mut Simulation, scientific: bool, x: i32, y: i32) -> u32 {
+    let id = game.spawn_unit(HUMAN, UnitKind::Leader, x, y);
+    game.units
+        .iter_mut()
+        .find(|u| u.id == id)
+        .unwrap()
+        .scientific = scientific;
+    id
+}
+
+#[test]
+fn military_leaders_finish_improvements_and_small_wonders_but_not_great_wonders() {
+    let (game, _) = leader_test_game();
+    let small_wonder = Building::all()
+        .find(|b| {
+            b.data().genus == crate::rules::Genus::SmallWonder
+                && game.can_produce(&game.cities[0], Production::Building(*b))
+        })
+        .expect("a producible Small Wonder exists");
+    for building in [Building::TEMPLE, small_wonder] {
+        let (mut game, city) = leader_test_game();
+        let leader = spawn_leader(&mut game, false, 20, 24);
+        game.cities[0].production = Production::Building(building);
+        game.cities[0].shields = 0;
+        assert!(game.complete_production(leader, city), "{building:?}");
+    }
+    let (mut game, city) = leader_test_game();
+    let leader = spawn_leader(&mut game, false, 20, 24);
+    game.cities[0].production = Production::Building(Building::PYRAMIDS);
+    game.cities[0].shields = 0;
+    assert!(
+        !game.complete_production(leader, city),
+        "a military Leader cannot rush a Great Wonder"
+    );
+    assert_eq!(game.cities[0].shields, 0);
+    assert!(game.unit_by_id(leader).is_some());
+}
+
+#[test]
+fn scientific_leaders_finish_great_wonders_and_cannot_form_armies() {
+    let (mut game, city) = leader_test_game();
+    let leader = spawn_leader(&mut game, true, 20, 24);
+    game.cities[0].production = Production::Building(Building::PYRAMIDS);
+    game.cities[0].shields = 0;
+    assert!(game.complete_production(leader, city));
+    assert_eq!(
+        game.cities[0].shields,
+        Production::Building(Building::PYRAMIDS).cost()
+    );
+    assert!(game.unit_by_id(leader).is_none(), "the Leader is expended");
+
+    let (mut game, _) = leader_test_game();
+    for index in 0..4 {
+        game.create_city(HUMAN, 20 + 3 * (index + 1), 24);
+    }
+    let scientific = spawn_leader(&mut game, true, 20, 24);
+    let military = spawn_leader(&mut game, false, 20, 24);
+    assert!(!game.can_form_army(game.unit_by_id(scientific).unwrap()));
+    assert!(game.can_form_army(game.unit_by_id(military).unwrap()));
+}
+
 #[test]
 fn leader_completes_only_legal_buildings() {
-    for building in [Building::PYRAMIDS, Building::TEMPLE] {
+    for (building, scientific) in [(Building::PYRAMIDS, true), (Building::TEMPLE, false)] {
         let (mut game, city) = leader_test_game();
-        let leader = game.spawn_unit(HUMAN, UnitKind::Leader, 20, 24);
+        let leader = spawn_leader(&mut game, scientific, 20, 24);
         game.cities[0].production = Production::Building(building);
         game.cities[0].shields = 0;
         assert!(game.complete_production(leader, city), "{building:?}");

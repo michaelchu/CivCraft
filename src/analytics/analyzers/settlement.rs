@@ -140,6 +140,8 @@ mod tests {
                         units: 1,
                         gold: 0,
                         score: 0,
+                        culture: 0,
+                        culture_per_turn: 0,
                         strategy: None,
                     }],
                 );

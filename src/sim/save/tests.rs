@@ -307,6 +307,9 @@ fn old_save_headers_and_corrupt_current_payloads_are_rejected() {
         b"CIVCRAFT\0\x26".as_slice(),
         b"CIVCRAFT\0\x30".as_slice(),
         b"CIVCRAFT\0\x32".as_slice(),
+        // Before Unit gained the Scientific Leader flag, which shifts the
+        // positional layout of every saved unit.
+        b"CIVCRAFT\0\x33".as_slice(),
     ] {
         fs::write(&path, [header, b"previous payload"].concat()).unwrap();
         let error = match Simulation::load_campaign(&path) {
@@ -386,6 +389,25 @@ fn civilization_identity_and_unit_access_survive_renaming_and_save_reload() {
     assert_eq!(loaded.players[HUMAN].leader_name(), leader);
     assert!(loaded.unit_available(HUMAN, UnitKind::Worker));
     assert!(loaded.unit_available(HUMAN, UnitKind::Legionary));
+}
+
+#[test]
+fn scientific_leader_flag_round_trips_through_save() {
+    let path = temporary_save("scientific-leader");
+    let mut game = Simulation::new(crate::test_support::seeded_map());
+    game.units.clear();
+    let scientific = game.spawn_unit(HUMAN, UnitKind::Leader, 10, 24);
+    let military = game.spawn_unit(HUMAN, UnitKind::Leader, 12, 24);
+    game.units
+        .iter_mut()
+        .find(|unit| unit.id == scientific)
+        .unwrap()
+        .scientific = true;
+    game.save_campaign(&path).unwrap();
+    let loaded = Simulation::load_campaign(&path).unwrap();
+    fs::remove_file(path).unwrap();
+    assert!(loaded.unit_by_id(scientific).unwrap().scientific);
+    assert!(!loaded.unit_by_id(military).unwrap().scientific);
 }
 
 #[test]

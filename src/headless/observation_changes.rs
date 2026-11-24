@@ -21,7 +21,7 @@ fn project(provider: &str, mut row: Value) -> Value {
             "worked_tiles",
             "support_food",
         ],
-        "civilizations" => &["gold", "score"],
+        "civilizations" => &["gold", "score", "culture", "culture_per_turn"],
         "units" => &["x", "y", "moves_left", "work_left", "goto"],
         "research.civilizations" => &["progress", "cost", "science_output", "totals"],
         "governments" => &[

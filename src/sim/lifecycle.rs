@@ -64,6 +64,10 @@ pub(crate) enum UnitOrigin {
     GreatLeader {
         winner_id: u32,
     },
+    /// Created by researching a technology first; see `great_leader`.
+    ScientificLeader {
+        technology: &'static str,
+    },
     Unobserved,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
@@ -313,6 +317,7 @@ impl Ledger {
                     }
                     UnitOrigin::Spawned
                     | UnitOrigin::GreatLeader { .. }
+                    | UnitOrigin::ScientificLeader { .. }
                     | UnitOrigin::ArmyFormed { .. } => self.unit_total(unit).created += 1,
                     UnitOrigin::Transferred { .. } => self.unit_total(unit).transferred_in += 1,
                     UnitOrigin::Unobserved => {

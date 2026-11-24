@@ -13,6 +13,9 @@ pub(crate) struct GreatLeaderSettings {
     pub(crate) attack_heroic_epic_denominator: i32,
     pub(crate) defense_denominator: i32,
     pub(crate) defense_heroic_epic_denominator: i32,
+    pub(crate) min_victory_strength_percent: i32,
+    pub(crate) scientific_leader_percent: i32,
+    pub(crate) scientific_leader_trait_percent: i32,
 }
 
 impl GreatLeaderSettings {
@@ -25,12 +28,18 @@ impl GreatLeaderSettings {
             assert!(native.attack_heroic_epic_denominator > 0);
             assert!(native.defense_denominator > 0);
             assert!(native.defense_heroic_epic_denominator > 0);
+            assert!((0..=100).contains(&native.min_victory_strength_percent));
+            assert!((0..=100).contains(&native.scientific_leader_percent));
+            assert!((0..=100).contains(&native.scientific_leader_trait_percent));
             Self {
                 cities_per_army: native.cities_per_army,
                 attack_denominator: native.attack_denominator,
                 attack_heroic_epic_denominator: native.attack_heroic_epic_denominator,
                 defense_denominator: native.defense_denominator,
                 defense_heroic_epic_denominator: native.defense_heroic_epic_denominator,
+                min_victory_strength_percent: native.min_victory_strength_percent,
+                scientific_leader_percent: native.scientific_leader_percent,
+                scientific_leader_trait_percent: native.scientific_leader_trait_percent,
             }
         })
     }
@@ -47,5 +56,8 @@ mod tests {
         assert_eq!(settings.attack_heroic_epic_denominator, 12);
         assert_eq!(settings.defense_denominator, 32);
         assert_eq!(settings.defense_heroic_epic_denominator, 24);
+        assert_eq!(settings.min_victory_strength_percent, 50);
+        assert_eq!(settings.scientific_leader_percent, 3);
+        assert_eq!(settings.scientific_leader_trait_percent, 5);
     }
 }
