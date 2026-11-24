@@ -86,10 +86,13 @@ and no `[borders]` ruleset settings. CivCraft topology remains the adapter;
 culture flipping is deferred pending probability tuning and clear player-facing
 warnings. Keep the design and implementation in
 `docs/superpowers/specs/2026-11-19-culture-core-design.md`.
-The `culture-wide-vs-tall` release scenario (40 turns, seeds 42, 7 and 99) guards
-against city-spam snowballing: a 12-city and a 4-city nation with identical
-per-city culture buildings must not diverge superlinearly, stay orderly and
-solvent. Headless reports include per-civilization `culture` and
+The `culture-wide-vs-tall` release scenario (run with `--turns 40`, seeds 42, 7
+and 99; a shorter run fails) guards against city-spam snowballing: a 12-city and
+a 4-city nation with identical Temple and Library per city must not diverge
+superlinearly, stay orderly, and take no forced upkeep losses (sold buildings or
+disbanded units). A heavier set with Colosseums and Cathedrals is not affordable
+in the early economy: both nations sell buildings from about turn 12, so building
+upkeep is the practical limit on wide culture play. Headless reports include per-civilization `culture` and
 `culture_per_turn`.
 
 ### Recorded exception: custom espionage

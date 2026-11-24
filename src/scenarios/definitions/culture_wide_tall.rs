@@ -20,12 +20,10 @@ const WIDE: usize = 1;
 const TALL: usize = HUMAN;
 const TURNS: u32 = 40;
 const CITY_SIZE: i32 = 4;
-const CULTURE_SET: [Building; 4] = [
-    Building::TEMPLE,
-    Building::LIBRARY,
-    Building::COLOSSEUM,
-    Building::CATHEDRAL,
-];
+/// A set the early economy can carry. With Colosseums and Cathedrals as well,
+/// both nations sell buildings from about turn 12 because their upkeep outruns
+/// income, which is itself the brake on wide culture play.
+const CULTURE_SET: [Building; 2] = [Building::TEMPLE, Building::LIBRARY];
 /// Wide nation: a 4 by 3 grid at the minimum city distance.
 const WIDE_SITES: [(i32, i32); 12] = [
     (6, 12),
@@ -101,6 +99,9 @@ struct Sample {
 struct Run {
     first: Option<[Sample; 2]>,
     last: Option<[Sample; 2]>,
+    /// Upkeep losses (sold buildings, disbanded units) the wide nation took.
+    wide_upkeep_losses: usize,
+    trace_dropped: bool,
 }
 
 fn sample(game: &Simulation, owner: usize) -> Sample {
@@ -130,7 +131,20 @@ fn describe(label: &str, s: Sample) -> String {
 }
 
 impl ScenarioRun for Run {
+    fn trace_kinds(&self) -> &'static [&'static str] {
+        &["economy.upkeep_shortfall"]
+    }
+
     fn observe_turn(&mut self, game: &Simulation, turn: u32) -> Value {
+        self.wide_upkeep_losses += game
+            .trace
+            .pending_events()
+            .iter()
+            .filter(|event| {
+                event.kind == "economy.upkeep_shortfall" && event.payload["owner"] == WIDE
+            })
+            .count();
+        self.trace_dropped |= game.trace.dropped() > 0;
         let now = [sample(game, WIDE), sample(game, TALL)];
         if turn == 1 {
             self.first = Some(now);
@@ -153,6 +167,13 @@ impl ScenarioRun for Run {
         let disorder_share = |s: Sample| s.disorder * 100 / s.cities.max(1);
         let (wide_start, tall_start) = (wide0.cities as i64, tall0.cities as i64);
         vec![
+            Check {
+                name: "wide_tall_runs_full_length",
+                passed: completed_turns >= TURNS,
+                detail: format!(
+                    "{completed_turns} of the {TURNS} turns the balance comparison needs were completed; run with --turns {TURNS}"
+                ),
+            },
             Check {
                 name: "wide_tall_start_is_symmetric",
                 passed: (wide0.per_turn - 1) * tall_start == (tall0.per_turn - 1) * wide_start,
@@ -180,8 +201,17 @@ impl ScenarioRun for Run {
             },
             Check {
                 name: "wide_empire_pays_for_its_buildings",
-                passed: wide.gold >= 0,
-                detail: format!("The wide treasury ends at {} gold", wide.gold),
+                passed: wide.gold >= 0 && self.wide_upkeep_losses == 0 && !self.trace_dropped,
+                detail: format!(
+                    "The wide treasury ends at {} gold after {} forced upkeep losses{}",
+                    wide.gold,
+                    self.wide_upkeep_losses,
+                    if self.trace_dropped {
+                        " (trace evidence was dropped)"
+                    } else {
+                        ""
+                    }
+                ),
             },
         ]
     }
