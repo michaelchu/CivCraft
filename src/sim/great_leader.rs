@@ -73,11 +73,11 @@ impl Simulation {
         if in_army {
             return Some("in_army");
         }
-        if self
-            .units
-            .iter()
-            .any(|unit| unit.owner == winner.owner && unit.kind == UnitKind::Leader)
-        {
+        // A living Scientific Leader does not count: the two kinds are capped
+        // separately.
+        if self.units.iter().any(|unit| {
+            unit.owner == winner.owner && unit.kind == UnitKind::Leader && !unit.scientific
+        }) {
             return Some("already_has_leader");
         }
         None
@@ -192,6 +192,62 @@ impl Simulation {
                 members_now: None,
                 capacity: None,
             });
+        }
+        Some(leader_id)
+    }
+
+    /// Rolls for a Scientific Great Leader after `owner` researched `tech`
+    /// first in the world. It is born in the capital, at most one lives per
+    /// owner, and a nation with the scientific trait has the better chance.
+    /// Returns the new Leader's id. A capped or cityless owner draws nothing.
+    pub(in crate::sim) fn roll_scientific_leader(
+        &mut self,
+        owner: usize,
+        tech: Tech,
+    ) -> Option<u32> {
+        if owner == BARBARIANS
+            || self
+                .units
+                .iter()
+                .any(|unit| unit.owner == owner && unit.kind == UnitKind::Leader && unit.scientific)
+        {
+            return None;
+        }
+        let city = self
+            .cities
+            .iter()
+            .find(|city| city.owner == owner && city.has_building(Building::PALACE))
+            .or_else(|| self.cities.iter().find(|city| city.owner == owner))?;
+        let (x, y, name) = (city.x, city.y, city.name.clone());
+        let settings = GreatLeaderSettings::campaign();
+        let percent = if self
+            .ai_civilization(owner)
+            .is_some_and(|civ| civ.scientific)
+        {
+            settings.scientific_leader_trait_percent
+        } else {
+            settings.scientific_leader_percent
+        };
+        if self.rand_below(100) >= percent {
+            return None;
+        }
+        let leader_id = self.spawn_unit_with_origin(
+            owner,
+            UnitKind::Leader,
+            x,
+            y,
+            lifecycle::UnitOrigin::ScientificLeader {
+                technology: tech.name(),
+            },
+        );
+        if let Some(unit) = self.units.iter_mut().find(|unit| unit.id == leader_id) {
+            unit.scientific = true;
+        }
+        if owner == HUMAN {
+            self.add_event(format!(
+                "A Scientific Great Leader has emerged in {name} from your discovery of {}.",
+                tech.name()
+            ));
         }
         Some(leader_id)
     }
@@ -343,6 +399,93 @@ mod tests {
             Some("trivial_victory"),
             "the rule scales with the winner's era"
         );
+    }
+
+    fn scientific_civilization() -> String {
+        crate::rules::native::civilizations()
+            .civilizations
+            .iter()
+            .find(|civ| civ.scientific)
+            .expect("the catalog has a scientific civilization")
+            .id
+            .clone()
+    }
+
+    /// Fresh games over many seeds: how many first discoveries yield a Leader.
+    fn scientific_leaders_in(trials: u32, civilization: Option<&str>) -> u32 {
+        let mut created = 0;
+        for seed in 0..trials {
+            let mut game = game();
+            game.set_random_seed(seed);
+            game.players[HUMAN].civilization_id = civilization.map(str::to_owned);
+            game.create_city(HUMAN, 20, 24);
+            if let Some(id) = game.roll_scientific_leader(HUMAN, Tech::POTTERY) {
+                let leader = unit(&game, id);
+                assert!(leader.scientific && leader.kind == UnitKind::Leader);
+                let capital = game
+                    .cities
+                    .iter()
+                    .find(|city| city.owner == HUMAN && city.has_building(Building::PALACE))
+                    .map_or((20, 24), |city| (city.x, city.y));
+                assert_eq!((leader.x, leader.y), capital, "born in the capital");
+                created += 1;
+            }
+        }
+        created
+    }
+
+    #[test]
+    fn a_first_discovery_creates_a_scientific_leader_at_about_three_percent() {
+        let created = scientific_leaders_in(4000, None);
+        assert!(
+            (70..=170).contains(&created),
+            "3% of 4000 is about 120, got {created}"
+        );
+    }
+
+    #[test]
+    fn scientific_civilizations_get_the_higher_five_percent_chance() {
+        let id = scientific_civilization();
+        let created = scientific_leaders_in(4000, Some(&id));
+        assert!(
+            (140..=260).contains(&created),
+            "5% of 4000 is about 200, got {created}"
+        );
+    }
+
+    #[test]
+    fn an_owner_keeps_one_scientific_leader_and_the_limits_are_independent() {
+        let mut game = game();
+        game.create_city(HUMAN, 20, 24);
+        let existing = game.spawn_unit(HUMAN, UnitKind::Leader, 20, 24);
+        game.units
+            .iter_mut()
+            .find(|u| u.id == existing)
+            .unwrap()
+            .scientific = true;
+        let before = game.random_snapshot();
+        assert_eq!(game.roll_scientific_leader(HUMAN, Tech::POTTERY), None);
+        assert_eq!(game.random_snapshot(), before, "no draw when capped");
+
+        // A living Scientific Leader does not block a military Leader...
+        let winner = spawn_elite(&mut game, HUMAN, UnitKind::Knight, 10, 24);
+        let loser = game.spawn_unit(1, UnitKind::Knight, 11, 24);
+        assert_eq!(
+            game.great_leader_ineligibility_reason(&unit(&game, winner), &unit(&game, loser)),
+            None
+        );
+        // ...and a living military Leader does not block a Scientific one.
+        let mut game = self::game();
+        game.create_city(HUMAN, 20, 24);
+        game.spawn_unit(HUMAN, UnitKind::Leader, 20, 24);
+        let before = game.random_snapshot();
+        for seed in 0..4000 {
+            game.set_random_seed(seed);
+            if game.roll_scientific_leader(HUMAN, Tech::POTTERY).is_some() {
+                return;
+            }
+        }
+        panic!("a military Leader must not stop Scientific Leader creation, {before:?}");
     }
 
     #[test]

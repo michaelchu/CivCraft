@@ -14,6 +14,13 @@ impl WorldBuilder<'_> {
         self.game.spawn_unit(owner, kind, position.0, position.1)
     }
 
+    /// A Scientific Great Leader, as born from a first discovery.
+    pub(crate) fn scientific_leader(&mut self, owner: usize, position: (i32, i32)) -> u32 {
+        let id = self.unit(owner, UnitKind::Leader, position);
+        self.unit_mut(id).scientific = true;
+        id
+    }
+
     pub(crate) fn unit_experience_rank(&mut self, id: u32, rank: usize) {
         let unit = self.unit_mut(id);
         assert!(rank < crate::rules::native::experience().levels.len());

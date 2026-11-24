@@ -8,7 +8,7 @@ use crate::{
 };
 pub(super) const SCENARIO: Scenario = Scenario::new(
     "great-leader",
-    1,
+    2,
     ScenarioKind::Actions {
         control: Control::AllAi,
         execute,
@@ -21,18 +21,36 @@ fn execute(game: &mut Simulation, checks: &mut Checks) {
     world.ai_control(1, true);
     world.known_technologies(1, &Tech::all().collect::<Vec<_>>());
     let city = world.founding_city(1, (10, 24));
+    let wonder_city = world.founding_city(1, (20, 24));
     let unbuildable = !game.can_produce(
         game.city_by_id(city).unwrap(),
         Production::Unit(UnitKind::Leader),
     );
+
+    // A military Leader cannot rush a Great Wonder, but finishes an improvement.
     let mut world = WorldBuilder::new(game);
     world.production_stock(city, Production::Building(Building::PYRAMIDS), 0);
-    let leader = world.unit(1, UnitKind::Leader, (10, 24));
+    let military = world.unit(1, UnitKind::Leader, (10, 24));
+    game.run_ai_great_leader(&game.unit_by_id(military).unwrap().clone());
+    let refused = game.unit_by_id(military).is_some()
+        && game.city_by_id(city).is_some_and(|city| city.shields == 0);
+    WorldBuilder::new(game).production_stock(city, Production::Building(Building::TEMPLE), 0);
+    game.run_ai_great_leader(&game.unit_by_id(military).unwrap().clone());
+    game.process_player_cities(1);
+    let improvement = game.unit_by_id(military).is_none()
+        && game
+            .city_by_id(city)
+            .is_some_and(|city| city.has_building(Building::TEMPLE));
+
+    // A Scientific Leader completes the Great Wonder in one turn.
+    let mut world = WorldBuilder::new(game);
+    world.production_stock(wonder_city, Production::Building(Building::PYRAMIDS), 0);
+    let leader = world.scientific_leader(1, (20, 24));
     game.run_ai_great_leader(&game.unit_by_id(leader).unwrap().clone());
     let consumed = game.unit_by_id(leader).is_none();
     game.process_player_cities(1);
     let completes = game
-        .city_by_id(city)
+        .city_by_id(wonder_city)
         .is_some_and(|city| city.has_building(Building::PYRAMIDS));
     checks.extend([
         (
@@ -41,9 +59,19 @@ fn execute(game: &mut Simulation, checks: &mut Checks) {
             "No city can build a Leader even with every technology".into(),
         ),
         (
+            "military_leader_cannot_rush_great_wonder",
+            refused,
+            "A military Leader is refused a Great Wonder and is not consumed".into(),
+        ),
+        (
+            "military_leader_completes_improvement",
+            improvement,
+            "A military Leader still completes an ordinary improvement".into(),
+        ),
+        (
             "leader_completes_wonder",
             completes,
-            "An AI Leader completes its wonder city's wonder in one turn".into(),
+            "An AI Scientific Leader completes its wonder city's wonder in one turn".into(),
         ),
         (
             "leader_consumed",

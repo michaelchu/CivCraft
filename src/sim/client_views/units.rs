@@ -139,7 +139,11 @@ impl Simulation {
             .map(|city| (city.id, city.name.clone()))
             .collect();
         Some(UnitActionView {
-            unit_name: unit.kind.name(),
+            unit_name: if unit.scientific {
+                "Scientific Leader"
+            } else {
+                unit.kind.name()
+            },
             owner: unit.owner,
             x: unit.x,
             y: unit.y,

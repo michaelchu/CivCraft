@@ -405,3 +405,44 @@ fn shared_research_paths_follow_gains_and_losses_of_knowledge() {
     game.players[HUMAN].known.clear();
     assert_eq!(game.shared_research_path(HUMAN, Tech::FEUDALISM), original);
 }
+
+/// Researching a tech first in the world can earn a Scientific Great Leader;
+/// being second, or buying the tech, never does.
+#[test]
+fn only_the_first_researcher_can_earn_a_scientific_leader() {
+    let leaders = |game: &Simulation| {
+        game.units
+            .iter()
+            .filter(|unit| unit.owner == HUMAN && unit.kind == UnitKind::Leader && unit.scientific)
+            .count()
+    };
+    let research = |seed: u32, rival_knows: bool| {
+        let mut sim = Simulation::new(crate::test_support::seeded_map());
+        sim.units.clear();
+        sim.cities.clear();
+        sim.create_city(HUMAN, 20, 24);
+        sim.set_random_seed(seed);
+        // Nobody starts knowing the technology, so the researcher is first.
+        for player in &mut sim.players {
+            player.known.clear();
+        }
+        if rival_knows {
+            sim.players[1].known.push(Tech::POTTERY);
+        }
+        sim.players[HUMAN].research_goal = Tech::POTTERY;
+        sim.players[HUMAN].researching = Tech::POTTERY;
+        sim.players[HUMAN].research = 0;
+        let cost = sim.target_cost(HUMAN, Tech::POTTERY);
+        sim.resolve_research_turn(HUMAN, cost);
+        assert!(sim.has_tech(HUMAN, Tech::POTTERY));
+        leaders(&sim)
+    };
+    assert!(
+        (0..600).any(|seed| research(seed, false) == 1),
+        "a first discovery eventually earns a Scientific Leader"
+    );
+    assert!(
+        (0..600).all(|seed| research(seed, true) == 0),
+        "a tech another civilization already knew never earns one"
+    );
+}

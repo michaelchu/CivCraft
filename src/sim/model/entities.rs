@@ -87,6 +87,11 @@ pub(crate) struct Unit {
     /// Set once this unit has produced a Great Leader; each unit does so at
     /// most once.
     pub(crate) created_leader: bool,
+    /// A Scientific Great Leader, born of a first discovery. It can rush any
+    /// improvement or wonder but cannot form an Army; an ordinary (military)
+    /// Leader cannot rush Great Wonders.
+    #[serde(default)]
+    pub(crate) scientific: bool,
     pub(crate) fuel: u8,
     /// OpenCiv3 FLC direction row: SW, S, SE, E, NE, N, NW, W.
     pub(crate) facing: u8,
@@ -135,6 +140,7 @@ impl Unit {
             veteran,
             veteran_level: 0,
             created_leader: false,
+            scientific: false,
             fuel: kind.fuel_capacity(),
             facing: 2,
             x,

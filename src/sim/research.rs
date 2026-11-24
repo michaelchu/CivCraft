@@ -771,12 +771,22 @@ impl Simulation {
                     .players
                     .iter()
                     .all(|player| !player.known.contains(&current));
+            // Judged before the discovery: only the first nation in the world
+            // to research a technology can earn a Scientific Great Leader.
+            let first_in_world = current != Tech::FUTURE
+                && self
+                    .players
+                    .iter()
+                    .all(|player| !player.known.contains(&current));
             self.discover_with_source(
                 owner,
                 current,
                 research_observation::TechnologySource::Research,
                 None,
             );
+            if first_in_world {
+                self.roll_scientific_leader(owner, current);
+            }
             if first_bonus {
                 let bonus = self.choose_research_target(owner);
                 if bonus != Tech::FUTURE {
