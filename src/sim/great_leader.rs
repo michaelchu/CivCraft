@@ -19,6 +19,18 @@ impl Simulation {
             .any(|unit| unit.owner == owner && self.unit_is_elite(unit))
     }
 
+    /// Strength of a unit in a fight: its better of attack and defense, using
+    /// the member that fights when the unit is an Army.
+    fn combat_strength(&self, unit: &Unit) -> i32 {
+        let unit = if unit.kind == UnitKind::Army {
+            self.army_combat_member(unit, true)
+                .unwrap_or_else(|| unit.clone())
+        } else {
+            unit.clone()
+        };
+        unit.kind.attack_strength().max(unit.kind.stats().defense)
+    }
+
     /// Reason a victorious unit is ineligible to create a Great Leader, or
     /// `None` when eligible. Cheap checks come first and nothing draws from RNG.
     pub(in crate::sim) fn great_leader_ineligibility_reason(
@@ -40,6 +52,12 @@ impl Simulation {
         }
         if winner.kind.is_naval() || winner.kind.is_aircraft() || winner.kind.is_missile() {
             return Some("non_land_winner");
+        }
+        // Only a fight against a comparable opponent earns a Leader. Beating
+        // far weaker units, over and over, is farming rather than a great deed.
+        let minimum = GreatLeaderSettings::campaign().min_victory_strength_percent;
+        if self.combat_strength(loser) * 100 < self.combat_strength(winner) * minimum {
+            return Some("trivial_victory");
         }
         if !self.unit_is_elite(winner) {
             return Some("not_elite");
@@ -236,7 +254,7 @@ mod tests {
     #[test]
     fn eligibility_requires_an_elite_land_winner() {
         let mut game = game();
-        let loser_id = game.spawn_unit(1, UnitKind::Warrior, 11, 24);
+        let loser_id = game.spawn_unit(1, UnitKind::Pikeman, 11, 24);
         let loser = unit(&game, loser_id);
         let winner = spawn_elite(&mut game, HUMAN, UnitKind::Knight, 10, 24);
         assert!(game.great_leader_eligible(&unit(&game, winner), &loser));
@@ -300,9 +318,37 @@ mod tests {
     }
 
     #[test]
+    fn trivial_victories_cannot_create_leaders() {
+        let mut game = game();
+        let winner = spawn_elite(&mut game, HUMAN, UnitKind::Knight, 10, 24);
+        let winner = unit(&game, winner);
+        let weak = game.spawn_unit(1, UnitKind::Warrior, 11, 24);
+        assert_eq!(
+            game.great_leader_ineligibility_reason(&winner, &unit(&game, weak)),
+            Some("trivial_victory"),
+            "an elite Knight beating a Warrior is not a deed worth a Leader"
+        );
+        for kind in [UnitKind::Pikeman, UnitKind::Knight] {
+            let peer = game.spawn_unit(1, kind, 12, 24);
+            assert_eq!(
+                game.great_leader_ineligibility_reason(&winner, &unit(&game, peer)),
+                None,
+                "{kind:?} is a comparable opponent"
+            );
+        }
+        let modern = spawn_elite(&mut game, HUMAN, UnitKind::Tank, 14, 24);
+        let musketeer = game.spawn_unit(1, UnitKind::Musketeer, 15, 24);
+        assert_eq!(
+            game.great_leader_ineligibility_reason(&unit(&game, modern), &unit(&game, musketeer)),
+            Some("trivial_victory"),
+            "the rule scales with the winner's era"
+        );
+    }
+
+    #[test]
     fn ineligible_combat_draws_no_rng() {
         let mut game = game();
-        let loser = game.spawn_unit(1, UnitKind::Warrior, 11, 24);
+        let loser = game.spawn_unit(1, UnitKind::Pikeman, 11, 24);
         let loser = unit(&game, loser);
         let green = game.spawn_unit(HUMAN, UnitKind::Knight, 10, 24);
         let before = game.random_snapshot();
@@ -318,7 +364,7 @@ mod tests {
     #[test]
     fn roll_eventually_creates_one_leader_on_the_winners_tile() {
         let mut game = game();
-        let loser = game.spawn_unit(1, UnitKind::Warrior, 11, 24);
+        let loser = game.spawn_unit(1, UnitKind::Pikeman, 11, 24);
         let loser = unit(&game, loser);
         let winner = spawn_elite(&mut game, HUMAN, UnitKind::Knight, 10, 24);
         let mut created = None;
@@ -368,7 +414,7 @@ mod tests {
         let mut game = game();
         game.trace = trace::Collector::enabled(std::collections::BTreeSet::from(["*".into()]), 64);
         game.start_lifecycle_observation();
-        let loser = game.spawn_unit(1, UnitKind::Warrior, 11, 24);
+        let loser = game.spawn_unit(1, UnitKind::Pikeman, 11, 24);
         let loser = unit(&game, loser);
         let winner = spawn_elite(&mut game, HUMAN, UnitKind::Knight, 10, 24);
         while game.roll_great_leader(winner, &loser, true).is_none() {}
@@ -409,7 +455,7 @@ mod tests {
     #[test]
     fn a_winner_at_sea_creates_no_leader() {
         let mut game = game();
-        let loser = game.spawn_unit(1, UnitKind::Warrior, 11, 24);
+        let loser = game.spawn_unit(1, UnitKind::Marine, 11, 24);
         let loser = unit(&game, loser);
         game.tile_mut(10, 24).terrain = Terrain::Ocean;
         let marine = spawn_elite(&mut game, HUMAN, UnitKind::Marine, 10, 24);
@@ -424,7 +470,7 @@ mod tests {
     #[test]
     fn creating_a_leader_tells_the_human_player() {
         let mut game = game();
-        let loser = game.spawn_unit(1, UnitKind::Warrior, 11, 24);
+        let loser = game.spawn_unit(1, UnitKind::Pikeman, 11, 24);
         let loser = unit(&game, loser);
         let winner = spawn_elite(&mut game, HUMAN, UnitKind::Knight, 10, 24);
         while game.roll_great_leader(winner, &loser, true).is_none() {}
@@ -454,7 +500,7 @@ mod tests {
                 .find(|u| u.id == attacker)
                 .unwrap()
                 .veteran_level = top - 1;
-            game.spawn_unit(1, UnitKind::Warrior, nx, ny);
+            game.spawn_unit(1, UnitKind::Pikeman, nx, ny);
             let direction = game.direction_for_unit_offset(attacker, 1, 0).unwrap();
             game.apply(Command::MoveByDirection(attacker, direction));
             let promoted = game
@@ -479,13 +525,13 @@ mod tests {
             game.sign_pact(HUMAN, 1, Pact::War);
             let attacker = if attacker_is_elite {
                 let id = spawn_elite(&mut game, HUMAN, UnitKind::Knight, 10, 24);
-                game.spawn_unit(1, UnitKind::Warrior, nx, ny);
+                game.spawn_unit(1, UnitKind::Pikeman, nx, ny);
                 id
             } else {
                 // Commands only drive the human player's units, so the human
                 // attacks and the other civilization's elite defender wins.
                 spawn_elite(&mut game, 1, UnitKind::Pikeman, nx, ny);
-                game.spawn_unit(HUMAN, UnitKind::Warrior, 10, 24)
+                game.spawn_unit(HUMAN, UnitKind::Horseman, 10, 24)
             };
             let direction = game.direction_for_unit_offset(attacker, 1, 0).unwrap();
             game.apply(Command::MoveByDirection(attacker, direction));

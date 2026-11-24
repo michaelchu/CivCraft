@@ -44,6 +44,10 @@ healing, bombardment, presentation and saves preserve the member health pool.
 Combat playback shows each selected member's own sprite, health and ordinary
 battle clips/sounds. The carrier remains the map anchor; victory plays only
 when the complete battle ends.
+A kill only rolls for a Leader when the loser's strength (its better of attack
+and defense) is at least `min_victory_strength_percent` (50) of the winner's;
+this anti-farming limit is a balance-review addition to the Civ III rule, held
+in `settlements()` and covered by `trivial_victories_cannot_create_leaders`.
 Keep the existing AI preference for rushing buildings. Validate with
 `leader-army`, `army-combat`, `great-leader`, and the source-adjacent Army tests. Keep other
 mechanics on the Freeciv authority above.

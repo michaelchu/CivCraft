@@ -53,6 +53,9 @@ pub(crate) struct NativeGreatLeaderRules {
     pub(crate) attack_heroic_epic_denominator: i32,
     pub(crate) defense_denominator: i32,
     pub(crate) defense_heroic_epic_denominator: i32,
+    /// A kill only counts toward a Leader when the loser's strength is at least
+    /// this percentage of the winner's, so weak units cannot be farmed.
+    pub(crate) min_victory_strength_percent: i32,
 }
 
 pub(crate) struct NativeVillageRules {
@@ -149,6 +152,7 @@ pub(crate) fn settlements() -> &'static SettlementCatalog {
                 attack_heroic_epic_denominator: 12,
                 defense_denominator: 32,
                 defense_heroic_epic_denominator: 24,
+                min_victory_strength_percent: 50,
             },
             villages: NativeVillageRules {
                 barbarian_onset_turn: 60,
