@@ -773,7 +773,10 @@ impl Simulation {
                     .all(|player| !player.known.contains(&current));
             // Judged before the discovery: only the first nation in the world
             // to research a technology can earn a Scientific Great Leader.
+            // `global_advances` is the discovery history, so a technology that
+            // technology upkeep made its last owner forget is not a world first.
             let first_in_world = current != Tech::FUTURE
+                && !self.global_advances.contains(&current)
                 && self
                     .players
                     .iter()

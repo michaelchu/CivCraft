@@ -19,16 +19,21 @@ impl Simulation {
             .any(|unit| unit.owner == owner && self.unit_is_elite(unit))
     }
 
-    /// Strength of a unit in a fight: its better of attack and defense, using
-    /// the member that fights when the unit is an Army.
+    /// Strength of a unit in a fight: its better of attack and defense. An
+    /// Army counts its strongest loaded member whatever its remaining HP, since
+    /// eligibility is judged after combat has already damaged the members.
     fn combat_strength(&self, unit: &Unit) -> i32 {
-        let unit = if unit.kind == UnitKind::Army {
-            self.army_combat_member(unit, true)
-                .unwrap_or_else(|| unit.clone())
+        let strength = |kind: UnitKind| kind.attack_strength().max(kind.stats().defense);
+        if unit.kind == UnitKind::Army {
+            self.units
+                .iter()
+                .filter(|member| member.transport == Some(unit.id))
+                .map(|member| strength(member.kind))
+                .max()
+                .unwrap_or_else(|| strength(unit.kind))
         } else {
-            unit.clone()
-        };
-        unit.kind.attack_strength().max(unit.kind.stats().defense)
+            strength(unit.kind)
+        }
     }
 
     /// Reason a victorious unit is ineligible to create a Great Leader, or
@@ -486,6 +491,37 @@ mod tests {
             }
         }
         panic!("a military Leader must not stop Scientific Leader creation, {before:?}");
+    }
+
+    #[test]
+    fn a_defeated_army_is_judged_by_its_strongest_member_not_its_remaining_hp() {
+        let mut game = game();
+        let winner = spawn_elite(&mut game, HUMAN, UnitKind::Knight, 10, 24);
+        let army = game.spawn_unit(1, UnitKind::Army, 11, 24);
+        for _ in 0..2 {
+            let member = game.spawn_unit(1, UnitKind::Knight, 11, 24);
+            let member = game.units.iter_mut().find(|u| u.id == member).unwrap();
+            member.transport = Some(army);
+            // Combat has already beaten every member down by the time the
+            // eligibility check runs.
+            member.hp = 0;
+        }
+        game.rebuild_army(army);
+        assert_eq!(
+            game.great_leader_ineligibility_reason(&unit(&game, winner), &unit(&game, army)),
+            None,
+            "an Army of Knights is a comparable opponent however damaged"
+        );
+        let weak = game.spawn_unit(1, UnitKind::Army, 12, 24);
+        let warrior = game.spawn_unit(1, UnitKind::Warrior, 12, 24);
+        let warrior = game.units.iter_mut().find(|u| u.id == warrior).unwrap();
+        warrior.transport = Some(weak);
+        warrior.hp = 0;
+        assert_eq!(
+            game.great_leader_ineligibility_reason(&unit(&game, winner), &unit(&game, weak)),
+            Some("trivial_victory"),
+            "an Army of Warriors is still a trivial victory"
+        );
     }
 
     #[test]

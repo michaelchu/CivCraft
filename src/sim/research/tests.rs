@@ -416,7 +416,7 @@ fn only_the_first_researcher_can_earn_a_scientific_leader() {
             .filter(|unit| unit.owner == HUMAN && unit.kind == UnitKind::Leader && unit.scientific)
             .count()
     };
-    let research = |seed: u32, rival_knows: bool| {
+    let research = |seed: u32, rival_knows: bool, forgotten: bool| {
         let mut sim = Simulation::new(crate::test_support::seeded_map());
         sim.units.clear();
         sim.cities.clear();
@@ -426,8 +426,14 @@ fn only_the_first_researcher_can_earn_a_scientific_leader() {
         for player in &mut sim.players {
             player.known.clear();
         }
+        sim.global_advances.retain(|&tech| tech != Tech::POTTERY);
         if rival_knows {
             sim.players[1].known.push(Tech::POTTERY);
+        }
+        if forgotten {
+            // Discovered earlier and since lost to technology upkeep: nobody
+            // knows it now, but it is not a world first.
+            sim.global_advances.push(Tech::POTTERY);
         }
         sim.players[HUMAN].research_goal = Tech::POTTERY;
         sim.players[HUMAN].researching = Tech::POTTERY;
@@ -438,11 +444,15 @@ fn only_the_first_researcher_can_earn_a_scientific_leader() {
         leaders(&sim)
     };
     assert!(
-        (0..600).any(|seed| research(seed, false) == 1),
+        (0..600).any(|seed| research(seed, false, false) == 1),
         "a first discovery eventually earns a Scientific Leader"
     );
     assert!(
-        (0..600).all(|seed| research(seed, true) == 0),
+        (0..600).all(|seed| research(seed, true, false) == 0),
         "a tech another civilization already knew never earns one"
+    );
+    assert!(
+        (0..600).all(|seed| research(seed, false, true) == 0),
+        "a tech that was discovered before and later forgotten is not a world first"
     );
 }
