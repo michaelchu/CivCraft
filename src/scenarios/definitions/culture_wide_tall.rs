@@ -99,8 +99,9 @@ struct Sample {
 struct Run {
     first: Option<[Sample; 2]>,
     last: Option<[Sample; 2]>,
-    /// Upkeep losses (sold buildings, disbanded units) the wide nation took.
+    /// Upkeep losses (sold buildings, disbanded units) each nation took.
     wide_upkeep_losses: usize,
+    tall_upkeep_losses: usize,
     trace_dropped: bool,
 }
 
@@ -136,14 +137,17 @@ impl ScenarioRun for Run {
     }
 
     fn observe_turn(&mut self, game: &Simulation, turn: u32) -> Value {
-        self.wide_upkeep_losses += game
-            .trace
-            .pending_events()
-            .iter()
-            .filter(|event| {
-                event.kind == "economy.upkeep_shortfall" && event.payload["owner"] == WIDE
-            })
-            .count();
+        let losses = |owner: usize| {
+            game.trace
+                .pending_events()
+                .iter()
+                .filter(|event| {
+                    event.kind == "economy.upkeep_shortfall" && event.payload["owner"] == owner
+                })
+                .count()
+        };
+        self.wide_upkeep_losses += losses(WIDE);
+        self.tall_upkeep_losses += losses(TALL);
         self.trace_dropped |= game.trace.dropped() > 0;
         let now = [sample(game, WIDE), sample(game, TALL)];
         if turn == 1 {
@@ -197,6 +201,14 @@ impl ScenarioRun for Run {
                 detail: format!(
                     "{}% of the wide nation's cities are in disorder",
                     disorder_share(wide)
+                ),
+            },
+            Check {
+                name: "tall_control_pays_for_its_buildings",
+                passed: self.tall_upkeep_losses == 0 && !self.trace_dropped,
+                detail: format!(
+                    "The compact nation took {} forced upkeep losses; selling culture buildings would flatter the comparison",
+                    self.tall_upkeep_losses
                 ),
             },
             Check {
