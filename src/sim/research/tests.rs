@@ -456,3 +456,34 @@ fn only_the_first_researcher_can_earn_a_scientific_leader() {
         "a tech that was discovered before and later forgotten is not a world first"
     );
 }
+
+/// Only an actual advance can be a world first: the sentinels never are, even
+/// though no nation "knows" them.
+#[test]
+fn only_real_advances_can_be_world_first_discoveries() {
+    let mut sim = Simulation::new(crate::test_support::seeded_map());
+    for player in &mut sim.players {
+        player.known.clear();
+    }
+    sim.global_advances.clear();
+    assert!(sim.is_world_first_discovery(Tech::POTTERY));
+    assert!(
+        !sim.is_world_first_discovery(Tech::UNSET),
+        "an unset research project is not a discovery"
+    );
+    assert!(
+        !sim.is_world_first_discovery(Tech::FUTURE),
+        "a future technology is never a world first"
+    );
+    sim.global_advances.push(Tech::POTTERY);
+    assert!(
+        !sim.is_world_first_discovery(Tech::POTTERY),
+        "already discovered"
+    );
+    sim.global_advances.clear();
+    sim.players[1].known.push(Tech::POTTERY);
+    assert!(
+        !sim.is_world_first_discovery(Tech::POTTERY),
+        "someone knows it"
+    );
+}
