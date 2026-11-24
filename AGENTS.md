@@ -365,6 +365,9 @@ unhappy citizens after the final mood stage, so luxury and Make_Content effects
 cannot offset it (No_Unhappy can). Police Stations and Universal Suffrage each
 remove half. The Pedia gives no numbers, so the grace periods, per-turn rates
 and the 40-point full-unrest threshold there are provisional.
+A ceasefire pauses weariness but keeps the war's start turn and declarer, so an
+expired ceasefire resumes the same war (peace or armistice ends it); this is
+covered by `ceasefire_pauses_weariness_without_resetting_the_war`.
 Derive new unit properties the same way, once on `UnitRule`, rather than
 re-deriving them per consumer. This narrows the aircraft exception's statement
 that helicopters retain their existing rules; their capture rule follows Civ III.

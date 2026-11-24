@@ -631,10 +631,10 @@ impl Simulation {
                 relation.until = 0;
                 relation.offer = None;
                 if relation.pact == Pact::War {
-                    // An expired ceasefire resumes the war with no declarer;
-                    // it needs a start turn or war weariness never applies.
-                    relation.war_since = Some(self.turn);
-                    relation.war_aggressor = None;
+                    // An expired ceasefire resumes the same war with its
+                    // original start turn and declarer; only a war that
+                    // somehow lost its record starts counting now.
+                    relation.war_since.get_or_insert(self.turn);
                 }
                 transitions.push((a, b, previous, relation.pact));
             }

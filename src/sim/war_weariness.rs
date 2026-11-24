@@ -172,10 +172,11 @@ mod tests {
         );
     }
 
-    /// A war that resumes when a ceasefire runs out is still a war: it must
-    /// have a start turn, or weariness silently never applies to it.
+    /// A ceasefire pauses a war; it does not end it. The resumed war keeps its
+    /// original start turn and declarer, so cycling ceasefires cannot reset the
+    /// grace period or turn an aggressor into a forgiven defender.
     #[test]
-    fn war_resuming_after_ceasefire_expiry_still_wears_citizens_down() {
+    fn ceasefire_pauses_weariness_without_resetting_the_war() {
         let mut game = game_with_city(Government::DEMOCRACY);
         game.turn = 1;
         at_war(&mut game, Some(HUMAN), 1);
@@ -189,17 +190,29 @@ mod tests {
         game.turn = until;
         game.advance_diplomacy();
         assert_eq!(game.pact(HUMAN, 1), Pact::War, "the ceasefire expired");
-        let resumed = game.diplomacy[&(HUMAN, 1)].war_since;
+        let relation = &game.diplomacy[&(HUMAN, 1)];
         assert_eq!(
-            resumed,
-            Some(until),
-            "the resumed war records its start turn"
+            (relation.war_since, relation.war_aggressor),
+            (Some(1), Some(HUMAN)),
+            "the resumed war keeps its original start turn and declarer"
         );
-        game.turn = until + 60;
-        assert!(
-            game.war_weariness_points(HUMAN) > 0,
-            "a long resumed war must cause weariness"
+        assert_eq!(
+            game.war_weariness_points(HUMAN),
+            (until - 1 - AGGRESSOR_GRACE_TURNS) * AGGRESSOR_RATE * 2,
+            "weariness resumes where the war left off"
         );
+    }
+
+    /// Peace really does end a war: a later war starts the clock again.
+    #[test]
+    fn peace_after_a_ceasefire_ends_the_war_for_weariness() {
+        let mut game = game_with_city(Government::DEMOCRACY);
+        game.turn = 1;
+        at_war(&mut game, Some(HUMAN), 1);
+        game.sign_pact(HUMAN, 1, Pact::Ceasefire);
+        game.sign_pact(HUMAN, 1, Pact::Peace);
+        let relation = &game.diplomacy[&(HUMAN, 1)];
+        assert_eq!((relation.war_since, relation.war_aggressor), (None, None));
     }
 
     #[test]

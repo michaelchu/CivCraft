@@ -255,7 +255,9 @@ impl Simulation {
         if proposed == Pact::War && relation.pact != Pact::War {
             relation.war_since = Some(self.turn);
             relation.war_aggressor = None;
-        } else if proposed != Pact::War {
+        } else if !matches!(proposed, Pact::War | Pact::Ceasefire) {
+            // A ceasefire only pauses the war: it keeps its start turn and
+            // declarer for war weariness. Armistice, peace or alliance end it.
             relation.war_since = None;
             relation.war_aggressor = None;
         }
