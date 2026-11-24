@@ -879,8 +879,15 @@ fn military_analyzer_publishes_metrics_and_tracks_leader_and_army_scenarios() {
             }
             "great-leader" => {
                 let civ1 = nations.iter().find(|n| n["id"] == 1).unwrap();
+                // Version 2 of the scenario: a military Leader finishes a Temple
+                // and a Scientific Leader finishes the Pyramids; the military
+                // Leader is first sheltered because it cannot rush a Great Wonder.
                 assert_eq!(
-                    civ1["leaders_and_armies"]["leader_actions"]["rushed_building"], 1,
+                    civ1["leaders_and_armies"]["leader_actions"]["rushed_building"], 2,
+                    "{civ1}"
+                );
+                assert_eq!(
+                    civ1["leaders_and_armies"]["leader_actions"]["sheltered"], 1,
                     "{civ1}"
                 );
             }
